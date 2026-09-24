@@ -137,7 +137,10 @@ func TestOneAddressPerPage(t *testing.T) {
 		"/en/docs/caching": "/en/docs/caching/",
 		"/tr":              "/tr/",
 		"/tr/docs/caching": "/tr/docs/caching/",
-		"/en/sitemap.xml":  "/sitemap.xml",
+		"/sitemap.xml":     "/en/sitemap.xml",
+		"/search.json":     "/en/search.json",
+		"/en/robots.txt":   "/robots.txt",
+		"/en/llms.txt":     "/llms.txt",
 	} {
 		rec := get(t, from)
 		if rec.Code != http.StatusMovedPermanently || rec.Header().Get("Location") != to {
@@ -165,7 +168,11 @@ func TestExport(t *testing.T) {
 	if err := staticBuild(app, out, false); err != nil {
 		t.Fatalf("staticBuild: %v", err)
 	}
-	want := []string{"index.html", "en/index.html", "404.html", "robots.txt", "sitemap.xml", "search.json", "tr/index.html", "tr/search.json"}
+	want := []string{
+		"index.html", "404.html", "robots.txt", "llms.txt", "llms-full.txt",
+		"en/index.html", "en/sitemap.xml", "en/search.json",
+		"tr/index.html", "tr/sitemap.xml", "tr/search.json",
+	}
 	eachPage(t, func(_ string, page *site.Page) {
 		want = append(want, filepath.Join(page.URL(), "index.html"))
 	})
@@ -176,22 +183,67 @@ func TestExport(t *testing.T) {
 	}
 }
 
-// The sitemap lists every page in every language at its published address, with
-// its translations as alternates.
+// Each language's sitemap lists its own pages at their published addresses, and
+// every language each page is in as an alternate.
 func TestSitemap(t *testing.T) {
-	rec := get(t, "/sitemap.xml")
-	if rec.Code != http.StatusOK {
-		t.Fatalf("GET /sitemap.xml = %d", rec.Code)
-	}
-	body := rec.Body.String()
-	eachPage(t, func(locale string, page *site.Page) {
-		if loc := "<loc>" + site.Origin + page.URL() + "</loc>"; !strings.Contains(body, loc) {
-			t.Errorf("sitemap has no %s", loc)
+	set := load(t)
+	bodies := map[string]string{}
+	for _, locale := range set.Locales() {
+		rec := get(t, "/"+locale+"/sitemap.xml")
+		if rec.Code != http.StatusOK {
+			t.Fatalf("GET /%s/sitemap.xml = %d", locale, rec.Code)
 		}
-		if link := `hreflang="` + locale + `" href="` + site.Origin + page.URL() + `"`; !strings.Contains(body, link) {
-			t.Errorf("sitemap has no alternate %s", link)
+		bodies[locale] = rec.Body.String()
+	}
+	eachPage(t, func(locale string, page *site.Page) {
+		if loc := "<loc>" + site.Origin + page.URL() + "</loc>"; !strings.Contains(bodies[locale], loc) {
+			t.Errorf("/%s/sitemap.xml has no %s", locale, loc)
+		}
+		for other, body := range bodies {
+			if other != locale && strings.Contains(body, "<loc>"+site.Origin+page.URL()+"</loc>") {
+				t.Errorf("/%s/sitemap.xml lists %s, a page in %s", other, page.URL(), locale)
+			}
+			if link := `hreflang="` + locale + `" href="` + site.Origin + page.URL() + `"`; !strings.Contains(body, link) {
+				t.Errorf("/%s/sitemap.xml has no alternate %s", other, link)
+			}
 		}
 	})
+}
+
+// robots.txt is at the root and names every language's sitemap.
+func TestRobots(t *testing.T) {
+	body := get(t, "/robots.txt").Body.String()
+	for _, locale := range site.Locales() {
+		if want := "Sitemap: " + site.Origin + "/" + locale + "/sitemap.xml\n"; !strings.Contains(body, want) {
+			t.Errorf("robots.txt has no %q:\n%s", want, body)
+		}
+	}
+}
+
+// llms.txt lists every English page, absolute, and llms-full.txt carries all of
+// them with no link left relative.
+func TestLLMs(t *testing.T) {
+	index := get(t, "/llms.txt")
+	full := get(t, "/llms-full.txt")
+	for _, rec := range []*httptest.ResponseRecorder{index, full} {
+		if rec.Code != http.StatusOK || !strings.HasPrefix(rec.Header().Get("Content-Type"), "text/markdown") {
+			t.Fatalf("status %d, Content-Type %q", rec.Code, rec.Header().Get("Content-Type"))
+		}
+	}
+	if !strings.HasPrefix(index.Body.String(), "# collage\n\n> ") {
+		t.Errorf("llms.txt does not open with a title and a summary:\n%s", index.Body.String()[:200])
+	}
+	for _, page := range load(t).Site(site.Original).Pages() {
+		if link := "](" + site.Origin + page.URL() + "): "; !strings.Contains(index.Body.String(), link) {
+			t.Errorf("llms.txt has no %s", link)
+		}
+		if source := "Source: " + site.Origin + page.URL() + "\n"; !strings.Contains(full.Body.String(), source) {
+			t.Errorf("llms-full.txt has no %s", page.Slug)
+		}
+	}
+	if strings.Contains(full.Body.String(), "](/") {
+		t.Error("llms-full.txt has a relative link")
+	}
 }
 
 // The search index has an entry for every page, each linking to a page that
@@ -199,11 +251,7 @@ func TestSitemap(t *testing.T) {
 func TestSearch(t *testing.T) {
 	set := load(t)
 	for _, locale := range set.Locales() {
-		index := "/search.json"
-		if locale != site.Original {
-			index = "/" + locale + index
-		}
-		searchIndex(t, index, set.Site(locale))
+		searchIndex(t, "/"+locale+"/search.json", set.Site(locale))
 	}
 }
 

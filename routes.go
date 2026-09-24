@@ -17,7 +17,10 @@ func register(app *collage.App, docs func() (*site.Set, error)) error {
 			return fmt.Errorf("register page %q: %w", page.Name, err)
 		}
 	}
-	for _, document := range []*collage.Document{documents.Robots(), documents.Sitemap(app, docs), documents.Search(app, docs)} {
+	for _, document := range []*collage.Document{
+		documents.Robots(app), documents.Sitemap(app, docs), documents.Search(app, docs),
+		documents.LLMs(app, docs), documents.LLMsFull(app, docs),
+	} {
 		if err := app.RegisterDocument(document); err != nil {
 			return fmt.Errorf("register document %q: %w", document.Name, err)
 		}

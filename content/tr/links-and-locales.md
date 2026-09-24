@@ -70,10 +70,12 @@ Varsayılan dil de dahil her dilin bir önek altında olmasını isteyen bir sit
 yanındaki sayfa `/en/about` olur ve öneksiz bir URL hiçbir dile ait değildir: önek
 olmadan istenen bir sayfa — `/about` ya da kök — varsayılan locale'in adresine,
 `/en/about`'a ve `/en`'e, kalıcı olarak yönlendirilir; adla kurulan her bağlantı da
-öneki taşır. Document'ler varsayılan locale'deki adreslerini öneksiz korur, çünkü
-`/robots.txt` ve `/sitemap.xml` kökte olmalıdır; `/en/sitemap.xml` oraya yönlendirilir.
-Dışa aktarma, varsayılan locale'in sayfalarını `en/` altına, köke de okuyucuyu
-`/en/`'e gönderen bir sayfa yazar.
+öneki taşır. Document'ler de aynı şekilde önek alır, `/tr/sitemap.xml`'in yanında
+`/en/sitemap.xml`; yalnızca sitenin kendi dosyaları,
+[`AtRoot`](/docs/documents#example-robotstxt) ile kurulanlar, bunun dışındadır:
+`/robots.txt` kökte ve yalnızca oradadır (v0.14.1'den itibaren). Dışa aktarma,
+varsayılan locale'i `en/` altına, köke de okuyucuyu `/en/`'e gönderen bir sayfa
+yazar.
 
 Bir fragment sonucu `rc.Locale` olarak okur ve doğru içeriği çekmek için kullanır:
 

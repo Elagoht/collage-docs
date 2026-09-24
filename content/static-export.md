@@ -75,9 +75,10 @@ If you rewrite `main.go`, keep the `-collage-build`, `-out` and `-clean` flags, 
 | --- | --- |
 | A `Static()` or `Incremental(ttl)` page | `dist/<path>/index.html`; `/` is `dist/index.html` |
 | The same page in a non-default locale | Under the locale's prefix: `dist/tr/<path>/index.html` |
-| A default-locale page, with [`PrefixDefault`](/docs/links-and-locales#the-url-decides-the-locale) | Under its prefix too, `dist/en/<path>/index.html`, and `dist/index.html` sends the reader to `/en/` |
 | A `Static()` or `Incremental(ttl)` document | Its literal path: `/sitemap.xml` is `dist/sitemap.xml` |
 | The same document in a non-default locale | Under the locale's prefix: `dist/tr/sitemap.xml` |
+| A document built with `AtRoot` | Its bare path, in every configuration: `dist/robots.txt` |
+| A default-locale page or document, with [`PrefixDefault`](/docs/links-and-locales#the-url-decides-the-locale) | Under its prefix too, `dist/en/<path>/index.html` and `dist/en/sitemap.xml`, and `dist/index.html` sends the reader to `/en/` |
 | The not-found page | `dist/404.html`, and `dist/<locale>/404.html` for each other locale |
 | Every mounted static file system | Under its prefix: `/static/app.css` is `dist/static/app.css` |
 

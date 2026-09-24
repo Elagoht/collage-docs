@@ -75,9 +75,10 @@ koruyun; yoksa `collage export` işe yarar bir şey yapmaz olur.
 | --- | --- |
 | `Static()` ya da `Incremental(ttl)` bir sayfa | `dist/<path>/index.html`; `/` için `dist/index.html` |
 | Aynı sayfa, varsayılan olmayan bir locale'de | Locale'in önekinin altına: `dist/tr/<path>/index.html` |
-| [`PrefixDefault`](/docs/links-and-locales#the-url-decides-the-locale) ile varsayılan locale'deki bir sayfa | Onun da önekinin altına, `dist/en/<path>/index.html`; `dist/index.html` ise okuyucuyu `/en/`'e gönderir |
 | `Static()` ya da `Incremental(ttl)` bir document | Birebir kendi yoluna: `/sitemap.xml` için `dist/sitemap.xml` |
 | Aynı document, varsayılan olmayan bir locale'de | Locale'in önekinin altına: `dist/tr/sitemap.xml` |
+| `AtRoot` ile kurulan bir document | Her yapılandırmada öneksiz yoluna: `dist/robots.txt` |
+| [`PrefixDefault`](/docs/links-and-locales#the-url-decides-the-locale) ile varsayılan locale'deki bir sayfa ya da document | Onların da önekinin altına, `dist/en/<path>/index.html` ve `dist/en/sitemap.xml`; `dist/index.html` ise okuyucuyu `/en/`'e gönderir |
 | Bulunamadı sayfası | `dist/404.html` ve diğer her locale için `dist/<locale>/404.html` |
 | Mount edilmiş her statik dosya sistemi | Kendi önekinin altına: `/static/app.css` için `dist/static/app.css` |
 

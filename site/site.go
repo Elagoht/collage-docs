@@ -57,7 +57,11 @@ type Page struct {
 	Description string
 	Section     string
 	Body        template.HTML
-	Headings    []Heading
+	// Markdown is the page as written, below its title and front matter, with
+	// every link to another page pointing where the site serves it — the text
+	// llms-full.txt is made of.
+	Markdown string
+	Headings []Heading
 	// References are the identifiers of package collage the page is about, as
 	// "Name" or "Type.Method", linked to their Go reference.
 	References []Reference
@@ -420,6 +424,8 @@ func parsePage(md goldmark.Markdown, name string, source []byte, original *Page,
 		return nil, fmt.Errorf("site: %s.md has no title", slug)
 	}
 
+	page.Markdown = markdownText(body, linkTo)
+
 	var out bytes.Buffer
 	if err := md.Renderer().Render(&out, body, doc); err != nil {
 		return nil, fmt.Errorf("site: %s.md: %w", slug, err)
@@ -463,6 +469,24 @@ func (p *Page) align(doc ast.Node, source []byte, name string, original *Page) e
 			name, len(headings), len(original.outline), original.outline[len(headings)].Text)
 	}
 	return nil
+}
+
+// markdownLink is a Markdown link to another page, with an optional fragment.
+var markdownLink = regexp.MustCompile(`\]\(/docs/([a-z0-9-]+)(#[^)\s]*)?\)`)
+
+// markdownText is body without its title line, and with the links retarget
+// would rewrite in the HTML rewritten the same way in the text.
+func markdownText(body []byte, linkTo func(slug string) string) string {
+	text := string(body)
+	lines := strings.SplitN(strings.TrimLeft(text, "\n"), "\n", 2)
+	if strings.HasPrefix(lines[0], "# ") && len(lines) == 2 {
+		text = lines[1]
+	}
+	text = markdownLink.ReplaceAllStringFunc(text, func(link string) string {
+		match := markdownLink.FindStringSubmatch(link)
+		return "](" + linkTo(match[1]) + match[2] + ")"
+	})
+	return strings.TrimSpace(text) + "\n"
 }
 
 // retarget points every link to /docs/<slug> where linkTo says it goes, which is

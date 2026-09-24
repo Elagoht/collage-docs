@@ -1,6 +1,6 @@
 ---
 description: Routes that answer with bytes instead of HTML — sitemaps, feeds, robots.txt, JSON — cached and invalidated like pages.
-reference: NewDocument, DocumentBuilder, Document, DocumentResult, DocumentPathProvider, PathInstance
+reference: DocumentBuilder.AtRoot, NewDocument, DocumentBuilder, Document, DocumentResult, DocumentPathProvider, PathInstance
 ---
 
 # Documents: sitemaps, feeds, robots.txt
@@ -46,6 +46,7 @@ want a template. The framework serves what you return, byte for byte.
 | Call | What it does |
 | --- | --- |
 | `collage.NewDocument(name, contentType)` | Starts the builder. Both are required. |
+| `AtRoot(pattern)` | The URL pattern that reaches the document outside every locale: no prefix, whatever the locale configuration. For the site's own files — `/robots.txt`, `/llms.txt`. Since v0.14.1. |
 | `WithPath(locale, pattern)` | The URL pattern that reaches the document in `locale`. `{param}` segments work as they do for pages. A placeholder is a whole segment: `/feeds/{category}/rss.xml`, not `/feeds/{category}.xml`, which is refused at registration with `collage.ErrInvalidPattern` (since v0.11.0). |
 | `WithHandler(fn)` | The function that produces the body. Required: a document has no template to fall back on. |
 | `Dynamic()` | Run the handler on every request. **The default.** |
@@ -291,7 +292,7 @@ Point readers at it from the layout, with a `<link rel="alternate">` — see
 ```go
 func RobotsDocument(app *collage.App) *collage.Document {
 	return collage.NewDocument("robots", "text/plain; charset=utf-8").
-		WithPath("en", "/robots.txt").
+		AtRoot("/robots.txt").
 		WithHandler(func(context.Context, *collage.RenderContext) ([]byte, []string, error) {
 			sitemap, err := app.URL("sitemap", "", nil)
 			if err != nil {
@@ -307,6 +308,10 @@ func RobotsDocument(app *collage.App) *collage.Document {
 		Build()
 }
 ```
+
+`robots.txt` is the site's rather than a language's, and crawlers look for it at
+the root and nowhere else, so it is built with `AtRoot`: its one address is
+`/robots.txt`, even on a site whose default locale is served under `/en/`.
 
 `app.URL` works for documents as well as pages, so `robots.txt` finds the sitemap by
 its name. A page and a document that share a name cannot be linked to by that name
@@ -336,6 +341,20 @@ cache key, so the two feeds are cached separately. See
 A static export writes each locale's document at the URL that serves it, as it does
 a page: the `en` feed to `feed.xml` and the `tr` feed to `tr/feed.xml`, so one
 pattern in two locales is two files.
+
+With [`PrefixDefault`](/docs/links-and-locales#the-url-decides-the-locale) the
+default locale's document is prefixed too — `/en/feed.xml`, written to
+`en/feed.xml` — and `/feed.xml` redirects there. A site with one sitemap per
+language lists each in `robots.txt`, which may name any number:
+
+```text
+Sitemap: https://example.com/en/sitemap.xml
+Sitemap: https://example.com/tr/sitemap.xml
+```
+
+A document built with `AtRoot` is in no locale: it is at its bare path in every
+configuration, reachable by name from a page in any language, and rendered with
+`rc.Locale` set to the default.
 
 ## Documents in a static export
 

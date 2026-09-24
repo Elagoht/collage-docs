@@ -28,9 +28,15 @@ Link to another page as `/docs/<slug>`, and to one of its headings as
 link to a page or heading that does not exist, a page the navigation never lists,
 or a navigation entry with no page.
 
-Search needs nothing from you. `/search.json` is built from the same content, one
-entry per section, with code blocks left out; `static/search.js` fetches it the
-first time the search box is used and searches it in the browser.
+Search needs nothing from you. Each language's `search.json` (`/en/search.json`,
+`/tr/search.json`) is built from the same content, one entry per section, with
+code blocks left out; `static/search.js` fetches it the first time the search box
+is used and searches it in the browser. `/llms.txt` and `/llms-full.txt` are built
+from it too, from the English pages.
+
+Translations live in `content/<locale>/`, one file per page of the original, with
+the original's headings level for level; `content/<locale>/nav.json` titles the
+sections. `go run ./tools/checkcontent` loads everything the way the site does.
 
 ## Running
 

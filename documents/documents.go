@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/Elagoht/collage/pkg/collage"
@@ -15,12 +16,23 @@ import (
 	"github.com/Elagoht/collage-docs/site"
 )
 
-// Robots allows everything and points at the sitemap.
-func Robots() *collage.Document {
+// Robots allows everything and names every language's sitemap. It is the site's
+// rather than a language's, and crawlers read it at the root alone, so it is at
+// the root whatever the locale prefixes: AtRoot.
+func Robots(app *collage.App) *collage.Document {
 	return collage.NewDocument("robots", "text/plain; charset=utf-8").
-		WithPath(site.Original, "/robots.txt").
+		AtRoot("/robots.txt").
 		WithHandler(func(context.Context, *collage.RenderContext) ([]byte, []string, error) {
-			return []byte("User-agent: *\nAllow: /\n\nSitemap: " + site.Origin + "/sitemap.xml\n"), nil, nil
+			var body strings.Builder
+			body.WriteString("User-agent: *\nAllow: /\n\n")
+			for _, locale := range site.Locales() {
+				sitemap, err := app.URL("sitemap", locale, nil)
+				if err != nil {
+					return nil, nil, fmt.Errorf("robots: %w", err)
+				}
+				body.WriteString("Sitemap: " + site.Origin + sitemap + "\n")
+			}
+			return []byte(body.String()), nil, nil
 		}).
 		Static().
 		Build()
@@ -46,24 +58,28 @@ type alternate struct {
 	Href     string `xml:"href,attr"`
 }
 
-// Sitemap lists the home page and every page of the documentation, in every
-// language each is in, with the other languages as alternates. Addresses are
-// built from page names with app.URL, so a page whose path changes is listed where
-// it now is.
+// Sitemap lists the pages of one language — /en/sitemap.xml the English ones,
+// /tr/sitemap.xml the Turkish — each with every language it is in as an
+// alternate. Addresses are built from page names with app.URL, so a page whose
+// path changes is listed where it now is.
 func Sitemap(app *collage.App, docs func() (*site.Set, error)) *collage.Document {
-	return collage.NewDocument("sitemap", "application/xml").
-		WithPath(site.Original, "/sitemap.xml").
-		WithHandler(func(context.Context, *collage.RenderContext) ([]byte, []string, error) {
+	builder := collage.NewDocument("sitemap", "application/xml").
+		WithHandler(func(_ context.Context, rc *collage.RenderContext) ([]byte, []string, error) {
 			set, err := docs()
 			if err != nil {
 				return nil, nil, err
 			}
+			loaded := set.Site(rc.Locale)
+			if loaded == nil {
+				return nil, nil, fmt.Errorf("%w: no documentation in %q", collage.ErrNotFound, rc.Locale)
+			}
 			urls := urlset{NS: "http://www.sitemaps.org/schemas/sitemap/0.9", XHTML: "http://www.w3.org/1999/xhtml"}
 
-			// add lists one page: an entry per language it is in, each carrying
-			// all of them.
+			// add lists one page in this sitemap's language, carrying it in every
+			// language it is in.
 			add := func(name string, params map[string]string, in func(locale string) bool) error {
 				var links []alternate
+				var loc string
 				for _, locale := range set.Locales() {
 					if !in(locale) {
 						continue
@@ -76,19 +92,18 @@ func Sitemap(app *collage.App, docs func() (*site.Set, error)) *collage.Document
 					if locale == site.Original {
 						links = append(links, alternate{Rel: "alternate", Hreflang: "x-default", Href: site.Origin + path})
 					}
-				}
-				for _, link := range links {
-					if link.Hreflang != "x-default" {
-						urls.URLs = append(urls.URLs, entry{Loc: link.Href, Alternates: links})
+					if locale == rc.Locale {
+						loc = site.Origin + path
 					}
 				}
+				urls.URLs = append(urls.URLs, entry{Loc: loc, Alternates: links})
 				return nil
 			}
 
 			if err := add("home", nil, func(string) bool { return true }); err != nil {
 				return nil, nil, err
 			}
-			for _, page := range set.Site(site.Original).Pages() {
+			for _, page := range loaded.Pages() {
 				translated := func(locale string) bool {
 					_, err := set.Site(locale).Page(page.Slug)
 					return err == nil
@@ -107,9 +122,101 @@ func Sitemap(app *collage.App, docs func() (*site.Set, error)) *collage.Document
 			}
 			return []byte(strings.TrimSpace(out.String()) + "\n"), nil, nil
 		}).
+		Static()
+	for _, locale := range site.Locales() {
+		builder = builder.WithPath(locale, "/sitemap.xml")
+	}
+	return builder.Build()
+}
+
+// summary is what llms.txt says collage is, before it lists the pages.
+const summary = `> collage is a Go framework for server-rendered websites. A page is a layout
+> around fragments; each fragment fetches its own data concurrently and renders its
+> own html/template, and the page is cached and invalidated by the dependency tags
+> its data carried. One Go binary serves the site, its forms and APIs, or exports it
+> as static files. No client framework, no JavaScript build step, no dependencies
+> beyond the standard library.
+
+- Module: ` + "`github.com/Elagoht/collage`" + `; the package applications import is ` + "`github.com/Elagoht/collage/pkg/collage`" + `.
+- CLI: ` + "`go install github.com/Elagoht/collage/cmd/collage@latest`" + `, then ` + "`collage new mysite`" + ` and ` + "`collage dev`" + `.
+- License: MIT. Source: https://github.com/Elagoht/collage
+`
+
+// LLMs is /llms.txt, the index a language model reads a site by
+// (https://llmstxt.org): what collage is, then every page of the English
+// documentation by section, each with its description, and where to find the
+// rest. At the root, as the convention has it.
+func LLMs(app *collage.App, docs func() (*site.Set, error)) *collage.Document {
+	return collage.NewDocument("llms", "text/markdown; charset=utf-8").
+		AtRoot("/llms.txt").
+		WithHandler(func(context.Context, *collage.RenderContext) ([]byte, []string, error) {
+			set, err := docs()
+			if err != nil {
+				return nil, nil, err
+			}
+			var body strings.Builder
+			body.WriteString("# collage\n\n" + summary)
+			for _, section := range set.Site(site.Original).Sections {
+				body.WriteString("\n## " + section.Title + "\n\n")
+				for _, page := range section.Pages {
+					path, err := app.URL("doc", site.Original, map[string]string{"slug": page.Slug})
+					if err != nil {
+						return nil, nil, fmt.Errorf("llms.txt: %w", err)
+					}
+					fmt.Fprintf(&body, "- [%s](%s): %s\n", page.Title, site.Origin+path, page.Description)
+				}
+			}
+			full, err := app.URL("llms-full", "", nil)
+			if err != nil {
+				return nil, nil, fmt.Errorf("llms.txt: %w", err)
+			}
+			turkish, err := app.URL("home", "tr", nil)
+			if err != nil {
+				return nil, nil, fmt.Errorf("llms.txt: %w", err)
+			}
+			body.WriteString("\n## Optional\n\n")
+			fmt.Fprintf(&body, "- [The whole documentation in one file](%s): every page above, in reading order, as Markdown\n", site.Origin+full)
+			fmt.Fprintf(&body, "- [Go reference](%s): every exported identifier of package collage, generated from its doc comments\n", site.ReferenceBase)
+			fmt.Fprintf(&body, "- [Türkçe belgeler](%s): the same documentation in Turkish\n", site.Origin+turkish)
+			return []byte(body.String()), nil, nil
+		}).
 		Static().
 		Build()
 }
+
+// LLMsFull is /llms-full.txt: the English documentation whole, one page after
+// another in reading order, as the Markdown it is written in, with every link to
+// another page absolute. For a model that would rather read the lot than follow
+// links.
+func LLMsFull(app *collage.App, docs func() (*site.Set, error)) *collage.Document {
+	return collage.NewDocument("llms-full", "text/markdown; charset=utf-8").
+		AtRoot("/llms-full.txt").
+		WithHandler(func(context.Context, *collage.RenderContext) ([]byte, []string, error) {
+			set, err := docs()
+			if err != nil {
+				return nil, nil, err
+			}
+			var body strings.Builder
+			body.WriteString("# collage documentation\n\n" + summary)
+			for _, page := range set.Site(site.Original).Pages() {
+				path, err := app.URL("doc", site.Original, map[string]string{"slug": page.Slug})
+				if err != nil {
+					return nil, nil, fmt.Errorf("llms-full.txt: %w", err)
+				}
+				fmt.Fprintf(&body, "\n---\n\n# %s\n\nSource: %s\n\n", page.Title, site.Origin+path)
+				if page.Description != "" {
+					body.WriteString("> " + page.Description + "\n\n")
+				}
+				body.WriteString(absolute.ReplaceAllString(page.Markdown, "]("+site.Origin+"/"))
+			}
+			return []byte(body.String()), nil, nil
+		}).
+		Static().
+		Build()
+}
+
+// absolute finds a Markdown link to a path on this site.
+var absolute = regexp.MustCompile(`\]\(/`)
 
 // searchEntry is one searchable stretch of a page. The keys are one letter
 // because the file holds every word of the documentation and is fetched whole.

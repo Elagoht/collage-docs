@@ -69,10 +69,11 @@ A site that wants every language under a prefix, the default one included, sets
 `/tr/hakkinda`, and a bare URL is no language at all: a page requested without a
 prefix — `/about`, or the root — redirects permanently to the default locale's
 address, `/en/about` and `/en`, and every link built by name carries the prefix.
-Documents keep their default-locale address without one, because `/robots.txt`
-and `/sitemap.xml` belong at the root; `/en/sitemap.xml` redirects there. An
-export writes the default locale's pages under `en/`, and at its root a page that
-sends the reader to `/en/`.
+Documents are prefixed the same way, `/en/sitemap.xml` beside `/tr/sitemap.xml`,
+except the site's own files, built with
+[`AtRoot`](/docs/documents#example-robotstxt): `/robots.txt` is at the root and
+nowhere else (since v0.14.1). An export writes the default locale under `en/`, and
+at its root a page that sends the reader to `/en/`.
 
 A fragment reads the result as `rc.Locale`, and uses it to fetch the right
 content:

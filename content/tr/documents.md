@@ -45,6 +45,7 @@ Bu yüzden bir document hiçbir şey render etmez. Gövdeyi formatı bilen bir e
 | Çağrı | Ne yapar |
 | --- | --- |
 | `collage.NewDocument(name, contentType)` | Builder'ı başlatır. İkisi de zorunludur. |
+| `AtRoot(pattern)` | Document'e her locale'in dışında ulaşan URL pattern'i: locale yapılandırması ne olursa olsun önek yok. Sitenin kendi dosyaları için — `/robots.txt`, `/llms.txt`. v0.14.1'den itibaren. |
 | `WithPath(locale, pattern)` | `locale`'de document'e ulaşan URL pattern'i. `{param}` segmentleri sayfalardaki gibi çalışır. Bir yer tutucu bütün bir segmenttir: `/feeds/{category}/rss.xml` geçerlidir, `/feeds/{category}.xml` ise kayıt sırasında `collage.ErrInvalidPattern` ile reddedilir (v0.11.0'dan itibaren). |
 | `WithHandler(fn)` | Gövdeyi üreten fonksiyon. Zorunludur: bir document'in geri düşebileceği bir şablonu yoktur. |
 | `Dynamic()` | Handler'ı her istekte çalıştırır. **Varsayılan budur.** |
@@ -294,7 +295,7 @@ Okuyucuları layout'tan bir `<link rel="alternate">` ile ona yönlendirin — bk
 ```go
 func RobotsDocument(app *collage.App) *collage.Document {
 	return collage.NewDocument("robots", "text/plain; charset=utf-8").
-		WithPath("en", "/robots.txt").
+		AtRoot("/robots.txt").
 		WithHandler(func(context.Context, *collage.RenderContext) ([]byte, []string, error) {
 			sitemap, err := app.URL("sitemap", "", nil)
 			if err != nil {
@@ -310,6 +311,10 @@ func RobotsDocument(app *collage.App) *collage.Document {
 		Build()
 }
 ```
+
+`robots.txt` bir dilin değil sitenin dosyasıdır ve crawler'lar onu yalnızca kökte
+arar; bu yüzden `AtRoot` ile kurulur: varsayılan locale'i `/en/` altında sunulan bir
+sitede bile tek adresi `/robots.txt`'dir.
 
 `app.URL` sayfalar kadar document'ler için de çalışır; bu yüzden `robots.txt`
 sitemap'i adıyla bulur. Aynı adı paylaşan bir sayfaya ve bir document'e o adla
@@ -339,6 +344,20 @@ yüzden iki feed ayrı ayrı önbelleğe alınır. Bkz.
 Statik dışa aktarma, her locale'in document'ini tıpkı bir sayfada olduğu gibi onu
 sunan URL'ye yazar: `en` feed'ini `feed.xml`'e, `tr` feed'ini `tr/feed.xml`'e; yani
 iki locale'deki tek bir pattern iki dosyadır.
+
+[`PrefixDefault`](/docs/links-and-locales#the-url-decides-the-locale) ile varsayılan
+locale'in document'i de önek alır — `/en/feed.xml`, `en/feed.xml`'e yazılır — ve
+`/feed.xml` oraya yönlendirilir. Her dil için ayrı sitemap'i olan bir site hepsini
+`robots.txt`'de listeler; `robots.txt` istediği kadar sitemap adlandırabilir:
+
+```text
+Sitemap: https://example.com/en/sitemap.xml
+Sitemap: https://example.com/tr/sitemap.xml
+```
+
+`AtRoot` ile kurulan bir document hiçbir locale'de değildir: her yapılandırmada
+öneksiz yolundadır, her dildeki bir sayfadan adıyla bağlantı verilebilir ve
+`rc.Locale` varsayılan locale'e ayarlanmış olarak render edilir.
 
 ## Statik dışa aktarmada document'ler
 
