@@ -1,0 +1,256 @@
+// Command collage-docs serves this collage application, or — when invoked with
+// -collage-build — renders it to static files instead of serving it.
+//
+// # The collage CLI contract
+//
+// "collage dev" builds this program and runs it with COLLAGE_DEV=1 set and the
+// variables of .env.development (or .env) added, rebuilding and restarting it
+// when its Go code changes; "collage export" runs
+// `go run . -collage-build -out <dir>`. This file honours both by reading that
+// variable and those flags below. Development mode reads templates and static
+// files from disk on every request, so editing those needs no restart at all.
+//
+// "collage build" needs nothing from this file: it compiles the program, which
+// is something go build does without being told anything.
+//
+// If you rewrite this file, keep both halves working, or "collage dev" and
+// "collage export" stop doing anything useful here.
+package main
+
+import (
+	"context"
+	"embed"
+	"flag"
+	"fmt"
+	"io/fs"
+	"log"
+	"os"
+	"strconv"
+	"time"
+
+	"github.com/Elagoht/collage/pkg/collage"
+
+	"github.com/Elagoht/collage-docs/content"
+	"github.com/Elagoht/collage-docs/site"
+)
+
+// Templates and static files are embedded, so this binary runs from anywhere:
+// a container with a different WORKDIR, a systemd unit, a copy on a server.
+//
+// It costs nothing in development. With DevMode on, collage prefers the
+// directory on disk whenever it is there — which it is while you are working
+// in this project — so editing a template is still visible on the next
+// request, embedded copy or not.
+//
+//go:embed all:templates
+var templatesFS embed.FS
+
+//go:embed all:static
+var staticFS embed.FS
+
+// cacheDir is where rendered pages are kept between restarts. A variable so the
+// tests can point it at a directory of their own: a disk cache is shared by
+// everything that uses the same directory, build and key, so a test would
+// otherwise read what the previous test, or the previous run, rendered.
+var cacheDir = ".cache"
+
+func main() {
+	buildFlag := flag.Bool("collage-build", false, "render the app to static files instead of serving it")
+	outFlag := flag.String("out", "dist", "output directory for -collage-build")
+	cleanFlag := flag.Bool("clean", false, "remove -out's existing contents before building")
+	portFlag := flag.Int("port", envInt("PORT", 3000), "port to listen on (env PORT)")
+	flag.Parse()
+
+	devMode := os.Getenv("COLLAGE_DEV") == "1"
+
+	app, err := newApp(devMode, *portFlag)
+	if err != nil {
+		log.Fatalf("collage-docs: %v", err)
+	}
+
+	if *buildFlag {
+		if err := staticBuild(app, *outFlag, *cleanFlag); err != nil {
+			log.Fatalf("collage-docs: static build: %v", err)
+		}
+		return
+	}
+
+	if err := app.ListenAndServe(); err != nil {
+		log.Fatalf("collage-docs: %v", err)
+	}
+}
+
+// newApp builds the application: its configuration, its routes — registered in
+// routes.go — and its static mount.
+//
+// It is separate from main so that the tests can build the same application
+// and drive it through app.Handler(), with no server listening and no port to
+// pick. What they exercise is then the site that actually runs, rather than a
+// second wiring that can drift from it.
+func newApp(devMode bool, port int) (*collage.App, error) {
+	// Plugin configuration, keyed by plugin name. A missing file is not an
+	// error: every plugin then runs on its defaults.
+	pluginConfig, err := collage.LoadPluginConfig("plugins-config.json")
+	if err != nil {
+		return nil, fmt.Errorf("plugin configuration: %w", err)
+	}
+
+	app, err := collage.New(&collage.Config{
+		DevMode: devMode,
+		// The pages are Markdown read from content/ in development; a change there
+		// reloads the page like a template change does.
+		DevWatch: []string{"content"},
+		Server: collage.ServerConfig{
+			Host: envString("HOST", "localhost"),
+			Port: port,
+		},
+		Template: collage.TemplateConfig{
+			FS:        templatesFS,
+			Root:      "templates",
+			Extension: ".html",
+		},
+		Cache: collage.CacheConfig{
+			// In development collage never reads from the cache — a cached
+			// page would hide the template you just edited — and uses memory
+			// instead of disk. In production rendered pages are kept under
+			// .cache, namespaced by a hash of this binary.
+			Enabled:    true,
+			Type:       "disk",
+			Dir:        cacheDir,
+			DefaultTTL: 5 * time.Minute,
+		},
+		PluginConfig: pluginConfig,
+		// Plugins go here, and their settings in plugins-config.json:
+		//
+		//	Plugins: []collage.Plugin{minimizer.New(), jsonld.New()},
+		//
+		// A plugin that contributes to the document head reaches it through
+		// {{hoist "head"}} in the layout.
+		Security: collage.SecurityConfig{
+			// Signs the forgery tokens forms carry. Unset, one is generated
+			// per process: fine in development, wrong to deploy, because every
+			// form submitted before a restart is refused after it. Make one
+			// with `openssl rand -hex 32`.
+			CSRFKey: []byte(os.Getenv("COLLAGE_CSRF_KEY")),
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	docs, err := contentLoader(devMode)
+	if err != nil {
+		return nil, err
+	}
+
+	// Every page, document and action this project has — see routes.go.
+	if err := register(app, docs); err != nil {
+		return nil, err
+	}
+
+	assets, err := staticFiles(devMode)
+	if err != nil {
+		return nil, err
+	}
+	if err := app.Mount("/static/", assets); err != nil {
+		return nil, fmt.Errorf("mount static files: %w", err)
+	}
+
+	return app, nil
+}
+
+// contentLoader returns what every page reads the documentation through.
+//
+// In production the content is embedded and loaded once, here, so a broken page —
+// a link to nothing, a page the navigation never reaches — stops the program from
+// starting rather than reaching a reader. In development it is read from disk on
+// every request, so editing a page shows on the next reload, the way editing a
+// template does.
+func contentLoader(devMode bool) (func() (*site.Site, error), error) {
+	if devMode {
+		if _, err := os.Stat("content"); err == nil {
+			dir := os.DirFS("content")
+			return func() (*site.Site, error) { return site.Load(dir) }, nil
+		}
+	}
+	loaded, err := site.Load(content.FS)
+	if err != nil {
+		return nil, err
+	}
+	return func() (*site.Site, error) { return loaded, nil }, nil
+}
+
+// staticFiles returns the filesystem "/static/" is served from: the embedded
+// copy, except in development, where the directory on disk wins so an edited
+// stylesheet shows up without a rebuild.
+//
+// os.OpenRoot rather than os.DirFS: os.DirFS follows a symlink out of the
+// directory, and an os.Root does not.
+func staticFiles(devMode bool) (fs.FS, error) {
+	if devMode {
+		if root, err := os.OpenRoot("static"); err == nil {
+			return root.FS(), nil
+		}
+	}
+
+	// fs.Sub, because the embedded tree contains the "static" directory
+	// itself: mounting it whole would serve "/static/static/app.css".
+	return fs.Sub(staticFS, "static")
+}
+
+// envString returns the environment variable named key, or fallback.
+func envString(key, fallback string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return fallback
+}
+
+// envInt is envString for a number. An unparseable value falls back rather than
+// failing: a port is not worth refusing to start over.
+func envInt(key string, fallback int) int {
+	value, err := strconv.Atoi(os.Getenv(key))
+	if err != nil {
+		return fallback
+	}
+	return value
+}
+
+// staticBuild renders every statically-buildable page to files under outDir
+// through collage's own builder, and prints what was written, skipped and
+// failed.
+func staticBuild(app *collage.App, outDir string, clean bool) error {
+	loaded, err := site.Load(content.FS)
+	if err != nil {
+		return err
+	}
+	builder, err := collage.NewBuilder(app, collage.BuildOptions{
+		OutDir:       outDir,
+		Clean:        clean,
+		PathProvider: docPaths{loaded},
+	})
+	if err != nil {
+		return err
+	}
+
+	report, buildErr := builder.Build(context.Background())
+
+	collage.PrintBuildReport(os.Stdout, report, buildErr)
+
+	return buildErr
+}
+
+// docPaths tells the static build which /docs/{slug} pages exist: every page of
+// the documentation, and nothing else.
+type docPaths struct{ site *site.Site }
+
+func (d docPaths) Paths(_ context.Context, page *collage.Page, _ string) ([]collage.PathInstance, error) {
+	if page.Name != "doc" {
+		return nil, nil
+	}
+	var paths []collage.PathInstance
+	for _, p := range d.site.Pages() {
+		paths = append(paths, collage.PathInstance{Path: p.URL(), Params: map[string]string{"slug": p.Slug}})
+	}
+	return paths, nil
+}

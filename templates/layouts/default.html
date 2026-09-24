@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  {{hoist "head"}}
+  <link rel="stylesheet" href="{{asset "/static/app.css"}}">
+  <link rel="stylesheet" href="{{asset "/static/chroma.css"}}">
+  <link rel="icon" href="{{asset "/static/favicon.svg"}}" type="image/svg+xml">
+</head>
+
+<body>
+  <header class="site-header">
+    <a class="brand" href="{{pageURL "home"}}">
+      <img src="{{asset "/static/favicon.svg"}}" width="26" height="26" alt="">
+      <span>collage</span>
+    </a>
+    <nav class="site-nav" aria-label="Site">
+      <a href="{{pageURL "doc" "slug" "introduction"}}">Docs</a>
+      <a href="https://pkg.go.dev/github.com/Elagoht/collage/pkg/collage">API</a>
+      <a href="https://github.com/Elagoht/collage">GitHub</a>
+    </nav>
+  </header>
+
+  {{slot "content"}}
+
+  <footer class="site-footer">
+    <p>collage is MIT-licensed. These pages are a collage site, exported to static files.</p>
+  </footer>
+</body>
+
+</html>

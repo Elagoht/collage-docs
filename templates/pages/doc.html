@@ -1,0 +1,45 @@
+<div class="docs">
+  <details class="sidebar" open>
+    <summary>Contents</summary>
+    <nav aria-label="Documentation">
+      {{range .Sections}}
+      <section>
+        <h2>{{.Title}}</h2>
+        <ul>
+          {{range .Pages}}
+          <li><a href="{{pageURL "doc" "slug" .Slug}}"{{if eq .Slug $.Page.Slug}} aria-current="page"{{end}}>{{.Title}}</a></li>
+          {{end}}
+        </ul>
+      </section>
+      {{end}}
+    </nav>
+  </details>
+  <script>
+    // Open on a wide screen, where it is the sidebar; closed on a narrow one,
+    // where it would otherwise stand between the reader and the page.
+    if (matchMedia("(max-width: 52rem)").matches) document.currentScript.previousElementSibling.open = false;
+  </script>
+
+  <article class="doc">
+    <p class="eyebrow">{{.Page.Section}}</p>
+    <h1>{{.Page.Title}}</h1>
+    {{with .Page.Description}}<p class="lede">{{.}}</p>{{end}}
+    <div class="prose">{{.Page.Body}}</div>
+
+    <nav class="pager" aria-label="Pages">
+      {{with .Page.Prev}}<a class="prev" href="{{pageURL "doc" "slug" .Slug}}"><span>Previous</span>{{.Title}}</a>{{end}}
+      {{with .Page.Next}}<a class="next" href="{{pageURL "doc" "slug" .Slug}}"><span>Next</span>{{.Title}}</a>{{end}}
+    </nav>
+  </article>
+
+  {{if .Page.Headings}}
+  <aside class="toc" aria-label="On this page">
+    <p>On this page</p>
+    <ul>
+      {{range .Page.Headings}}
+      <li class="level-{{.Level}}"><a href="#{{.ID}}">{{.Text}}</a></li>
+      {{end}}
+    </ul>
+  </aside>
+  {{end}}
+</div>

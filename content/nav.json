@@ -1,0 +1,8 @@
+[
+  { "title": "Getting started", "pages": ["introduction", "installation", "your-first-page"] },
+  { "title": "Core concepts", "pages": ["pages-and-layouts", "fragments-and-slots", "data-handlers", "templates"] },
+  { "title": "Building a site", "pages": ["caching", "forms-and-actions", "links-and-locales", "head-and-seo", "assets", "documents", "middleware-and-apis", "previews"] },
+  { "title": "Shipping", "pages": ["static-export", "deployment", "testing"] },
+  { "title": "Extending", "pages": ["plugins", "writing-plugins"] },
+  { "title": "Reference", "pages": ["cli", "configuration", "template-functions", "errors"] }
+]
