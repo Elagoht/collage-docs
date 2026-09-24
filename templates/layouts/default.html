@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="{{asset "/static/app.css"}}">
   <link rel="stylesheet" href="{{asset "/static/chroma.css"}}">
   <link rel="icon" href="{{asset "/static/favicon.svg"}}" type="image/svg+xml">
+  <script src="{{asset "/static/search.js"}}" defer></script>
 </head>
 
 <body>
@@ -16,6 +17,13 @@
       <img src="{{asset "/static/favicon.svg"}}" width="26" height="26" alt="">
       <span>collage</span>
     </a>
+    <div class="search" id="search" data-index="{{pageURL "search"}}">
+      <input type="search" placeholder="Search the docs" aria-label="Search the documentation"
+        role="combobox" aria-expanded="false" aria-controls="search-results" aria-autocomplete="list"
+        autocomplete="off" spellcheck="false">
+      <kbd aria-hidden="true">/</kbd>
+      <ul id="search-results" role="listbox" aria-label="Results" hidden></ul>
+    </div>
     <nav class="site-nav" aria-label="Site">
       <a href="{{pageURL "doc" "slug" "introduction"}}">Docs</a>
       <a href="https://pkg.go.dev/github.com/Elagoht/collage/pkg/collage">API</a>

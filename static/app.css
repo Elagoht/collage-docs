@@ -82,6 +82,57 @@ a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset:
   font-size: .9rem;
 }
 
+/* Search */
+
+.search { position: relative; flex: 1; min-width: 0; max-width: 26rem; margin: 0 auto 0 1.5rem; }
+.search input {
+  width: 100%;
+  padding: .5rem 2.2rem .5rem .8rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: .92rem;
+}
+.search input:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: transparent; }
+.search input::-webkit-search-cancel-button { display: none; }
+.search kbd {
+  position: absolute;
+  right: .55rem;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 0 .35rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--muted);
+  font: .75rem/1.5 var(--mono);
+  pointer-events: none;
+}
+.search input:focus + kbd { display: none; }
+.search [role=listbox] {
+  position: absolute;
+  top: calc(100% + .4rem);
+  left: 0;
+  width: min(34rem, calc(100vw - 2rem));
+  max-height: 70vh;
+  overflow-y: auto;
+  margin: 0;
+  padding: .35rem;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .18);
+}
+.search [role=option] a { display: block; padding: .55rem .7rem; border-radius: 7px; color: var(--text); text-decoration: none; }
+.search [role=option][aria-selected=true] a { background: var(--accent-soft); }
+.result-title { display: block; font-weight: 600; font-size: .93rem; }
+.result-section { display: block; color: var(--muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; margin: .1rem 0 .2rem; }
+.result-text { display: block; color: var(--muted); font-size: .86rem; line-height: 1.45; }
+.result-text mark { background: none; color: var(--accent); font-weight: 600; }
+.result-empty { padding: .7rem; color: var(--muted); font-size: .9rem; }
+
 /* Home */
 
 .home { max-width: 70rem; margin: 0 auto; padding: 0 clamp(1rem, 4vw, 2.5rem); }
@@ -281,4 +332,13 @@ a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset:
   .sidebar:not([open]) nav { display: none; }
   .sidebar nav { margin-top: .8rem; }
   .site-nav { gap: 1rem; }
+  .search { margin-left: .8rem; position: static; }
+  .search kbd { display: none; }
+  /* Under the whole header rather than under the box, which is too narrow. */
+  .search [role=listbox] { top: 100%; left: .5rem; right: .5rem; width: auto; }
+}
+
+@media (max-width: 36rem) {
+  .site-nav a[href*="pkg.go.dev"] { display: none; }
+  .brand span { display: none; }
 }

@@ -592,7 +592,7 @@ app, err := collage.New(&collage.Config{
 
 1. **Registration.** `Config.Plugins` inside `New`, or `RegisterPlugin` before the
    application starts. After that, `RegisterPlugin` returns `ErrAppStarted` — also
-   after a start that failed in a plugin's `Init` (since v0.11.0).
+   after any start that failed (since v0.12.0).
 2. **Configure**, inside `New`, for plugins that implement it — in registration
    order, stopping at the first error.
 3. **Init**, when the application starts, in registration order. If one fails,

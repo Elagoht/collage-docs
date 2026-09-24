@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -70,7 +71,7 @@ func TestExport(t *testing.T) {
 		t.Fatalf("staticBuild: %v", err)
 	}
 	loaded, _ := site.Load(content.FS)
-	want := []string{"index.html", "404.html", "robots.txt", "sitemap.xml"}
+	want := []string{"index.html", "404.html", "robots.txt", "sitemap.xml", "search.json"}
 	for _, page := range loaded.Pages() {
 		want = append(want, filepath.Join("docs", page.Slug, "index.html"))
 	}
@@ -91,6 +92,40 @@ func TestSitemap(t *testing.T) {
 	for _, page := range loaded.Pages() {
 		if loc := "<loc>" + site.Origin + page.URL() + "</loc>"; !strings.Contains(rec.Body.String(), loc) {
 			t.Errorf("sitemap has no %s", loc)
+		}
+	}
+}
+
+// The search index has an entry for every page, each linking to a page that
+// exists, and none of them carries the text of a code block.
+func TestSearch(t *testing.T) {
+	rec := get(t, "/search.json")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /search.json = %d", rec.Code)
+	}
+	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+		t.Errorf("Content-Type = %q", ct)
+	}
+	var entries []struct {
+		Title string `json:"t"`
+		URL   string `json:"u"`
+		Text  string `json:"x"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &entries); err != nil {
+		t.Fatalf("search.json does not decode: %v", err)
+	}
+	loaded, _ := site.Load(content.FS)
+	seen := map[string]bool{}
+	for _, entry := range entries {
+		path, _, _ := strings.Cut(entry.URL, "#")
+		seen[path] = true
+		if strings.Contains(entry.Text, `WithSlotFragment("author", author)`) {
+			t.Errorf("%s indexes a code block", entry.URL)
+		}
+	}
+	for _, page := range loaded.Pages() {
+		if !seen[page.URL()] {
+			t.Errorf("search.json has nothing for %s", page.URL())
 		}
 	}
 }

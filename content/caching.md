@@ -69,9 +69,8 @@ error (`collage.ErrMissingTTL`), and a negative one is too
 (`collage.ErrInvalidTTL`) — not a page that silently never expires.
 
 [Documents](/docs/documents) — sitemaps, feeds, anything that is not HTML — take
-the same three calls and are stored, keyed and invalidated the same way. The one
-difference is [below](#concurrent-misses-render-once): concurrent misses on a
-document are not coalesced.
+the same three calls and are stored, keyed, invalidated and — since v0.12.0 —
+[coalesced](#concurrent-misses-render-once) the same way.
 
 ## What is cached, and when
 
@@ -311,9 +310,10 @@ collage does not let that happen. The first request for a key renders, and the
 others that arrive meanwhile wait for it and are served the same bytes. There is
 nothing to configure.
 
-- **Only cached pages coalesce.** A `Dynamic()` page has no cache key, so two
-  requests are two renders, as the page asked. A [document](/docs/documents) is
-  cached but not coalesced: concurrent misses on one each render it.
+- **Only cached routes coalesce.** A `Dynamic()` page has no cache key, so two
+  requests are two renders, as the page asked. A cached [document](/docs/documents)
+  coalesces like a page since v0.12.0: an expiring feed that many clients poll runs
+  its handler once.
 - **One reader giving up does not fail the others.** A request whose connection
   closes stops waiting. If the rendering request itself is cancelled, the ones
   waiting behind it try again instead of receiving its error.

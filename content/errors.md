@@ -115,7 +115,7 @@ Returned by `RegisterPage`, `RegisterNotFoundPage`, `RegisterErrorPage` and
 
 | Error | Message | Means | What to do |
 | --- | --- | --- | --- |
-| `ErrAppStarted` | `collage: application already started` | A registration method was called after the application started — including `RegisterPlugin` after a start that failed in a plugin's `Init` (since v0.11.0). | Register everything before `Handler`, `ListenAndServe`, `Start`, `RenderPath` or `DispatchCommands`. |
+| `ErrAppStarted` | `collage: application already started` | A registration method was called after the application started — including `RegisterPlugin` after any start that failed (since v0.12.0; after one that failed in a plugin's `Init` since v0.11.0). | Register everything before `Handler`, `ListenAndServe`, `Start`, `RenderPath` or `DispatchCommands`. |
 | `ErrNilPage` | `collage: nil page` | A `nil` page was registered. | — |
 | `ErrDuplicatePage` | `collage: duplicate page name` | Two pages share a name. | Names are how links find pages; make them unique. |
 | `ErrTemplateNotFound` | `collage: template not found` | A page's fragment names a template that was not loaded. | Check the path relative to `Template.Root`, extension included. |

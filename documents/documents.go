@@ -5,6 +5,7 @@ package documents
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"strings"
@@ -66,6 +67,55 @@ func Sitemap(app *collage.App, docs func() (*site.Site, error)) *collage.Documen
 				return nil, nil, err
 			}
 			return []byte(strings.TrimSpace(out.String()) + "\n"), nil, nil
+		}).
+		Static().
+		Build()
+}
+
+// searchEntry is one searchable stretch of a page. The keys are one letter
+// because the file holds every word of the documentation and is fetched whole.
+type searchEntry struct {
+	Title   string `json:"t"`
+	Section string `json:"s"`
+	Heading string `json:"h,omitempty"`
+	URL     string `json:"u"`
+	Text    string `json:"x"`
+}
+
+// Search is the index the site's search box reads: every page, split at its
+// headings, so a result links to the heading it matched under. It is a Static
+// document, so an export writes it as a file and no server is involved in
+// searching at all — static/search.js fetches it the first time someone searches.
+func Search(app *collage.App, docs func() (*site.Site, error)) *collage.Document {
+	return collage.NewDocument("search", "application/json").
+		WithPath("en", "/search.json").
+		WithHandler(func(context.Context, *collage.RenderContext) ([]byte, []string, error) {
+			loaded, err := docs()
+			if err != nil {
+				return nil, nil, err
+			}
+			var entries []searchEntry
+			for _, page := range loaded.Pages() {
+				path, err := app.URL("doc", "", map[string]string{"slug": page.Slug})
+				if err != nil {
+					return nil, nil, fmt.Errorf("search: %w", err)
+				}
+				for _, part := range page.Parts {
+					url := path
+					if part.ID != "" {
+						url += "#" + part.ID
+					}
+					text := part.Text
+					if part.Heading == "" && page.Description != "" {
+						text = page.Description + " " + text
+					}
+					entries = append(entries, searchEntry{
+						Title: page.Title, Section: page.Section, Heading: part.Heading, URL: url, Text: text,
+					})
+				}
+			}
+			body, err := json.Marshal(entries)
+			return body, nil, err
 		}).
 		Static().
 		Build()

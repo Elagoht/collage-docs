@@ -61,3 +61,32 @@ func TestLoad_Refusals(t *testing.T) {
 		})
 	}
 }
+
+// A page's text is split at its headings for search, code blocks left out.
+func TestLoad_Parts(t *testing.T) {
+	s, err := Load(files(map[string]string{
+		"one": "# One\n\nIntro with `inline()` code.\n\n## Setup\n\nFirst **step**.\n\n```go\nfunc hidden() {}\n```\n\n- a list item\n\n| a | b |\n|---|---|\n| cell | two |\n",
+	}, `[{"title":"S","pages":["one"]}]`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	one, _ := s.Page("one")
+	if len(one.Parts) != 2 {
+		t.Fatalf("parts = %+v, want the intro and Setup", one.Parts)
+	}
+	if one.Parts[0].Heading != "" || one.Parts[0].Text != "Intro with inline() code." {
+		t.Errorf("intro = %+v", one.Parts[0])
+	}
+	setup := one.Parts[1]
+	if setup.ID != "setup" || setup.Heading != "Setup" {
+		t.Errorf("setup = %+v", setup)
+	}
+	for _, want := range []string{"First step.", "a list item", "cell", "two"} {
+		if !strings.Contains(setup.Text, want) {
+			t.Errorf("setup text %q lacks %q", setup.Text, want)
+		}
+	}
+	if strings.Contains(setup.Text, "hidden") {
+		t.Errorf("setup text %q includes a code block", setup.Text)
+	}
+}

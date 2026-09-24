@@ -52,7 +52,22 @@ type Page struct {
 	Section     string
 	Body        template.HTML
 	Headings    []Heading
-	Prev, Next  *Page
+	// Parts are the page's text, split at its headings, for search.
+	Parts      []Part
+	Prev, Next *Page
+}
+
+// Part is one stretch of a page between headings: what search matches and where a
+// result links to.
+type Part struct {
+	// ID is the heading's anchor, empty for the text before the first heading.
+	ID string
+	// Heading is the heading's text, empty likewise.
+	Heading string
+	// Text is the prose under it — paragraphs, lists, tables, inline code — with
+	// the markup taken away. Code blocks are left out: they are long, and the
+	// names in them are in the prose around them too.
+	Text string
 }
 
 // Heading is one entry of a page's table of contents.
@@ -242,6 +257,7 @@ func parsePage(md goldmark.Markdown, slug string, source []byte) (*Page, error) 
 	for _, title := range titles {
 		title.Parent().RemoveChild(title.Parent(), title)
 	}
+	page.Parts = parts(doc, body)
 	if page.Title == "" {
 		return nil, fmt.Errorf("site: %s.md has no title", slug)
 	}
@@ -254,12 +270,47 @@ func parsePage(md goldmark.Markdown, slug string, source []byte) (*Page, error) 
 	return page, nil
 }
 
+// parts splits a page's top-level blocks at its headings, keeping the text of
+// everything but code and raw HTML.
+func parts(doc ast.Node, source []byte) []Part {
+	current := Part{}
+	var out []Part
+	var text strings.Builder
+	flush := func() {
+		current.Text = strings.Join(strings.Fields(text.String()), " ")
+		if current.Text != "" || current.Heading != "" {
+			out = append(out, current)
+		}
+		text.Reset()
+	}
+	for block := doc.FirstChild(); block != nil; block = block.NextSibling() {
+		switch node := block.(type) {
+		case *ast.Heading:
+			flush()
+			id, _ := node.AttributeString("id")
+			idText, _ := id.([]byte)
+			current = Part{ID: string(idText), Heading: headingText(node, source)}
+		case *ast.FencedCodeBlock, *ast.CodeBlock, *ast.HTMLBlock:
+		default:
+			text.WriteString(headingText(block, source))
+			text.WriteByte(' ')
+		}
+	}
+	flush()
+	return out
+}
+
 // headingText is a heading's text as a reader sees it: its inline content with
 // the markup taken away.
 func headingText(heading ast.Node, source []byte) string {
 	var b strings.Builder
 	_ = ast.Walk(heading, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
+			// Table cells and list items are blocks inside a block; without a
+			// space between them their words run together.
+			if n.Type() == ast.TypeBlock {
+				b.WriteByte(' ')
+			}
 			return ast.WalkContinue, nil
 		}
 		switch node := n.(type) {
@@ -273,7 +324,7 @@ func headingText(heading ast.Node, source []byte) string {
 		}
 		return ast.WalkContinue, nil
 	})
-	return b.String()
+	return strings.TrimSpace(b.String())
 }
 
 // URL is the page's address.

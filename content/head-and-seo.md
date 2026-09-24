@@ -97,7 +97,7 @@ does. The gallery's CSS travels with the gallery, onto whichever page it is on.
 
 Every declaration has a key, and the key decides what counts as the same thing:
 
-- **Different keys all appear**, each where it was first declared in time.
+- **Different keys all appear**, each at its earliest declaration in page order.
 - **The same key declared twice keeps the innermost declaration.**
 
 That one rule does two jobs. A stylesheet is keyed by its path, so five fragments
@@ -133,12 +133,12 @@ Two details, so they are not a surprise:
   declaring one key is a real conflict, and it is settled by their order in the
   page — not by whose data handler finished first, which would make the head change
   from request to request.
-- **Siblings' different keys can come in either order.** Which declaration wins a
-  key is fixed, but a key's position is when it was first declared, and sibling data
-  handlers run concurrently. Where order matters — stylesheets that override one
-  another — declare them from one fragment, or from a parent, whose data handler
-  finishes before its children's start; or declare all of them from templates with
-  `{{stylesheet}}`, since templates execute one after another in page order.
+- **The order is the page's, not the clock's.** Sibling data handlers run
+  concurrently, but a key is placed by where the fragment that first declares it
+  sits in the page, then by the order that fragment declared in — so the head is the
+  same on every render, stylesheets that override one another included. (Before
+  v0.12.0 a key sat where its first declaration happened to arrive, and siblings'
+  keys could swap between requests.)
 
 ## Anything else: rc.Hoist
 
