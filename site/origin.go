@@ -4,9 +4,9 @@ package site
 // repository — and what canonical links and the sitemap are absolute against.
 const Origin = "https://collage.furkanbaytekin.dev"
 
-// Original is the language the documentation is written in, served without a
-// prefix; Translations are the languages it is translated into, each served under
-// its own, "/tr/docs/caching".
+// Original is the language the documentation is written in; Translations are the
+// languages it is translated into. Each is served under its own prefix,
+// "/en/docs/caching/" and "/tr/docs/caching/".
 const Original = "en"
 
 var Translations = []string{"tr"}

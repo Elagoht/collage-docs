@@ -128,7 +128,7 @@ func TestLoadSet(t *testing.T) {
 		t.Errorf("headings = %+v, want the original's ids with the translation's text", got)
 	}
 	body := string(one.Body)
-	for _, want := range []string{`id="setup"`, `href="/docs/two/"`, `href="/tr/docs/one/#setup"`} {
+	for _, want := range []string{`id="setup"`, `href="/en/docs/two/"`, `href="/tr/docs/one/#setup"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("body has no %s:\n%s", want, body)
 		}

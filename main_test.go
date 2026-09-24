@@ -32,9 +32,9 @@ func get(t *testing.T, target string) *httptest.ResponseRecorder {
 }
 
 func TestHomePage(t *testing.T) {
-	rec := get(t, "/")
+	rec := get(t, "/en/")
 	if rec.Code != http.StatusOK {
-		t.Fatalf("GET / = %d:\n%s", rec.Code, rec.Body.String())
+		t.Fatalf("GET /en/ = %d:\n%s", rec.Code, rec.Body.String())
 	}
 	if n := strings.Count(rec.Body.String(), "<title>"); n != 1 {
 		t.Errorf("home has %d titles, want 1", n)
@@ -101,16 +101,16 @@ func TestCanonicalAndAlternates(t *testing.T) {
 	for _, c := range []struct {
 		path, canonical string
 	}{
-		{"/", "/"},
+		{"/en/", "/en/"},
 		{"/tr/", "/tr/"},
-		{"/docs/caching/", "/docs/caching/"},
+		{"/en/docs/caching/", "/en/docs/caching/"},
 		{"/tr/docs/caching/", "/tr/docs/caching/"},
 	} {
 		body := get(t, c.path).Body.String()
 		want := []string{`<link rel="canonical" href="` + site.Origin + c.canonical + `">`}
-		english := strings.TrimPrefix(c.canonical, "/tr")
+		rest := c.canonical[len("/en"):]
 		for _, alt := range []struct{ lang, href string }{
-			{"en", english}, {"x-default", english}, {"tr", "/tr" + english},
+			{"en", "/en" + rest}, {"x-default", "/en" + rest}, {"tr", "/tr" + rest},
 		} {
 			want = append(want, `<link rel="alternate" hreflang="`+alt.lang+`" href="`+site.Origin+alt.href+`">`)
 		}
@@ -125,9 +125,20 @@ func TestCanonicalAndAlternates(t *testing.T) {
 	}
 }
 
-// The other spelling of a page redirects to the one the site links to.
-func TestTrailingSlash(t *testing.T) {
-	for from, to := range map[string]string{"/docs/caching": "/docs/caching/", "/tr": "/tr/", "/tr/docs/caching": "/tr/docs/caching/"} {
+// Every other spelling of a page redirects, in one hop, to the one the site
+// links to: with its language's prefix and its trailing slash. The bare root is
+// English.
+func TestOneAddressPerPage(t *testing.T) {
+	for from, to := range map[string]string{
+		"/":                "/en/",
+		"/docs/caching":    "/en/docs/caching/",
+		"/docs/caching/":   "/en/docs/caching/",
+		"/en":              "/en/",
+		"/en/docs/caching": "/en/docs/caching/",
+		"/tr":              "/tr/",
+		"/tr/docs/caching": "/tr/docs/caching/",
+		"/en/sitemap.xml":  "/sitemap.xml",
+	} {
 		rec := get(t, from)
 		if rec.Code != http.StatusMovedPermanently || rec.Header().Get("Location") != to {
 			t.Errorf("GET %s = %d to %q, want 301 to %q", from, rec.Code, rec.Header().Get("Location"), to)
@@ -136,7 +147,7 @@ func TestTrailingSlash(t *testing.T) {
 }
 
 func TestUnknownDocIsNotFound(t *testing.T) {
-	for _, path := range []string{"/docs/no-such-page/", "/tr/docs/no-such-page/"} {
+	for _, path := range []string{"/en/docs/no-such-page/", "/tr/docs/no-such-page/"} {
 		if rec := get(t, path); rec.Code != http.StatusNotFound {
 			t.Errorf("GET %s = %d, want 404", path, rec.Code)
 		}
@@ -154,7 +165,7 @@ func TestExport(t *testing.T) {
 	if err := staticBuild(app, out, false); err != nil {
 		t.Fatalf("staticBuild: %v", err)
 	}
-	want := []string{"index.html", "404.html", "robots.txt", "sitemap.xml", "search.json", "tr/index.html", "tr/search.json"}
+	want := []string{"index.html", "en/index.html", "404.html", "robots.txt", "sitemap.xml", "search.json", "tr/index.html", "tr/search.json"}
 	eachPage(t, func(_ string, page *site.Page) {
 		want = append(want, filepath.Join(page.URL(), "index.html"))
 	})

@@ -282,12 +282,15 @@ Zero for either cap means the default; only a negative value means unlimited. Se
 | `Default` | `string` | `"en"` | Locale of a URL with no locale prefix. |
 | `Supported` | `[]string` | `[Default]` | Every locale the application serves. |
 | `DisablePathLocale` | `bool` | `false` | Stop resolving the locale from the path; every request is in `Default`. |
+| `PrefixDefault` | `bool` | `false` | Give `Default`'s pages a prefix too: `/en/about`. Since v0.14.0. |
 
 The URL is the only thing that selects a locale: `/about` is in `Default`, and
 `/tr/hakkinda` is in `"tr"`. collage never picks one from `Accept-Language` or a
 cookie, because a URL that means different things to different readers is one
 caches, crawlers and shared links all get wrong. `/en/about`, the default
-locale's own prefix, redirects permanently to `/about`. To negotiate, do it in
+locale's own prefix, redirects permanently to `/about` — unless `PrefixDefault` is
+set, which makes `/en/about` the address and redirects `/about` to it; see
+[Links and locales](/docs/links-and-locales#the-url-decides-the-locale). To negotiate, do it in
 middleware: redirect a Turkish browser to `/tr`, or render one URL per language
 and declare it with `collage.Vary`. See
 [Links and locales](/docs/links-and-locales#negotiating-a-language-yourself).

@@ -289,12 +289,15 @@ demektir. Bkz. [Önbellekleme](/docs/caching).
 | `Default` | `string` | `"en"` | Locale öneki olmayan bir URL'nin locale'i. |
 | `Supported` | `[]string` | `[Default]` | Uygulamanın sunduğu her locale. |
 | `DisablePathLocale` | `bool` | `false` | Locale'i yoldan çözümlemeyi bırakır; her istek `Default`'tadır. |
+| `PrefixDefault` | `bool` | `false` | `Default`'un sayfalarına da önek verir: `/en/about`. v0.14.0'dan itibaren. |
 
 Locale'i seçen tek şey URL'dir: `/about` `Default`'tadır, `/tr/hakkinda` ise `"tr"`'de.
 collage hiçbir zaman `Accept-Language`'ten ya da bir cookie'den locale seçmez; çünkü
 farklı okuyuculara farklı şeyler ifade eden bir URL'yi önbellekler, crawler'lar ve
 paylaşılan bağlantılar yanlış anlar. Varsayılan locale'in kendi öneki olan `/en/about`,
-`/about`'a kalıcı olarak yönlendirilir. Dil seçimini müzakere etmek istiyorsanız bunu
+`/about`'a kalıcı olarak yönlendirilir — `PrefixDefault` ayarlanmadıkça; o zaman
+adres `/en/about` olur ve `/about` oraya yönlendirilir. Bkz.
+[Bağlantılar ve locale'ler](/docs/links-and-locales#the-url-decides-the-locale). Dil seçimini müzakere etmek istiyorsanız bunu
 middleware'de yapın: Türkçe bir tarayıcıyı `/tr`'ye yönlendirin ya da tek bir URL'yi
 her dil için render edip bunu `collage.Vary` ile bildirin. Bkz.
 [Bağlantılar ve locale'ler](/docs/links-and-locales#negotiating-a-language-yourself).

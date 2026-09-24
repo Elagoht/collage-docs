@@ -36,8 +36,9 @@ type Site struct {
 	// Locale is the language the site is written in.
 	Locale   string
 	Sections []Section
-	// prefix is what the locale adds in front of a page's path: nothing for the
-	// original, "/tr" for a translation into Turkish.
+	// prefix is what the locale adds in front of a page's path: "/en" for the
+	// English original, "/tr" for its translation into Turkish. Every language
+	// has one; none is at the bare address.
 	prefix string
 	pages  map[string]*Page
 	order  []*Page
@@ -178,10 +179,9 @@ func Load(fsys fs.FS) (*Site, error) { return load(fsys, "en", nil) }
 func load(fsys fs.FS, locale string, base *Site) (*Site, error) {
 	// Errors name files as they are under content/.
 	dir := ""
-	site := &Site{Locale: locale, pages: make(map[string]*Page)}
+	site := &Site{Locale: locale, prefix: "/" + locale, pages: make(map[string]*Page)}
 	if base != nil {
 		dir = locale + "/"
-		site.prefix = "/" + locale
 	}
 
 	raw, err := fs.ReadFile(fsys, "nav.json")
@@ -225,13 +225,13 @@ func load(fsys fs.FS, locale string, base *Site) (*Site, error) {
 		sections = translated
 	}
 
-	// Where a link to another page goes: into this translation when the page is
-	// translated, to the original when it is not yet.
+	// Where a link to another page goes: into this language when the page is in
+	// it, to the original when it is not translated yet.
 	linkTo := func(slug string) string {
-		if onDisk[slug] {
+		if onDisk[slug] || base == nil {
 			return site.prefix + "/docs/" + slug + "/"
 		}
-		return "/docs/" + slug + "/"
+		return base.prefix + "/docs/" + slug + "/"
 	}
 
 	md := newMarkdown()
@@ -290,16 +290,20 @@ func load(fsys fs.FS, locale string, base *Site) (*Site, error) {
 var docLink = regexp.MustCompile(`href="(/[a-z]{2})?/docs/([a-z0-9-]+)/?(#[^"]*)?"`)
 
 // checkLinks reports the first link to a page that does not exist, or to a
-// heading the page does not have. A link without a locale prefix is into base,
-// the original, when s is a translation.
+// heading the page does not have. A link is into s, or into base, the original,
+// when s is a translation; a link with no language prefix is refused, because no
+// page is at a bare address.
 func (s *Site) checkLinks(base *Site) error {
 	for _, page := range s.order {
 		for _, match := range docLink.FindAllStringSubmatch(string(page.Body), -1) {
-			into := s
-			if match[1] == "" && base != nil {
+			var into *Site
+			switch {
+			case match[1] == s.prefix:
+				into = s
+			case base != nil && match[1] == base.prefix:
 				into = base
-			} else if match[1] != s.prefix {
-				return fmt.Errorf("site: %s links to %s/docs/%s, a language it is not in", page.Slug, match[1], match[2])
+			default:
+				return fmt.Errorf("site: %s links to %s/docs/%s, which is in no language of the site", page.Slug, match[1], match[2])
 			}
 			target, ok := into.pages[match[2]]
 			if !ok {
@@ -541,7 +545,7 @@ func headingText(heading ast.Node, source []byte) string {
 }
 
 // URL is the page's address, with its locale's prefix and the trailing slash the
-// site's pages are answered at: "/tr/docs/caching/".
+// site's pages are answered at: "/en/docs/caching/", "/tr/docs/caching/".
 func (p *Page) URL() string { return p.prefix + p.Path() + "/" }
 
 // Path is the page's path within its locale — the address without the locale's

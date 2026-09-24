@@ -105,6 +105,9 @@ func newApp(devMode bool, port int) (*collage.App, error) {
 		Locale: collage.LocaleConfig{
 			Default:   site.Original,
 			Supported: site.Locales(),
+			// English at /en/, like Turkish at /tr/: no language at the bare
+			// address, and "/" sends the reader to /en/.
+			PrefixDefault: true,
 		},
 		// The export writes each page as <path>/index.html, which GitHub Pages
 		// serves at "/docs/caching/" and reaches from "/docs/caching" only by a

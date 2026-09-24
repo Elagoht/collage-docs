@@ -65,6 +65,16 @@ gönderilir ve query string de beraberinde gider. Bu yönlendirme olmasaydı
 `/en/about`, bir arama motoru için `/about`'un ikinci bir kopyası, önbellekte de
 ikinci bir girdi olurdu.
 
+Varsayılan dil de dahil her dilin bir önek altında olmasını isteyen bir site
+`PrefixDefault: true` ayarlar (v0.14.0'dan itibaren). O zaman `/tr/hakkinda`'nın
+yanındaki sayfa `/en/about` olur ve öneksiz bir URL hiçbir dile ait değildir: önek
+olmadan istenen bir sayfa — `/about` ya da kök — varsayılan locale'in adresine,
+`/en/about`'a ve `/en`'e, kalıcı olarak yönlendirilir; adla kurulan her bağlantı da
+öneki taşır. Document'ler varsayılan locale'deki adreslerini öneksiz korur, çünkü
+`/robots.txt` ve `/sitemap.xml` kökte olmalıdır; `/en/sitemap.xml` oraya yönlendirilir.
+Dışa aktarma, varsayılan locale'in sayfalarını `en/` altına, köke de okuyucuyu
+`/en/`'e gönderen bir sayfa yazar.
+
 Bir fragment sonucu `rc.Locale` olarak okur ve doğru içeriği çekmek için kullanır:
 
 ```go
