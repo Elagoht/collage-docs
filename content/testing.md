@@ -1,5 +1,6 @@
 ---
 description: Test the real application through app.Handler() and net/http/httptest — pages, forms with their forgery token, documents and the static export.
+reference: NewBuilder, BuildOptions, App
 ---
 
 # Testing

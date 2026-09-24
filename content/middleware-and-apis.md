@@ -1,5 +1,6 @@
 ---
 description: Standard net/http middleware with app.Use, cache keys that depend on a header with collage.Vary, and your own http.Handler with app.Handle.
+reference: Vary, SkipCache, ErrVaryTooLate, ErrMountShadowsRoute
 ---
 
 # Middleware and your own API

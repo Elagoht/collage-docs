@@ -1,5 +1,6 @@
 ---
 description: Titles, meta tags, stylesheets and structured data declared by the fragment that knows them, placed by the layout.
+reference: RenderContext, PageBuilder.WithSEO, ErrNoPathInLocale
 ---
 
 # Head and SEO

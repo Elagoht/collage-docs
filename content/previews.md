@@ -1,5 +1,6 @@
 ---
 description: Show editors unpublished drafts on the real site, without the cache serving them the published page or anyone else the draft.
+reference: SkipCache, Cached, NewAction, ErrVaryTooLate
 ---
 
 # Previews

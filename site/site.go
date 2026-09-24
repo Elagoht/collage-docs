@@ -52,6 +52,9 @@ type Page struct {
 	Section     string
 	Body        template.HTML
 	Headings    []Heading
+	// References are the identifiers of package collage the page is about, as
+	// "Name" or "Type.Method", linked to their Go reference.
+	References []Reference
 	// Parts are the page's text, split at its headings, for search.
 	Parts      []Part
 	Prev, Next *Page
@@ -69,6 +72,18 @@ type Part struct {
 	// names in them are in the prose around them too.
 	Text string
 }
+
+// ReferenceBase is the Go reference of package collage; an identifier's entry is
+// its name as the fragment.
+const ReferenceBase = "https://pkg.go.dev/github.com/Elagoht/collage/pkg/collage"
+
+// Reference is one identifier a page links to in the Go reference.
+type Reference struct {
+	Name string
+}
+
+// URL is the identifier's entry in the Go reference.
+func (r Reference) URL() string { return ReferenceBase + "#" + r.Name }
 
 // Heading is one entry of a page's table of contents.
 type Heading struct {
@@ -221,6 +236,12 @@ func parsePage(md goldmark.Markdown, slug string, source []byte) (*Page, error) 
 				page.Title = strings.TrimSpace(value)
 			case "description":
 				page.Description = strings.TrimSpace(value)
+			case "reference":
+				for _, name := range strings.Split(value, ",") {
+					if name = strings.TrimSpace(name); name != "" {
+						page.References = append(page.References, Reference{Name: name})
+					}
+				}
 			}
 		}
 		body = after

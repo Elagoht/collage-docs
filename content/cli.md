@@ -1,5 +1,6 @@
 ---
 description: Every command of the collage CLI — new, dev, build, export, serve, version and help — with its flags and exactly what it runs.
+reference: DispatchCommands, Command, ErrUnknownCommand
 ---
 
 # The collage CLI

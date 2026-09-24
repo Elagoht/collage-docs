@@ -1,5 +1,6 @@
 ---
 description: What a plugin can do, how to register and configure one, and the three published plugins.
+reference: Plugin, LoadPluginConfig, ErrUnknownPluginConfig, ErrAppStarted
 ---
 
 # Using plugins

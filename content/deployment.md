@@ -1,5 +1,6 @@
 ---
 description: Build the binary, run it in a container or under systemd, set what production needs, and put it behind TLS.
+reference: ServerConfig, CacheConfig, LoadPluginConfig
 ---
 
 # Deployment

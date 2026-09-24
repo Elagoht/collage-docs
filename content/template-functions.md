@@ -1,5 +1,6 @@
 ---
 description: Every built-in template function — slot, hoist, asset, stylesheet, csrfToken, the URL functions and the string helpers — with its signature, an example and its edge cases.
+reference: TemplateConfig, DefaultContentSlot
 ---
 
 # Template functions

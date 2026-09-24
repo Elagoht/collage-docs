@@ -1,5 +1,6 @@
 ---
 description: Handling form posts, fetch calls and webhooks with actions, and protecting them from request forgery.
+reference: NewAction, ActionBuilder, ActionResult, SeeOther, JSONOf, RenderPage, RenderFragment, PageBuilder.WithAction
 ---
 
 # Forms and actions

@@ -1,5 +1,6 @@
 ---
 description: A hands-on tutorial — build a recipe page with a layout, a typed data handler and a template, then add a second fragment in a slot.
+reference: New, NewPage, NewFragment, DataHandler, ErrNotFound
 ---
 
 # Your first page

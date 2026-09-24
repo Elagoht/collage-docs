@@ -1,5 +1,6 @@
 ---
 description: How collage caches rendered pages and the data they are made from, and how it knows what to throw away.
+reference: CacheConfig, Cached, Once, TaggedCache, SkipCache, Vary, PageBuilder.Static, PageBuilder.Incremental, PageBuilder.Dynamic
 ---
 
 # Caching

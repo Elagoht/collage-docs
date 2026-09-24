@@ -1,5 +1,6 @@
 ---
 description: Serving stylesheets, scripts, images and downloads from a directory or an embedded file system, with URLs that can be cached for a year.
+reference: Mount, MountOption, WithCacheControl, WithoutBuildCopy, ErrUnknownAsset
 ---
 
 # Static assets

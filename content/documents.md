@@ -1,5 +1,6 @@
 ---
 description: Routes that answer with bytes instead of HTML — sitemaps, feeds, robots.txt, JSON — cached and invalidated like pages.
+reference: NewDocument, DocumentBuilder, Document, DocumentResult, DocumentPathProvider, PathInstance
 ---
 
 # Documents: sitemaps, feeds, robots.txt

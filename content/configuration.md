@@ -1,5 +1,6 @@
 ---
 description: Every field of collage.Config and its sub-structs, with its default and what validation checks.
+reference: Config, CacheConfig, ServerConfig, SecurityConfig, TemplateConfig, LocaleConfig, ObservabilityConfig, Config.Validate
 ---
 
 # Configuration

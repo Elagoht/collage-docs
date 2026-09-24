@@ -1,5 +1,6 @@
 ---
 description: Render the site to static files with collage export — what is written, what is skipped and why, dynamic paths, and publishing to a static host.
+reference: NewBuilder, BuildOptions, BuildReport, PrintBuildReport, PathProvider, PathInstance, SkipRecord, ErrNotStatic
 ---
 
 # Static export

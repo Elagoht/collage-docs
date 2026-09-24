@@ -297,6 +297,21 @@ a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset:
 .prose th { font-weight: 600; }
 .prose h2 a, .prose h3 a { color: inherit; }
 
+.reference {
+  margin-top: 3rem;
+  padding: 1rem 1.2rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.reference p { margin: 0 0 .6rem; font-size: .8rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.reference ul { display: flex; flex-wrap: wrap; gap: .45rem; margin: 0; padding: 0; list-style: none; }
+.reference a { display: block; padding: .2rem .5rem; border: 1px solid var(--line); border-radius: 6px; background: var(--code-bg); text-decoration: none; }
+.reference a:hover { border-color: var(--accent); }
+.reference code { font: .82rem var(--mono); }
+
+.reference + .pager { margin-top: 2rem; }
+
 .pager {
   display: grid;
   grid-template-columns: 1fr 1fr;

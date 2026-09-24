@@ -11,12 +11,17 @@ into sections. A page starts with a front matter block and its title:
 ```markdown
 ---
 description: One line, shown under the title and in search results.
+reference: NewPage, PageBuilder.Static
 ---
 
 # The page's title
 
 ## A section
 ```
+
+`reference` lists the identifiers of package collage the page is about; they are
+linked to their entries on pkg.go.dev at the end of the page, and the tests fail
+on one the package does not declare.
 
 Link to another page as `/docs/<slug>`, and to one of its headings as
 `/docs/<slug>#<heading-id>`. The site refuses to start — and its tests fail — on a

@@ -26,6 +26,16 @@
     {{with .Page.Description}}<p class="lede">{{.}}</p>{{end}}
     <div class="prose">{{.Page.Body}}</div>
 
+    {{with .Page.References}}
+    <aside class="reference" aria-label="Go reference">
+      <p>Go reference <span aria-hidden="true">↗</span></p>
+      <ul>
+        {{range .}}<li><a href="{{.URL}}"><code>collage.{{.Name}}</code></a></li>
+        {{end}}
+      </ul>
+    </aside>
+    {{end}}
+
     <nav class="pager" aria-label="Pages">
       {{with .Page.Prev}}<a class="prev" href="{{pageURL "doc" "slug" .Slug}}"><span>Previous</span>{{.Title}}</a>{{end}}
       {{with .Page.Next}}<a class="next" href="{{pageURL "doc" "slug" .Slug}}"><span>Next</span>{{.Title}}</a>{{end}}

@@ -1,5 +1,6 @@
 ---
 description: Fragments, the slots they expose, what happens when one fails, and slots filled from content at render time.
+reference: NewFragment, FragmentBuilder, Fragment, FragmentBuilder.WithFallback, SlotResolverFunc
 ---
 
 # Fragments and slots

@@ -1,5 +1,6 @@
 ---
 description: The plugin contract, what Host and ConfigHost expose, every hook and what it may change, and a complete plugin with its tests.
+reference: Plugin, Host, ConfigHost, Configurer, Command, BeforeRenderHook, AfterRenderHook, CacheInvalidateHook
 ---
 
 # Writing a plugin

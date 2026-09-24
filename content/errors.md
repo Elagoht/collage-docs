@@ -1,5 +1,6 @@
 ---
 description: Every exported error value in collage, grouped by where it comes from, with what it means and what to do about it.
+reference: PanicError
 ---
 
 # Errors

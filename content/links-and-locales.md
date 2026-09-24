@@ -1,5 +1,6 @@
 ---
 description: Serving a site in several languages, and linking between pages by name so links follow them in every locale.
+reference: LocaleConfig, PageBuilder.WithPath, Vary, ErrNoPathInLocale, ErrUnknownRoute
 ---
 
 # Links and locales

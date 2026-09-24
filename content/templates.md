@@ -1,5 +1,6 @@
 ---
 description: Where templates live, how they are loaded and embedded, how they reload in development, slots, built-in and custom functions, and escaping.
+reference: TemplateConfig, Config
 ---
 
 # Templates

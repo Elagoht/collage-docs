@@ -1,5 +1,6 @@
 ---
 description: How a fragment fetches its data — the typed handler contract, dependency tags, 404s, concurrency, the render context, sharing data, and timeouts.
+reference: DataHandler, RenderContext, Get, Once, Effect, ErrNotFound, PanicError
 ---
 
 # Data handlers

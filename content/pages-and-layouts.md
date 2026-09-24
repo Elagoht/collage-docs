@@ -1,5 +1,6 @@
 ---
 description: What a page is, how its layout and content fit together, the paths that reach it, how it is cached, what it shows when it fails, and what registration does to it.
+reference: NewPage, PageBuilder, Page, RenderPage, DefaultContentSlot
 ---
 
 # Pages and layouts

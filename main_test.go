@@ -2,9 +2,14 @@ package main
 
 import (
 	"encoding/json"
+	"go/ast"
+	"go/doc"
+	"go/parser"
+	"go/token"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -126,6 +131,75 @@ func TestSearch(t *testing.T) {
 	for _, page := range loaded.Pages() {
 		if !seen[page.URL()] {
 			t.Errorf("search.json has nothing for %s", page.URL())
+		}
+	}
+}
+
+// Every identifier a page links to in the Go reference exists in the version of
+// collage this site is built against, so no link lands on the top of the page
+// instead of its entry.
+func TestReferencesExist(t *testing.T) {
+	out, err := exec.Command("go", "list", "-m", "-f", "{{.Dir}}", "github.com/Elagoht/collage").Output()
+	if err != nil {
+		t.Fatalf("go list: %v", err)
+	}
+	dir := filepath.Join(strings.TrimSpace(string(out)), "pkg", "collage")
+	fset := token.NewFileSet()
+	var files []*ast.File
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		name := entry.Name()
+		if !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(fset, filepath.Join(dir, name), nil, parser.ParseComments)
+		if err != nil {
+			t.Fatal(err)
+		}
+		files = append(files, file)
+	}
+	pkg, err := doc.NewFromFiles(fset, files, "github.com/Elagoht/collage/pkg/collage")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	known := map[string]bool{}
+	values := func(list []*doc.Value) {
+		for _, value := range list {
+			for _, name := range value.Names {
+				known[name] = true
+			}
+		}
+	}
+	values(pkg.Consts)
+	values(pkg.Vars)
+	for _, fn := range pkg.Funcs {
+		known[fn.Name] = true
+	}
+	for _, typ := range pkg.Types {
+		known[typ.Name] = true
+		values(typ.Consts)
+		values(typ.Vars)
+		for _, fn := range typ.Funcs {
+			known[fn.Name] = true
+		}
+		for _, method := range typ.Methods {
+			known[typ.Name+"."+method.Name] = true
+		}
+	}
+
+	loaded, err := site.Load(content.FS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, page := range loaded.Pages() {
+		for _, ref := range page.References {
+			if !known[ref.Name] {
+				t.Errorf("%s.md refers to collage.%s, which package collage does not declare", page.Slug, ref.Name)
+			}
 		}
 	}
 }

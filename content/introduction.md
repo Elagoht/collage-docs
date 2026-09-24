@@ -1,5 +1,6 @@
 ---
 description: What collage is, the idea it is built on, and when it is the right tool.
+reference: NewPage, NewFragment, DataHandler
 ---
 
 # Introduction
