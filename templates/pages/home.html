@@ -5,37 +5,27 @@
       <rect class="tile tile-b" x="40" y="8" width="44" height="34" rx="6" />
       <rect class="tile tile-c" x="30" y="44" width="56" height="42" rx="6" />
     </svg>
-    <h1>Pages composed from cached fragments.</h1>
-    <p class="tagline">collage is a Go framework for server-rendered sites. A page is a layout around fragments; each fragment fetches its own data, and the page is cached and invalidated by what it was built from. No client framework, no JavaScript build step, no dependencies.</p>
+    <h1>{{.T.HomeHeadline}}</h1>
+    <p class="tagline">{{.T.HomeTagline}}</p>
     <div class="actions">
-      <a class="button primary" href="{{pageURL "doc" "slug" "introduction"}}">Read the guide</a>
-      <a class="button" href="https://github.com/Elagoht/collage">View on GitHub</a>
+      <a class="button primary" href="{{pageURL "doc" "slug" "introduction"}}">{{.T.ReadGuide}}</a>
+      <a class="button" href="https://github.com/Elagoht/collage">{{.T.ViewOnGitHub}}</a>
     </div>
     <pre class="install"><code>go install github.com/Elagoht/collage/cmd/collage@latest
 collage new mysite && cd mysite && go mod tidy
 collage dev</code></pre>
   </section>
 
-  <section class="points" aria-label="What you get">
+  <section class="points" aria-label="{{.T.WhatYouGet}}">
+    {{range .T.Points}}
     <article>
-      <h2>Fragments, not components</h2>
-      <p>A template, a data handler and the slots it exposes. Siblings fetch concurrently; the page is written in order.</p>
+      <h2>{{.Title}}</h2>
+      <p>{{.Text}}</p>
     </article>
-    <article>
-      <h2>Cached by what it depends on</h2>
-      <p>Pages and data carry tags. Change an author and one call drops the author and every page that shows them.</p>
-    </article>
-    <article>
-      <h2>Forms without JavaScript</h2>
-      <p>Actions answer POST with forgery protection built in, and a cached page can still carry a form.</p>
-    </article>
-    <article>
-      <h2>Served or exported</h2>
-      <p>One program is a server and a static site generator. This site is the second.</p>
-    </article>
+    {{end}}
   </section>
 
-  <section class="map" aria-label="The guide">
+  <section class="map" aria-label="{{.T.TheGuide}}">
     {{range .Sections}}
     <div>
       <h2>{{.Title}}</h2>

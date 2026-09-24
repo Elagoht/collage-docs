@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="{{.Lang}}">
 
 <head>
   <meta charset="utf-8">
@@ -17,24 +17,25 @@
       <img src="{{asset "/static/favicon.svg"}}" width="26" height="26" alt="">
       <span>collage</span>
     </a>
-    <div class="search" id="search" data-index="{{pageURL "search"}}">
-      <input type="search" placeholder="Search the docs" aria-label="Search the documentation"
+    <div class="search" id="search" data-index="{{pageURL "search"}}" data-empty="{{.T.SearchEmpty}}" data-failed="{{.T.SearchFailed}}">
+      <input type="search" placeholder="{{.T.SearchPlaceholder}}" aria-label="{{.T.SearchLabel}}"
         role="combobox" aria-expanded="false" aria-controls="search-results" aria-autocomplete="list"
         autocomplete="off" spellcheck="false">
       <kbd aria-hidden="true">/</kbd>
-      <ul id="search-results" role="listbox" aria-label="Results" hidden></ul>
+      <ul id="search-results" role="listbox" aria-label="{{.T.SearchResults}}" hidden></ul>
     </div>
     <nav class="site-nav" aria-label="Site">
-      <a href="{{pageURL "doc" "slug" "introduction"}}">Docs</a>
-      <a href="https://pkg.go.dev/github.com/Elagoht/collage/pkg/collage">Go reference <span aria-hidden="true">↗</span></a>
+      <a href="{{pageURL "doc" "slug" "introduction"}}">{{.T.Docs}}</a>
+      <a href="https://pkg.go.dev/github.com/Elagoht/collage/pkg/collage">{{.T.GoReference}} <span aria-hidden="true">↗</span></a>
       <a href="https://github.com/Elagoht/collage">GitHub</a>
+      {{range .Languages}}<a class="language" href="{{.URL}}" hreflang="{{.Code}}" lang="{{.Code}}">{{.Name}}</a>{{end}}
     </nav>
   </header>
 
   {{slot "content"}}
 
   <footer class="site-footer">
-    <p>collage is MIT-licensed. These pages are a collage site, exported to static files.</p>
+    <p>{{.T.Footer}}</p>
   </footer>
 </body>
 

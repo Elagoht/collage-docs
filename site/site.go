@@ -30,12 +30,17 @@ import (
 // ErrNoPage is returned for a slug no content file declares.
 var ErrNoPage = errors.New("site: no such page")
 
-// Site is the whole of the documentation: every page, and the navigation that
-// orders them.
+// Site is the whole of the documentation in one language: every page, and the
+// navigation that orders them.
 type Site struct {
+	// Locale is the language the site is written in.
+	Locale   string
 	Sections []Section
-	pages    map[string]*Page
-	order    []*Page
+	// prefix is what the locale adds in front of a page's path: nothing for the
+	// original, "/tr" for a translation into Turkish.
+	prefix string
+	pages  map[string]*Page
+	order  []*Page
 }
 
 // Section is one heading of the navigation and the pages under it.
@@ -58,6 +63,11 @@ type Page struct {
 	// Parts are the page's text, split at its headings, for search.
 	Parts      []Part
 	Prev, Next *Page
+
+	prefix string
+	// outline is every heading below the title, in order, whatever its level:
+	// what a translation's headings are held to.
+	outline []Heading
 }
 
 // Part is one stretch of a page between headings: what search matches and where a
@@ -92,6 +102,50 @@ type Heading struct {
 	Level int
 }
 
+// Set is the documentation in every language it is written in: the original, and
+// its translations.
+type Set struct {
+	sites   map[string]*Site
+	locales []string
+}
+
+// Site returns the documentation in locale, or nil for a locale it is not written
+// in.
+func (s *Set) Site(locale string) *Site { return s.sites[locale] }
+
+// Locales returns every locale, the original's first.
+func (s *Set) Locales() []string { return s.locales }
+
+// LoadSet reads the original documentation from fsys, in locale original, and a
+// translation of it into each of translations from the directory of that name.
+//
+// A translation is held to the original: each of its pages translates a page of
+// the original and keeps its headings, level for level, so that an anchor is the
+// same in every language; its nav.json gives the sections' titles, one per
+// section of the original, and nothing else, because the order is the original's.
+// A page not translated yet is not in the translation at all, and a link to it
+// from a translated page goes to the original.
+func LoadSet(fsys fs.FS, original string, translations ...string) (*Set, error) {
+	base, err := load(fsys, original, nil)
+	if err != nil {
+		return nil, err
+	}
+	set := &Set{sites: map[string]*Site{original: base}, locales: []string{original}}
+	for _, locale := range translations {
+		sub, err := fs.Sub(fsys, locale)
+		if err != nil {
+			return nil, err
+		}
+		translated, err := load(sub, locale, base)
+		if err != nil {
+			return nil, err
+		}
+		set.sites[locale] = translated
+		set.locales = append(set.locales, locale)
+	}
+	return set, nil
+}
+
 // Page returns the page with slug.
 func (s *Site) Page(slug string) (*Page, error) {
 	p, ok := s.pages[slug]
@@ -110,23 +164,76 @@ type nav []struct {
 	Pages []string `json:"pages"`
 }
 
-// Load reads the site from fsys, which holds nav.json and one <slug>.md per page.
+// Load reads an English site from fsys, which holds nav.json and one <slug>.md
+// per page.
 //
 // It is strict, because a documentation site's failure modes are silent ones: a
 // page on disk the navigation never reaches, a navigation entry with no page, a
 // link to a slug that does not exist. Each is an error here rather than a 404 a
 // reader finds.
-func Load(fsys fs.FS) (*Site, error) {
+func Load(fsys fs.FS) (*Site, error) { return load(fsys, "en", nil) }
+
+// load reads the site in locale from fsys: the original when base is nil, a
+// translation of base otherwise.
+func load(fsys fs.FS, locale string, base *Site) (*Site, error) {
+	// Errors name files as they are under content/.
+	dir := ""
+	site := &Site{Locale: locale, pages: make(map[string]*Page)}
+	if base != nil {
+		dir = locale + "/"
+		site.prefix = "/" + locale
+	}
+
 	raw, err := fs.ReadFile(fsys, "nav.json")
 	if err != nil {
 		return nil, fmt.Errorf("site: %w", err)
 	}
 	var sections nav
 	if err := json.Unmarshal(raw, &sections); err != nil {
-		return nil, fmt.Errorf("site: nav.json: %w", err)
+		return nil, fmt.Errorf("site: %snav.json: %w", dir, err)
 	}
 
-	site := &Site{pages: make(map[string]*Page)}
+	files, err := fs.Glob(fsys, "*.md")
+	if err != nil {
+		return nil, err
+	}
+	onDisk := make(map[string]bool, len(files))
+	for _, file := range files {
+		onDisk[strings.TrimSuffix(file, ".md")] = true
+	}
+
+	if base != nil {
+		// The translation's sections are the original's, retitled.
+		if len(sections) != len(base.Sections) {
+			return nil, fmt.Errorf("site: %snav.json has %d sections, the original has %d; a translation titles the original's sections, in order",
+				dir, len(sections), len(base.Sections))
+		}
+		for slug := range onDisk {
+			if _, ok := base.pages[slug]; !ok {
+				return nil, fmt.Errorf("site: %s%s.md translates nothing: there is no %s.md", dir, slug, slug)
+			}
+		}
+		translated := make(nav, len(sections))
+		for i, section := range base.Sections {
+			translated[i].Title = sections[i].Title
+			for _, page := range section.Pages {
+				if onDisk[page.Slug] {
+					translated[i].Pages = append(translated[i].Pages, page.Slug)
+				}
+			}
+		}
+		sections = translated
+	}
+
+	// Where a link to another page goes: into this translation when the page is
+	// translated, to the original when it is not yet.
+	linkTo := func(slug string) string {
+		if onDisk[slug] {
+			return site.prefix + "/docs/" + slug + "/"
+		}
+		return "/docs/" + slug + "/"
+	}
+
 	md := newMarkdown()
 	for _, section := range sections {
 		out := Section{Title: section.Title}
@@ -138,25 +245,29 @@ func Load(fsys fs.FS) (*Site, error) {
 			if err != nil {
 				return nil, fmt.Errorf("site: nav.json lists %q: %w", slug, err)
 			}
-			page, err := parsePage(md, slug, source)
+			var original *Page
+			if base != nil {
+				original = base.pages[slug]
+			}
+			page, err := parsePage(md, dir+slug, source, original, linkTo)
 			if err != nil {
 				return nil, err
 			}
+			page.Slug = slug
+			page.prefix = site.prefix
 			page.Section = section.Title
 			site.pages[slug] = page
 			site.order = append(site.order, page)
 			out.Pages = append(out.Pages, page)
 		}
-		site.Sections = append(site.Sections, out)
+		if len(out.Pages) > 0 {
+			site.Sections = append(site.Sections, out)
+		}
 	}
 
-	files, err := fs.Glob(fsys, "*.md")
-	if err != nil {
-		return nil, err
-	}
-	for _, file := range files {
-		if _, listed := site.pages[strings.TrimSuffix(file, ".md")]; !listed {
-			return nil, fmt.Errorf("site: %s is in no section of nav.json, so nothing links to it", file)
+	for slug := range onDisk {
+		if _, listed := site.pages[slug]; !listed {
+			return nil, fmt.Errorf("site: %s%s.md is in no section of nav.json, so nothing links to it", dir, slug)
 		}
 	}
 
@@ -168,26 +279,34 @@ func Load(fsys fs.FS) (*Site, error) {
 			page.Next = site.order[i+1]
 		}
 	}
-	if err := site.checkLinks(); err != nil {
+	if err := site.checkLinks(base); err != nil {
 		return nil, err
 	}
 	return site, nil
 }
 
-// docLink finds links into the documentation, with an optional fragment.
-var docLink = regexp.MustCompile(`href="/docs/([a-z0-9-]+)(#[^"]*)?"`)
+// docLink finds links into the documentation, in any language, with an optional
+// fragment.
+var docLink = regexp.MustCompile(`href="(/[a-z]{2})?/docs/([a-z0-9-]+)/?(#[^"]*)?"`)
 
 // checkLinks reports the first link to a page that does not exist, or to a
-// heading the page does not have.
-func (s *Site) checkLinks() error {
+// heading the page does not have. A link without a locale prefix is into base,
+// the original, when s is a translation.
+func (s *Site) checkLinks(base *Site) error {
 	for _, page := range s.order {
 		for _, match := range docLink.FindAllStringSubmatch(string(page.Body), -1) {
-			target, ok := s.pages[match[1]]
-			if !ok {
-				return fmt.Errorf("site: %s links to /docs/%s, which does not exist", page.Slug, match[1])
+			into := s
+			if match[1] == "" && base != nil {
+				into = base
+			} else if match[1] != s.prefix {
+				return fmt.Errorf("site: %s links to %s/docs/%s, a language it is not in", page.Slug, match[1], match[2])
 			}
-			if anchor := strings.TrimPrefix(match[2], "#"); anchor != "" && !target.hasHeading(anchor) {
-				return fmt.Errorf("site: %s links to /docs/%s#%s, which has no such heading", page.Slug, match[1], anchor)
+			target, ok := into.pages[match[2]]
+			if !ok {
+				return fmt.Errorf("site: %s links to %s/docs/%s, which does not exist", page.Slug, match[1], match[2])
+			}
+			if anchor := strings.TrimPrefix(match[3], "#"); anchor != "" && !target.hasHeading(anchor) {
+				return fmt.Errorf("site: %s links to %s/docs/%s#%s, which has no such heading", page.Slug, match[1], match[2], anchor)
 			}
 		}
 	}
@@ -217,8 +336,13 @@ func newMarkdown() goldmark.Markdown {
 }
 
 // parsePage reads one page: a front matter block of "key: value" lines between
-// "---" lines, then Markdown whose first heading is the title.
-func parsePage(md goldmark.Markdown, slug string, source []byte) (*Page, error) {
+// "---" lines, then Markdown whose first heading is the title. name is the file's
+// name under content/ without ".md", for errors.
+//
+// original is the page this one translates, or nil for an original; linkTo is
+// where a link to /docs/<slug> in it goes.
+func parsePage(md goldmark.Markdown, name string, source []byte, original *Page, linkTo func(slug string) string) (*Page, error) {
+	slug := name
 	page := &Page{Slug: slug}
 	body := source
 	if rest, ok := bytes.CutPrefix(source, []byte("---\n")); ok {
@@ -248,6 +372,13 @@ func parsePage(md goldmark.Markdown, slug string, source []byte) (*Page, error) 
 	}
 
 	doc := md.Parser().Parse(text.NewReader(body))
+	if err := page.align(doc, body, name, original); err != nil {
+		return nil, err
+	}
+	retarget(doc, linkTo)
+	if original != nil && len(page.References) == 0 {
+		page.References = original.References
+	}
 	// Removed after the walk, not during it: removing a node the walk is on cuts
 	// the sibling link it would have followed next, and ends the walk there.
 	var titles []ast.Node
@@ -265,10 +396,12 @@ func parsePage(md goldmark.Markdown, slug string, source []byte) (*Page, error) 
 			titles = append(titles, heading)
 			return ast.WalkSkipChildren, nil
 		}
+		id, _ := heading.AttributeString("id")
+		idText, _ := id.([]byte)
+		entry := Heading{ID: string(idText), Text: label, Level: heading.Level}
+		page.outline = append(page.outline, entry)
 		if heading.Level <= 3 {
-			id, _ := heading.AttributeString("id")
-			idText, _ := id.([]byte)
-			page.Headings = append(page.Headings, Heading{ID: string(idText), Text: label, Level: heading.Level})
+			page.Headings = append(page.Headings, entry)
 		}
 		return ast.WalkContinue, nil
 	})
@@ -289,6 +422,65 @@ func parsePage(md goldmark.Markdown, slug string, source []byte) (*Page, error) 
 	}
 	page.Body = template.HTML(out.String())
 	return page, nil
+}
+
+// align gives a translation's headings the ids of the original's, so that an
+// anchor means the same heading in every language and a link can switch
+// language without losing its place. It refuses a translation whose headings
+// below the title are not the original's, level for level: an id copied onto the
+// wrong heading would be worse than none.
+func (p *Page) align(doc ast.Node, source []byte, name string, original *Page) error {
+	if original == nil {
+		return nil
+	}
+	var headings []*ast.Heading
+	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if heading, ok := n.(*ast.Heading); ok && entering {
+			if heading.Level > 1 {
+				headings = append(headings, heading)
+			}
+			return ast.WalkSkipChildren, nil
+		}
+		return ast.WalkContinue, nil
+	})
+	for i, heading := range headings {
+		if i >= len(original.outline) {
+			return fmt.Errorf("site: %s.md has more headings than the original; %q has no counterpart", name, headingText(heading, source))
+		}
+		want := original.outline[i]
+		if heading.Level != want.Level {
+			return fmt.Errorf("site: %s.md: heading %d, %q, is level %d, but the original's, %q, is level %d",
+				name, i+1, headingText(heading, source), heading.Level, want.Text, want.Level)
+		}
+		heading.SetAttributeString("id", []byte(want.ID))
+	}
+	if len(headings) < len(original.outline) {
+		return fmt.Errorf("site: %s.md has %d headings below its title, the original has %d; the first missing one is %q",
+			name, len(headings), len(original.outline), original.outline[len(headings)].Text)
+	}
+	return nil
+}
+
+// retarget points every link to /docs/<slug> where linkTo says it goes, which is
+// also where a link written without the page's trailing slash gets one.
+func retarget(doc ast.Node, linkTo func(slug string) string) {
+	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		link, ok := n.(*ast.Link)
+		if !ok || !entering {
+			return ast.WalkContinue, nil
+		}
+		rest, ok := strings.CutPrefix(string(link.Destination), "/docs/")
+		if !ok {
+			return ast.WalkContinue, nil
+		}
+		slug, fragment, _ := strings.Cut(rest, "#")
+		target := linkTo(slug)
+		if fragment != "" {
+			target += "#" + fragment
+		}
+		link.Destination = []byte(target)
+		return ast.WalkContinue, nil
+	})
 }
 
 // parts splits a page's top-level blocks at its headings, keeping the text of
@@ -348,5 +540,10 @@ func headingText(heading ast.Node, source []byte) string {
 	return strings.TrimSpace(b.String())
 }
 
-// URL is the page's address.
-func (p *Page) URL() string { return path.Join("/docs", p.Slug) }
+// URL is the page's address, with its locale's prefix and the trailing slash the
+// site's pages are answered at: "/tr/docs/caching/".
+func (p *Page) URL() string { return p.prefix + p.Path() + "/" }
+
+// Path is the page's path within its locale — the address without the locale's
+// prefix, which is what a route matches.
+func (p *Page) Path() string { return path.Join("/docs", p.Slug) }

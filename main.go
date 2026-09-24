@@ -100,6 +100,17 @@ func newApp(devMode bool, port int) (*collage.App, error) {
 		// The pages are Markdown read from content/ in development; a change there
 		// reloads the page like a template change does.
 		DevWatch: []string{"content"},
+		// English at /docs/caching, Turkish at /tr/docs/caching: the URL says the
+		// language, and nothing else does.
+		Locale: collage.LocaleConfig{
+			Default:   site.Original,
+			Supported: site.Locales(),
+		},
+		// The export writes each page as <path>/index.html, which GitHub Pages
+		// serves at "/docs/caching/" and reaches from "/docs/caching" only by a
+		// redirect. With the slash, every link collage builds — canonical,
+		// hreflang, sitemap — is the address the host answers.
+		TrailingSlash: true,
 		Server: collage.ServerConfig{
 			Host: envString("HOST", "localhost"),
 			Port: port,
@@ -166,18 +177,23 @@ func newApp(devMode bool, port int) (*collage.App, error) {
 // starting rather than reaching a reader. In development it is read from disk on
 // every request, so editing a page shows on the next reload, the way editing a
 // template does.
-func contentLoader(devMode bool) (func() (*site.Site, error), error) {
+func contentLoader(devMode bool) (func() (*site.Set, error), error) {
 	if devMode {
 		if _, err := os.Stat("content"); err == nil {
 			dir := os.DirFS("content")
-			return func() (*site.Site, error) { return site.Load(dir) }, nil
+			return func() (*site.Set, error) { return loadContent(dir) }, nil
 		}
 	}
-	loaded, err := site.Load(content.FS)
+	loaded, err := loadContent(content.FS)
 	if err != nil {
 		return nil, err
 	}
-	return func() (*site.Site, error) { return loaded, nil }, nil
+	return func() (*site.Set, error) { return loaded, nil }, nil
+}
+
+// loadContent reads the documentation and every translation of it.
+func loadContent(fsys fs.FS) (*site.Set, error) {
+	return site.LoadSet(fsys, site.Original, site.Translations...)
 }
 
 // staticFiles returns the filesystem "/static/" is served from: the embedded
@@ -220,7 +236,7 @@ func envInt(key string, fallback int) int {
 // through collage's own builder, and prints what was written, skipped and
 // failed.
 func staticBuild(app *collage.App, outDir string, clean bool) error {
-	loaded, err := site.Load(content.FS)
+	loaded, err := loadContent(content.FS)
 	if err != nil {
 		return err
 	}
@@ -240,17 +256,20 @@ func staticBuild(app *collage.App, outDir string, clean bool) error {
 	return buildErr
 }
 
-// docPaths tells the static build which /docs/{slug} pages exist: every page of
-// the documentation, and nothing else.
-type docPaths struct{ site *site.Site }
+// docPaths tells the static build which /docs/{slug} pages exist in each
+// language: every page of the documentation in the original, every page
+// translated so far in a translation, and nothing else. The paths are without the
+// locale's prefix; the build adds it.
+type docPaths struct{ set *site.Set }
 
-func (d docPaths) Paths(_ context.Context, page *collage.Page, _ string) ([]collage.PathInstance, error) {
-	if page.Name != "doc" {
+func (d docPaths) Paths(_ context.Context, page *collage.Page, locale string) ([]collage.PathInstance, error) {
+	loaded := d.set.Site(locale)
+	if page.Name != "doc" || loaded == nil {
 		return nil, nil
 	}
 	var paths []collage.PathInstance
-	for _, p := range d.site.Pages() {
-		paths = append(paths, collage.PathInstance{Path: p.URL(), Params: map[string]string{"slug": p.Slug}})
+	for _, p := range loaded.Pages() {
+		paths = append(paths, collage.PathInstance{Path: p.Path(), Params: map[string]string{"slug": p.Slug}})
 	}
 	return paths, nil
 }

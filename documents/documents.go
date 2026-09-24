@@ -18,7 +18,7 @@ import (
 // Robots allows everything and points at the sitemap.
 func Robots() *collage.Document {
 	return collage.NewDocument("robots", "text/plain; charset=utf-8").
-		WithPath("en", "/robots.txt").
+		WithPath(site.Original, "/robots.txt").
 		WithHandler(func(context.Context, *collage.RenderContext) ([]byte, []string, error) {
 			return []byte("User-agent: *\nAllow: /\n\nSitemap: " + site.Origin + "/sitemap.xml\n"), nil, nil
 		}).
@@ -29,41 +29,80 @@ func Robots() *collage.Document {
 type urlset struct {
 	XMLName xml.Name `xml:"urlset"`
 	NS      string   `xml:"xmlns,attr"`
+	XHTML   string   `xml:"xmlns:xhtml,attr"`
 	URLs    []entry  `xml:"url"`
 }
 
 type entry struct {
 	Loc string `xml:"loc"`
+	// Alternates are the page in every language it is in, itself included, as
+	// search engines ask for them.
+	Alternates []alternate `xml:"xhtml:link"`
 }
 
-// Sitemap lists the home page and every page of the documentation, built from
-// their page names with app.URL — so a page whose path changes is listed where it
-// now is.
-func Sitemap(app *collage.App, docs func() (*site.Site, error)) *collage.Document {
+type alternate struct {
+	Rel      string `xml:"rel,attr"`
+	Hreflang string `xml:"hreflang,attr"`
+	Href     string `xml:"href,attr"`
+}
+
+// Sitemap lists the home page and every page of the documentation, in every
+// language each is in, with the other languages as alternates. Addresses are
+// built from page names with app.URL, so a page whose path changes is listed where
+// it now is.
+func Sitemap(app *collage.App, docs func() (*site.Set, error)) *collage.Document {
 	return collage.NewDocument("sitemap", "application/xml").
-		WithPath("en", "/sitemap.xml").
+		WithPath(site.Original, "/sitemap.xml").
 		WithHandler(func(context.Context, *collage.RenderContext) ([]byte, []string, error) {
-			loaded, err := docs()
+			set, err := docs()
 			if err != nil {
 				return nil, nil, err
 			}
-			home, err := app.URL("home", "", nil)
-			if err != nil {
-				return nil, nil, err
-			}
-			set := urlset{NS: "http://www.sitemaps.org/schemas/sitemap/0.9", URLs: []entry{{Loc: site.Origin + home}}}
-			for _, page := range loaded.Pages() {
-				path, err := app.URL("doc", "", map[string]string{"slug": page.Slug})
-				if err != nil {
-					return nil, nil, fmt.Errorf("sitemap: %w", err)
+			urls := urlset{NS: "http://www.sitemaps.org/schemas/sitemap/0.9", XHTML: "http://www.w3.org/1999/xhtml"}
+
+			// add lists one page: an entry per language it is in, each carrying
+			// all of them.
+			add := func(name string, params map[string]string, in func(locale string) bool) error {
+				var links []alternate
+				for _, locale := range set.Locales() {
+					if !in(locale) {
+						continue
+					}
+					path, err := app.URL(name, locale, params)
+					if err != nil {
+						return fmt.Errorf("sitemap: %w", err)
+					}
+					links = append(links, alternate{Rel: "alternate", Hreflang: locale, Href: site.Origin + path})
+					if locale == site.Original {
+						links = append(links, alternate{Rel: "alternate", Hreflang: "x-default", Href: site.Origin + path})
+					}
 				}
-				set.URLs = append(set.URLs, entry{Loc: site.Origin + path})
+				for _, link := range links {
+					if link.Hreflang != "x-default" {
+						urls.URLs = append(urls.URLs, entry{Loc: link.Href, Alternates: links})
+					}
+				}
+				return nil
 			}
+
+			if err := add("home", nil, func(string) bool { return true }); err != nil {
+				return nil, nil, err
+			}
+			for _, page := range set.Site(site.Original).Pages() {
+				translated := func(locale string) bool {
+					_, err := set.Site(locale).Page(page.Slug)
+					return err == nil
+				}
+				if err := add("doc", map[string]string{"slug": page.Slug}, translated); err != nil {
+					return nil, nil, err
+				}
+			}
+
 			var out bytes.Buffer
 			out.WriteString(xml.Header)
 			encoder := xml.NewEncoder(&out)
 			encoder.Indent("", "  ")
-			if err := encoder.Encode(set); err != nil {
+			if err := encoder.Encode(urls); err != nil {
 				return nil, nil, err
 			}
 			return []byte(strings.TrimSpace(out.String()) + "\n"), nil, nil
@@ -86,17 +125,23 @@ type searchEntry struct {
 // headings, so a result links to the heading it matched under. It is a Static
 // document, so an export writes it as a file and no server is involved in
 // searching at all — static/search.js fetches it the first time someone searches.
-func Search(app *collage.App, docs func() (*site.Site, error)) *collage.Document {
-	return collage.NewDocument("search", "application/json").
-		WithPath("en", "/search.json").
-		WithHandler(func(context.Context, *collage.RenderContext) ([]byte, []string, error) {
-			loaded, err := docs()
+//
+// Each language has its own, /search.json and /tr/search.json, holding the pages
+// in that language: a Turkish reader searches in Turkish.
+func Search(app *collage.App, docs func() (*site.Set, error)) *collage.Document {
+	builder := collage.NewDocument("search", "application/json").
+		WithHandler(func(_ context.Context, rc *collage.RenderContext) ([]byte, []string, error) {
+			set, err := docs()
 			if err != nil {
 				return nil, nil, err
 			}
-			var entries []searchEntry
+			loaded := set.Site(rc.Locale)
+			if loaded == nil {
+				return nil, nil, fmt.Errorf("%w: no documentation in %q", collage.ErrNotFound, rc.Locale)
+			}
+			entries := []searchEntry{}
 			for _, page := range loaded.Pages() {
-				path, err := app.URL("doc", "", map[string]string{"slug": page.Slug})
+				path, err := app.URL("doc", rc.Locale, map[string]string{"slug": page.Slug})
 				if err != nil {
 					return nil, nil, fmt.Errorf("search: %w", err)
 				}
@@ -117,6 +162,9 @@ func Search(app *collage.App, docs func() (*site.Site, error)) *collage.Document
 			body, err := json.Marshal(entries)
 			return body, nil, err
 		}).
-		Static().
-		Build()
+		Static()
+	for _, locale := range site.Locales() {
+		builder = builder.WithPath(locale, "/search.json")
+	}
+	return builder.Build()
 }

@@ -11,8 +11,8 @@ import (
 )
 
 // register adds every page, document and action to app. A new route goes here.
-func register(app *collage.App, docs func() (*site.Site, error)) error {
-	for _, page := range []*collage.Page{pages.HomePage(docs), pages.DocPage(docs)} {
+func register(app *collage.App, docs func() (*site.Set, error)) error {
+	for _, page := range []*collage.Page{pages.HomePage(app, docs), pages.DocPage(app, docs)} {
 		if err := app.RegisterPage(page); err != nil {
 			return fmt.Errorf("register page %q: %w", page.Name, err)
 		}
@@ -24,7 +24,7 @@ func register(app *collage.App, docs func() (*site.Site, error)) error {
 	}
 	// Registered rather than given a path: it is reached by failing to match.
 	// "collage export" writes it as 404.html.
-	if err := app.RegisterNotFoundPage(pages.NotFoundPage()); err != nil {
+	if err := app.RegisterNotFoundPage(pages.NotFoundPage(app, docs)); err != nil {
 		return fmt.Errorf("register not-found page: %w", err)
 	}
 	return nil

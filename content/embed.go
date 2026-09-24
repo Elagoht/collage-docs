@@ -4,7 +4,7 @@ package content
 
 import "embed"
 
-// FS is every page and nav.json.
+// FS is every page and nav.json, and under tr/ their Turkish translation.
 //
-//go:embed *.md nav.json
+//go:embed *.md nav.json tr/*.md tr/nav.json
 var FS embed.FS

@@ -6,6 +6,7 @@ import (
 	"go/doc"
 	"go/parser"
 	"go/token"
+	"html/template"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -40,27 +41,105 @@ func TestHomePage(t *testing.T) {
 	}
 }
 
-// Every page of the documentation renders, with its own title.
-func TestEveryDocRenders(t *testing.T) {
-	loaded, err := site.Load(content.FS)
+// load is the documentation in every language, as the site loads it.
+func load(t *testing.T) *site.Set {
+	t.Helper()
+	set, err := loadContent(content.FS)
 	if err != nil {
-		t.Fatalf("site.Load: %v", err)
+		t.Fatalf("loadContent: %v", err)
 	}
-	for _, page := range loaded.Pages() {
+	return set
+}
+
+// eachPage calls fn for every page in every language.
+func eachPage(t *testing.T, fn func(locale string, page *site.Page)) {
+	t.Helper()
+	set := load(t)
+	for _, locale := range set.Locales() {
+		for _, page := range set.Site(locale).Pages() {
+			fn(locale, page)
+		}
+	}
+}
+
+// Every page of the documentation renders in every language, with its own title,
+// in a document that says which language it is in.
+func TestEveryDocRenders(t *testing.T) {
+	eachPage(t, func(locale string, page *site.Page) {
 		rec := get(t, page.URL())
 		if rec.Code != http.StatusOK {
 			t.Errorf("GET %s = %d", page.URL(), rec.Code)
-			continue
+			return
 		}
-		if !strings.Contains(rec.Body.String(), "<title>"+page.Title+" — collage</title>") {
+		body := rec.Body.String()
+		if !strings.Contains(body, "<title>"+template.HTMLEscapeString(page.Title)+" — collage</title>") {
 			t.Errorf("GET %s has no title %q", page.URL(), page.Title)
+		}
+		if !strings.Contains(body, `<html lang="`+locale+`">`) {
+			t.Errorf("GET %s is not marked as %q", page.URL(), locale)
+		}
+	})
+}
+
+// The whole documentation is translated. A page added in English and not yet in
+// Turkish fails this test rather than a reader, who would find a Turkish site
+// with a page missing.
+func TestEveryPageIsTranslated(t *testing.T) {
+	set := load(t)
+	for _, locale := range site.Translations {
+		for _, page := range set.Site(site.Original).Pages() {
+			if _, err := set.Site(locale).Page(page.Slug); err != nil {
+				t.Errorf("%s.md has no %s translation: content/%s/%s.md", page.Slug, locale, locale, page.Slug)
+			}
+		}
+	}
+}
+
+// A page names its canonical address and every language it is in, each at the
+// address the host answers — with the trailing slash, not a redirect to it.
+func TestCanonicalAndAlternates(t *testing.T) {
+	for _, c := range []struct {
+		path, canonical string
+	}{
+		{"/", "/"},
+		{"/tr/", "/tr/"},
+		{"/docs/caching/", "/docs/caching/"},
+		{"/tr/docs/caching/", "/tr/docs/caching/"},
+	} {
+		body := get(t, c.path).Body.String()
+		want := []string{`<link rel="canonical" href="` + site.Origin + c.canonical + `">`}
+		english := strings.TrimPrefix(c.canonical, "/tr")
+		for _, alt := range []struct{ lang, href string }{
+			{"en", english}, {"x-default", english}, {"tr", "/tr" + english},
+		} {
+			want = append(want, `<link rel="alternate" hreflang="`+alt.lang+`" href="`+site.Origin+alt.href+`">`)
+		}
+		for _, w := range want {
+			if !strings.Contains(body, w) {
+				t.Errorf("GET %s has no %s", c.path, w)
+			}
+		}
+		if strings.Index(body, `rel="canonical"`) > strings.Index(body, `rel="alternate" hreflang`) {
+			t.Errorf("GET %s declares its alternates before its canonical link", c.path)
+		}
+	}
+}
+
+// The other spelling of a page redirects to the one the site links to.
+func TestTrailingSlash(t *testing.T) {
+	for from, to := range map[string]string{"/docs/caching": "/docs/caching/", "/tr": "/tr/", "/tr/docs/caching": "/tr/docs/caching/"} {
+		rec := get(t, from)
+		if rec.Code != http.StatusMovedPermanently || rec.Header().Get("Location") != to {
+			t.Errorf("GET %s = %d to %q, want 301 to %q", from, rec.Code, rec.Header().Get("Location"), to)
 		}
 	}
 }
 
 func TestUnknownDocIsNotFound(t *testing.T) {
-	if rec := get(t, "/docs/no-such-page"); rec.Code != http.StatusNotFound {
-		t.Errorf("status = %d, want 404", rec.Code)
+	for _, path := range []string{"/docs/no-such-page/", "/tr/docs/no-such-page/"} {
+		if rec := get(t, path); rec.Code != http.StatusNotFound {
+			t.Errorf("GET %s = %d, want 404", path, rec.Code)
+		}
 	}
 }
 
@@ -75,11 +154,10 @@ func TestExport(t *testing.T) {
 	if err := staticBuild(app, out, false); err != nil {
 		t.Fatalf("staticBuild: %v", err)
 	}
-	loaded, _ := site.Load(content.FS)
-	want := []string{"index.html", "404.html", "robots.txt", "sitemap.xml", "search.json"}
-	for _, page := range loaded.Pages() {
-		want = append(want, filepath.Join("docs", page.Slug, "index.html"))
-	}
+	want := []string{"index.html", "404.html", "robots.txt", "sitemap.xml", "search.json", "tr/index.html", "tr/search.json"}
+	eachPage(t, func(_ string, page *site.Page) {
+		want = append(want, filepath.Join(page.URL(), "index.html"))
+	})
 	for _, file := range want {
 		if _, err := os.Stat(filepath.Join(out, file)); err != nil {
 			t.Errorf("%s was not written: %v", file, err)
@@ -87,26 +165,41 @@ func TestExport(t *testing.T) {
 	}
 }
 
-// The sitemap lists every page at its published address.
+// The sitemap lists every page in every language at its published address, with
+// its translations as alternates.
 func TestSitemap(t *testing.T) {
 	rec := get(t, "/sitemap.xml")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("GET /sitemap.xml = %d", rec.Code)
 	}
-	loaded, _ := site.Load(content.FS)
-	for _, page := range loaded.Pages() {
-		if loc := "<loc>" + site.Origin + page.URL() + "</loc>"; !strings.Contains(rec.Body.String(), loc) {
+	body := rec.Body.String()
+	eachPage(t, func(locale string, page *site.Page) {
+		if loc := "<loc>" + site.Origin + page.URL() + "</loc>"; !strings.Contains(body, loc) {
 			t.Errorf("sitemap has no %s", loc)
 		}
-	}
+		if link := `hreflang="` + locale + `" href="` + site.Origin + page.URL() + `"`; !strings.Contains(body, link) {
+			t.Errorf("sitemap has no alternate %s", link)
+		}
+	})
 }
 
 // The search index has an entry for every page, each linking to a page that
 // exists, and none of them carries the text of a code block.
 func TestSearch(t *testing.T) {
-	rec := get(t, "/search.json")
+	set := load(t)
+	for _, locale := range set.Locales() {
+		index := "/search.json"
+		if locale != site.Original {
+			index = "/" + locale + index
+		}
+		searchIndex(t, index, set.Site(locale))
+	}
+}
+
+func searchIndex(t *testing.T, index string, loaded *site.Site) {
+	rec := get(t, index)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("GET /search.json = %d", rec.Code)
+		t.Fatalf("GET %s = %d", index, rec.Code)
 	}
 	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
 		t.Errorf("Content-Type = %q", ct)
@@ -119,7 +212,6 @@ func TestSearch(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &entries); err != nil {
 		t.Fatalf("search.json does not decode: %v", err)
 	}
-	loaded, _ := site.Load(content.FS)
 	seen := map[string]bool{}
 	for _, entry := range entries {
 		path, _, _ := strings.Cut(entry.URL, "#")
@@ -130,7 +222,7 @@ func TestSearch(t *testing.T) {
 	}
 	for _, page := range loaded.Pages() {
 		if !seen[page.URL()] {
-			t.Errorf("search.json has nothing for %s", page.URL())
+			t.Errorf("%s has nothing for %s", index, page.URL())
 		}
 	}
 }
@@ -191,15 +283,11 @@ func TestReferencesExist(t *testing.T) {
 		}
 	}
 
-	loaded, err := site.Load(content.FS)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, page := range loaded.Pages() {
+	eachPage(t, func(locale string, page *site.Page) {
 		for _, ref := range page.References {
 			if !known[ref.Name] {
-				t.Errorf("%s.md refers to collage.%s, which package collage does not declare", page.Slug, ref.Name)
+				t.Errorf("%s %s.md refers to collage.%s, which package collage does not declare", locale, page.Slug, ref.Name)
 			}
 		}
-	}
+	})
 }

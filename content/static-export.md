@@ -294,7 +294,7 @@ them). It serves files; it does not run your project.
 
 ## Hosting
 
-The output is plain files with absolute links, so any static host serves it. Two
+The output is plain files with absolute links, so any static host serves it. Three
 things to check on any of them:
 
 - **The site must be at the root of its domain.** Links and asset URLs start at `/`,
@@ -303,6 +303,10 @@ things to check on any of them:
   custom domain, or a host that gives the site its own.
 - **`404.html` is at the root.** Most hosts pick it up by that name without any
   configuration.
+- **[`TrailingSlash`](/docs/configuration#trailingslash) is on.** A page is written
+  as `<path>/index.html`, and a host serves it at `/about/` and redirects `/about`
+  there. With the setting on, every link collage builds is already the address the
+  host answers, rather than a redirect to it.
 
 ### GitHub Pages
 

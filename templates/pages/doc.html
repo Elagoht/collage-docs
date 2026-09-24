@@ -1,7 +1,7 @@
 <div class="docs">
   <details class="sidebar" open>
-    <summary>Contents</summary>
-    <nav aria-label="Documentation">
+    <summary>{{.T.Contents}}</summary>
+    <nav aria-label="{{.T.Documentation}}">
       {{range .Sections}}
       <section>
         <h2>{{.Title}}</h2>
@@ -27,8 +27,8 @@
     <div class="prose">{{.Page.Body}}</div>
 
     {{with .Page.References}}
-    <aside class="reference" aria-label="Go reference">
-      <p>Go reference <span aria-hidden="true">↗</span></p>
+    <aside class="reference" aria-label="{{$.T.GoReference}}">
+      <p>{{$.T.GoReference}} <span aria-hidden="true">↗</span></p>
       <ul>
         {{range .}}<li><a href="{{.URL}}"><code>collage.{{.Name}}</code></a></li>
         {{end}}
@@ -36,15 +36,15 @@
     </aside>
     {{end}}
 
-    <nav class="pager" aria-label="Pages">
-      {{with .Page.Prev}}<a class="prev" href="{{pageURL "doc" "slug" .Slug}}"><span>Previous</span>{{.Title}}</a>{{end}}
-      {{with .Page.Next}}<a class="next" href="{{pageURL "doc" "slug" .Slug}}"><span>Next</span>{{.Title}}</a>{{end}}
+    <nav class="pager" aria-label="{{.T.Pages}}">
+      {{with .Page.Prev}}<a class="prev" href="{{pageURL "doc" "slug" .Slug}}"><span>{{$.T.Previous}}</span>{{.Title}}</a>{{end}}
+      {{with .Page.Next}}<a class="next" href="{{pageURL "doc" "slug" .Slug}}"><span>{{$.T.Next}}</span>{{.Title}}</a>{{end}}
     </nav>
   </article>
 
   {{if .Page.Headings}}
-  <aside class="toc" aria-label="On this page">
-    <p>On this page</p>
+  <aside class="toc" aria-label="{{.T.OnThisPage}}">
+    <p>{{.T.OnThisPage}}</p>
     <ul>
       {{range .Page.Headings}}
       <li class="level-{{.Level}}"><a href="#{{.ID}}">{{.Text}}</a></li>

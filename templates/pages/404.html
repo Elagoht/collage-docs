@@ -1,4 +1,4 @@
 <main class="not-found">
-  <h1>There is nothing here.</h1>
-  <p>The page may have moved. The <a href="{{pageURL "doc" "slug" "introduction"}}">guide</a> starts at the beginning.</p>
+  <h1>{{.NotFoundHeadline}}</h1>
+  <p>{{.NotFoundBefore}}<a href="{{pageURL "doc" "slug" "introduction"}}">{{.NotFoundGuideLink}}</a>{{.NotFoundAfter}}</p>
 </main>

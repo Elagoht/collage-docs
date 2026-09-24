@@ -90,3 +90,81 @@ func TestLoad_Parts(t *testing.T) {
 		t.Errorf("setup text %q includes a code block", setup.Text)
 	}
 }
+
+// translated is an original of two pages and a Turkish translation of the first.
+func translated(trOne string) fstest.MapFS {
+	fsys := files(map[string]string{
+		"one": "---\nreference: New\n---\n\n# One\n\n## Setup\n\n### Details\n\nSee [two](/docs/two) and [setup](/docs/one#setup).\n",
+		"two": "# Two\n\n## Usage\n",
+	}, `[{"title":"Start","pages":["one","two"]}]`)
+	fsys["tr/nav.json"] = &fstest.MapFile{Data: []byte(`[{"title":"Başlangıç"}]`)}
+	fsys["tr/one.md"] = &fstest.MapFile{Data: []byte(trOne)}
+	return fsys
+}
+
+func TestLoadSet(t *testing.T) {
+	set, err := LoadSet(translated("# Bir\n\n## Kurulum\n\n### Ayrıntılar\n\nBkz. [iki](/docs/two) ve [kurulum](/docs/one#setup).\n"), "en", "tr")
+	if err != nil {
+		t.Fatalf("LoadSet: %v", err)
+	}
+	if got := set.Locales(); len(got) != 2 || got[0] != "en" || got[1] != "tr" {
+		t.Errorf("Locales() = %v", got)
+	}
+	tr := set.Site("tr")
+	if len(tr.Pages()) != 1 {
+		t.Fatalf("the translation has %d pages, want the one translated", len(tr.Pages()))
+	}
+	one, err := tr.Page("one")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tr.Page("two"); err == nil {
+		t.Error("an untranslated page is in the translation")
+	}
+	if one.URL() != "/tr/docs/one/" || one.Path() != "/docs/one" || one.Section != "Başlangıç" {
+		t.Errorf("one: URL %q, Path %q, Section %q", one.URL(), one.Path(), one.Section)
+	}
+	if got := one.Headings; len(got) != 2 || got[0].ID != "setup" || got[1].ID != "details" || got[0].Text != "Kurulum" {
+		t.Errorf("headings = %+v, want the original's ids with the translation's text", got)
+	}
+	body := string(one.Body)
+	for _, want := range []string{`id="setup"`, `href="/docs/two/"`, `href="/tr/docs/one/#setup"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("body has no %s:\n%s", want, body)
+		}
+	}
+	if len(one.References) != 1 || one.References[0].Name != "New" {
+		t.Errorf("references = %v, want the original's", one.References)
+	}
+}
+
+func TestLoadSet_Refusals(t *testing.T) {
+	for _, c := range []struct {
+		name, trOne, want string
+	}{
+		{"a missing heading", "# Bir\n\n## Kurulum\n", `the first missing one is "Details"`},
+		{"an extra heading", "# Bir\n\n## Kurulum\n\n### Ayrıntılar\n\n## Fazla\n", `"Fazla" has no counterpart`},
+		{"a heading at another level", "# Bir\n\n## Kurulum\n\n## Ayrıntılar\n", "is level 2, but the original's"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			if _, err := LoadSet(translated(c.trOne), "en", "tr"); err == nil || !strings.Contains(err.Error(), c.want) {
+				t.Errorf("LoadSet() = %v, want an error mentioning %q", err, c.want)
+			}
+		})
+	}
+
+	t.Run("a page the original does not have", func(t *testing.T) {
+		fsys := translated("# Bir\n\n## Kurulum\n\n### Ayrıntılar\n")
+		fsys["tr/three.md"] = &fstest.MapFile{Data: []byte("# Üç\n")}
+		if _, err := LoadSet(fsys, "en", "tr"); err == nil || !strings.Contains(err.Error(), "tr/three.md translates nothing") {
+			t.Errorf("LoadSet() = %v", err)
+		}
+	})
+	t.Run("sections that are not the original's", func(t *testing.T) {
+		fsys := translated("# Bir\n\n## Kurulum\n\n### Ayrıntılar\n")
+		fsys["tr/nav.json"] = &fstest.MapFile{Data: []byte(`[{"title":"A"},{"title":"B"}]`)}
+		if _, err := LoadSet(fsys, "en", "tr"); err == nil || !strings.Contains(err.Error(), "has 2 sections, the original has 1") {
+			t.Errorf("LoadSet() = %v", err)
+		}
+	})
+}

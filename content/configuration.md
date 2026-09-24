@@ -41,6 +41,7 @@ request for defaults, because the configuration says where your templates are.
 | `Template` | `TemplateConfig` | | Template loading and rendering. |
 | `Cache` | `CacheConfig` | | The page cache. |
 | `Locale` | `LocaleConfig` | | Which locales URLs carry. |
+| `TrailingSlash` | `bool` | `false` | End every page's URL in `/`. Since v0.13.0. |
 | `Observability` | `ObservabilityConfig` | | Metrics and tracing. |
 | `Plugins` | `[]Plugin` | none | Plugins registered while the application is built. |
 | `PluginConfig` | `map[string]json.RawMessage` | none | Each plugin's own configuration, keyed by plugin name. |
@@ -97,6 +98,23 @@ fill it however you like, or use `collage.LoadPluginConfig("plugins-config.json"
 which returns `nil` for a missing file. A key that names no registered plugin stops
 the application from starting with `ErrUnknownPluginConfig`. See
 [Using plugins](/docs/plugins).
+
+### TrailingSlash
+
+Every page has one address, and `TrailingSlash` says whether it ends in `/`. On,
+`/blog/hello/` is the page and `/blog/hello` redirects to it with a `301`; off,
+which is the default, it is the other way round. Links built by name —
+`pageURL`, `pageURLIn`, `localeURL`, `app.URL` — come out in the chosen spelling,
+a locale's home included: `/tr/` on, `/tr` off.
+
+Turn it on for a site you [export](/docs/static-export#hosting) to a static host.
+The export writes a page as `<path>/index.html`, which a host serves at
+`/blog/hello/` and reaches from `/blog/hello` only through a redirect — so with it
+off, every canonical link, sitemap entry and internal link points at a redirect.
+
+It applies to pages. A [document](/docs/documents) is a file and keeps its path as
+written, `/sitemap.xml` either way, and an action is answered at whichever
+spelling it was posted to.
 
 ## ServerConfig
 

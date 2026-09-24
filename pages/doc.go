@@ -9,25 +9,32 @@ import (
 
 	"github.com/Elagoht/collage-docs/fragments/layouts"
 	"github.com/Elagoht/collage-docs/site"
+	"github.com/Elagoht/collage-docs/ui"
 )
 
 // docView is what templates/pages/doc.html renders: the page, and the whole
-// navigation for the sidebar.
+// navigation for the sidebar, in the page's language.
 type docView struct {
+	T        ui.Text
 	Page     *site.Page
 	Sections []site.Section
 }
 
-// DocPage is every page of the documentation, at /docs/{slug}.
+// DocPage is every page of the documentation, at /docs/{slug} and, translated,
+// /tr/docs/{slug}. A page not translated yet is a 404 in the translation.
 //
 // Static: a page's content changes when the site is rebuilt and at no other time,
 // so it is rendered once per build and, served, once per process.
-func DocPage(docs func() (*site.Site, error)) *collage.Page {
+func DocPage(app *collage.App, docs func() (*site.Set, error)) *collage.Page {
 	content := collage.NewFragment("doc-content", "pages/doc.html").
 		WithDataHandler(collage.DataHandler(func(_ context.Context, rc *collage.RenderContext) (docView, []string, error) {
-			loaded, err := docs()
+			set, err := docs()
 			if err != nil {
 				return docView{}, nil, err
+			}
+			loaded := set.Site(rc.Locale)
+			if loaded == nil {
+				return docView{}, nil, fmt.Errorf("%w: no documentation in %q", collage.ErrNotFound, rc.Locale)
 			}
 			page, err := loaded.Page(rc.Param("slug"))
 			if errors.Is(err, site.ErrNoPage) {
@@ -40,16 +47,17 @@ func DocPage(docs func() (*site.Site, error)) *collage.Page {
 			if page.Description != "" {
 				rc.HoistMeta("description", page.Description)
 			}
-			rc.HoistLink("canonical", site.Origin+page.URL())
-			return docView{Page: page, Sections: loaded.Sections}, nil, nil
+			return docView{T: ui.For(rc.Locale), Page: page, Sections: loaded.Sections}, nil, nil
 		})).
 		Required().
 		Build()
 
-	return collage.NewPage("doc").
-		WithLayout(layouts.Layout()).
+	builder := collage.NewPage("doc").
+		WithLayout(layouts.Layout(app, docs)).
 		WithContent(content).
-		WithPath("en", "/docs/{slug}").
-		Static().
-		Build()
+		Static()
+	for _, locale := range site.Locales() {
+		builder = builder.WithPath(locale, "/docs/{slug}")
+	}
+	return builder.Build()
 }

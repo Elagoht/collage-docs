@@ -131,7 +131,7 @@
     if (input.value.trim() && results.length === 0) {
       const empty = document.createElement("li");
       empty.className = "result-empty";
-      empty.textContent = "Nothing matches “" + input.value.trim() + "”.";
+      empty.textContent = box.dataset.empty.replace("{query}", input.value.trim());
       list.append(empty);
     }
     const open = list.childElementCount > 0;
@@ -173,7 +173,7 @@
         list.replaceChildren();
         const failed = document.createElement("li");
         failed.className = "result-empty";
-        failed.textContent = "Search is unavailable (" + error.message + ").";
+        failed.textContent = box.dataset.failed.replace("{error}", error.message);
         list.append(failed);
         list.hidden = false;
       });

@@ -122,6 +122,8 @@ It works for [documents](/docs/documents) as well as pages.
 - **Values are escaped**, and a value of `.` or `..` is refused.
 - **Values are strings.** Pass a number through `printf`:
   `{{pageURL "user" "id" (printf "%d" .ID)}}`.
+- **It ends in `/` when [`TrailingSlash`](/docs/configuration#trailingslash) is
+  on** — a page's link, not a document's: `/about/`, `/tr/`, but `/feed.xml`.
 
 ### A link in a specific locale
 
