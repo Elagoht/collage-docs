@@ -1,6 +1,6 @@
 ---
 description: Titles, meta tags, stylesheets and structured data declared by the fragment that knows them, placed by the layout.
-reference: RenderContext, PageBuilder.WithSEO, ErrNoPathInLocale
+reference: RenderContext, Effect, ErrNoPathInLocale
 ---
 
 # Head and SEO
@@ -125,7 +125,7 @@ hoisted one, and a page with two titles has one a browser ignores. The layout
 `collage new` scaffolds declares the site's name this way, so a page's
 `rc.HoistTitle` replaces it.
 
-Two details, so they are not a surprise:
+Three details, so they are not a surprise:
 
 - **Position comes from the first declaration, not the winning one.** The head does
   not reorder itself depending on whether something nested happened to override a

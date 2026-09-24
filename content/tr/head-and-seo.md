@@ -127,7 +127,7 @@ dururdu ve iki başlığı olan bir sayfanın başlıklarından birini tarayıc�
 `collage new`'un iskeletini oluşturduğu layout sitenin adını bu şekilde bildirir;
 böylece bir sayfanın `rc.HoistTitle`'ı onun yerini alır.
 
-Sürpriz olmasınlar diye birkaç ayrıntı:
+Sürpriz olmasınlar diye üç ayrıntı:
 
 - **Konum, kazanan bildirimden değil ilk bildirimden gelir.** Head, iç içe bir şeyin
   bir başlığın üzerine yazıp yazmamasına göre kendini yeniden sıralamaz.
