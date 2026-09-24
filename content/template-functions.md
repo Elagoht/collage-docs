@@ -31,8 +31,10 @@ Templates are Go's `html/template`, so everything it provides is there: `if`,
 
 A function that returns an error fails the template, and the fragment fails with
 it — under the fragment's own failure policy: a required fragment fails the page,
-an optional one renders its fallback or nothing. See
-[Fragments and slots](/docs/fragments-and-slots).
+an optional one renders its fallback, or nothing when it has none. In development
+mode "nothing" is an HTML comment naming the fragment and its error, and the
+development panel on top of the page names every failed fragment, fallback or not.
+See [Fragments and slots](/docs/fragments-and-slots).
 
 ## Bound per render
 
@@ -65,8 +67,11 @@ fragments can each have a slot called `"sidebar"` without meeting.
 - A slot the fragment never declared with `WithSlot` is an error
   (`ErrUnknownSlot`), naming the slots it does have. Rendering nothing would turn a
   typo into a section that is silently missing.
-- A slot declared but empty renders nothing — unless it was declared required, in
-  which case the render fails with `ErrRequiredSlotEmpty`.
+- A slot declared but empty renders nothing — unless it was declared required. A
+  required slot with nothing bound and no resolver is refused when the page is
+  registered, with `ErrRequiredSlotUnfilled`, so it never reaches a render. A
+  required slot filled by a resolver is checked at render time instead: a resolver
+  that returns no fragments fails the render with `ErrRequiredSlotEmpty`.
 - A layout's content goes in `{{slot "content"}}`, the name
   `collage.DefaultContentSlot` holds.
 

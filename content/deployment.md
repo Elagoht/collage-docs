@@ -6,7 +6,8 @@ description: Build the binary, run it in a container or under systemd, set what 
 
 A collage site is a Go program, so what you deploy is a compiled binary. Templates
 and static files are embedded in it, so it runs from any directory with nothing
-copied beside it. This page is about running that binary on a server; for a site
+copied beside it — except `plugins-config.json`, if you configure plugins; see
+[below](#plugin-configuration). This page is about running that binary on a server; for a site
 with no server at all, see [Static export](/docs/static-export).
 
 ## Building: `collage build`
@@ -91,9 +92,11 @@ ENTRYPOINT ["/usr/local/bin/mysite"]
 ```
 
 Build it from the project root with `docker build -f bin/Dockerfile .`. There is no
-`COPY` of templates or static files, because they are inside the binary. The
-`WORKDIR` matters for the page cache; see below. Set `COLLAGE_CSRF_KEY` from your
-platform's secrets rather than in the file.
+`COPY` of templates or static files, because they are inside the binary. The final
+stage copies the binary — and, since v0.11.1, `plugins-config.json` when the project
+has one when the Dockerfile is written; see [Plugin configuration](#plugin-configuration). The `WORKDIR`
+matters for the page cache and for that file; see below. Set `COLLAGE_CSRF_KEY` from
+your platform's secrets rather than in the file.
 
 The systemd unit runs the binary from `/usr/local/bin`, in `/srv/<name>`, as a user
 of the same name, listening on `127.0.0.1:8080` for a reverse proxy in front. Adjust
@@ -106,7 +109,7 @@ systemctl daemon-reload && systemctl enable --now mysite
 
 ## Environment
 
-The scaffolded `main.go` reads three variables. Nothing reads `.env` files in
+The scaffolded `main.go` reads four variables. Nothing reads `.env` files in
 production — those are for `collage dev` — so set them wherever the binary runs.
 
 | Variable | Default | Set it to |
@@ -114,6 +117,7 @@ production — those are for `collage dev` — so set them wherever the binary r
 | `HOST` | `localhost` | `0.0.0.0` in a container. `localhost` accepts nothing from outside the machine, which is right behind a local reverse proxy and wrong everywhere else. |
 | `PORT` | `3000` | Whatever your platform assigns. The binary's `-port` flag overrides it. |
 | `COLLAGE_CSRF_KEY` | generated | At least 32 random bytes. **Set this.** |
+| `COLLAGE_DEV` | unset | **Nothing — leave it unset.** `collage dev` sets it to `1`, which turns on development mode: templates and static files read from disk, an in-memory cache that is never read, full error chains on error pages. A server running with it is a development server. |
 
 Make a key with:
 
@@ -159,6 +163,39 @@ reason, and reads it from disk in development. Name such a directory in
 [`Config.DevWatch`](/docs/configuration#devwatch) (since v0.10.0) and editing a file
 in it reloads the browser too.
 
+## Plugin configuration
+
+The scaffolded `main.go` reads `plugins-config.json` with
+`collage.LoadPluginConfig("plugins-config.json")` — a path relative to the working
+directory, not to the binary, and not embedded. A missing file is not an error: every
+plugin silently runs on its defaults. So a server started somewhere the file is not
+ignores your plugin settings without a word.
+
+The Dockerfile `collage build -i` writes copies it when the project has one at the
+time the Dockerfile is written (since v0.11.1; earlier ones copied only the binary).
+Add the line yourself if you create the file later — `collage build -i` never
+overwrites a Dockerfile — beside the `WORKDIR` the process starts in:
+
+```dockerfile
+WORKDIR /srv
+COPY --from=build /mysite /usr/local/bin/mysite
+COPY --from=build /src/plugins-config.json /srv/plugins-config.json
+```
+
+or embed it, so it travels in the binary like the templates:
+
+```go
+//go:embed plugins-config.json
+var pluginConfigJSON []byte
+
+var pluginConfig map[string]json.RawMessage
+if err := json.Unmarshal(pluginConfigJSON, &pluginConfig); err != nil {
+	return nil, fmt.Errorf("plugin configuration: %w", err)
+}
+```
+
+With systemd, keep the file in the unit's `WorkingDirectory`.
+
 ## Graceful shutdown
 
 `app.ListenAndServe` traps `SIGINT` and `SIGTERM`. On either it stops accepting
@@ -167,6 +204,13 @@ requests in flight to finish, runs every plugin's `Shutdown`, and returns `nil`.
 container runtime that sends `SIGTERM` and waits gets a clean drain with nothing
 added. The generated systemd unit sets `TimeoutStopSec=30`, comfortably longer than
 the shutdown timeout, so systemd does not kill a process that is still draining.
+
+If the drain runs out of time — a request still open when the timeout passes — the
+plugins are shut down anyway, and `ListenAndServe` returns an error saying so
+(`collage: server shutdown: context deadline exceeded`), as it does for a plugin
+whose `Shutdown` failed. The scaffold's `main.go` passes that to `log.Fatalf`, so
+the process exits with status 1 rather than 0; a platform that treats a non-zero
+exit on stop as a crash will say so.
 
 If you raise `ShutdownTimeout`, raise your platform's grace period with it.
 
@@ -200,16 +244,23 @@ Rendered pages survive a restart, so a redeploy of the same build does not re-re
 the site into a cold cache. What a new build finds depends on what changed:
 
 - **The cache is namespaced by a hash of the binary.** A new build reads a different
-  directory, so it never serves pages the previous build rendered. There is nothing
-  to clear by hand. Set `Cache.Version` — a commit, a release tag — if something
-  outside the binary decides what pages look like.
+  directory, `.cache/<hash>`, so it never serves pages the previous build rendered.
+  Nothing has to be cleared for correctness — but nothing clears it for space
+  either: the directories of earlier builds are never removed, so a server that is
+  redeployed in place, rather than as a fresh container, accumulates one per build.
+  Delete the old ones from your deploy script. Set `Cache.Version` — a commit, a
+  release tag — if something outside the binary decides what pages look like.
 - **The directory is relative to the working directory.** It is the one thing about
   a scaffolded project that depends on where it was started. Set `WORKDIR` in the
   container or `WorkingDirectory` in the unit, or give `Dir` an absolute path, and
   make sure the process can write there.
-- **A cache it cannot write to is not an error.** The write fails, the page is
-  served, and the next request renders it again: slow, not broken. Check that the
-  directory fills up after a deploy.
+- **A cache it cannot write to is not an error.** At startup, a directory that
+  cannot be created — a read-only filesystem, a working directory the process may
+  not write to — makes collage fall back to an in-memory cache with a warning,
+  rather than fail to start (since v0.11.0). Once running, a write that fails is
+  logged, the page is served uncached, and the next request renders it again: slow,
+  not broken. Look for the warning, and check that the directory fills up after a
+  deploy.
 - **Each instance has its own.** In a container the directory is inside the
   container, so each instance fills its own cache, at one render per page per
   instance.
@@ -225,6 +276,13 @@ Choose one of three answers: give pages that change `Incremental(ttl)` so a stal
 copy expires on its own, send the webhook to every instance, or configure a shared
 store through `Cache.Store` that implements `collage.TaggedCache`, which lets one
 invalidation reach entries any instance wrote. See [Caching](/docs/caching).
+
+A shared store holds pages, not data. Values kept with
+[`collage.Cached`](/docs/caching#caching-data-across-pages) live in each process's
+memory, whatever `Cache.Store` is, and an invalidation reaches only the instance it
+ran in. After a webhook reaches instance A, instance B renders a fresh page — the
+shared store dropped it — from the old value it still holds. Give those values a
+TTL short enough to live with, or send the invalidation to every instance.
 
 ## TLS, behind a proxy
 
@@ -302,7 +360,11 @@ Logger: slog.New(slog.NewJSONHandler(os.Stdout, nil)),
 
 - `COLLAGE_CSRF_KEY` set, the same on every instance.
 - `HOST=0.0.0.0` in a container; `PORT` from the platform.
-- A writable working directory for `.cache`.
+- A writable working directory for `.cache`, and old `.cache/<hash>` directories
+  removed on deploy.
+- `plugins-config.json` in the working directory, or embedded, if you configure
+  plugins.
+- `COLLAGE_DEV` unset.
 - TLS at the proxy, with `X-Forwarded-Proto` passed on.
 - The platform's stop grace period longer than `Server.ShutdownTimeout`.
 - The liveness check on `/healthz`.

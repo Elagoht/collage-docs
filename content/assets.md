@@ -38,9 +38,12 @@ open at all. It has been in Go since 1.24.
 
 collage cannot close this gap for you. It is handed an `fs.FS` and calls `Open` on
 it; whether the file system stays inside its directory is a property of the file
-system. What collage does do is refuse `..`, absolute paths and empty path
-elements in the URL before `Open` is ever called — which stops a traversal written
-in the URL, not one built out of symlinks on disk.
+system. What collage does do is clean the path in the URL, with `path.Clean`,
+before `Open` is ever called. A `..` or `.` that stays inside the mount is
+normalised and served — `/static/css/../app.css` is `/static/app.css` — and one
+that climbs out of it, or a path that starts with an empty element
+(`/static//…`), is refused with a `404`. That stops a traversal written in the URL,
+not one built out of symlinks on disk.
 
 Keep the `*os.Root` open for the life of the process: its file system serves every
 request.

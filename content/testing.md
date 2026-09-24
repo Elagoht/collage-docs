@@ -267,7 +267,8 @@ header on the request before `ServeHTTP`.
 ## Every page renders
 
 A test that visits every page catches the template that fails only on one of them.
-collage-docs loads its content and requests each page:
+collage-docs loads its content and requests each page — here with the `handler` and
+`get` helpers above, one application for the whole walk:
 
 ```go
 // Every page of the documentation renders, with its own title.
@@ -276,13 +277,14 @@ func TestEveryDocRenders(t *testing.T) {
 	if err != nil {
 		t.Fatalf("site.Load: %v", err)
 	}
+	h := handler(t)
 	for _, page := range loaded.Pages() {
-		rec := get(t, page.URL())
+		rec, body := get(t, h, page.URL())
 		if rec.Code != http.StatusOK {
 			t.Errorf("GET %s = %d", page.URL(), rec.Code)
 			continue
 		}
-		if !strings.Contains(rec.Body.String(), "<title>"+page.Title+" — collage</title>") {
+		if !strings.Contains(body, "<title>"+page.Title+" — collage</title>") {
 			t.Errorf("GET %s has no title %q", page.URL(), page.Title)
 		}
 	}
@@ -357,8 +359,12 @@ if len(report.Warnings) > 0 {
 
 ## Rendering without HTTP
 
-`app.RenderPath` renders one page the way the export does — no request, no cache,
-no middleware — and returns the HTML and what the render did:
+`app.RenderPath` renders one page the way the export does — no request, no page
+cache, no middleware — and returns the HTML and what the render did. The render
+hooks of your plugins still run, and so does the data cache: a value
+[`collage.Cached`](/docs/caching#caching-data-across-pages) stored during one
+render, or one served request, is what the next `RenderPath` on the same
+application is given. Build a fresh application when a test needs fresh data:
 
 ```go
 result, err := app.RenderPath(context.Background(), "/blog/hello-world", "", nil)

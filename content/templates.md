@@ -112,9 +112,10 @@ This is what `collage new` scaffolds.
 
 ## Reloading in development
 
-In development — `Config.DevMode`, which `collage dev` turns on through
-`COLLAGE_DEV=1`, or `Config.Template.DevMode` on its own — every template is
-reparsed before each render. Save a template, and the next request uses it.
+In development — `Config.DevMode`, or `Config.Template.DevMode` on its own — every
+template is reparsed before each render. Save a template, and the next request uses
+it. The framework does not read `COLLAGE_DEV`: `collage dev` sets it, and the
+scaffolded `main.go` turns it into `Config.DevMode`.
 
 An embedded set could not do that: its bytes were fixed when the binary was built,
 and reparsing them changes nothing. So **in development the directory on disk wins
@@ -197,7 +198,7 @@ These are available in every template, alongside `html/template`'s own (`printf`
 | `csrfToken` | The hidden input carrying a form's forgery token |
 | `safeHTML`, `safeURL` | Mark a string as trusted HTML or URL — escape hatches |
 | `dict "key" value …` | Builds a map, to pass several values to `{{template}}` |
-| `default fallback value` | `value`, or `fallback` when it is empty |
+| `default fallback value` | `value`, or `fallback` when it is empty. Strings only: another type fails the render |
 | `upper`, `lower`, `title` | Case conversion |
 | `join sep items` | Joins a `[]string` |
 | `formatTime t layout` | Formats a `time.Time` with a Go layout |
@@ -238,9 +239,10 @@ app, err := collage.New(&collage.Config{
   known when the template was parsed, and `New` is where parsing happens. A template
   calling a name nobody registered fails in `New`, which is the point: it is a typo
   you find at startup.
-- **An entry under a built-in's name replaces the built-in.** Overriding `slot` is
-  possible but has no effect, because the render engine binds its own `slot` for
-  every fragment.
+- **An entry under a built-in's name replaces the built-in** — except the eight
+  that depend on the render: `slot`, `hoist`, `asset`, `stylesheet`, `csrfToken`,
+  `pageURL`, `pageURLIn` and `localeURL`. The render engine binds its own of each
+  for every render, so overriding any of them is accepted and has no effect.
 - **A function cannot see the request.** It is registered once for the whole
   program. Anything that depends on the request, the locale or the user belongs in
   the data handler, which is where the data comes from anyway.

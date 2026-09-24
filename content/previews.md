@@ -34,9 +34,9 @@ Documents honour it too: a document requested in a preview is neither read from
 nor written to the cache. Every other request is untouched: it is served
 from the cache as usual, and the cache still holds the published version.
 
-Like `collage.Vary`, it must be called before the cache is consulted, which means
-from middleware registered with `app.Use`. Later — from a data handler, say — it
-returns `collage.ErrVaryTooLate`.
+Like `collage.Vary`, it must be called before routing, which means from middleware
+registered with `app.Use`. Called after routing — from a data handler, say — it
+returns `collage.ErrVaryTooLate`, on every route (since v0.11.0).
 
 ## A complete preview flow
 
@@ -153,8 +153,10 @@ A `GET` action needs no forgery token — only unsafe methods are checked — wh
 what lets the CMS open it as a plain link. `ActionResult.Header` is written onto the
 response before the redirect, which is where the cookie goes.
 
-`Secure: true` is right for production. Browsers accept a secure cookie on
-`http://localhost` as well, so `collage dev` works with it unchanged.
+`Secure: true` is right for production. Chrome and Firefox accept a secure cookie
+on `http://localhost` as well, so `collage dev` works with it unchanged there;
+Safari may not, and drops the cookie on plain `http`. If you develop in Safari, set
+`Secure` from whether the request arrived over TLS, or preview in another browser.
 
 ### The action that ends one
 
@@ -259,7 +261,13 @@ requests carrying the preview cookie.
 
 **Previewing inside the CMS.** If the CMS shows the preview in an `<iframe>` on its
 own domain, a `SameSite=Lax` cookie is not sent to the framed site. Use
-`SameSite: http.SameSiteNoneMode` with `Secure: true` in that case.
+`SameSite: http.SameSiteNoneMode` with `Secure: true` in that case — and know that
+it may still not be enough. Inside that frame your cookie is a third-party cookie,
+which Safari and Firefox block by default, so a preview in the CMS's iframe may
+never receive it. Setting `Partitioned: true` as well (a CHIPS cookie, partitioned
+by the CMS's site) gets it through in browsers that support partitioning; the
+arrangement that works everywhere is the one above, opening the preview in a new
+tab.
 
 **A static export never sees a draft.** An export renders without a request, so no
 middleware runs, `preview.Drafts` is false for every page, and only published

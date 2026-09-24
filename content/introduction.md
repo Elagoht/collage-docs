@@ -58,9 +58,9 @@ Three things follow from building pages this way.
 
 ## What you get
 
-- Pages cached per URL, with three strategies: rendered once at build time,
-  re-rendered after a TTL, or never cached.
-- Data cached across pages, so thirty posts by one author fetch the author once.
+- Pages cached per URL, with three strategies: rendered once and kept until you
+  invalidate it, re-rendered after a TTL, or never cached.
+- Data cached across pages, so with the cache on, thirty posts by one author fetch the author once.
 - Forms that post to their own page, with request-forgery protection built in —
   and a cached page can still carry one.
 - Links built from page names, so they follow a page when its path changes, in
@@ -72,7 +72,9 @@ Three things follow from building pages this way.
 - A static export that turns the site into files for any static host. The pages
   you are reading were produced by it.
 - A development server that rebuilds on every Go change and reloads the browser on
-  every template change, with the error on the page when something breaks.
+  every template change. A page that fails to render shows its error in the
+  browser; Go that fails to compile shows it in the terminal, and the last good
+  build keeps serving.
 
 ## When it is the right tool
 

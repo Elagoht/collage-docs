@@ -238,9 +238,10 @@ func pageData(ctx context.Context, rc *collage.RenderContext) (view, []string, e
 
 `Vary` puts the value you resolved — `"tr"`, not the browser's whole header — into
 the page's cache key, and the header name into the response's `Vary` header, so a
-CDN keeps the versions apart too. It must be called from middleware: by the time a
-data handler runs, the key has been computed, and `Vary` returns
-`collage.ErrVaryTooLate`. This is the shape that trades the benefits of
+CDN keeps the versions apart too. It must be called from middleware. Since
+v0.11.0 `Vary` closes when routing begins, on every route — cached or not — so a
+call from a data handler, or anywhere else after routing, changes nothing and
+returns `collage.ErrVaryTooLate`. This is the shape that trades the benefits of
 [one URL, one content](#why-only-the-url) away, so choose it knowingly — usually
 alongside `DisablePathLocale`.
 

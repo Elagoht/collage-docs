@@ -155,7 +155,8 @@ These are errors: the page is not written, the build reports it and exits non-ze
   host needs that one as a file.
 - **Two pages on one output path**, `collage.ErrOutputPathCollision` — two patterns
   that differ only in a trailing slash, or a path provider that returns a path
-  twice. Nothing is rendered when this is found.
+  twice. No page is rendered when this is found; the documents, the `404.html`
+  pages and the mounted assets are still written, and the build still fails.
 
 ## Dynamic paths: `PathProvider`
 
@@ -200,10 +201,11 @@ func (d docPaths) Paths(_ context.Context, page *collage.Page, _ string) ([]coll
 Documents with a `{param}` have their own interface, `BuildOptions.DocumentPathProvider`,
 described in [Documents](/docs/documents).
 
-Every path a provider returns is checked before anything is written: a path that
-would resolve outside the output directory — `/../../etc` — is refused with
+Every path a provider returns is checked before its own file is written: a path
+that would resolve outside the output directory — `/../../etc` — is refused with
 `collage.ErrPathEscapesOutDir`, and so is a write through a symlink that leads out
-of it.
+of it. The refusal fails that one path, not the build around it: the other pages
+are still rendered and written, and the error is in the report.
 
 ## Build options
 

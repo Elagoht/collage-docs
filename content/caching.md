@@ -39,6 +39,11 @@ Each page says how its output may be reused, with one call on its builder:
 | `Static()` | Rendered once, served until something invalidates it | `public, max-age=0, must-revalidate` |
 | `Incremental(ttl)` | Served from the cache until `ttl` has passed since the render | `public, max-age=<ttl in seconds>` |
 
+A page carrying a form's `{{csrfToken}}` is the exception to the last column: it is
+cached like any other, but each reader is sent their own token, so the response
+goes out `private, no-store` whatever the strategy — see
+[Forms and actions](/docs/forms-and-actions#pages-with-forms-are-still-cached).
+
 ```go
 page := collage.NewPage("blog-post").
 	WithLayout(layout).
@@ -59,12 +64,14 @@ publishes, and only then. Its `Cache-Control` tells browsers and CDNs to keep it
 but ask every time, and the [ETag](#etags-and-304) makes asking cheap.
 
 `Incremental(ttl)` is for content that changes on a clock, or that comes from
-somewhere that cannot tell you when it changed. A TTL of zero or less is a
-registration error (`collage.ErrMissingTTL`), not a page that silently never
-expires.
+somewhere that cannot tell you when it changed. A TTL of zero is a registration
+error (`collage.ErrMissingTTL`), and a negative one is too
+(`collage.ErrInvalidTTL`) — not a page that silently never expires.
 
 [Documents](/docs/documents) — sitemaps, feeds, anything that is not HTML — take
-the same three calls and are cached by exactly the same machinery.
+the same three calls and are stored, keyed and invalidated the same way. The one
+difference is [below](#concurrent-misses-render-once): concurrent misses on a
+document are not coalesced.
 
 ## What is cached, and when
 
@@ -144,9 +151,12 @@ reached:
 reached, err := app.InvalidateTagsN(ctx, "author:ada")
 ```
 
-The count is an upper bound on live pages removed, not an exact figure: a key
-whose entry had already expired is still counted. It is good for a log line or a
-metric, not for logic.
+The count is the number of keys collage's own tag index resolved and dropped, not
+an exact figure for live pages removed, and it errs both ways: a key whose entry
+had already expired is still counted, and an entry the store reached through its
+own tag index — past the cap [below](#the-tag-index-is-per-process-and-bounded), or
+written by another instance — is removed without being counted. It is good for a
+log line or a metric, not for logic.
 
 If the cache fails to drop some keys, the rest are still dropped and the failures
 come back joined in the error. A partial invalidation that reported success is how
@@ -173,9 +183,13 @@ built-in disk cache does this, which is why its tags still work after a restart.
 **The record per tag is capped by `Cache.MaxKeysPerTag`** (default 10000). The
 query string is part of the key, so a client can mint any number of keys for one
 page; without a cap the index would grow for ever. When a tag reaches the cap, the
-oldest key recorded under it is forgotten — the page stays in the cache until it
-expires, but invalidating the tag no longer reaches it. Set it above the number of
-cached URLs one tag can really cover, or negative for no cap.
+oldest key recorded under it is forgotten by that index. The built-in memory and
+disk caches both implement `collage.TaggedCache`, keeping their own record of tags
+per entry, so with them invalidating the tag still reaches every entry — only the
+count `InvalidateTagsN` reports falls short. A store of your own that does not
+implement `TaggedCache` has only collage's index to go by: a forgotten page stays in
+it until it expires, and invalidating the tag no longer reaches it. Set the cap
+above the number of cached URLs one tag can really cover, or negative for no cap.
 
 ## Query parameters in the key
 
@@ -234,7 +248,9 @@ Cache: collage.CacheConfig{
 ```
 
 `Dir` has no default: a framework that picks where to write files writes them
-somewhere nobody looked. Add it to `.gitignore`.
+somewhere nobody looked. Add it to `.gitignore`. Since v0.11.0 a directory that
+cannot be created — a read-only filesystem, a container with nowhere to write — is
+not a reason not to start: collage logs a warning and caches in memory instead.
 
 ### The namespace
 
@@ -280,6 +296,11 @@ page sends it back in `If-None-Match`, and if it still matches, collage answers
 This is what makes `Static()` pages cheap to revalidate: `must-revalidate` means
 the client asks every time, and the answer is usually a few bytes.
 
+A page with a form is the exception again. What a reader is sent carries their own
+forgery token, so its ETag names that reader's copy rather than the stored one, and
+the response is `private, no-store`: a browser that does send it back gets a `304`
+only for the copy it was given, and nothing shared keeps it.
+
 ## Concurrent misses render once
 
 When a popular page expires, every request that arrives before the first
@@ -291,14 +312,17 @@ others that arrive meanwhile wait for it and are served the same bytes. There is
 nothing to configure.
 
 - **Only cached pages coalesce.** A `Dynamic()` page has no cache key, so two
-  requests are two renders, as the page asked.
+  requests are two renders, as the page asked. A [document](/docs/documents) is
+  cached but not coalesced: concurrent misses on one each render it.
 - **One reader giving up does not fail the others.** A request whose connection
   closes stops waiting. If the rendering request itself is cancelled, the ones
   waiting behind it try again instead of receiving its error.
-- **It is visible.** A request served this way is reported to your metrics as its
-  own cache event, `CacheCoalesced` — neither a hit nor a miss. A count that climbs
-  steadily means a page is expiring faster than it can be rendered, which is what a
-  too-short `Incremental` TTL looks like from outside.
+- **It is visible.** A request served this way is reported to your metrics twice:
+  as a `CacheMiss`, when its lookup found nothing, and then as `CacheCoalesced`,
+  when it was served another request's render. So the renders a key cost are its
+  misses minus its coalesced events. A coalesced count that climbs steadily means a
+  page is expiring faster than it can be rendered, which is what a too-short
+  `Incremental` TTL looks like from outside.
 
 ## Development never reads the cache
 
@@ -338,8 +362,9 @@ func Cached[T any](rc *RenderContext, key string, ttl time.Duration, tags []stri
 ```
 
 The first render that asks for `author:ada` calls `fetch`; every later render, on
-any page, gets the stored value. Thirty posts by two authors now make two author
-requests — served or exported. A [document's](/docs/documents) handler shares the
+any page, gets the stored value. With `Cache.Enabled` on, thirty posts by two
+authors now make two author requests — served or exported. (With it off, and in
+development, there is no store; see [below](#where-it-keeps-nothing).) A [document's](/docs/documents) handler shares the
 same store, so a sitemap or a feed reading those authors fetches none of them
 again.
 

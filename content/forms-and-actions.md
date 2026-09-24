@@ -252,8 +252,11 @@ Security: collage.SecurityConfig{
 },
 ```
 
-Leave it empty and one is generated at startup, with a warning outside
-development. That is fine for a first run and wrong to deploy: a generated key is
+Leave it empty and one is generated at startup. collage says so — a warning in
+production, a plain log line in development — once the application has an action
+that accepts an unsafe method and verifies tokens; an application without one, or
+whose only such actions are exempted with `WithoutCSRF`, never checks a token and
+is not told about the key. That is fine for a first run and wrong to deploy: a generated key is
 different in every process, so a form loaded before a restart is refused after it,
 and one served by one instance is refused by the next. A cached page with a form,
 stored under an earlier key, is rendered again rather than served with a token

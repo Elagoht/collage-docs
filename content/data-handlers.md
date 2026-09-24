@@ -291,8 +291,10 @@ func loadWeather(ctx context.Context, rc *collage.RenderContext) (Weather, []str
 }
 ```
 
-A handler that runs out of time fails like any other, with an error that still
-matches `errors.Is(err, context.DeadlineExceeded)`. Pair a short timeout with a
+A handler that returns its context's error when time runs out fails like any
+other, with an error that still matches `errors.Is(err, context.DeadlineExceeded)`.
+The deadline is only an error if the handler says so: one that ignores `ctx` and
+returns `nil` late has succeeded, and its data renders. Pair a short timeout with a
 fallback on anything that is nice to have, and the page stops waiting on a slow
 service at the point you chose.
 

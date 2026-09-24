@@ -28,7 +28,10 @@ type Plugin interface {
 - **`Version`** is your plugin's own version, for diagnostics.
 - **`Init`** runs once when the application starts, after the application has
   registered its own pages and before the first request.
-- **`Shutdown`** releases whatever `Init` acquired.
+- **`Shutdown`** releases whatever `Init` acquired. It is called for every
+  registered plugin whether or not its `Init` ran or succeeded, and possibly more
+  than once, so it must be safe without `Init` and idempotent — see
+  [Lifecycle](#lifecycle).
 
 Because hooks are discovered by type assertion, a misspelled hook method is not a
 compile error — it is a hook that never runs. Assert every interface you mean to
@@ -58,7 +61,8 @@ templates are parsed. A returned error aborts `New`. Nothing has been acquired
 yet, so there is no rollback.
 
 `Init` runs later, when the application starts — the first call to `Handler`,
-`ListenAndServe`, `Start`, `RenderPath` or `DispatchCommands`. By then the
+`ListenAndServe`, `Start`, `RenderPath`, `RenderDocumentPath` or `DispatchCommands`,
+which includes a static build, since the builder renders through `RenderPath`. By then the
 application has registered its pages, so a plugin can read them or add its own.
 
 A plugin that needs both implements both. **A plugin that implements `Configurer`
@@ -87,7 +91,7 @@ cache to reach.
 | `DevMode() bool` | Whether the application runs in development mode. |
 | `Logger() *slog.Logger` | The application's logger. |
 | `Config(v) error` | Decodes this plugin's configuration section into `v` — see [Configuration](#configuration). |
-| `AddTemplateFunc(name, fn) error` | Adds a template function. Returns `ErrDuplicateTemplateFunc` when another plugin already added that name. |
+| `AddTemplateFunc(name, fn) error` | Adds a template function. Returns `ErrDuplicateTemplateFunc` when the name was already added — by another plugin, or by this one earlier. |
 | `WrapMount(wrap func(fs.FS) fs.FS)` | Registers a transformation applied to every mounted filesystem, in the order wrappers were registered. |
 
 ### Host
@@ -291,14 +295,19 @@ trigger an invalidation yourself, call `Host.InvalidateTags`.
 ```go
 type ErrorEvent struct {
 	Err   error
-	Page  *collage.Page // nil when no page was resolved, and for documents
+	Page  *collage.Page // nil unless the failure was a page's own; see below
 	Path  string
 	Stage string
 }
 ```
 
 Fires on a failure while serving a request: a page, a document, an action, a mount
-or a handler registered with `App.Handle`. `Stage` names where it happened. The
+or a handler registered with `App.Handle`. `Stage` names where it happened.
+
+`Page` is set only for a failure of a page that routing resolved. It is `nil` when
+no page was resolved, and also for a document, an action — including a page the
+action answers with through `RenderPage` — a mount and an `App.Handle` handler.
+Read `Path` to tell those apart, and guard every use of `Page`. The
 stages the framework uses are `"route"`, `"not_found"`, `"page_resolved"`,
 `"before_render"`, `"render"`, `"after_render"`, `"cache_write"`, `"error_page"`,
 `"asset"`, `"handler"` and `"panic"` — the set is not a closed enum.
@@ -345,9 +354,14 @@ func (p *Plugin) Configure(_ context.Context, host collage.ConfigHost) error {
 Every template can then call `{{readingTime .Words}}`. The function is any value
 `html/template` accepts in a function map.
 
-- Two plugins adding the same name is `ErrDuplicateTemplateFunc`, and `New` fails.
-- **The application wins.** An entry in `Config.Template.Funcs` under the same name
-  replaces the plugin's: the application can see both and decide.
+- A name added twice — by two plugins, or twice by the same one — is
+  `ErrDuplicateTemplateFunc`, returned from the second `AddTemplateFunc`. `New`
+  fails if your `Configure` returns it, as it does when you pass the error on. The
+  application cannot resolve it with `Template.Funcs`: the conflict is between
+  plugins, and one of them has to give way.
+- **The application wins** otherwise. An entry in `Config.Template.Funcs` under a
+  name a plugin added replaces the plugin's function: the application can see both
+  and decide.
 - A plugin function under a built-in name replaces the built-in — except the
   functions bound per render (`slot`, `hoist`, `asset`, `stylesheet`, `csrfToken`,
   `pageURL`, `pageURLIn`, `localeURL`), which the render engine rebinds every time.
@@ -395,15 +409,20 @@ A plugin contributes a command from `Init`:
 ```go
 type Command struct {
 	Name  string // as typed on the command line
-	Usage string // shown in help, after the program name
+	Usage string // for your program's own help; the framework never prints it
 	Short string // one line
 	Run   func(ctx context.Context, args []string) error
 }
 ```
 
 `RegisterCommand` rejects an empty name (`ErrEmptyCommandName`) and a name another
-command already has (`ErrDuplicateCommand`). It is the one registration call that
-still works while the application is starting, because `Init` is part of starting.
+command already has (`ErrDuplicateCommand`). It is never closed by `ErrAppStarted`:
+it works during `Init`, as the other `Host` registration calls do, and after
+startup too — though a command registered after `DispatchCommands` has run is one
+nobody dispatches.
+
+`Usage` and `Short` are data. Neither the framework nor the `collage` binary prints
+them; a program that wants a help listing builds it from `app.Commands()`.
 
 The `collage` CLI does not run plugin commands: it never loads your application.
 The application's own `main` dispatches them with `collage.DispatchCommands`, and a
@@ -425,9 +444,10 @@ if args := flag.Args(); len(args) > 0 {
 log.Fatal(app.ListenAndServe())
 ```
 
-The exit codes are `0` for success, `1` for a command that ran and failed (or a
-command with no `Run`), and `2` for no arguments, an unclaimed name
-(`ErrUnknownCommand`), or a nil app. Say in your plugin's README that its commands
+`DispatchCommands` starts the application first, because `Init` is what registers
+the commands. The exit codes are `0` for success; `1` for a startup failure, a
+command that ran and failed, or a command with no `Run`; and `2` for a nil app, no
+arguments, or an unclaimed name (`ErrUnknownCommand`). Say in your plugin's README that its commands
 run through the application — a project scaffolded before v0.10.0 has to add that
 block itself. See [The collage CLI](/docs/cli#plugin-commands).
 
@@ -453,9 +473,11 @@ func (p *Plugin) Configure(_ context.Context, host collage.ConfigHost) error {
   the zero value" stay different statements.
 - **A present but malformed section is an error.** The operator wrote something,
   and running on defaults instead would be the silent failure this refuses.
-- The section is decoded with `encoding/json`, so a key in it replaces the whole
-  field: a slice in the JSON replaces your default slice rather than merging with
-  it.
+- The section is decoded with `json.Unmarshal` over your defaults, and follows its
+  rules. A scalar or a slice in the JSON replaces your default — a slice is not
+  merged. A JSON object decoded into a map adds its entries to the map you set,
+  keeping the others. A JSON object decoded into a nested struct sets only the
+  fields it names, leaving the rest at your defaults.
 - The application sees a key that names no registered plugin as a startup error
   (`ErrUnknownPluginConfig`). Your `Name` is therefore the whole of your
   configuration's address; changing it is a breaking change.
@@ -569,16 +591,26 @@ app, err := collage.New(&collage.Config{
 ## Lifecycle
 
 1. **Registration.** `Config.Plugins` inside `New`, or `RegisterPlugin` before the
-   application starts. After that, `RegisterPlugin` returns `ErrAppStarted`.
+   application starts. After that, `RegisterPlugin` returns `ErrAppStarted` — also
+   after a start that failed in a plugin's `Init` (since v0.11.0).
 2. **Configure**, inside `New`, for plugins that implement it — in registration
    order, stopping at the first error.
 3. **Init**, when the application starts, in registration order. If one fails,
    startup is aborted and every plugin already initialised is shut down in reverse
    order. The failing plugin is not, since it never finished initialising.
-4. **Shutdown**, in reverse registration order, after the HTTP server has stopped
-   accepting and drained its requests — a plugin is never torn out from under an
-   in-flight request. Every plugin gets its turn even if one fails, and the errors
-   are joined.
+4. **Shutdown**, from `App.Shutdown` — which `ListenAndServe` calls on `SIGINT` or
+   `SIGTERM` — in reverse registration order. It calls **every registered
+   plugin's** `Shutdown`, whether or not that plugin's `Init` ran or succeeded: an
+   application that never started, one whose start failed, and the plugins the
+   failed start already rolled back all get the call. So `Shutdown` must be safe
+   to call without `Init` and more than once. Every plugin gets its turn even if one
+   fails, and the errors are joined.
+
+   With `ListenAndServe`, plugins are shut down after the server has drained its
+   requests, or once `Server.ShutdownTimeout` has passed if it has not — past the
+   deadline a request may still be running. With a server you own, the `App` knows
+   of none: stop your server first, then call `App.Shutdown`, or a plugin can be
+   torn out from under an in-flight request.
 
 ## Testing a plugin
 

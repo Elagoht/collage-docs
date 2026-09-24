@@ -10,7 +10,8 @@ In collage each of these is a **document**: a route whose handler returns bytes 
 a content type, with no template, no layout and no fragments.
 
 A document shares everything else with a page. It lives in the same router, so a
-path that collides with a page is a startup error. It is cached under the same key,
+path that collides with a page is refused when the second of the two is registered,
+with `collage.ErrDuplicateRoute`. It is cached under the same key,
 gets the same content-hash `ETag` and `304` answers, uses the same three strategies,
 carries dependency tags, and is dropped by the same `app.InvalidateTags` call.
 
@@ -44,7 +45,7 @@ want a template. The framework serves what you return, byte for byte.
 | Call | What it does |
 | --- | --- |
 | `collage.NewDocument(name, contentType)` | Starts the builder. Both are required. |
-| `WithPath(locale, pattern)` | The URL pattern that reaches the document in `locale`. `{param}` segments work as they do for pages. |
+| `WithPath(locale, pattern)` | The URL pattern that reaches the document in `locale`. `{param}` segments work as they do for pages. A placeholder is a whole segment: `/feeds/{category}/rss.xml`, not `/feeds/{category}.xml`, which is refused at registration with `collage.ErrInvalidPattern` (since v0.11.0). |
 | `WithHandler(fn)` | The function that produces the body. Required: a document has no template to fall back on. |
 | `Dynamic()` | Run the handler on every request. **The default.** |
 | `Static()` | Run once, serve from cache until a tag invalidates it. |
@@ -111,7 +112,8 @@ given, so pass it on to whatever you call.
 ### Errors are plain text
 
 A failing document never answers with an HTML error page: a crawler that asked for
-`sitemap.xml` has no use for one. It gets `text/plain` with the right status, one
+`sitemap.xml` has no use for one. That includes a `405` for a method the document
+does not answer (plain text since v0.11.0). It gets `text/plain` with the right status, one
 generic line in production and the route name with the full error chain in
 development, and `Cache-Control: no-store`.
 
@@ -359,7 +361,7 @@ served: `dist/tr/sitemap.xml`.
 interface, so a provider written for pages does not have to change:
 
 ```go
-// categoryFeeds expands "/feeds/{category}.xml" into one path per category.
+// categoryFeeds expands "/feeds/{category}/rss.xml" into one path per category.
 type categoryFeeds struct{ categories []string }
 
 func (p categoryFeeds) Paths(_ context.Context, doc *collage.Document, locale string) ([]collage.PathInstance, error) {
@@ -369,12 +371,23 @@ func (p categoryFeeds) Paths(_ context.Context, doc *collage.Document, locale st
 	var paths []collage.PathInstance
 	for _, category := range p.categories {
 		paths = append(paths, collage.PathInstance{
-			Path:   "/feeds/" + category + ".xml",
+			Path:   "/feeds/" + category + "/rss.xml",
 			Params: map[string]string{"category": category},
 		})
 	}
 	return paths, nil
 }
+```
+
+The document it expands is registered with the placeholder as a whole segment — the
+literal `rss.xml` after it is what makes the exported file `feeds/go/rss.xml`:
+
+```go
+collage.NewDocument("category-feed", "application/rss+xml").
+	WithPath("en", "/feeds/{category}/rss.xml").
+	WithHandler(categoryFeedHandler).
+	Static().
+	Build()
 ```
 
 ```go

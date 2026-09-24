@@ -40,7 +40,7 @@ are the same, and `--out` works too.
 
 | Code | Meaning |
 | --- | --- |
-| `0` | Success, including `help` and `-h` |
+| `0` | Success, including `help`, `collage -h` (since v0.11.0) and `collage <command> -h` |
 | `1` | The command parsed correctly and failed to do its work |
 | `2` | A usage problem: no command, an unknown command, a bad flag, or an unexpected argument |
 
@@ -165,8 +165,11 @@ export COLLAGE_CSRF_KEY="0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b
 - An unquoted value ends at a `#` that follows whitespace, so `PORT=3000 # dev` is
   `3000`.
 - Keys are letters, digits and underscores, not starting with a digit.
-- **A malformed line stops the command**, naming the file and the line. A skipped
-  line would be a setting you wrote and the program never saw.
+- **A malformed line stops the program from starting**: `collage dev` reports it
+  with the file and the line (`.env.development:3`) and starts or restarts nothing
+  until it is fixed — a program already running keeps running on the values it was
+  started with. It keeps watching, so saving the corrected file carries on. A
+  skipped line would be a setting you wrote and the program never saw.
 - **A variable already set in the shell wins** over the file, so
   `PORT=4000 collage dev` still works.
 - `COLLAGE_DEV=1` is always set, whatever the file says.
@@ -298,8 +301,9 @@ It behaves like a static host rather than a file server:
 - Every response is sent with `Cache-Control: no-store`, so re-exporting and
   reloading shows the new output rather than the old.
 
-A directory that does not exist, is not a directory, or holds no files is an
-error that tells you to run `collage export` first.
+A directory that does not exist, or holds no files, is an error that tells you to
+run `collage export` first. A path that exists but is not a directory is an error
+too, saying just that.
 
 ## collage version
 
@@ -308,8 +312,11 @@ collage version
 ```
 
 Prints `collage version <version>`. The version is read from the binary's build
-information, so `go install ...@v0.9.0` reports `0.9.0`, and a binary built from a
-working copy reports `devel`.
+information, so `go install ...@v0.9.0` reports `0.9.0`, and a binary built in a git
+checkout reports a pseudo-version — `0.11.1-0.<timestamp>-<commit>` for a commit
+after the v0.11.0 tag.
+Only a binary with no version information at all — built outside a repository, or
+with `-buildvcs=false` — reports `devel`.
 
 ## collage help
 
@@ -319,7 +326,8 @@ collage help export     # one command's usage
 ```
 
 With no argument it lists every command and exits `0`. With a command name it
-prints that command's usage; an unknown name exits `2`.
+prints that command's usage; an unknown name prints
+`collage: unknown command: "nope"` and exits `2`.
 
 ## The contract with main.go
 
@@ -410,8 +418,9 @@ go run . pages
 ./bin/myblog -port 4000 pages
 ```
 
-The exit code follows the CLI's: `0` for success, `1` for a command that ran and
-failed, `2` for a word no plugin registered (`ErrUnknownCommand`) or a nil app. An
+The exit code follows the CLI's: `0` for success; `1` for a startup failure, a
+command that ran and failed, or a command with no `Run`; `2` for a nil app, no
+arguments, or a word no plugin registered (`ErrUnknownCommand`). An
 unclaimed word is a usage error rather than a server started by accident. A
 program that would rather serve when no command matches can check
 `errors.Is(err, collage.ErrUnknownCommand)` and carry on instead of exiting.

@@ -73,7 +73,7 @@ the one to reach for.
 
 | Error | When |
 | --- | --- |
-| `ErrAppStarted` | The application has already started — `Handler`, `ListenAndServe`, `Start` or a render ran. |
+| `ErrAppStarted` | The application has already started — `Handler`, `ListenAndServe`, `Start`, `DispatchCommands` or a render ran. Since v0.11.0 that includes a start that failed in a plugin's `Init`, which used to return an unexported error. |
 | `ErrNilPlugin` | The plugin is `nil`. |
 | `ErrEmptyPluginName` | Its `Name()` is empty. |
 | `ErrDuplicatePlugin` | Another plugin already has the same name. |

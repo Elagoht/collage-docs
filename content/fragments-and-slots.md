@@ -27,8 +27,11 @@ the `*collage.Fragment`.
   the page it is — `"post-comments"`, not `"list"`.
 - **The template path** is relative to the template root, extension included:
   `"fragments/author.html"` is `templates/fragments/author.html`. A path the
-  template engine did not load is `ErrTemplateNotFound` when the page is
-  registered. See [Templates](/docs/templates).
+  template engine did not load is `ErrTemplateNotFound` when the page holding the
+  fragment is registered — including, since v0.11.0, a fragment the page opens at
+  its own URL with `WithFragmentPath`. Only a fragment a
+  [slot resolver](#slots-filled-per-render) returns is checked later, when it
+  renders. See [Templates](/docs/templates).
 
 Everything else is optional:
 
@@ -273,8 +276,10 @@ The rules:
   `WithSlotFragment`, never both — mixing them records `ErrSlotResolved`.
 - **Its fragments are only checked when they render.** Registration cannot see
   them, so a returned fragment whose template does not exist fails that render
-  rather than startup — and a mistake its builder recorded is not refused by
-  anything, so check `BuildErr()` on a fragment you build in a resolver.
+  rather than startup. A mistake its builder recorded is caught the same way: a
+  returned fragment built with errors fails the fragment that owns the slot, under
+  that fragment's failure policy, with the returned fragment's name in the error.
+  Check `BuildErr()` yourself when you would rather handle it in the resolver.
   Templates are all loaded at startup, so the set of block kinds a resolver can
   use is still fixed by the program.
 
@@ -300,5 +305,6 @@ resolves to itself again. A bound cycle is already refused at registration as
 A fragment can also be fetched without the page around it — search results
 refreshed by a `fetch()`, a panel swapped in after a form posts. That is declared
 on the page, with `WithFragmentPath(locale, pattern, fragment)`, and nothing is
-reachable that way unless it is declared. See
+reachable that way unless it is declared. Such a fragment is checked with the page
+at registration — its template, its builder's mistakes, its validation. See
 [Forms and actions](/docs/forms-and-actions).

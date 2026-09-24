@@ -136,14 +136,18 @@ Mistakes in patterns are errors at registration, not surprises at request time:
 
 - A pattern must start with `/`, have no empty segment and no empty placeholder
   name, and put a catch-all only last — `ErrInvalidPath` or `ErrInvalidPattern`.
+- A placeholder is a whole segment. Since v0.11.0 one written inside a segment,
+  such as `/feeds/{category}.xml` or `/post-{id}`, is `ErrInvalidPattern`; write
+  `/feeds/{category}/rss.xml` instead.
 - Two routes at one path in one locale — `ErrDuplicateRoute`. That includes a
   page and a [document](/docs/documents) colliding, since they share one tree.
 - Two parameter names at one position, such as `/blog/{slug}` and
   `/blog/{id}/edit` — `ErrAmbiguousParameterName`.
 
-A page answers `GET` and `HEAD`. Any other method is a 405 with an `Allow` header,
-unless the page has an [action](/docs/forms-and-actions) for it — which is how a
-form posts to the page it sits on.
+A page answers `GET` and `HEAD`, and `OPTIONS` with a `204` whose `Allow` header
+lists what the URL accepts. Any other method is a 405 with that same `Allow`
+header, unless the page has an [action](/docs/forms-and-actions) for it — which is
+how a form posts to the page it sits on.
 
 Locales, locale prefixes such as `/tr/hakkinda` — and the redirect that sends
 `/en/about` to `/about` — and building links from page names are covered in
@@ -255,21 +259,26 @@ if err := app.RegisterPage(page); err != nil {
 ```
 
 `RegisterPage` is where a page is checked and put together, so that what would
-fail at render time fails here, at startup, with the page's name in the message.
+fail at render time fails here, at startup, with the page's name in the message —
+for every fragment the page holds, including one it opens at its own URL. A
+fragment a [slot resolver](/docs/fragments-and-slots#slots-filled-per-render) returns while a request runs
+cannot be seen from here; it is checked when it first renders.
 In order, it:
 
 1. refuses a nil page, an empty name, a name another page holds
    (`ErrDuplicatePage`), and any registration after the application has started
    (`ErrAppStarted`);
-2. refuses a page whose builder, or the builder of any fragment reachable from it,
+2. refuses a page whose builder, or the builder of any fragment reachable from it
+   or opened with [`WithFragmentPath`](/docs/forms-and-actions#a-fragment-at-its-own-url),
    recorded a mistake — what `BuildErr()` would have returned;
 3. copies the layout's slot table and binds the content fragment into its
    `content` slot;
-4. validates the page and its whole fragment tree: paths, strategy and TTL,
-   redirects, required slots with nothing in them, a fragment reachable from
-   itself;
+4. validates the page and its whole fragment tree, fragment paths included:
+   paths, strategy and TTL, redirects, required slots with nothing in them, a
+   fragment reachable from itself;
 5. checks that every fragment's template was loaded (`ErrTemplateNotFound`) —
-   including in the page's own not-found and error pages;
+   including the fragments opened with `WithFragmentPath`, which since v0.11.0 are
+   checked like the rest of the tree, and the page's own not-found and error pages;
 6. adds the page's paths, redirects, actions and fragment paths to the router.
 
 Treat any error as fatal. A registration that fails halfway is not rolled back — a

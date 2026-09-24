@@ -24,8 +24,8 @@ go version
 go install github.com/Elagoht/collage/cmd/collage@latest
 ```
 
-`go install` puts the binary in `$(go env GOPATH)/bin`, which must be on your
-`PATH`. Check that it is:
+`go install` puts the binary in `$(go env GOBIN)`, or in `$(go env GOPATH)/bin`
+when `GOBIN` is not set; that directory must be on your `PATH`. Check that it is:
 
 ```sh
 collage version
@@ -139,9 +139,10 @@ actually runs rather than a second wiring of it. See [Testing](/docs/testing).
 directory. In development the directories on disk win whenever they are there, so
 an edited template still shows up on the next request.
 
-**Static files are mounted with `os.OpenRoot`, not `os.DirFS`.** An `os.Root`
-refuses a symlink that leads out of the directory; `os.DirFS` follows it. See
-[Static assets](/docs/assets).
+**In development, static files are mounted with `os.OpenRoot`, not `os.DirFS`.**
+An `os.Root` refuses a symlink that leads out of the directory; `os.DirFS` follows
+it. In production the embedded copy is served, through `fs.Sub` so that its
+`static/` directory is not a second path segment. See [Static assets](/docs/assets).
 
 **Rendered pages are cached on disk in production**, under `.cache/`. In
 development the page cache is never read, so an edit is never hidden behind a
@@ -171,9 +172,10 @@ file, never both. The rules are short:
   `COLLAGE_DEV=1` is always set, whatever the file says.
 - The file holds `KEY=value` lines, `#` comments and blank lines. An `export `
   prefix and quotes around a value are allowed.
-- A malformed line stops the command with the file name and line number, rather
-  than being skipped: a skipped line is a setting you wrote and the program never
-  saw.
+- A malformed line is reported with the file name and line number, rather than
+  skipped: a skipped line is a setting you wrote and the program never saw. Until
+  you fix it nothing is started or restarted — a build already running keeps
+  serving — and `collage dev` keeps watching, so saving the fix carries on.
 - No file at all is not an error. When there is one, its name is printed on
   stderr.
 

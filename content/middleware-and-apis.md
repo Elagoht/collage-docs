@@ -106,9 +106,12 @@ app.Use(func(next http.Handler) http.Handler {
 - **The header name goes into the response's `Vary` header**, so a CDN or proxy
   between you and the reader keeps the versions apart too. It is only set on
   publicly cacheable responses; a `no-store` response has nothing to keep apart.
-- **Call it from middleware.** The key is computed before anything renders, so
-  `Vary` from a data handler returns `collage.ErrVaryTooLate` instead of pretending
-  to work. Called on a request collage is not serving, it returns
+- **Call it from middleware.** Declarations close when middleware is done and
+  routing begins, on every route — a page, cached or not, a document, an action, a
+  mount, an `app.Handle` handler. Called after routing, from a data handler say,
+  `Vary` returns `collage.ErrVaryTooLate` instead of pretending to work (since
+  v0.11.0; before, it did so only on a cached page and silently did nothing
+  elsewhere). Called on a request collage is not serving, it returns
   `collage.ErrVaryOutsideRequest`.
 - Declaring the same header twice keeps the last value.
 

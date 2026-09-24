@@ -131,10 +131,12 @@ set its own bound with `WithMaxBodyBytes`; see
 random bytes, kept with your other secrets and the same on every instance. Left
 empty, a key is generated for each process: fine for a first run, wrong to deploy,
 because a token issued before a restart — or by another instance — is refused. The
-application logs that it generated one, as a warning outside development, and only
-when it has an action that would verify a token. The key is not part of the disk
-cache's namespace, so the cache survives a new key; a cached page with a form in
-it, stored under the old one, is rendered again rather than served — see
+application logs that it generated one — a warning outside development, at info
+level in it — and only when some action answers an unsafe method (`POST`, `PUT`, `PATCH`,
+`DELETE`) and is not exempted with `WithoutCSRF`, since only such an action ever
+verifies a token (the `WithoutCSRF` exemption since v0.11.0). The key is not part
+of the disk cache's namespace, so the cache survives a new key; a cached page with
+a form in it, stored under the old one, is rendered again rather than served — see
 [Caching](/docs/caching#the-namespace). The scaffolded `main.go` reads it from
 `COLLAGE_CSRF_KEY`; `openssl rand -hex 32` makes one.
 
@@ -230,16 +232,26 @@ named for a hash of `Version`, so a new build reads a different directory and fi
 nothing stale. Leave `Version` empty and it is a hash of the running executable,
 which changes exactly when the output might; set it — a commit, a release tag —
 when something outside the binary decides what pages look like. If the executable
-cannot be hashed, an in-memory cache is used instead, with a warning. In
-development a disk cache is never used: an in-memory one stands in for it.
+cannot be hashed, an in-memory cache is used instead, with a warning — and so,
+since v0.11.0, when the directory cannot be created, a read-only filesystem say:
+`collage.New` warns and carries on with memory rather than failing. A write that
+fails once the application is running is logged, and the page is served uncached.
+In development a disk cache is never used: an in-memory one stands in for it.
 
 **`MaxEntries`** also bounds the values `collage.Cached` keeps across requests.
-**`MaxKeysPerTag`** bounds the index that maps a tag back to cache keys. Every
-distinct query string is a distinct key, so without a cap a client could grow that
-index without limit. When a tag is at the cap, its oldest key is dropped from the
-index — not from the cache, so that entry is served until it expires but
-`InvalidateTags` no longer reaches it. Set it above the number of live entries any
-one tag can cover.
+**`MaxKeysPerTag`** bounds the framework's dependency tracker, the per-process index
+that maps a tag back to cache keys. Every distinct query string is a distinct key,
+and nothing removes a key from the tracker when the cache evicts or expires its
+entry, so without a cap a client could grow that index without limit. When a tag is
+at the cap, its oldest key is dropped from the tracker only, not from the cache.
+
+What that costs depends on the store. The built-in memory and disk caches index
+tags themselves (they implement `TaggedCache`), so `InvalidateTags` still reaches
+every entry they hold; only the count `InvalidateTagsN` reports, which is what the
+tracker resolved, can come out lower. A custom `Store` that does not implement
+`TaggedCache` relies on the tracker alone, and for it a dropped key is an entry
+`InvalidateTags` no longer reaches — served until it expires. With such a store,
+set the cap above the number of live entries any one tag can cover.
 
 Zero for either cap means the default; only a negative value means unlimited. See
 [Caching](/docs/caching).
