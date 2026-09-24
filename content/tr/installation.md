@@ -59,34 +59,35 @@ Next steps:
 sürümünü belirtir; dolayısıyla projenin hangi collage sürümüyle derlendiğini
 kaydeden şey ilk tidy'dir.
 
-Birkaç flag, projenin nereye ve nasıl yazılacağını değiştirir. Addan önce de sonra
-da gelebilirler:
+Birkaç flag, projenin nereye ve nasıl yazılacağını değiştirir. Tek ya da çift tireyle
+yazılabilirler ve addan önce de sonra da gelebilirler:
 
 | Flag | Etkisi |
 | --- | --- |
-| `-minimal` | Tek bir layout, boş bir ana sayfa ve bir bulunamadı sayfası — demo yok |
+| `--template minimal` | Tek bir sayfayı saran bir layout ve bir stil dosyası — demo yok. Varsayılanı `--template demo`'dur |
 | `-dir path` | İskeleti `./<name>` yerine `path` içine oluşturur |
 | `-module path` | `go.mod`'daki modül yolu, örneğin `github.com/you/mysite`. Varsayılanı addır |
 | `-force` | İskeleti boş olmayan bir dizine oluşturur |
 
 ```sh
 collage new mysite -module github.com/you/mysite
-collage new mysite -minimal
+collage new mysite --template minimal
 collage new mysite -dir . -force
 ```
 
 ### Demolarla ya da demosuz
 
-`-minimal` olmadan bir ana sayfa ve canlı demolardan oluşan bir `/features`
+Varsayılan şablon olan `demo` ile bir ana sayfa ve canlı demolardan oluşan bir `/features`
 sayfası elde edersiniz: önbellekteki bir sayfayı etiketle geçersiz kılan bir API
 action'ına istek gönderen bir düğme, kendi sayfasına gönderilen bir HTML formu,
 kendi URL'sinde açılan bir saat fragment'i ve `/healthz` adresinde bir JSON
 document'ı. Bunların her birinin çalıştığını görmenin en hızlı yolu budur; her
 birinin arkasındaki kod da bir oturuşta okunacak kadar kısadır.
 
-`-minimal` ile aynı `main.go`'yu, aynı dizin düzenini ve aynı türden testleri elde
-edersiniz; içlerinde silinecek hiçbir şey olmadan. Gerçek bir siteye başlarken bunu
-kullanın. [İlk sayfanız](/docs/your-first-page) minimal bir projeden başlar.
+`--template minimal` ile aynı `main.go`'yu ve dizin düzenini elde edersiniz;
+içinde yalnızca merhaba diyen tek bir sayfayı saran bir layout ve karanlık modu
+olan bir stil dosyası vardır — silinecek hiçbir şey yok. Gerçek bir siteye
+başlarken bunu kullanın. [İlk sayfanız](/docs/your-first-page) minimal bir projeden başlar.
 
 ## İskeletin içinde ne var
 
@@ -96,29 +97,25 @@ Minimal bir proje şöyle görünür:
 mysite/
 ├── main.go                     configuration, the static mount, the CLI contract, plugin commands
 ├── routes.go                   every page, document and action — a new route goes here
-├── main_test.go                tests that drive app.Handler() with no server
 ├── go.mod
-├── .env.example                variables for collage dev, to copy
 ├── .gitignore
-├── plugins-config.json         plugin settings, keyed by plugin name
 ├── README.md
 ├── pages/
-│   ├── home.go                 the home page: layout, content, path
-│   └── not-found.go            the site-wide 404 page
+│   └── home.go                 the home page: layout, content, path
 ├── fragments/
 │   └── layouts/main.go         the layout fragment every page shares, and the site's title
 ├── templates/
 │   ├── layouts/default.html    the layout's HTML, with {{slot "content"}}
-│   └── pages/
-│       ├── home.html
-│       └── 404.html
+│   └── pages/home.html         <h1>Hello from collage</h1>
 └── static/
-    ├── app.css
-    └── favicon.svg
+    └── app.css                 the background and text colour, light and dark
 ```
 
-Demo projesi buna `actions/`, `documents/`, `store/` ve `fragments/demo/`
-dizinlerini, ayrıca bunların şablonlarını ve script'lerini ekler.
+Demo projesi buna şunları ekler: testleri `app.Handler()`'ı sunucu olmadan süren
+`main_test.go`; bir bulunamadı sayfası; `collage dev` için kopyalanacak
+değişkenleri içeren `.env.example`; plugin adına göre anahtarlanmış plugin
+ayarlarını içeren `plugins-config.json`; bir favicon; ve şablonları ve
+script'leriyle birlikte `actions/`, `documents/`, `store/` ve `fragments/demo/`.
 
 İçindeki birkaç şeyi değiştirmeden önce bilmeye değer.
 
@@ -133,7 +130,7 @@ komutlar işe yarar hiçbir şey yapmaz. Ayrıntılar
 
 **`newApp`, `main`'den ayrıdır.** Uygulamanın tamamını — yapılandırmayı,
 `routes.go`'daki route'ları, `/static/` mount'unu — kurar ve bir sunucu başlatmadan
-döndürür. `main_test.go` aynı fonksiyonu çağırır ve `app.Handler()`'ı
+döndürür. Demo projesinin `main_test.go`'su aynı fonksiyonu çağırır ve `app.Handler()`'ı
 `net/http/httptest` ile sürer; böylece testler sitenin ikinci bir kablolamasını
 değil, gerçekten çalışan siteyi sınar. Bkz. [Test](/docs/testing).
 

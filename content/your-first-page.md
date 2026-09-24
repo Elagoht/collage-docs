@@ -16,10 +16,9 @@ You need Go and the `collage` CLI; see [Installation](/docs/installation).
 ## Start a project
 
 ```sh
-collage new cookbook -minimal
+collage new cookbook --template minimal
 cd cookbook
 go mod tidy
-cp .env.example .env.development
 collage dev
 ```
 
@@ -44,14 +43,15 @@ func Layout() *collage.Fragment {
 }
 ```
 
-And its template, `templates/layouts/default.html`, trimmed:
+And its template, `templates/layouts/default.html`:
 
 ```html
 <!doctype html>
 <html lang="en">
 <head>
-  {{hoist "head"}}
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  {{hoist "head"}}
   <link rel="stylesheet" href="{{asset "/static/app.css"}}">
 </head>
 <body>
@@ -249,8 +249,9 @@ on every request in development.
 
 Now try [/recipes/lasagne](http://localhost:3000/recipes/lasagne). `recipes.Get`
 wrapped `collage.ErrNotFound`, the fragment is `Required()`, so the response is a
-404 and the body is the site's own not-found page, the one `routes.go` registers
-with `RegisterNotFoundPage`.
+404. The body is collage's own plain not-found page, because the project has not
+registered one; `app.RegisterNotFoundPage` gives the site its own — see
+[Pages and layouts](/docs/pages-and-layouts#not-found-and-error-pages).
 
 Break something on purpose to see what failure looks like. Change `{{.Title}}` to
 `{{.Name}}` in the template, save, and reload: the field does not exist, the
@@ -358,10 +359,33 @@ Three things are true of this page that were not written down anywhere.
 
 ## Test it
 
-`main_test.go` already has a `get` helper that builds the application and drives
-`app.Handler()` with no server. Add a test beside it:
+A collage application is tested without a server: `app.Handler()` is an ordinary
+`http.Handler`, and `net/http/httptest` drives it. Create `main_test.go` with a
+helper that builds the application through the same `newApp` that `main` uses, and
+a test:
 
 ```go
+package main
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+)
+
+func get(t *testing.T, target string) *httptest.ResponseRecorder {
+	t.Helper()
+	cacheDir = t.TempDir() // a disk cache of its own, not the last run's
+	app, err := newApp(false, 0)
+	if err != nil {
+		t.Fatalf("newApp() = %v", err)
+	}
+	rec := httptest.NewRecorder()
+	app.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
+	return rec
+}
+
 func TestRecipePage(t *testing.T) {
 	rec := get(t, "/recipes/pancakes")
 	if rec.Code != http.StatusOK {

@@ -15,10 +15,9 @@ Go'ya ve `collage` CLI'ına ihtiyacınız var; bkz. [Kurulum](/docs/installation
 ## Bir proje başlatın
 
 ```sh
-collage new cookbook -minimal
+collage new cookbook --template minimal
 cd cookbook
 go mod tidy
-cp .env.example .env.development
 collage dev
 ```
 
@@ -44,14 +43,15 @@ func Layout() *collage.Fragment {
 }
 ```
 
-Ve şablonu, `templates/layouts/default.html`, kısaltılmış hâliyle:
+Ve şablonu, `templates/layouts/default.html`:
 
 ```html
 <!doctype html>
 <html lang="en">
 <head>
-  {{hoist "head"}}
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  {{hoist "head"}}
   <link rel="stylesheet" href="{{asset "/static/app.css"}}">
 </head>
 <body>
@@ -253,8 +253,9 @@ geliştirmede şablonlar her istekte diskten okunur.
 
 Şimdi [/recipes/lasagne](http://localhost:3000/recipes/lasagne) adresini deneyin.
 `recipes.Get` `collage.ErrNotFound`'u sardı, fragment `Required()`; dolayısıyla
-yanıt bir 404'tür ve gövdesi sitenin kendi bulunamadı sayfasıdır — `routes.go`'nun
-`RegisterNotFoundPage` ile kaydettiği sayfa.
+yanıt bir 404'tür. Gövde collage'ın kendi sade bulunamadı sayfasıdır, çünkü proje
+henüz bir tane kaydetmedi; `app.RegisterNotFoundPage` siteye kendi sayfasını verir
+— bkz. [Sayfalar ve layout'lar](/docs/pages-and-layouts#not-found-and-error-pages).
 
 Hatanın neye benzediğini görmek için bilerek bir şeyi bozun. Şablonda `{{.Title}}`'ı
 `{{.Name}}` yapın, kaydedin ve yenileyin: alan yok, zorunlu fragment hata veriyor ve
@@ -363,10 +364,33 @@ Bu sayfa hakkında, hiçbir yere yazılmamış üç şey doğrudur.
 
 ## Test edin
 
-`main_test.go`'da uygulamayı kuran ve `app.Handler()`'ı sunucu olmadan süren bir
-`get` yardımcısı zaten var. Yanına bir test ekleyin:
+Bir collage uygulaması sunucu olmadan test edilir: `app.Handler()` sıradan bir
+`http.Handler`'dır ve onu `net/http/httptest` sürer. Uygulamayı `main`'in
+kullandığı aynı `newApp` üzerinden kuran bir yardımcı ve bir test içeren bir
+`main_test.go` oluşturun:
 
 ```go
+package main
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+)
+
+func get(t *testing.T, target string) *httptest.ResponseRecorder {
+	t.Helper()
+	cacheDir = t.TempDir() // a disk cache of its own, not the last run's
+	app, err := newApp(false, 0)
+	if err != nil {
+		t.Fatalf("newApp() = %v", err)
+	}
+	rec := httptest.NewRecorder()
+	app.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
+	return rec
+}
+
 func TestRecipePage(t *testing.T) {
 	rec := get(t, "/recipes/pancakes")
 	if rec.Code != http.StatusOK {

@@ -48,26 +48,26 @@ are the same, and `--out` works too.
 ## collage new
 
 ```sh
-collage new <name> [-minimal] [-dir path] [-module path] [-force]
+collage new <name> [--template demo|minimal] [--dir path] [--module path] [--force]
 ```
 
 Scaffolds a new, runnable project named `<name>`.
 
 | Flag | Default | Meaning |
 | --- | --- | --- |
-| `-minimal` | off | Scaffold without the demos |
+| `--template name` | `demo` | The project to scaffold: `demo` or `minimal` (since v0.14.2; it replaces `-minimal`) |
 | `-dir path` | `./<name>` | Directory to scaffold into |
 | `-module path` | `<name>` | The module path written into `go.mod` |
 | `-force` | off | Scaffold into a non-empty directory anyway |
 
 ```sh
 collage new myblog                                   # into ./myblog, module "myblog"
-collage new myblog -minimal                          # without the demos
+collage new myblog --template minimal                # one page, nothing to delete
 collage new myblog -module github.com/me/myblog
 collage new myblog -dir . -force                     # into the current, non-empty directory
 ```
 
-Flags may come before or after the name. Exactly one name is required; none, or
+Flags take one dash or two, and may come before or after the name. Exactly one name is required; none, or
 more than one, is a usage error. A target directory that exists and is not empty
 is refused unless you pass `-force` — and with `-force`, files the scaffold writes
 replace files of the same name.
@@ -76,20 +76,21 @@ replace files of the same name.
 mount, the CLI contract described [below](#the-contract-with-maingo) and the
 dispatch of [plugin commands](#plugin-commands), a `routes.go` registering every
 route, a layout that declares the site's title with `rc.HoistTitle` (so a page's
-own title replaces it), a home page, a not-found page,
-their tests, `plugins-config.json`, `static/`, a `.env.example`, a `.gitignore` and
-a README.
+own title replaces it), a home page, `static/`, a `.gitignore` and a README.
 
-**The default project** adds a page of live demos — an action answering JSON, a
-form posting to its own page, a fragment with its own URL, a JSON document —
-split into `pages/`, `fragments/`, `actions/`, `documents/` and `store/`, with tests
-for each.
+**The demo project**, the default, adds a page of live demos — an action answering
+JSON, a form posting to its own page, a fragment with its own URL, a JSON
+document — split into `pages/`, `fragments/`, `actions/`, `documents/` and
+`store/`, a not-found page, tests for each, `plugins-config.json`, a favicon and a
+`.env.example`.
 
-**`-minimal`** is one layout, an empty home page and a not-found page, with tests
-for both: the same `main.go` and the same project shape, with nothing to delete
-before you start.
+**`--template minimal`** is the least a project can be: the layout around one
+page, `<h1>Hello from collage</h1>`, and a stylesheet that sets the background and
+text colour, dark mode included. Nothing else — no tests, and no not-found page:
+collage answers an unknown address with its own plain 404 until you register one.
 
-When it is done it prints the next steps:
+When it is done it prints the next steps — the `cp` line only for the demo
+project, the one with a `.env.example`:
 
 ```sh
 cd myblog

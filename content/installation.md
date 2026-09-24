@@ -57,33 +57,34 @@ Next steps:
 and the Go version, so the first tidy is what records which collage release the
 project is built against.
 
-A few flags change where and how it is written. They may come before or after the
-name:
+A few flags change where and how it is written. They take one dash or two, and may
+come before or after the name:
 
 | Flag | Effect |
 | --- | --- |
-| `-minimal` | One layout, an empty home page and a not-found page — no demos |
+| `--template minimal` | One layout around one page and a stylesheet — no demos. The default is `--template demo` |
 | `-dir path` | Scaffold into `path` instead of `./<name>` |
 | `-module path` | The module path in `go.mod`, such as `github.com/you/mysite`. Defaults to the name |
 | `-force` | Scaffold into a directory that is not empty |
 
 ```sh
 collage new mysite -module github.com/you/mysite
-collage new mysite -minimal
+collage new mysite --template minimal
 collage new mysite -dir . -force
 ```
 
 ### With the demos, or without
 
-Without `-minimal` you get a home page and a `/features` page of live demos: a
+The default template, `demo`, gives you a home page and a `/features` page of live demos: a
 button posting to an API action that invalidates a cached page by tag, an HTML
 form posting to its own page, a clock fragment opened at its own URL, and a JSON
 document at `/healthz`. It is the quickest way to see each of those working, and
 the code behind each is short enough to read in one sitting.
 
-With `-minimal` you get the same `main.go`, the same directory layout and the same
-kind of tests, with nothing in them to delete. Use it when you are starting a real
-site. [Your first page](/docs/your-first-page) starts from a minimal project.
+`--template minimal` gives you the same `main.go` and directory layout, and in it
+only a layout around one page saying hello, with a stylesheet that has a dark
+mode — nothing to delete. Use it when you are starting a real site.
+[Your first page](/docs/your-first-page) starts from a minimal project.
 
 ## What the scaffold contains
 
@@ -93,29 +94,25 @@ A minimal project looks like this:
 mysite/
 ├── main.go                     configuration, the static mount, the CLI contract, plugin commands
 ├── routes.go                   every page, document and action — a new route goes here
-├── main_test.go                tests that drive app.Handler() with no server
 ├── go.mod
-├── .env.example                variables for collage dev, to copy
 ├── .gitignore
-├── plugins-config.json         plugin settings, keyed by plugin name
 ├── README.md
 ├── pages/
-│   ├── home.go                 the home page: layout, content, path
-│   └── not-found.go            the site-wide 404 page
+│   └── home.go                 the home page: layout, content, path
 ├── fragments/
 │   └── layouts/main.go         the layout fragment every page shares, and the site's title
 ├── templates/
 │   ├── layouts/default.html    the layout's HTML, with {{slot "content"}}
-│   └── pages/
-│       ├── home.html
-│       └── 404.html
+│   └── pages/home.html         <h1>Hello from collage</h1>
 └── static/
-    ├── app.css
-    └── favicon.svg
+    └── app.css                 the background and text colour, light and dark
 ```
 
-The demo project adds `actions/`, `documents/`, `store/` and `fragments/demo/`, and
-their templates and scripts.
+The demo project adds `main_test.go`, whose tests drive `app.Handler()` with no
+server; a not-found page; `.env.example`, the variables for `collage dev` to copy;
+`plugins-config.json`, plugin settings keyed by plugin name; a favicon; and
+`actions/`, `documents/`, `store/` and `fragments/demo/`, with their templates and
+scripts.
 
 A few things in it are worth knowing before you change them.
 
@@ -130,7 +127,7 @@ working, or those commands stop doing anything useful.
 
 **`newApp` is separate from `main`.** It builds the whole application — the
 configuration, the routes from `routes.go`, the `/static/` mount — and returns it
-without starting a server. `main_test.go` calls the same function and drives
+without starting a server. The demo project's `main_test.go` calls the same function and drives
 `app.Handler()` with `net/http/httptest`, so the tests exercise the site that
 actually runs rather than a second wiring of it. See [Testing](/docs/testing).
 

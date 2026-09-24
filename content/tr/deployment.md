@@ -235,9 +235,9 @@ gerçekten sürece ulaşır.
 Platformunuzun liveness denetimini ona yönlendirin. Size sürecin ayakta olduğunu ve
 sunum yaptığını söyler. Veritabanınıza ulaşılamadığında da başarısız olması gereken
 bir readiness denetimi, aynı şekilde yazılmış kendi document'ınızdır; bir hata
-döndürün, 500 ile yanıt verir. `collage new -minimal` ile oluşturulan bir projede
-`/healthz` yoktur; bir tane istiyorsanız iskeletin `documents/health.go`'sunu
-kopyalayın.
+döndürün, 500 ile yanıt verir. `collage new --template minimal` ile oluşturulan bir
+projede `/healthz` yoktur; bir tane istiyorsanız demo iskeletinin
+`documents/health.go`'sunu kopyalayın.
 
 ## Production'da sayfa önbelleği
 

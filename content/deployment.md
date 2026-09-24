@@ -225,8 +225,8 @@ check really reaches the process.
 Point your platform's liveness check at it. It tells you the process is up and
 serving. A readiness check that should also fail when your database is unreachable
 is a document of your own, written the same way; return an error and it answers 500.
-A project made with `collage new -minimal` has no `/healthz`; copy the scaffold's
-`documents/health.go` if you want one.
+A project made with `collage new --template minimal` has no `/healthz`; copy the
+demo scaffold's `documents/health.go` if you want one.
 
 ## The page cache in production
 

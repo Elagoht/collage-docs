@@ -48,27 +48,27 @@ de aynısını yapar. Flag'ler Go'nun `flag` sözdizimini kullanır: `-out dist`
 ## collage new
 
 ```sh
-collage new <name> [-minimal] [-dir path] [-module path] [-force]
+collage new <name> [--template demo|minimal] [--dir path] [--module path] [--force]
 ```
 
 `<name>` adında, çalışmaya hazır yeni bir projenin iskelesini oluşturur.
 
 | Flag | Varsayılan | Anlamı |
 | --- | --- | --- |
-| `-minimal` | kapalı | Demolar olmadan iskele oluşturur |
+| `--template name` | `demo` | İskelesi oluşturulacak proje: `demo` ya da `minimal` (v0.14.2'den itibaren; `-minimal`'ın yerini alır) |
 | `-dir path` | `./<name>` | İskelenin oluşturulacağı dizin |
 | `-module path` | `<name>` | `go.mod`'a yazılan modül yolu |
 | `-force` | kapalı | Boş olmayan bir dizine yine de iskele oluşturur |
 
 ```sh
 collage new myblog                                   # into ./myblog, module "myblog"
-collage new myblog -minimal                          # without the demos
+collage new myblog --template minimal                # one page, nothing to delete
 collage new myblog -module github.com/me/myblog
 collage new myblog -dir . -force                     # into the current, non-empty directory
 ```
 
-Flag'ler addan önce ya da sonra gelebilir. Tam olarak bir ad gereklidir; hiç ad
-vermemek ya da birden fazla vermek bir kullanım hatasıdır. Var olan ve boş olmayan
+Flag'ler tek ya da çift tireyle yazılabilir ve addan önce ya da sonra gelebilir.
+Tam olarak bir ad gereklidir; hiç ad vermemek ya da birden fazla vermek bir kullanım hatasıdır. Var olan ve boş olmayan
 bir hedef dizin, `-force` vermediğiniz sürece reddedilir — `-force` ile de
 iskelenin yazdığı dosyalar aynı addaki dosyaların yerini alır.
 
@@ -77,19 +77,23 @@ iskelenin yazdığı dosyalar aynı addaki dosyaların yerini alır.
 [plugin komutlarının](#plugin-commands) dağıtımını barındıran bir `main.go`; her
 route'u kaydeden bir `routes.go`; sitenin başlığını `rc.HoistTitle` ile bildiren
 bir layout (böylece bir sayfanın kendi başlığı onun yerini alır); bir ana sayfa,
-bir bulunamadı sayfası ve bunların testleri; `plugins-config.json`, `static/`, bir
-`.env.example`, bir `.gitignore` ve bir README.
+`static/`, bir `.gitignore` ve bir README.
 
-**Varsayılan proje** buna canlı demolardan oluşan bir sayfa ekler — JSON ile yanıt
-veren bir action, kendi sayfasına gönderilen bir form, kendi URL'si olan bir
-fragment, bir JSON document — ve bunları `pages/`, `fragments/`, `actions/`,
-`documents/` ve `store/` altına, her biri için testlerle bölüştürür.
+**Demo projesi**, yani varsayılan, buna canlı demolardan oluşan bir sayfa ekler —
+JSON ile yanıt veren bir action, kendi sayfasına gönderilen bir form, kendi URL'si
+olan bir fragment, bir JSON document — ve bunları `pages/`, `fragments/`,
+`actions/`, `documents/` ve `store/` altına bölüştürür; ayrıca bir bulunamadı
+sayfası, her biri için testler, `plugins-config.json`, bir favicon ve bir
+`.env.example` ekler.
 
-**`-minimal`** tek bir layout, boş bir ana sayfa ve bir bulunamadı sayfasıdır,
-ikisi için de testlerle: aynı `main.go` ve aynı proje yapısı, başlamadan önce
-silinecek hiçbir şey olmadan.
+**`--template minimal`** bir projenin olabileceği en az şeydir: tek bir sayfayı,
+`<h1>Hello from collage</h1>`'i saran layout ve karanlık mod dahil arka planı ve
+metin rengini ayarlayan bir stil dosyası. Başka hiçbir şey yok — test yok,
+bulunamadı sayfası da yok: siz bir tane kaydedene kadar collage bilinmeyen bir
+adrese kendi sade 404'üyle yanıt verir.
 
-Bittiğinde sonraki adımları yazdırır:
+Bittiğinde sonraki adımları yazdırır — `cp` satırını yalnızca demo projesi için,
+yani `.env.example`'ı olan proje için:
 
 ```sh
 cd myblog
