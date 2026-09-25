@@ -1,22 +1,24 @@
 ---
-description: Form gönderimlerini, fetch çağrılarını ve webhook'ları action'larla karşılamak ve onları istek sahteciliğine karşı korumak.
+description: Form post'larını, fetch çağrılarını ve webhook'ları action'larla karşılamak ve onları request forgery'ye karşı korumak.
+reference: NewAction, ActionBuilder, ActionResult, SeeOther, JSONOf, RenderPage, RenderFragment, PageBuilder.WithAction
 ---
 
-# Formlar ve action'lar
+# Form'lar ve action'lar
 
-Bir sayfa `GET` ve `HEAD` isteklerine yanıt verir. Geri kalan her şey — bir form
-gönderimi, bir `fetch()` çağrısından gelen `DELETE`, bir ödeme sağlayıcısının
-webhook'u — bir **action**'dır: isteği alan ve neyle yanıt verileceğini söyleyen bir
-fonksiyon.
+Bir page `GET` ve `HEAD` request'lerine cevap verir. Geri kalan her şey bir
+**action**'dır: bir form post'u, bir `fetch()` çağrısından gelen `DELETE`, bir ödeme
+sağlayıcısının webhook'u. Action, request'i alan ve neyle cevap verileceğini
+söyleyen bir fonksiyondur.
 
-Hiçbir şeyin yanıt vermediği bir metotla gelen istek, hiçbir şey olmamış gibi render
-edilen sayfayı değil, `Allow` header'ı taşıyan bir `405` alır; hata hook'ları bunu
-`collage.ErrMethodNotAllowed` olarak görür. `OPTIONS` da aynı listeden yanıtlanır.
+Hiçbir şeyin cevap vermediği bir method ile gelen request, `Allow` header'ı taşıyan
+bir `405` alır. Page, hiçbir şey olmamış gibi render edilmez. Error hook'ları bu
+durumu `collage.ErrMethodNotAllowed` olarak görür. `OPTIONS` da aynı listeden
+cevaplanır.
 
-## Bir sayfadaki action
+## Page üzerinde bir action
 
-Olağan durum, üzerinde bulunduğu sayfaya gönderilen bir formdur. Sayfaya o metot
-için bir action verin:
+Olağan durum, bulunduğu page'e post eden bir form'dur. Page'e o method için bir
+action verin:
 
 ```go
 collage.NewPage("contact").
@@ -36,23 +38,23 @@ collage.NewPage("contact").
 </form>
 ```
 
-Action, sayfanın yollarını sayfanın bildirdiği her locale'de devralır; böylece form
-hem `/contact`'ta hem `/tr/iletisim`'de aynı şekilde çalışır.
+Action, page'in path'lerini page'in tanımladığı her locale'de devralır. Böylece form
+hem `/contact`'ta hem de `/tr/iletisim`'de aynı şekilde çalışır.
 
-Bir action handler'ı şu biçimdedir:
+Bir action handler'ı şu şekildedir:
 
 ```go
 type ActionHandlerFunc func(ctx context.Context, rc *collage.RenderContext) (*collage.ActionResult, error)
 ```
 
-`rc.Request` istektir ve gövdesi zaten sınırlandırılmıştır (bkz.
-[İstek gövdeleri](#request-bodies-are-bounded)); `rc.Locale` ve `rc.Param` bir data
-handler'da nasıl çalışıyorsa öyle çalışır.
+`rc.Request` request'in kendisidir ve body'si zaten sınırlandırılmıştır (bkz.
+[Request body'leri](#request-bodies-are-bounded)). `rc.Locale` ve `rc.Param`, bir
+data handler'da nasıl çalışıyorsa burada da öyle çalışır.
 
-`WithAction`, tek bir metot için bir kısaltmadır. Birden fazla metot, kendine ait bir
-gövde sınırı ya da sahtecilik denetiminin olmaması için action'ı `NewAction` ile
-kurun ve `WithActionFor` ile bağlayın — action'ın kendi yolları sayfanınkilerle
-değiştirilir:
+`WithAction` tek bir method için bir kısayoldur. Birden fazla method, action'a özel
+bir body limiti ya da forgery kontrolünün kapalı olması gerekiyorsa action'ı
+`NewAction` ile oluşturun ve `WithActionFor` ile bağlayın. Bu durumda action'ın
+kendi path'lerinin yerini page'in path'leri alır:
 
 ```go
 collage.NewPage("post").
@@ -66,10 +68,10 @@ collage.NewPage("post").
 	Build()
 ```
 
-## Kendi URL'sindeki action
+## Kendi URL'sinde bir action
 
-Bir sayfayla ilgili olmayan bir action — bir JSON endpoint'i, bir webhook — tek
-başına kaydedilir:
+Bir page ile ilgisi olmayan bir action, örneğin bir JSON endpoint'i ya da bir
+webhook, tek başına register edilir:
 
 ```go
 err := app.RegisterAction(collage.NewAction("like").
@@ -79,31 +81,33 @@ err := app.RegisterAction(collage.NewAction("like").
 	Build())
 ```
 
-Bir action bir sayfayla aynı yolu paylaşabilir — `WithAction`'ın yaptığı tam olarak
-budur — ama iki action aynı yolda aynı metoda yanıt veremez. Adı, yolu, metodu ya da
-handler'ı olmayan bir action'ı `RegisterAction` reddeder; zaten alınmış bir adla
-gelen ikinci bir action'ı da. Her birinin kendi hatası vardır ve hepsi
-[Hatalar](/docs/errors#actions) sayfasında listelenir.
+Bir action bir page ile aynı path'i paylaşabilir. `WithAction`'ın yaptığı da tam
+olarak budur. Ancak iki action aynı path'te aynı method'a cevap veremez.
+`RegisterAction`; adı, path'i, method'u ya da handler'ı olmayan bir action'ı
+reddeder. Daha önce alınmış bir adla gelen ikinci bir action'ı da reddeder. Her
+birinin kendi hatası vardır ve hepsi [Hatalar](/docs/errors#actions) sayfasında
+listelenir.
 
-## Action neyle yanıt verir
+## Action neyle cevap verir
 
-Yanıtı bir `ActionResult` belirler. Onu bir yardımcı fonksiyonla oluşturun:
+Response'u bir `ActionResult` belirler. Onu bir helper ile oluşturun:
 
-| Yardımcı | Yanıt |
+| Helper | Response |
 | --- | --- |
-| `collage.SeeOther(url)` | `url`'ye `303 See Other` |
-| `collage.RenderPage(page)` | Bu isteğin `RenderContext`'iyle render edilmiş bütün bir sayfa |
-| `collage.RenderFragment(f)` | Layout olmadan, tek bir fragment'in işaretlemesi |
+| `collage.SeeOther(url)` | `url`'e `303 See Other` |
+| `collage.RenderPage(page)` | Bu request'in `RenderContext`'i ile render edilmiş bütün bir page |
+| `collage.RenderFragment(f)` | Tek bir fragment'in markup'ı, layout olmadan |
 | `collage.JSON(status, body)` | `application/json` olarak `body` |
 | `collage.JSONOf(status, v)` | `application/json` olarak marshal edilmiş `v`; `(*ActionResult, error)` döner |
-| `collage.NoContent(status)` | Yalnızca bir durum kodu, gövde yok |
+| `collage.NoContent(status)` | Sadece bir status, body yok |
 
-Ya da struct'ı kendiniz doldurun. Struct'ın gövde üretmenin dört yolu vardır —
-`Location`, `Fragment`, `Page` ve `Body` — ve bu sırayla, ilk ayarlanan kazanır.
-`Status`, her birinin seçeceği durum kodunun yerine geçer; `Header` yanıta yazılır
-(`Set-Cookie`'nin yeri burasıdır) ve `ContentType`, `Body` ile birlikte kullanılır.
-Boş bir `ContentType` `application/octet-stream` demektir; asla byte'lardan tahmin
-edilmez. `nil` bir sonuç `204`'tür.
+Struct'ı kendiniz de doldurabilirsiniz. Struct'ın body üretmek için dört alanı
+vardır: `Location`, `Fragment`, `Page` ve `Body`. Bu sırayla bakılır ve set edilen
+ilk alan kazanır. `Status`, her birinin seçeceği status'un yerine geçer. `Header`
+response'a yazılır; `Set-Cookie` için doğru yer burasıdır. `ContentType` ise
+`Body` ile birlikte kullanılır. Boş bir `ContentType`, `application/octet-stream`
+anlamına gelir; byte'lara bakılarak asla tahmin edilmez. `nil` bir result `204`
+demektir.
 
 ```go
 func like(ctx context.Context, rc *collage.RenderContext) (*collage.ActionResult, error) {
@@ -115,34 +119,35 @@ func like(ctx context.Context, rc *collage.RenderContext) (*collage.ActionResult
 }
 ```
 
-Handler'dan dönen bir hata `500`'dür; `collage.ErrNotFound`'u sarmalıyorsa `404`.
-Bir action'ın yanıtı, header'ı kendiniz ayarlamadıkça `Cache-Control: no-store` ile
-gönderilir ve asla sayfa önbelleğine girmez: tek bir gönderimden, onu gönderen kişi
-için üretilmiştir.
+Handler'ın döndürdüğü bir hata `500` olur. Hata `collage.ErrNotFound`'u wrap
+ediyorsa `404` olur. Header'ı kendiniz set etmediğiniz sürece action'ın response'u
+`Cache-Control: no-store` ile gönderilir ve asla page cache'e girmez. Çünkü bu
+response tek bir gönderimden, onu gönderen kişi için üretilmiştir.
 
-## Başarısızlık render eder, başarı yönlendirir
+## Başarısızlık render eder, başarı redirect eder
 
-`RenderPage` da `SeeOther` da bir forma verilebilecek iyi yanıtlardır. İkisi
-arasındaki seçimi, tarayıcının ardından ne yapacağı belirler.
+Bir form'a hem `RenderPage` hem de `SeeOther` ile cevap vermek doğrudur. Hangisini
+seçeceğinizi, tarayıcının bundan sonra ne yapacağı belirler.
 
-Bir POST'a sayfayla yanıt vermek, adres çubuğunu gönderilen URL'de ve geçmiş
-kaydını bir POST olarak bırakır; bu yüzden sayfayı yenilemek formu yeniden gönderir.
-`303` ile yanıt vermek ise tarayıcının bir sonraki isteğini başka bir yere yapılan bir
-`GET` yapar ve *onu* yenilemek zararsızdır. Dolayısıyla:
+Bir POST'a page ile cevap verirseniz adres çubuğu post edilen URL'de kalır ve
+history kaydı bir POST olur. Bu yüzden sayfayı yenilemek form'u tekrar gönderir.
+`303` ile cevap verirseniz tarayıcının sonraki request'i başka bir yere yapılan bir
+`GET` olur ve *onu* yenilemek zararsızdır. Dolayısıyla:
 
-**Reddedilen bir gönderim sayfayı render eder**, `422` durum koduyla. Okuyucu
-düzeltip yeniden gönderecektir — amaç zaten yeniden göndermektir — ve reddin nedenini
-ve yazdıklarını okuyucunun önüne geri getirmenin yolu render etmektir.
+**Reddedilen bir gönderim, `422` status'u ile page'i render eder.** Okuyucu
+hatayı düzeltip form'u tekrar gönderecektir; zaten amaç tekrar göndermesidir.
+Reddin nedenini ve okuyucunun yazdıklarını tekrar önüne getirmenin yolu render
+etmektir.
 
-**Kabul edilen bir gönderim yönlendirir**, `303` ile. İş yapılmıştır ve bir yenileme
-onu ikinci kez yapmamalıdır.
+**Kabul edilen bir gönderim, `303` ile redirect eder.** İş yapılmıştır ve sayfayı
+yenilemek onu ikinci kez yapmamalıdır.
 
-### Doğrulama için yeniden render
+### Validation için yeniden render
 
-Handler ve yanıt olarak verdiği sayfa tek bir `RenderContext` paylaşır. Handler'ın
-oraya `rc.Set` ile koyduğu her şeyi sayfanın data handler'ları `collage.Get` ile
-okuyabilir. Oturum yok, flash mesajı yok, query string'de hiçbir şey yok: ikisi aynı
-istektir.
+Handler ve cevap olarak verdiği page aynı `RenderContext`'i paylaşır. Handler'ın
+oraya `rc.Set` ile koyduğu her şeyi page'in data handler'ları `collage.Get` ile
+okuyabilir. Session yok, flash message yok, query string'de hiçbir şey yok: ikisi
+de aynı request'tir.
 
 ```go
 type contactView struct {
@@ -194,34 +199,34 @@ func contactData(_ context.Context, rc *collage.RenderContext) (contactView, []s
 </form>
 ```
 
-Sayfa, her sayfa gibi, render hook'ları dahil render edilir: bir plugin'in
-`OnAfterRender`'ı — bir küçültücü (minifier), bir görsel yeniden yazıcı — doğrulama
-sayfasını da bir `GET`'in aldığı sayfayı biçimlendirdiği gibi biçimlendirir. Bkz.
-[Plugin yazmak](/docs/writing-plugins#afterrenderhook).
+Bu page de her page gibi, render hook'ları dahil render edilir. Bir plugin'in
+`OnAfterRender`'ı, örneğin bir minifier ya da bir image rewriter, bir `GET`
+request'inin aldığı page'i nasıl şekillendiriyorsa validation page'ini de öyle
+şekillendirir. Bkz. [Plugin yazmak](/docs/writing-plugins#afterrenderhook).
 
-Yanıt olarak verdiğiniz sayfa, `app.RegisterPage` ile **kaydettiğiniz değer**
-olmalıdır. Bir sayfanın içeriğini layout'una yerleştiren şey kayıttır; bu yüzden
-handler içinde kurulan bir sayfa, hiçbir şeyin etrafında duran bir layout olarak
-render edilirdi. collage böyle bir sayfayı, adını vererek `collage.ErrUnregisteredPage`
-ile reddeder. Yukarıdaki `page` üzerindeki closure, action'a kendi sayfasını vermenin
-en basit yoludur.
+Cevap olarak verdiğiniz page, `app.RegisterPage` ile **register ettiğiniz değerin
+kendisi** olmalıdır. Bir page'in içeriğini layout'una yerleştiren şey register
+işlemidir. Bu yüzden handler içinde oluşturulan bir page, içi boş bir layout olarak
+render edilirdi. collage böyle bir page'i, page'in adını vererek
+`collage.ErrUnregisteredPage` ile reddeder. Yukarıdaki örnekte `page` üzerinden
+kurulan closure, action'a kendi page'ini vermenin en basit yoludur.
 
-Bir sayfaya yolu yerine adıyla yönlendirmek için
+Bir page'e path yerine adıyla redirect etmek için
 [`app.URL`](/docs/links-and-locales#links-from-go) kullanın.
 
-## Sahteciliğe karşı koruma
+## Forgery koruması
 
-Güvenli olmayan bir metotla (`GET`, `HEAD` ve `OPTIONS` dışındaki her şey) bir
-action'a gelen her istek, handler çalışmadan önce bir sahtecilik token'ı açısından
-denetlenir. Geçerli bir token taşımayan istek `403` alır ve handler onu hiç görmez.
-Hata hook'ları nedenini görür: token ya da çerez yoksa `collage.ErrCSRFMissing`,
-token çerezinkiyle eşleşmiyorsa `collage.ErrCSRFMismatch`, token'ı bu uygulama
-imzalamamışsa `collage.ErrCSRFInvalid`.
+Unsafe bir method ile (`GET`, `HEAD` ve `OPTIONS` dışındaki her şey) bir action'a
+gelen her request, handler çalışmadan önce bir forgery token'ı için kontrol edilir.
+Geçerli bir token taşımayan request `403` alır ve handler onu hiç görmez. Error
+hook'ları nedenini de görür. Token ya da cookie yoksa `collage.ErrCSRFMissing`
+gelir. Token cookie'deki ile eşleşmiyorsa `collage.ErrCSRFMismatch`, token'ı bu
+uygulama imzalamamışsa `collage.ErrCSRFInvalid` gelir.
 
-### Formda
+### Form içinde
 
-`{{csrfToken}}`'ı `<form>`'un içine koyun. Alan adı dahil gizli input'un tamamını
-render eder; yani yanlış yapılabilecek bir şey kalmaz:
+`{{csrfToken}}`'ı `<form>`'un içine koyun. Bu, field adı dahil hidden input'un
+tamamını render eder. Yani yanlış yapabileceğiniz bir şey kalmaz:
 
 ```html
 <form method="post">
@@ -230,26 +235,26 @@ render eder; yani yanlış yapılabilecek bir şey kalmaz:
 </form>
 ```
 
-Şema, imzalı bir double-submit çerezidir: token rastgele bir değer ve bu değerin
-`Security.CSRFKey` ile atılmış imzasıdır; hem bir çerezde hem de formda gönderilir
-ve denetlemek için anahtardan başka hiçbir şey gerekmez. Oturum deposu yok, örnekler
-(instance) arasında paylaşılan hiçbir şey yok.
+Kullanılan yöntem imzalı bir double-submit cookie'dir. Token, rastgele bir değer ile
+bu değerin `Security.CSRFKey` ile atılmış imzasından oluşur. Token hem bir cookie'de
+hem de form'da gönderilir. Kontrol etmek için key dışında hiçbir şey gerekmez. Session
+store yoktur, instance'lar arasında paylaşılan hiçbir şey yoktur.
 
-### Formlu sayfalar yine de önbelleğe alınır
+### Form içeren page'ler yine de cache'lenir
 
-Bir token tek bir okuyucuya aittir, önbellekteki bir sayfa ise herkesle paylaşılır.
-Bu yüzden `{{csrfToken}}` bir token render etmez: bir işaretçi render eder ve
-önbelleğin sakladığı şey bu işaretçidir. Her yanıtta işaretçi, çıkış sırasında o
-okuyucunun kendi token'ıyla değiştirilir ve yanıt, token'ın çereziyle birlikte
-`private, no-store` olarak gönderilir. Render paylaşılır; okuyucuya özgü tek dize
+Bir token tek bir okuyucuya aittir, cache'lenmiş bir page ise herkes tarafından
+paylaşılır. Bu yüzden `{{csrfToken}}` bir token render etmez. Bunun yerine bir marker
+render eder ve cache'in sakladığı şey bu marker'dır. Her response'ta marker, çıkışta
+o okuyucunun kendi token'ı ile değiştirilir. Response, token'ın cookie'si ile birlikte
+`private, no-store` olarak gönderilir. Render paylaşılır, okuyucuya özel tek string
 paylaşılmaz.
 
-Bu olmasaydı, bir sitenin alt bilgisindeki bir bülten formu bütün sitede önbelleği
-kapatırdı. Değiştirdiği tek şey şu: formlu bir sayfa statik bir dosyaya
-dönüştüğünde formu gönderecek bir sunucusu kalmaz; bu yüzden
-[statik dışa aktarma](/docs/static-export) böyle bir sayfayı atlar ve nedenini söyler.
+Bu olmasaydı, bir sitenin footer'ındaki bir bülten form'u bütün sitede cache'i
+kapatırdı. Bunun değiştirdiği tek şey şudur: form içeren bir page static bir dosyaya
+dönüştüğünde form'u gönderebileceği bir sunucu kalmaz. Bu yüzden
+[static export](/docs/static-export) böyle bir page'i atlar ve nedenini söyler.
 
-### Anahtarı ayarlayın
+### Key'i ayarlayın
 
 ```go
 Security: collage.SecurityConfig{
@@ -257,24 +262,25 @@ Security: collage.SecurityConfig{
 },
 ```
 
-Boş bırakırsanız başlangıçta bir anahtar üretilir. collage bunu söyler — production'da
-bir uyarıyla, geliştirmede düz bir log satırıyla — ama yalnızca uygulamada güvenli
-olmayan bir metodu kabul eden ve token doğrulayan bir action varsa; böyle bir action'ı
-olmayan ya da bu tür action'larının hepsi `WithoutCSRF` ile muaf tutulmuş bir uygulama
-hiçbir token denetlemez ve anahtar konusunda uyarılmaz. Bu, ilk çalıştırma için
-sorun değildir ama yayına almak için yanlıştır: üretilen anahtar her süreçte
-farklıdır; bu yüzden yeniden başlatmadan önce yüklenen bir form sonrasında reddedilir,
-bir örneğin sunduğu form da bir sonrakinde reddedilir. Daha önceki bir anahtarla
-saklanmış, form içeren önbellekteki bir sayfa, hiçbir şeyin doğrulayamayacağı bir
-token'la sunulmak yerine yeniden render edilir — bkz.
-[disk önbelleğinin namespace'i](/docs/caching#the-namespace).
+Boş bırakırsanız başlangıçta bir key üretilir. Uygulamada unsafe bir method kabul
+eden ve token doğrulayan bir action varsa collage bunu bildirir: production'da bir
+uyarı, development'ta düz bir log satırı olarak. Böyle bir action'ı olmayan ya da bu
+tür action'larının hepsi `WithoutCSRF` ile muaf tutulmuş bir uygulama hiçbir token'ı
+kontrol etmez ve key hakkında uyarılmaz. Üretilen key ilk çalıştırma için sorun
+değildir, ama deploy için yanlıştır. Üretilen key her process'te farklıdır. Bu yüzden
+restart'tan önce yüklenen bir form restart'tan sonra reddedilir. Bir instance'ın
+sunduğu form da bir sonraki instance tarafından reddedilir. Form içeren ve daha önceki
+bir key ile saklanmış cache'lenmiş bir page, hiçbir şeyin doğrulayamayacağı bir token
+ile sunulmaz, yeniden render edilir. Bkz.
+[disk cache'inin namespace'i](/docs/caching#the-namespace).
 
-### fetch'ten
+### fetch ile
 
 Form olmadan yapılan bir `fetch()`, token'ı `X-CSRF-Token` header'ında gönderir.
-Token'ı sayfadaki herhangi bir `{{csrfToken}}` input'undan okuyun — sayfa
-geldiğinde bu input okuyucunun kendi token'ını taşır. (`_csrf` alanın varsayılan
-adıdır; değiştirmek için [aşağıya](#requests-that-cannot-carry-a-token) bakın.)
+Token'ı page'deki herhangi bir `{{csrfToken}}` input'undan okuyun. Page tarayıcıya
+ulaştığında bu input okuyucunun kendi token'ını taşır. (`_csrf` field'ın varsayılan
+adıdır. Nasıl değiştirileceği için [aşağıya](#requests-that-cannot-carry-a-token)
+bakın.)
 
 ```js
 const token = document.querySelector('input[name="_csrf"]')?.value ?? "";
@@ -285,9 +291,9 @@ await fetch("/api/like", {
 });
 ```
 
-Form gönderen bir `fetch()` için ek bir şey gerekmez. `new FormData(form)`
-`multipart/form-data` olarak gönderilir ve collage bunu URL-encoded bir gövde gibi
-okur; böylece gizli input diğer alanlarla birlikte gider:
+Bir form'u post eden `fetch()` için ekstra bir şey gerekmez. `new FormData(form)`
+`multipart/form-data` olarak gönderilir ve collage bunu URL-encoded bir body gibi
+okur. Böylece hidden input diğer field'larla birlikte gider:
 
 ```js
 form.addEventListener("submit", async (event) => {
@@ -298,14 +304,14 @@ form.addEventListener("submit", async (event) => {
 });
 ```
 
-Bir action'ın yanıt olarak verdiği fragment ya da sayfa diğerleri gibi render edilir;
-dolayısıyla içindeki form da taze bir token taşır: kendini yenisiyle değiştiren bir
-form çalışmaya devam eder.
+Bir action'ın cevap olarak verdiği fragment ya da page, diğerleri gibi render edilir.
+Dolayısıyla içindeki form da yeni bir token taşır. Kendini değiştiren bir form bu
+sayede çalışmaya devam eder.
 
-### Token taşıyamayan istekler
+### Token taşıyamayan request'ler
 
 Bir ödeme sağlayıcısının webhook'u ya da tarayıcı olmayan bir şeyin bearer token ile
-çağırdığı bir API token taşıyamaz. Denetimi yalnızca o action için kapatın:
+çağırdığı bir API token taşıyamaz. Kontrolü sadece o action için kapatın:
 
 ```go
 app.RegisterAction(collage.NewAction("stripe-webhook").
@@ -316,27 +322,27 @@ app.RegisterAction(collage.NewAction("stripe-webhook").
 	Build())
 ```
 
-Ardından isteğin kimliğini başka bir yolla doğrulayın — bir webhook'un imza header'ı,
-bir bearer token. Bir tarayıcının gönderdiği herhangi bir şeyde `WithoutCSRF()`
-korumayı elden çıkarmak demektir. (`Security.DisableCSRF` korumayı bütün uygulama
-için kapatır; bu yalnızca hiç tarayıcı formu olmayan bir uygulama için doğrudur.)
+Ardından request'i başka bir yolla doğrulayın: bir webhook'un signature header'ı ya
+da bir bearer token ile. Tarayıcının gönderdiği herhangi bir şeyde `WithoutCSRF()`
+korumayı elden vermek demektir. (`Security.DisableCSRF` korumayı bütün uygulama için
+kapatır. Bu sadece hiç tarayıcı form'u olmayan bir uygulama için doğrudur.)
 
-Çerez, alan ve header adları `Security.CSRFCookieName`, `CSRFFieldName` ve
-`CSRFHeaderName` ile değiştirilebilir. Adı değiştirilen alan her iki tarafta da
-değişir: `{{csrfToken}}` denetimin okuduğu adı render eder, dolayısıyla formda
-değişiklik gerekmez.
+Cookie, field ve header adları `Security.CSRFCookieName`, `CSRFFieldName` ve
+`CSRFHeaderName` ile değiştirilebilir. Field'ın adını değiştirirseniz ad iki tarafta
+birden değişir. `{{csrfToken}}` kontrolün okuduğu adı render eder, dolayısıyla
+form'da bir değişiklik gerekmez.
 
-## İstek gövdeleri sınırlıdır
+## Request body'leri sınırlıdır
 
-Bir action'ın istek gövdesi varsayılan olarak **4 MiB** ile sınırlıdır. Bunu uygulama
-için `Server.MaxBodyBytes` ile, tek bir action için `WithMaxBodyBytes` ile
-değiştirin; negatif bir değer sınır yok demektir.
+Bir action'ın request body'si varsayılan olarak **4 MiB** ile sınırlıdır. Bu limiti
+uygulamanın tamamı için `Server.MaxBodyBytes` ile, tek bir action için
+`WithMaxBodyBytes` ile değiştirin. Negatif bir değer limit olmadığı anlamına gelir.
 
-Sınırı handler'ınız uygulamaz; sınır, handler'ınız çalışmadan önce uygulanır. Her
-handler'ın hatırlaması gereken bir sınır, unutan handler'da bulunmayan bir sınırdır —
-ve anonim bir çağıranın bulacağı handler da tam olarak odur. Sınırın ötesini okuyan
-bir handler bir `*http.MaxBytesError` alır; bu hatayı döndürmek `413` ile yanıt
-verir:
+Limiti handler'ınız uygulamaz, limit handler'ınız çalışmadan önce uygulanır. Her
+handler'ın hatırlaması gereken bir limit, unutan handler'da yoktur. Anonim bir
+kullanıcının bulacağı handler da tam olarak o handler'dır. Limitin ötesini okuyan
+bir handler `*http.MaxBytesError` alır. Bu hatayı döndürürseniz response `413`
+olur:
 
 ```go
 if err := rc.Request.ParseForm(); err != nil {
@@ -344,14 +350,14 @@ if err := rc.Request.ParseForm(); err != nil {
 }
 ```
 
-Token formdan denetlendiğinde denetim önce gövdeyi okur; bu yüzden aşırı büyük bir
-form orada, handler'ınız çalışmadan önce reddedilir — yine `403` ile değil, `413`
-ile: okunamayacak kadar büyük bir gövde sahtecilik değildir.
+Token form'dan kontrol edildiğinde kontrol önce body'yi okur. Bu yüzden limiti aşan
+bir form daha orada, handler'ınız çalışmadan önce reddedilir. Bu durumda da cevap
+`403` değil `413` olur, çünkü okunamayacak kadar büyük bir body forgery değildir.
 
-## Bir action'ın değiştirdiğini geçersiz kılmak
+## Action'ın değiştirdiğini invalidate etmek
 
-İçeriği değiştiren bir action genellikle önbellekteki bazı sayfaları yanlış hâle
-getirir. Hangileri olduğunu sonuçta belirtin:
+İçeriği değiştiren bir action genellikle cache'lenmiş bazı page'leri yanlış hâle
+getirir. Hangileri olduğunu result üzerinde belirtin:
 
 ```go
 func publish(ctx context.Context, rc *collage.RenderContext) (*collage.ActionResult, error) {
@@ -365,19 +371,20 @@ func publish(ctx context.Context, rc *collage.RenderContext) (*collage.ActionRes
 }
 ```
 
-Etiketler yanıt yazılmadan **önce** geçersiz kılınır. Asıl mesele bu sıradır: okuyucu
-yönlendirmeyi izleyerek az önce değiştirdiği sayfaya gider ve o sayfa, değişikliğin
-bayatlattığı bir önbellek girdisinden sunulmamalıdır. Geçersiz kılma başarısız
-olursa yanıt başarısız olmaz, hata loglanır — değişiklik zaten gerçekleşmiştir.
+Tag'ler response yazılmadan **önce** invalidate edilir. Bu sıra önemlidir. Okuyucu
+redirect'i takip ederek az önce değiştirdiği page'e gider. Bu page, değişikliğin
+stale hâle getirdiği bir cache kaydından sunulmamalıdır. Invalidate işlemi başarısız
+olursa response başarısız olmaz, hata log'lanır. Çünkü değişiklik zaten
+gerçekleşmiştir.
 
-Etiketler tam olarak [Önbellekleme](/docs/caching#dependency-tags) sayfasında
-anlatıldığı gibi çalışır ve `collage.Cached` ile saklanan değerlere de ulaşır.
+Tag'ler tam olarak [Caching](/docs/caching#dependency-tags) sayfasında anlatıldığı
+gibi çalışır ve `collage.Cached` ile saklanan değerlere de ulaşır.
 
-## Kendi URL'sindeki fragment
+## Kendi URL'sinde bir fragment
 
-Bir istemci framework'ü olmadan sayfanın bir kısmını yenilemek iki şey gerektirir:
-yalnızca o kısımla yanıt veren bir URL ve onu yerine koyacak birkaç satır JavaScript.
-Birincisi `WithFragmentPath`'tir:
+Bir client framework'ü olmadan page'in bir kısmını yenilemek için iki şey gerekir:
+sadece o kısımla cevap veren bir URL ve o kısmı yerine koyan birkaç satır
+JavaScript. Birincisini `WithFragmentPath` sağlar:
 
 ```go
 collage.NewPage("search").
@@ -389,10 +396,11 @@ collage.NewPage("search").
 	Build()
 ```
 
-`GET /search/results?q=grid` `results` fragment'ini render eder, başka hiçbir şeyi
-değil. Data handler'ı çalışır, kendi slot'ları doldurulur ve hata politikası
-uygulanır — aynı render'dır, yalnızca daha aşağıdan başlatılmıştır. Etrafında layout
-olmadığından hoist ettiklerinin gidecek bir yeri yoktur ve yanıtı önbelleğe alınmaz.
+`GET /search/results?q=grid` sadece `results` fragment'ini render eder, başka hiçbir
+şeyi render etmez. Fragment'in data handler'ı çalışır, kendi slot'ları doldurulur ve
+failure policy'si uygulanır. Bu aynı render'dır, sadece daha aşağıdan başlar.
+Etrafında bir layout olmadığı için hoist ettiği şeylerin gidecek bir yeri yoktur ve
+response'u cache'lenmez.
 
 ```js
 const input = document.querySelector('input[name="q"]');
@@ -402,11 +410,11 @@ input.addEventListener("input", async () => {
 });
 ```
 
-Bildirilmemiş hiçbir şeye erişilemez. Her fragment'i otomatik olarak dışa açan bir
-framework, her sayfanın her iç parçasını herkese açık web'e koymuş olurdu.
+Tanımlanmamış hiçbir şeye erişilemez. Her fragment'i otomatik olarak dışarı açan bir
+framework, her page'in her iç parçasını public web'e açmış olurdu.
 
-`RenderFragment` ile yanıt veren bir action'la birleştiğinde, bir form gönderilebilir
-ve yalnızca değişen kısımla yanıtlanabilir:
+`RenderFragment` ile cevap veren bir action ile birleştirildiğinde bir form post
+edilebilir ve sadece değişen kısımla cevaplanabilir:
 
 ```go
 WithAction("POST", func(ctx context.Context, rc *collage.RenderContext) (*collage.ActionResult, error) {
@@ -419,5 +427,5 @@ WithAction("POST", func(ctx context.Context, rc *collage.RenderContext) (*collag
 })
 ```
 
-Fragment'in data handler'ı action'ın `RenderContext`'iyle çalışır; böylece az önce
-eklenen yorumu — ve handler'ın oraya `rc.Set` ile koyduğu her şeyi — görür.
+Fragment'in data handler'ı action'ın `RenderContext`'i ile çalışır. Böylece az önce
+eklenen yorumu görür. Handler'ın oraya `rc.Set` ile koyduğu her şeyi de görür.

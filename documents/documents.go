@@ -177,7 +177,7 @@ func LLMs(app *collage.App, docs func() (*site.Set, error)) *collage.Document {
 			body.WriteString("\n## Optional\n\n")
 			fmt.Fprintf(&body, "- [The whole documentation in one file](%s): every page above, in reading order, as Markdown\n", site.Origin+full)
 			fmt.Fprintf(&body, "- [Go reference](%s): every exported identifier of package collage, generated from its doc comments\n", site.ReferenceBase)
-			fmt.Fprintf(&body, "- [Türkçe belgeler](%s): the same documentation in Turkish\n", site.Origin+turkish)
+			fmt.Fprintf(&body, "- [Türkçe dokümantasyon](%s): the same documentation in Turkish\n", site.Origin+turkish)
 			return []byte(body.String()), nil, nil
 		}).
 		Static().

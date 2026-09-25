@@ -1,19 +1,21 @@
 ---
-description: HTML yerine bayt dönen route'lar — sitemap'ler, feed'ler, robots.txt, JSON — sayfalar gibi önbelleğe alınır ve geçersiz kılınır.
+description: Sitemap'ler, feed'ler, robots.txt ve JSON gibi HTML yerine byte dönen route'lar, page'ler gibi cache'lenir ve invalidate edilir.
+reference: DocumentBuilder.AtRoot, NewDocument, DocumentBuilder, Document, DocumentResult, DocumentPathProvider, PathInstance
 ---
 
-# Document'ler: sitemap'ler, feed'ler, robots.txt
+# Document'lar: sitemap'ler, feed'ler, robots.txt
 
-Bir sitenin sunduğu her şey sayfa değildir. Bir crawler `/sitemap.xml` ve
-`/robots.txt` ister, bir feed okuyucu `/feed.xml` ister, bir yük dengeleyici
-`/healthz` ister. collage'da bunların her biri bir **document**'tir: handler'ı bayt ve
-bir içerik tipi dönen; şablonu, layout'u ve fragment'i olmayan bir route.
+Bir sitenin sunduğu her şey page değildir. Crawler `/sitemap.xml` ve `/robots.txt`
+ister, feed okuyucu `/feed.xml` ister, load balancer `/healthz` ister. collage'da
+bunların her biri bir **document**'tir. Document, handler'ı byte ve bir content type
+dönen bir route'tur. Template'i, layout'u ve fragment'i yoktur.
 
-Bir document geri kalan her şeyi bir sayfayla paylaşır. Aynı router'da yaşar; bu
-yüzden bir sayfayla çakışan bir yol, ikisinden ikincisi kaydedilirken
-`collage.ErrDuplicateRoute` ile reddedilir. Aynı anahtar altında önbelleğe alınır,
-aynı içerik hash'ine dayalı `ETag`'i ve `304` yanıtlarını alır, aynı üç stratejiyi
-kullanır, bağımlılık etiketleri taşır ve aynı `app.InvalidateTags` çağrısıyla düşürülür.
+Bunun dışındaki her şeyi document page ile paylaşır. Aynı router'da yaşar. Bu yüzden
+bir page ile çakışan bir path, ikisinden ikincisi register edilirken
+`collage.ErrDuplicateRoute` ile reddedilir. Document aynı key altında cache'lenir,
+aynı content hash tabanlı `ETag`'i ve `304` cevaplarını alır, aynı üç stratejiyi
+kullanır. Dependency tag'ler taşır ve aynı `app.InvalidateTags` çağrısıyla cache'ten
+düşer.
 
 ```go
 robots := collage.NewDocument("robots", "text/plain; charset=utf-8").
@@ -29,48 +31,48 @@ if err := app.RegisterDocument(robots); err != nil {
 }
 ```
 
-## Neden sayfa değil
+## Neden page değil
 
-Bir sayfa HTML'dir ve `html/template` üzerinden render edilir. Kaçış kuralları
-HTML'in kurallarıdır: XML için de JSON için de yanlıştır ve bunlarla üretilen bir feed,
-tam da kaçışa en çok ihtiyaç duyan karakterlerde sessizce bozulur. Hata yoktur; yalnızca
-bir crawler'ın reddettiği bir dosya vardır.
+Page HTML'dir ve `html/template` üzerinden render edilir. Escape kuralları da HTML'in
+kurallarıdır. Bu kurallar XML için de JSON için de yanlıştır. Bu kurallarla üretilen
+bir feed, escape edilmeye en çok ihtiyaç duyan karakterlerde sessizce bozulur. Hiçbir
+hata almazsınız, elinizde yalnızca crawler'ın reddettiği bir dosya kalır.
 
-Bu yüzden bir document hiçbir şey render etmez. Gövdeyi formatı bilen bir encoder'la —
-`encoding/xml`, `encoding/json` — ya da gerçekten bir şablon istiyorsanız
-`text/template` ile üretin. Framework döndüğünüz şeyi bayt bayt sunar.
+Bu yüzden document hiçbir şey render etmez. Body'yi formatı bilen bir encoder'la
+(`encoding/xml`, `encoding/json`) üretin. Gerçekten bir template istiyorsanız
+`text/template` kullanın. Framework sizin döndüğünüz şeyi byte'ı byte'ına sunar.
 
 ## Builder
 
 | Çağrı | Ne yapar |
 | --- | --- |
-| `collage.NewDocument(name, contentType)` | Builder'ı başlatır. İkisi de zorunludur. |
-| `AtRoot(pattern)` | Document'e her locale'in dışında ulaşan URL pattern'i: locale yapılandırması ne olursa olsun önek yok. Sitenin kendi dosyaları için — `/robots.txt`, `/llms.txt`. v0.14.1'den itibaren. |
-| `WithPath(locale, pattern)` | `locale`'de document'e ulaşan URL pattern'i. `{param}` segmentleri sayfalardaki gibi çalışır. Bir yer tutucu bütün bir segmenttir: `/feeds/{category}/rss.xml` geçerlidir, `/feeds/{category}.xml` ise kayıt sırasında `collage.ErrInvalidPattern` ile reddedilir (v0.11.0'dan itibaren). |
-| `WithHandler(fn)` | Gövdeyi üreten fonksiyon. Zorunludur: bir document'in geri düşebileceği bir şablonu yoktur. |
-| `Dynamic()` | Handler'ı her istekte çalıştırır. **Varsayılan budur.** |
-| `Static()` | Bir kez çalıştırır, bir etiket geçersiz kılana kadar önbellekten sunar. |
-| `Incremental(ttl)` | Önbellekten sunar, `ttl` geçtikten sonra yeniden çalıştırır. |
-| `WithCacheParams(names...)` | Bir sayfada olduğu gibi, hangi query parametrelerinin önbellek anahtarına katıldığı. |
-| `WithDependency(tags...)` | Bu document'ten gelen her yanıtın taşıdığı etiketler. |
-| `WithRedirect(from, to, status)` / `WithPermanentRedirect(from, to)` | Buraya yönlendiren eski yollar. |
-| `Build()` / `BuildErr()` | Document ve zincirin topladığı hatalar. |
+| `collage.NewDocument(name, contentType)` | Builder'ı başlatır. İki argüman da zorunludur. |
+| `AtRoot(pattern)` | Document'a bütün locale'lerin dışından ulaşan URL pattern'i. Locale config'i ne olursa olsun prefix almaz. Sitenin kendi dosyaları içindir: `/robots.txt`, `/llms.txt`. v0.14.1'den beri vardır. |
+| `WithPath(locale, pattern)` | Document'a `locale` içinde ulaşan URL pattern'i. `{param}` segment'leri page'lerdeki gibi çalışır. Placeholder bütün bir segment olmalıdır: `/feeds/{category}/rss.xml` yazılabilir, ama `/feeds/{category}.xml` register sırasında `collage.ErrInvalidPattern` ile reddedilir (v0.11.0'dan beri). |
+| `WithHandler(fn)` | Body'yi üreten fonksiyon. Zorunludur, çünkü document'ın fallback olarak kullanabileceği bir template'i yoktur. |
+| `Dynamic()` | Handler'ı her request'te çalıştırır. **Varsayılan budur.** |
+| `Static()` | Handler'ı bir kez çalıştırır, bir tag invalidate edene kadar cache'ten sunar. |
+| `Incremental(ttl)` | Cache'ten sunar, `ttl` dolduktan sonra handler'ı yeniden çalıştırır. |
+| `WithCacheParams(names...)` | Page'lerde olduğu gibi, hangi query parametrelerinin cache key'ine girdiğini belirler. |
+| `WithDependency(tags...)` | Bu document'ın her response'unun taşıdığı tag'ler. |
+| `WithRedirect(from, to, status)` / `WithPermanentRedirect(from, to)` | Buraya redirect eden eski path'ler. |
+| `Build()` / `BuildErr()` | Document'ı ve zincirin topladığı hataları verir. |
 
-Varsayılana dikkat edin. Strateji vermeyi unuttuğunuz bir sayfa yine bir sayfadır;
-strateji vermeyi unuttuğunuz bir document ise handler'ını her istekte çalıştırır ve
-statik dışa aktarmada atlanır. Sitemap'ler, feed'ler ve `robots.txt` neredeyse her
+Varsayılana dikkat edin. Strateji vermeyi unuttuğunuz bir page yine de bir page'dir.
+Strateji vermeyi unuttuğunuz bir document ise handler'ını her request'te çalıştırır
+ve static export'ta atlanır. Sitemap'ler, feed'ler ve `robots.txt` neredeyse her
 zaman `Static()` ya da `Incremental(ttl)` ister.
 
-Hiç handler ayarlanmamışsa `Build`, `collage.ErrNoDocumentHandler`'ı kaydeder.
-Builder'ın kaydettiği şey document'in üzerinde kalır ve `BuildErr`'i çağırmış olun ya
-da olmayın `RegisterDocument` onu adıyla reddeder; bu yüzden kendiniz denetlemeniz
-isteğe bağlıdır.
+Handler set edilmemişse `Build`, `collage.ErrNoDocumentHandler` hatasını kaydeder.
+Builder'ın kaydettiği hatalar document'ın üzerinde kalır. `BuildErr`'i çağırsanız da
+çağırmasanız da `RegisterDocument` bu document'ı adını belirterek reddeder. Bu yüzden
+hatayı kendiniz kontrol etmeniz isteğe bağlıdır.
 
-### İçerik tipi
+### Content type
 
-İçerik tipi document'i build ettiğinizde sabitlenir ve önbellekten ya da taze, her
-yanıta olduğu gibi yazılır. Önbelleğe alınmış gövdeyle birlikte saklanmaz ve baytlardan
-tahmin edilmez. Format gerektiriyorsa charset'i ekleyin:
+Content type, document'ı build ettiğinizde sabitlenir. Cache'ten gelen ya da yeni
+üretilen her response'a olduğu gibi yazılır. Cache'lenen body ile birlikte saklanmaz,
+byte'lardan da tahmin edilmez. Format charset gerektiriyorsa onu da ekleyin:
 `text/plain; charset=utf-8`, `application/json`, `application/xml`,
 `application/rss+xml`.
 
@@ -80,57 +82,59 @@ tahmin edilmez. Format gerektiriyorsa charset'i ekleyin:
 type DocumentHandlerFunc func(ctx context.Context, rc *collage.RenderContext) (body []byte, tags []string, err error)
 ```
 
-`rc`, bir data handler'ın aldığı `*collage.RenderContext`'in aynısıdır: yol
-parametresi için `rc.Param("slug")`, çözümlenmiş locale için `rc.Locale`, istek için
-`rc.Request`. Render edilen bir sayfa olmadığı için `rc.Page` `nil`'dir ve hoist
-edilecek bir head yoktur.
+`rc`, data handler'ın aldığı `*collage.RenderContext`'in aynısıdır. Path parametresi
+için `rc.Param("slug")`, çözümlenen locale için `rc.Locale`, request için
+`rc.Request` kullanılır. Render edilen bir page olmadığı için `rc.Page` `nil`'dir.
+Hoist edilecek bir head de yoktur.
 
-Bir data handler'ın sahip olduğu iki şey burada da çalışır (v0.10.0'dan itibaren).
-[`collage.Cached`](/docs/caching#caching-data-across-pages) veri önbelleğini
-sayfalarla paylaşır; böylece her yazı sayfasının zaten çektiği yazıları okuyan bir
-feed, hiçbirini yeniden çekmez ve ona verilen etiketler document'inkilere katılır.
-`rc.Asset(path)`, mount edilmiş bir dosyanın içerik adresli URL'sidir — örneğin bir
-web manifest'indeki bir ikon.
+Data handler'daki iki özellik burada da çalışır (v0.10.0'dan beri).
+[`collage.Cached`](/docs/caching#caching-data-across-pages) data cache'i page'lerle
+paylaşır. Böylece post page'lerinin zaten çektiği post'ları okuyan bir feed, bunların
+hiçbirini yeniden çekmez. `collage.Cached`'a verilen tag'ler de document'ın tag'lerine
+eklenir. `rc.Asset(path)` ise mount edilmiş bir dosyanın content-addressed URL'sini
+verir. Örneğin bir web manifest'indeki ikon için bunu kullanabilirsiniz.
 
-Döndüğünüz etiketler document'in `WithDependency` etiketleriyle birleştirilir. Bir
-data handler'da olduğu gibi, bir hata da dönseniz okunurlar; böylece neye bağlı
-olduğunu öğrenip ardından başarısız olan bir handler, onu neyin bayatlatacağını yine
-de söylemiş olur.
+Döndüğünüz tag'ler, document'ın `WithDependency` tag'leriyle birleştirilir. Data
+handler'da olduğu gibi, bir hata da dönseniz bu tag'ler okunur. Böylece neye bağlı
+olduğunu öğrendikten sonra hata veren bir handler, kendisini neyin stale yapacağını
+yine de bildirmiş olur.
 
 Bilmeye değer üç kural var:
 
-- **nil hatayla boş bir gövde bir başarısızlıktır.** 500 ile yanıtlanır ve
-  `collage.ErrEmptyDocumentBody` olarak bildirilir; çünkü gövdeyi doldurmayı unutmuş
-  bir handler'dan ayırt edilemez. Gerçekten boş olan bir document tek bir satır sonu
+- **nil hatayla dönen boş bir body başarısızlık sayılır.** 500 ile cevaplanır ve
+  `collage.ErrEmptyDocumentBody` olarak raporlanır, çünkü body'yi doldurmayı unutmuş
+  bir handler'dan ayırt edilemez. Gerçekten boş olan bir document tek bir newline
   döner.
-- **`collage.ErrNotFound`'u sarmalayan bir hata 404'tür.** Diğer her şey 500'dür.
-- **Bir panic yakalanır** ve sıradan bir hataya dönüşür; böylece bozuk tek bir feed
-  süreci çökertmez.
+- **`collage.ErrNotFound`'u wrap eden bir hata 404 olur.** Diğer her hata 500 olur.
+- **Panic recover edilir** ve sıradan bir hataya dönüşür. Böylece bozuk tek bir feed
+  bütün process'i çökertmez.
 
-Bir document'in kendi zaman aşımı yoktur. Handler'ı `Config.Template.Timeout`
-(varsayılan olarak beş saniye) altında çalışır — fragment'ler için varsayılan data
-handler zaman aşımı olan ayarın aynısı. Sınır size verilen `ctx`'e uygulanır; bu
+Document'ın kendine ait bir timeout'u yoktur. Handler'ı `Config.Template.Timeout`
+altında çalışır (varsayılanı beş saniyedir). Bu, fragment'ler için varsayılan data
+handler timeout'u olan ayarın aynısıdır. Sınır size verilen `ctx`'e uygulanır, bu
 yüzden onu çağırdığınız her şeye aktarın.
 
 ### Hatalar düz metindir
 
-Başarısız olan bir document hiçbir zaman bir HTML hata sayfasıyla yanıt vermez:
-`sitemap.xml` isteyen bir crawler'ın onunla işi yoktur. Buna document'in yanıt
-vermediği bir metot için dönen `405` de dahildir (v0.11.0'dan itibaren düz metin).
-Doğru status ile `text/plain` alır; production'da tek satırlık genel bir mesaj,
-geliştirmede route adı ve hata zincirinin tamamı; ayrıca `Cache-Control: no-store`.
+Hata veren bir document hiçbir zaman HTML bir error page ile cevap vermez.
+`sitemap.xml` isteyen bir crawler'ın böyle bir sayfayla işi yoktur. Document'ın cevap
+vermediği bir method için dönen `405` de buna dahildir (v0.11.0'dan beri düz metin).
+Crawler, doğru status ile `text/plain` alır. Production'da tek satırlık genel bir
+mesaj döner, development'ta ise route adı ve hata zincirinin tamamı döner.
+Response'ta ayrıca `Cache-Control: no-store` bulunur.
 
-Formata özgü bir hata istiyorsanız — bir JSON `{"error": "..."}` — hatayı handler'ın
-içinde ele alın ve o gövdeyi kendiniz dönün. Handler ne dönerse o sunulur.
+Formata özgü bir hata istiyorsanız, örneğin bir JSON `{"error": "..."}`, hatayı
+handler'ın içinde yakalayın ve o body'yi kendiniz dönün. Handler ne dönerse o sunulur.
 
-## Önbellekleme
+## Caching
 
-[Önbellekleme](/docs/caching) sayfasındaki her şey geçerlidir. Önbellek anahtarı yol,
-locale, yol parametreleri ve query string'dir; önbellekten yalnızca `GET` ve `HEAD`
-sunulur; `Cache-Control` header'ı stratejiyi izler.
+[Caching](/docs/caching) sayfasında anlatılan her şey burada da geçerlidir. Cache
+key; path, locale, path parametreleri ve query string'den oluşur. Cache'ten yalnızca
+`GET` ve `HEAD` request'leri sunulur. `Cache-Control` header'ı stratejiye göre
+belirlenir.
 
-Yazılarınızdan kurulan bir sitemap, bir yazı yayımlandığında düşürülmelidir; etiketler
-tam da bunun içindir:
+Post'larınızdan üretilen bir sitemap, yeni bir post yayımlandığında cache'ten
+düşürülmelidir. Tag'ler tam da bunun içindir:
 
 ```go
 // Declared by the sitemap, the feed, the blog index and every post page.
@@ -139,17 +143,17 @@ if err := app.InvalidateTags(ctx, "blog:posts"); err != nil {
 }
 ```
 
-Plugin'ler de document'leri görür: `collage.DocumentRenderedHook`'u gerçekleyen bir
-plugin, bir document'in gövdesini önbelleğe alınıp sunulmadan önce yeniden yazabilir —
-örneğin bir minifier. Hiçbir şey render edilmediği için sayfa render hook'ları
-(`OnBeforeRender`, `OnAfterRender`) tetiklenmez. Bkz.
+Plugin'ler de document'ları görür. `collage.DocumentRenderedHook`'u implement eden
+bir plugin, document'ın body'sini cache'lenip sunulmadan önce yeniden yazabilir.
+Minifier buna bir örnektir. Page render hook'ları (`OnBeforeRender`, `OnAfterRender`)
+çalışmaz, çünkü render edilen bir şey yoktur. Bkz.
 [Plugin yazmak](/docs/writing-plugins).
 
-## Örnek: bir sitemap
+## Örnek: sitemap
 
-Bir sitemap mutlak URL'leri listeler. Bunları sayfa adlarından `app.URL` ile kurun;
-böylece bir sayfanın yolu değiştiğinde sitemap onu izler. Önlerine de sitenin
-origin'ini koyun.
+Sitemap mutlak URL'leri listeler. Bu URL'leri page adlarından `app.URL` ile üretin.
+Böylece bir page'in path'i değiştiğinde sitemap de onu takip eder. URL'lerin başına
+da sitenin origin'ini ekleyin.
 
 ```go
 // origin is where the site is published. app.URL returns paths, and a sitemap
@@ -207,17 +211,18 @@ func SitemapDocument(app *collage.App, posts *store.Posts) *collage.Document {
 }
 ```
 
-Handler `app`'i closure içine alır ve `app.URL`'i build edildiğinde değil, çalıştığında
-çağırır — o sırada her sayfa kaydedilmiştir. `app.URL` katıdır: var olmayan bir sayfa
-adı ya da pattern'i doldurmayan parametreler, sitemap'inizde bozuk bir bağlantı değil,
-bir hatadır. Birden çok locale'i olan bir site için onu her locale için bir kez, locale'i
-ikinci argüman olarak vererek çağırın; sonuç locale önekini içerir.
+Handler `app`'i closure ile yakalar ve `app.URL`'i build edildiğinde değil,
+çalıştığında çağırır. O ana kadar bütün page'ler register edilmiş olur. `app.URL`
+katıdır: var olmayan bir page adı ya da pattern'i doldurmayan parametreler,
+sitemap'inizde bozuk bir link olarak değil, hata olarak karşınıza çıkar. Birden çok
+locale'i olan bir sitede `app.URL`'i her locale için bir kez çağırın ve locale'i
+ikinci argüman olarak verin. Dönen sonuç locale prefix'ini içerir.
 
-Strateji `Incremental(time.Hour)`'dur ve handler `blog:posts` etiketini döner; böylece
-sitemap en az saatte bir ve bir şey o etiketi geçersiz kıldığında hemen yeniden
-kurulur.
+Strateji `Incremental(time.Hour)`'dur ve handler `blog:posts` tag'ini döner. Böylece
+sitemap en az saatte bir kez yeniden üretilir. Bir şey bu tag'i invalidate ettiğinde
+ise hemen yeniden üretilir.
 
-## Örnek: bir RSS feed'i
+## Örnek: RSS feed'i
 
 ```go
 type rss struct {
@@ -282,12 +287,12 @@ func FeedDocument(app *collage.App, posts *store.Posts) *collage.Document {
 }
 ```
 
-`encoding/xml` başlıkları ve özetleri doğru şekilde kaçışlar; sayfa kullanmamanın
-bütün nedeni de budur. Feed `Static()`'tir: yalnızca bir yazı değiştiğinde değişir ve
-her yazının etiketi üzerindedir; bu yüzden feed'deki herhangi bir yazıyı düzenlemek
-onu düşürür.
+`encoding/xml` başlıkları ve özetleri doğru şekilde escape eder. Page kullanmamanın
+bütün nedeni de budur. Feed `Static()`'tir: yalnızca bir post değiştiğinde değişir.
+Her post'un tag'i feed'in üzerindedir. Bu yüzden feed'deki herhangi bir post'u
+düzenlemek feed'i cache'ten düşürür.
 
-Okuyucuları layout'tan bir `<link rel="alternate">` ile ona yönlendirin — bkz.
+Layout'a bir `<link rel="alternate">` koyarak okuyucuları feed'e yönlendirin. Bkz.
 [Head ve SEO](/docs/head-and-seo).
 
 ## Örnek: robots.txt
@@ -312,18 +317,18 @@ func RobotsDocument(app *collage.App) *collage.Document {
 }
 ```
 
-`robots.txt` bir dilin değil sitenin dosyasıdır ve crawler'lar onu yalnızca kökte
-arar; bu yüzden `AtRoot` ile kurulur: varsayılan locale'i `/en/` altında sunulan bir
-sitede bile tek adresi `/robots.txt`'dir.
+`robots.txt` bir dile değil siteye aittir. Crawler'lar onu yalnızca kökte arar, başka
+hiçbir yerde aramaz. Bu yüzden `AtRoot` ile build edilir. Varsayılan locale'i `/en/`
+altında sunulan bir sitede bile tek adresi `/robots.txt`'dir.
 
-`app.URL` sayfalar kadar document'ler için de çalışır; bu yüzden `robots.txt`
-sitemap'i adıyla bulur. Aynı adı paylaşan bir sayfaya ve bir document'e o adla
-bağlantı verilemez — `app.URL` hangisini kastettiğinizi tahmin etmeyi reddeder — bu
-yüzden document'lere kendilerine ait adlar verin.
+`app.URL` page'ler için olduğu gibi document'lar için de çalışır. Bu yüzden
+`robots.txt` sitemap'i adıyla bulur. Aynı adı taşıyan bir page ile bir document'a o
+adla link verilemez, çünkü `app.URL` hangisini kastettiğinizi tahmin etmeyi reddeder.
+Bu yüzden document'lara kendilerine özgü adlar verin.
 
-## Birden çok locale'de document'ler
+## Birden çok locale'de document'lar
 
-Bir document'in yolları, bir sayfanınkiler gibi locale'e göre anahtarlanır:
+Document'ın path'leri, page'lerde olduğu gibi locale'e göre tutulur:
 
 ```go
 collage.NewDocument("feed", "application/rss+xml").
@@ -334,55 +339,56 @@ collage.NewDocument("feed", "application/rss+xml").
 	Build()
 ```
 
-Pattern locale önekini asla tekrarlamaz. `tr` destekliyken `/tr/feed.xml` isteğinin
-`/tr`'si routing'den önce çıkarılır ve istek `tr` kaydının `/feed.xml`'iyle eşleşir;
-`WithPath("tr", "/tr/feed.xml")` yazarsanız ona yalnızca `/tr/tr/feed.xml` ile
-ulaşılır. Handler `rc.Locale`'i okur ve locale önbellek anahtarının bir parçasıdır; bu
-yüzden iki feed ayrı ayrı önbelleğe alınır. Bkz.
-[Bağlantılar ve locale'ler](/docs/links-and-locales).
+Pattern locale prefix'ini asla tekrar etmez. `tr` destekleniyorsa `/tr/feed.xml`
+request'inin `/tr` kısmı routing'den önce çıkarılır. Request de `tr` kaydının
+`/feed.xml` pattern'iyle eşleşir. `WithPath("tr", "/tr/feed.xml")` yazarsanız bu
+path'e yalnızca `/tr/tr/feed.xml` ile ulaşılır. Handler `rc.Locale`'i okur. Locale
+cache key'inin bir parçası olduğu için iki feed ayrı ayrı cache'lenir. Bkz.
+[Link'ler ve locale'ler](/docs/links-and-locales).
 
-Statik dışa aktarma, her locale'in document'ini tıpkı bir sayfada olduğu gibi onu
-sunan URL'ye yazar: `en` feed'ini `feed.xml`'e, `tr` feed'ini `tr/feed.xml`'e; yani
-iki locale'deki tek bir pattern iki dosyadır.
+Static export, her locale'in document'ını page'lerde yaptığı gibi onu sunan URL'ye
+yazar. `en` feed'i `feed.xml` dosyasına, `tr` feed'i `tr/feed.xml` dosyasına yazılır.
+Yani iki locale'deki tek bir pattern iki dosya demektir.
 
 [`PrefixDefault`](/docs/links-and-locales#the-url-decides-the-locale) ile varsayılan
-locale'in document'i de önek alır — `/en/feed.xml`, `en/feed.xml`'e yazılır — ve
-`/feed.xml` oraya yönlendirilir. Her dil için ayrı sitemap'i olan bir site hepsini
-`robots.txt`'de listeler; `robots.txt` istediği kadar sitemap adlandırabilir:
+locale'in document'ı da prefix alır. Document `/en/feed.xml` adresinde sunulur,
+`en/feed.xml` dosyasına yazılır ve `/feed.xml` oraya redirect eder. Her dil için ayrı
+sitemap'i olan bir site bunların hepsini `robots.txt`'de listeler. `robots.txt`
+istediği sayıda sitemap belirtebilir:
 
 ```text
 Sitemap: https://example.com/en/sitemap.xml
 Sitemap: https://example.com/tr/sitemap.xml
 ```
 
-`AtRoot` ile kurulan bir document hiçbir locale'de değildir: her yapılandırmada
-öneksiz yolundadır, her dildeki bir sayfadan adıyla bağlantı verilebilir ve
-`rc.Locale` varsayılan locale'e ayarlanmış olarak render edilir.
+`AtRoot` ile build edilen bir document hiçbir locale'e ait değildir. Her config'te
+prefix'siz path'inde durur ve her dildeki bir page'den adıyla ona link verilebilir.
+`rc.Locale` varsayılan locale'e set edilmiş olarak render edilir.
 
-## Statik dışa aktarmada document'ler
+## Static export'ta document'lar
 
-[Statik dışa aktarma](/docs/static-export) bir document'i kendi birebir yoluna yazar:
-`/sitemap.xml`, `dist/sitemap.xml/index.html` değil `dist/sitemap.xml` olur; çünkü
-`/sitemap.xml` isteyen bir crawler'a bir dizin gitmemelidir. Varsayılan dışında bir
-locale'deki document, sunulduğu yer olan o locale'in öneki altına yazılır:
-`dist/tr/sitemap.xml`.
+[Static export](/docs/static-export), document'ı birebir kendi path'ine yazar.
+`/sitemap.xml`, `dist/sitemap.xml/index.html` olarak değil `dist/sitemap.xml` olarak
+yazılır, çünkü `/sitemap.xml` isteyen bir crawler'a dizin dönmemelidir. Varsayılan
+dışındaki bir locale'in document'ı, sunulduğu yere, yani o locale'in prefix'i altına
+yazılır: `dist/tr/sitemap.xml`.
 
-- `Static()` ve `Incremental(ttl)` document'leri yazılır. `Dynamic()` olanlar atlanır
-  ve raporda adlarıyla belirtilir; iskeletteki `/healthz`'in `dist/`'te hiç
+- `Static()` ve `Incremental(ttl)` document'ları yazılır. `Dynamic()` olanlar atlanır
+  ve raporda adlarıyla listelenir. Scaffold'daki `/healthz`'in `dist/` içinde hiç
   görünmemesinin nedeni budur.
-- Boş bir gövde `collage.ErrEmptyDocumentBody` ile reddedilir ve hiçbir dosya
-  yazılmaz.
-- `{param}` içeren bir pattern'in somut yollarını listelemek için bir
-  `BuildOptions.DocumentPathProvider` gerekir; yoksa `collage.ErrDynamicPathUnresolved`
-  ile atlanır.
-- `WithCacheParams` kullanan bir document — sayfalanmış bir feed — bir dosyanın query
-  string'i olamayacağı için query string olmadan yazılır ve rapor, bir sayfada olduğu
-  gibi, bununla ilgili uyarır.
-- Tek bir dosyaya çözümlenen iki yol — bir yolu iki kez dönen bir provider — bir kez
-  build edilir; geri kalanlar `collage.ErrDuplicateOutputPath` ile atlanır.
+- Boş body `collage.ErrEmptyDocumentBody` ile reddedilir ve hiçbir dosya yazılmaz.
+- `{param}` içeren bir pattern'in somut path'lerini listelemek için
+  `BuildOptions.DocumentPathProvider` gerekir. Provider yoksa document
+  `collage.ErrDynamicPathUnresolved` ile atlanır.
+- `WithCacheParams` kullanan bir document (örneğin sayfalanmış bir feed) query string
+  olmadan yazılır, çünkü bir dosyanın query string'i olamaz. Rapor, page'lerde olduğu
+  gibi bu durum için de uyarı verir.
+- Aynı dosyaya çıkan iki path (örneğin aynı path'i iki kez dönen bir provider) bir kez
+  build edilir. Diğerleri `collage.ErrDuplicateOutputPath` ile atlanır.
 
-`DocumentPathProvider`, `PathProvider`'ın document'lerdeki karşılığıdır — ayrı bir
-interface'tir, böylece sayfalar için yazılmış bir provider'ın değişmesi gerekmez:
+`DocumentPathProvider`, `PathProvider`'ın document'lar için olan karşılığıdır. Ayrı
+bir interface olduğu için page'ler için yazılmış bir provider'ı değiştirmeniz
+gerekmez:
 
 ```go
 // categoryFeeds expands "/feeds/{category}/rss.xml" into one path per category.
@@ -403,8 +409,9 @@ func (p categoryFeeds) Paths(_ context.Context, doc *collage.Document, locale st
 }
 ```
 
-Genişlettiği document, yer tutucu bütün bir segment olacak şekilde kaydedilir —
-ardındaki birebir `rss.xml`, dışa aktarılan dosyayı `feeds/go/rss.xml` yapan şeydir:
+Genişlettiği document, placeholder bütün bir segment olacak şekilde register edilir.
+Export edilen dosyayı `feeds/go/rss.xml` yapan, placeholder'dan sonra gelen sabit
+`rss.xml` kısmıdır:
 
 ```go
 collage.NewDocument("category-feed", "application/rss+xml").
@@ -422,19 +429,19 @@ builder, err := collage.NewBuilder(app, collage.BuildOptions{
 })
 ```
 
-`Params`, handler'ın `rc.Param` üzerinden okuduğu şeydir; canlı bir isteğin yakalayacağı
-değerlerin aynısı.
+`Params`, handler'ın `rc.Param` ile okuduğu değerlerdir. Canlı bir request'in
+yakalayacağı değerlerle aynıdır.
 
-## Document'lerin yapmadıkları
+## Document'ların yapmadıkları
 
-- **Şablon, fragment ya da slot yok.** Varlık nedenleri de bu.
-- **`Range` istekleri yok.** Gövde bellekte kurulur ve bütün olarak sunulur. Ses,
-  video ve büyük indirmeler mount edilmiş bir dosya sistemine aittir — bkz.
-  [Statik dosyalar](/docs/assets).
-- **Büyük hiçbir şey yok.** Önbelleğe alınabilen bir document sayfa önbelleğinde
-  tutulur; bu önbellek bayt sayısıyla değil kayıt sayısıyla sınırlanır, bu yüzden 50 MB'lık
-  tek bir document binlerce sayfa kadar yer kaplar.
+- **Template, fragment ya da slot yok.** Document'ların varlık nedeni zaten budur.
+- **`Range` request'leri yok.** Body bellekte oluşturulur ve bütün olarak sunulur.
+  Ses, video ve büyük indirme dosyaları mount edilmiş bir dosya sisteminde durmalıdır.
+  Bkz. [Static asset'ler](/docs/assets).
+- **Büyük hiçbir şey yok.** Cache'lenebilen bir document page cache'te tutulur. Page
+  cache byte ile değil entry sayısıyla sınırlıdır. Bu yüzden 50 MB'lık tek bir
+  document, binlerce page kadar yer kaplar.
 
-Bir document'in ifade edemediği her şey için — akış hâlinde bir yanıt, bir istek
-gövdesi, `GET` dışındaki metotlar — bkz.
-[Middleware ve kendi API'niz](/docs/middleware-and-apis).
+Document'ın ifade edemediği her şey için (streaming bir response, request body'si,
+`GET` dışındaki method'lar) [Middleware ve kendi API'niz](/docs/middleware-and-apis)
+sayfasına bakın.

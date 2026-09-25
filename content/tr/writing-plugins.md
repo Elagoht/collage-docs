@@ -1,16 +1,18 @@
 ---
 description: Plugin sözleşmesi, Host ve ConfigHost'un sundukları, her hook ve neyi değiştirebileceği, testleriyle birlikte eksiksiz bir plugin.
+reference: Plugin, Host, ConfigHost, Configurer, Command, BeforeRenderHook, AfterRenderHook, CacheInvalidateHook
 ---
 
 # Plugin yazmak
 
-Bir plugin, dört metodu olan bir Go tipidir. Geri kalan her şey — bir render'a
-tepki vermek, çıktıyı yeniden yazmak, bir şablon fonksiyonu eklemek — isteğe
-bağlıdır: istediğiniz hook'un interface'ini uygularsınız, framework de onu tip
-doğrulamasıyla (type assertion) bulur.
+Plugin, dört metodu olan bir Go tipidir. Geri kalan her şey isteğe bağlıdır: bir
+render'a tepki vermek, çıktıyı yeniden yazmak ya da bir template fonksiyonu
+eklemek. İstediğiniz hook'un interface'ini implement edersiniz, framework de onu
+type assertion ile bulur.
 
-Bu sayfa o yüzeyin başvuru kaynağıdır. [Plugin kullanmak](/docs/plugins) işin öbür
-tarafıdır: bir uygulamanın sizin yazdığınızı nasıl kaydettiği ve yapılandırdığı.
+Bu sayfa, bu yüzeyin referansıdır. [Plugin kullanmak](/docs/plugins) ise işin öbür
+tarafını anlatır: bir uygulama, sizin yazdığınız plugin'i nasıl register eder ve
+nasıl yapılandırır.
 
 ## Sözleşme
 
@@ -23,20 +25,21 @@ type Plugin interface {
 }
 ```
 
-- **`Name`** plugin'i tanımlar. Boş olmamalı ve uygulama içinde benzersiz olmalıdır;
-  plugin'in yapılandırma bölümünün anahtarı da odur — bu yüzden bir modül yolu gibi
-  okunmasını sağlayın: `acme/stamp`.
-- **`Version`** plugin'inizin kendi sürümüdür, tanılama için.
-- **`Init`** uygulama başladığında bir kez çalışır: uygulama kendi sayfalarını
-  kaydettikten sonra ve ilk istekten önce.
-- **`Shutdown`**, `Init`'in edindiği her şeyi serbest bırakır. `Init`'i çalışmış
-  ya da başarılı olmuş olsun olmasın, kayıtlı her plugin için çağrılır ve birden
-  fazla kez çağrılabilir; bu yüzden `Init` olmadan da güvenli ve idempotent olmalıdır
-  — bkz. [Yaşam döngüsü](#lifecycle).
+- **`Name`** plugin'i tanımlar. Boş olmamalı ve uygulama içinde benzersiz olmalıdır.
+  Aynı zamanda plugin'in config bölümünün key'idir. Bu yüzden bir module path
+  gibi okunacak bir ad seçin: `acme/stamp`.
+- **`Version`** plugin'inizin kendi versiyonudur ve teşhis amaçlı kullanılır.
+- **`Init`** uygulama başlarken bir kez çalışır. Bu, uygulama kendi page'lerini
+  register ettikten sonra ve ilk request'ten önce olur.
+- **`Shutdown`**, `Init`'in edindiği her şeyi serbest bırakır. Register edilmiş her
+  plugin için çağrılır; o plugin'in `Init`'inin çalışıp çalışmadığı ya da başarılı
+  olup olmadığı fark etmez. Birden fazla kez de çağrılabilir. Bu yüzden `Init`
+  çalışmadan da güvenli olmalı ve idempotent olmalıdır. Ayrıntılar için
+  [Yaşam döngüsü](#lifecycle) bölümüne bakın.
 
-Hook'lar tip doğrulamasıyla bulunduğu için, adı yanlış yazılmış bir hook metodu
-derleme hatası değildir — hiç çalışmayan bir hook'tur. Uygulamayı amaçladığınız her
-interface'i doğrulayın:
+Hook'lar type assertion ile bulunduğu için, adı yanlış yazılmış bir hook metodu
+derleme hatası vermez. Sadece hiç çalışmayan bir hook olur. Implement etmek
+istediğiniz her interface için bir assertion yazın:
 
 ```go
 var (
@@ -47,10 +50,10 @@ var (
 
 ## İki aşama: Configure ve Init
 
-Bazı işlerin şablonlar ayrıştırılmadan önce yapılması gerekir. `html/template`
-yalnızca şablon ayrıştırılırken fonksiyon haritasında bulunan bir fonksiyonu
-çağırabilir ve ayrıştırma `collage.New` içinde olur. Bu yüzden isteğe bağlı, daha
-erken bir aşama vardır:
+Bazı işlerin template'ler parse edilmeden önce yapılması gerekir. `html/template`,
+yalnızca template parse edildiği anda function map'inde bulunan bir fonksiyonu
+çağırabilir. Parse işlemi de `collage.New` içinde gerçekleşir. Bu yüzden isteğe
+bağlı, daha erken bir aşama vardır:
 
 ```go
 type Configurer interface {
@@ -58,20 +61,20 @@ type Configurer interface {
 }
 ```
 
-`Configure`, `New` içinde, plugin başına bir kez, kayıt sırasıyla ve şablonlar
-ayrıştırılmadan önce çalışır. Döndürülen bir hata `New`'u iptal eder. Henüz hiçbir
-şey edinilmemiştir, bu yüzden geri alma (rollback) yoktur.
+`Configure`, `New` içinde çalışır. Her plugin için bir kez, register sırasına göre ve
+template'ler parse edilmeden önce çağrılır. Dönen bir hata `New`'u iptal eder. Henüz
+hiçbir kaynak edinilmediği için geri alınacak bir şey de yoktur.
 
-`Init` daha sonra, uygulama başladığında çalışır — `Handler`, `ListenAndServe`,
-`Start`, `RenderPath`, `RenderDocumentPath` ya da `DispatchCommands`'a yapılan ilk
-çağrıda; buna statik build de dahildir, çünkü builder `RenderPath` üzerinden render
-eder. O zamana kadar uygulama sayfalarını kaydetmiştir, dolayısıyla bir plugin
-onları okuyabilir ya da kendi sayfalarını ekleyebilir.
+`Init` daha sonra, uygulama başlarken çalışır. Uygulama, `Handler`, `ListenAndServe`,
+`Start`, `RenderPath`, `RenderDocumentPath` ya da `DispatchCommands` ilk kez
+çağrıldığında başlar. Static build de buna dahildir, çünkü builder `RenderPath`
+üzerinden render eder. Bu noktada uygulama page'lerini register etmiş olur. Böylece
+bir plugin onları okuyabilir ya da kendi page'lerini ekleyebilir.
 
-İkisine de ihtiyaç duyan bir plugin ikisini de uygular. **`Configurer`'ı uygulayan
-bir plugin `Config.Plugins` içinde verilmelidir**: `RegisterPlugin`, `New`
-şablonları ayrıştırdıktan sonra çağrılır; bu yüzden böyle bir plugin'in
-`Configure`'ını sessizce atlamak yerine onu `ErrConfigurerRegisteredLate` ile
+İkisine de ihtiyaç duyan bir plugin ikisini de implement eder. **`Configurer`'ı
+implement eden bir plugin, `Config.Plugins` içinde verilmelidir.** `RegisterPlugin`,
+`New` template'leri parse ettikten sonra çağrılır. Bu yüzden böyle bir plugin'in
+`Configure`'ını sessizce atlamaz; plugin'i `ErrConfigurerRegisteredLate` ile
 reddeder.
 
 ### Her aşama nelere erişebilir
@@ -84,68 +87,67 @@ reddeder.
 | `RegisterPage`, `RegisterDocument`, `Mount` | — | evet |
 | `RegisterCommand` | — | evet |
 
-`ConfigHost` bilerek daha dardır. `Configure` sırasında uygulama henüz hiçbir şey
-kaydetmemiştir; sayfalar boş bir liste olurdu, geçersiz kılmanın da ulaşacağı bir
-önbellek olmazdı.
+`ConfigHost` bilerek daha dar tutulmuştur. `Configure` sırasında uygulama henüz
+hiçbir şey register etmemiştir. Page listesi boş olurdu, invalidation'ın da
+ulaşabileceği bir cache olmazdı.
 
 ### ConfigHost
 
 | Metot | Ne yapar |
 | --- | --- |
-| `DevMode() bool` | Uygulamanın geliştirme modunda çalışıp çalışmadığı. |
-| `Logger() *slog.Logger` | Uygulamanın logger'ı. |
-| `Config(v) error` | Bu plugin'in yapılandırma bölümünü `v`'ye çözer — bkz. [Yapılandırma](#configuration). |
-| `AddTemplateFunc(name, fn) error` | Bir şablon fonksiyonu ekler. Ad daha önce eklenmişse — başka bir plugin tarafından ya da bu plugin tarafından daha önce — `ErrDuplicateTemplateFunc` döner. |
-| `WrapMount(wrap func(fs.FS) fs.FS)` | Mount edilen her dosya sistemine, sarmalayıcıların kaydedildiği sırayla uygulanan bir dönüşüm kaydeder. |
+| `DevMode() bool` | Uygulamanın development modunda çalışıp çalışmadığını söyler. |
+| `Logger() *slog.Logger` | Uygulamanın logger'ını döner. |
+| `Config(v) error` | Bu plugin'in config bölümünü `v`'ye decode eder. Bkz. [Yapılandırma](#configuration). |
+| `AddTemplateFunc(name, fn) error` | Bir template fonksiyonu ekler. Ad daha önce eklenmişse `ErrDuplicateTemplateFunc` döner; ekleyen başka bir plugin de olabilir, aynı plugin'in önceki bir çağrısı da. |
+| `WrapMount(wrap func(fs.FS) fs.FS)` | Mount edilen her dosya sistemine uygulanacak bir dönüşümü register eder. Wrapper'lar register edildikleri sırayla uygulanır. |
 
 ### Host
 
 | Metot | Ne yapar |
 | --- | --- |
-| `DevMode() bool` | Uygulamanın geliştirme modunda çalışıp çalışmadığı. |
-| `Logger() *slog.Logger` | Uygulamanın logger'ı. |
-| `Config(v) error` | Bu plugin'in yapılandırma bölümünü `v`'ye çözer. |
-| `Pages() []*collage.Page` | Kayıtlı her sayfa, her biri savunmacı bir kopya. |
-| `Page(name) (*collage.Page, bool)` | Adıyla tek bir sayfa, savunmacı bir kopya. |
-| `InvalidateTags(ctx, tags...) error` | Etiketlerden herhangi biriyle kurulmuş her önbellek girdisini düşürür. |
-| `RegisterPage(page) error` | Plugin'in katkıda bulunduğu bir sayfayı kaydeder. |
-| `RegisterDocument(doc) error` | Plugin'in katkıda bulunduğu bir document'ı kaydeder. |
-| `Mount(prefix, fsys, opts...) error` | Bir dosya sistemini bir URL öneki altında sunar. |
-| `RegisterCommand(cmd) error` | Bir komut ekler — bkz. [Komutlar](#commands). |
+| `DevMode() bool` | Uygulamanın development modunda çalışıp çalışmadığını söyler. |
+| `Logger() *slog.Logger` | Uygulamanın logger'ını döner. |
+| `Config(v) error` | Bu plugin'in config bölümünü `v`'ye decode eder. |
+| `Pages() []*collage.Page` | Register edilmiş bütün page'leri döner. Her biri bir defensive copy'dir. |
+| `Page(name) (*collage.Page, bool)` | Adı verilen page'i defensive copy olarak döner. |
+| `InvalidateTags(ctx, tags...) error` | Bu tag'lerden herhangi biriyle oluşturulmuş bütün cache entry'lerini düşürür. |
+| `RegisterPage(page) error` | Plugin'in eklediği bir page'i register eder. |
+| `RegisterDocument(doc) error` | Plugin'in eklediği bir document'ı register eder. |
+| `Mount(prefix, fsys, opts...) error` | Bir dosya sistemini bir URL prefix'i altında sunar. |
+| `RegisterCommand(cmd) error` | Bir komut ekler. Bkz. [Komutlar](#commands). |
 
-`Init`'in aldığı şey `*App` değildir. Bu metotları ileten ve başka hiçbir şey
-yapmayan dar bir değerdir; bu yüzden bir plugin tip doğrulamasıyla
-`ListenAndServe`'e, `Shutdown`'a, router'a, önbelleğe ya da şablon kümesine
-ulaşamaz.
+`Init`'e gelen değer `*App` değildir. Yalnızca bu metotları ileten dar bir değerdir.
+Bu yüzden bir plugin, type assertion ile `ListenAndServe`'e, `Shutdown`'a,
+router'a, cache'e ya da template kümesine ulaşamaz.
 
-**`Host` bir plugin'in neye ulaşabileceğini sınırlar, neyi değiştirebileceğini
-değil.** `Pages` ve `Page`, sayfa struct'ının ve onun `Paths`, `Redirects`, `SEO`
-ve `DependencyTags` kaplarının kopyalarını döndürür; bu yüzden onları düzenlemek
-uygulamanın kendi sayfasına dokunmaz. Bir kopyanın içindeki fragment işaretçileri
-ise hâlâ paylaşılır ve aşağıdaki olaylar kopyayı değil, *canlı* sayfayı taşır — her
-istekte bir sayfayı ve fragment ağacını kopyalamak sıcak yola (hot path) pahalıya
-patlardı. Bir olayın `Page`'i üzerinden yazmak, eşzamanlı her isteğin okuduğu
-sayfayı değiştirir: bu bir veri yarışıdır (data race) ve `go test -race` bunu
-söyler. Sayfaları salt okunur kabul edin. Plugin'ler güvenilen koddur, bir sandbox
-değil.
+**`Host`, bir plugin'in neye ulaşabileceğini sınırlar; neyi değiştirebileceğini
+sınırlamaz.** `Pages` ve `Page`, page struct'ının bir kopyasını döner. `Paths`,
+`Redirects`, `SEO` ve `DependencyTags` container'ları da kopyalanır. Bu yüzden
+bunları düzenlemek uygulamanın kendi page'ine dokunmaz. Ancak kopyanın içindeki
+fragment pointer'ları hâlâ paylaşılır. Aşağıdaki event'ler de kopyayı değil, *canlı*
+page'i taşır, çünkü her request'te bir page'i ve fragment ağacını kopyalamak hot
+path'e pahalıya mal olurdu. Bir event'in `Page`'i üzerinden yazarsanız, eşzamanlı
+bütün request'lerin okuduğu page'i değiştirmiş olursunuz. Bu bir data race'tir ve
+`go test -race` bunu raporlar. Page'leri salt okunur kabul edin. Plugin'ler güvenilen
+koddur; bir sandbox içinde çalışmazlar.
 
-Bir plugin'in kaydettiği sayfalar, document'lar ve mount'lar, uygulamanın
-kendilerininkiyle aynı kurallara tabidir: zaten alınmış bir ad ya da yol bir
-başlangıç hatasıdır, kayıt sırasına göre sonuçlanan bir yarış değil.
+Bir plugin'in register ettiği page, document ve mount'lar, uygulamanınkilerle aynı
+kurallara tabidir. Zaten kullanılan bir ad ya da path bir startup hatasıdır. Hangi
+kaydın kazanacağı register sırasına bırakılmaz.
 
 ## Hook'lar
 
-| Interface | Metot | Olay | Ne zaman tetiklenir | Neyi değiştirebilir |
+| Interface | Metot | Event | Ne zaman çalışır | Neyi değiştirebilir |
 | --- | --- | --- | --- | --- |
-| `PageResolvedHook` | `OnPageResolved` | `PageResolvedEvent` | Her sayfa isteğinde bir kez, routing'in hemen ardından — önbellek isabetleri dahil | hiçbir şeyi |
-| `BeforeRenderHook` | `OnBeforeRender` | `BeforeRenderEvent` | Taze bir sayfa render'ından önce | olayda hiçbir şeyi; `ev.Context` üzerinden hoist edebilir |
-| `AfterRenderHook` | `OnAfterRender` | `AfterRenderEvent` | Bir sayfa render'ı başarılı olduktan sonra | `ev.HTML` |
-| `DocumentRenderedHook` | `OnDocumentRendered` | `DocumentRenderedEvent` | Bir document handler'ı gövdesini ürettikten sonra | `ev.Body` |
-| `CacheWriteHook` | `OnCacheWrite` | `CacheWriteEvent` | Bir sayfa ya da document önbelleğe yazılmadan önce | `ev.Skip`, `ev.TTL`, `ev.Tags` |
-| `CacheInvalidateHook` | `OnCacheInvalidate` | `CacheInvalidateEvent` | Girdiler etiketle geçersiz kılındıktan sonra | hiçbir şeyi |
-| `ErrorHook` | `OnError` | `ErrorEvent` | Bir istek sunulurken oluşan bir hatada | hiçbir şeyi |
+| `PageResolvedHook` | `OnPageResolved` | `PageResolvedEvent` | Her page request'inde bir kez, routing'in hemen ardından; cache hit'ler dahil | hiçbir şeyi |
+| `BeforeRenderHook` | `OnBeforeRender` | `BeforeRenderEvent` | Yeni bir page render'ından önce | event'te hiçbir şeyi; `ev.Context` üzerinden hoist edebilir |
+| `AfterRenderHook` | `OnAfterRender` | `AfterRenderEvent` | Bir page render'ı başarıyla bittikten sonra | `ev.HTML` |
+| `DocumentRenderedHook` | `OnDocumentRendered` | `DocumentRenderedEvent` | Bir document handler'ı body'sini ürettikten sonra | `ev.Body` |
+| `CacheWriteHook` | `OnCacheWrite` | `CacheWriteEvent` | Bir page ya da document cache'e yazılmadan önce | `ev.Skip`, `ev.TTL`, `ev.Tags` |
+| `CacheInvalidateHook` | `OnCacheInvalidate` | `CacheInvalidateEvent` | Entry'ler tag ile invalidate edildikten sonra | hiçbir şeyi |
+| `ErrorHook` | `OnError` | `ErrorEvent` | Bir request sunulurken bir hata oluştuğunda | hiçbir şeyi |
 
-Her hook metodunun biçimi `func(ctx context.Context, ev *Event) error`'dır.
+Her hook metodunun imzası `func(ctx context.Context, ev *Event) error` biçimindedir.
 
 ### PageResolvedHook
 
@@ -157,12 +159,11 @@ type PageResolvedEvent struct {
 }
 ```
 
-Bir sayfaya yönlenen her istekte, önbelleğe bakılmadan önce bir kez tetiklenir;
-bu yüzden taze render'ları olduğu kadar önbellek isabetlerini de görür. Bir
-document için asla tetiklenmez, statik build sırasında da tetiklenmez — build bir
-istek değildir ve istekleri sayan bir plugin kimsenin istemediği render'ları
-sayardı. Bir hata, isteği `"page_resolved"` aşaması altında 500 ile başarısız
-kılar.
+Bir page'e route edilen her request'te, cache'e bakılmadan önce bir kez çalışır. Bu
+yüzden yeni render'ları da, cache hit'leri de görür. Bir document için hiçbir zaman
+çalışmaz. Static build sırasında da çalışmaz: build bir request değildir ve
+request'leri sayan bir plugin, kimsenin istemediği render'ları da saymış olurdu.
+Dönen bir hata, request'i `"page_resolved"` stage'i altında 500 ile başarısız kılar.
 
 ### BeforeRenderHook
 
@@ -175,13 +176,13 @@ type BeforeRenderEvent struct {
 }
 ```
 
-Taze bir render'dan hemen önce tetiklenir, önbellek isabetinde ise **tetiklenmez**
-— `PageResolvedHook`'tan farkı budur. Sayfalar için, hata sayfaları için, bir
-action'ın `RenderPage` ile yanıt verdiği sayfa için ve statik build'in render
-ettiği her sayfa için tetiklenir.
+Yeni bir render'dan hemen önce çalışır; cache hit'te **çalışmaz**. `PageResolvedHook`
+ile farkı budur. Page'ler, error page'ler ve bir action'ın `RenderPage` ile cevap
+olarak döndüğü page için çalışır. Static build'in render ettiği her page için de
+çalışır.
 
-Render context'ini alan tek hook budur ve nedeni hoist etmektir. Sayfaya katkıda
-bulunan bir plugin, bildirimini ağaç render edilmeden önce yapmak zorundadır:
+Render context'ini alan tek hook budur ve sebebi hoisting'dir. Page'e bir şey
+ekleyen plugin, bunu ağaç render edilmeden önce tanımlamak zorundadır:
 
 ```go
 func (p *Plugin) OnBeforeRender(_ context.Context, ev *collage.BeforeRenderEvent) error {
@@ -190,10 +191,10 @@ func (p *Plugin) OnBeforeRender(_ context.Context, ev *collage.BeforeRenderEvent
 }
 ```
 
-Burada yapılan bir bildirim sıfır derinliğinde durur; bu yüzden aynı anahtarı
-bildiren herhangi bir fragment onun yerini alır: varsayılanı plugin, özel olanı
-sayfa sağlar. Yalnızca layout'un `{{hoist "head"}}` çağırdığı yere düşer. Bir hata,
-isteği `"before_render"` altında 500 ile başarısız kılar.
+Burada yapılan bir tanım sıfır derinliğinde durur. Bu yüzden aynı key'i tanımlayan
+herhangi bir fragment onun yerini alır. Varsayılan değeri plugin, özel değeri page
+verir. Tanım yalnızca layout'un `{{hoist "head"}}` çağırdığı yere yerleşir. Dönen bir hata, request'i `"before_render"` altında 500 ile başarısız
+kılar.
 
 ### AfterRenderHook
 
@@ -207,30 +208,31 @@ type AfterRenderEvent struct {
 }
 ```
 
-Bir sayfa render'ı başarılı olduktan sonra tetiklenir: sayfalar, hata sayfaları,
-bir action'ın `RenderPage` ile yanıt verdiği sayfa ve statik build'ler için.
-Sonradan işlemek için `ev.HTML`'i değiştirin; orada bıraktığınız şey sunulan
-şeydir ve — bir cache-write hook'u onu atlamadıkça — önbelleğe alınan şeydir. Sonraki
-plugin'ler öncekilerin ürettiğini görür.
+Bir page render'ı başarıyla bittikten sonra çalışır. Page'ler, error page'ler, bir
+action'ın `RenderPage` ile cevap olarak döndüğü page ve static build'ler için
+çalışır. Çıktıyı post-process etmek için `ev.HTML`'i değiştirin. Orada bıraktığınız içerik sunulan
+içeriktir. Bir cache-write hook'u yazmayı atlamadıkça, cache'e yazılan içerik de
+odur. Sonraki plugin'ler, öncekilerin ürettiği içeriği görür.
 
-`ev.Data` render'ın paylaşılan verisidir — fragment'lerin `rc.Set` ve `rc.Get` ile
-okuyup yazdığı haritanın ta kendisi —; yani sayfanın *neyden* kurulduğudur ve
-geri ayrıştıracağı markup yerine makaleyi isteyen bir plugin içindir. İçinde ne
-olduğu tamamen uygulamanın kuralıdır; framework oraya hiçbir şey koymaz. Canlı
-haritadır: onu okumak sorun değildir, hook'tan sonra da tutmak istek durumunu elde
-tutmak demektir.
+`ev.Data`, render'ın shared data'sıdır. Fragment'lerin `rc.Set` ve `rc.Get` ile
+okuyup yazdığı map'in ta kendisidir. Yani page'in *neyden* oluşturulduğunu gösterir.
+Markup'ı geri parse etmek yerine doğrudan makalenin kendisini isteyen bir plugin
+bunu kullanır. İçinde ne olduğu tamamen uygulamanın kendi convention'ına bağlıdır;
+framework oraya hiçbir şey koymaz. Bu canlı map'tir. Okumakta sakınca yoktur, ama
+hook bittikten sonra elde tutarsanız request state'ini tutmuş olursunuz.
 
-Bulunduğu yerin iki sonucu:
+Bulunduğu yerin iki sonucu vardır:
 
-- **Önbellek isabetinde yeniden çalışmaz.** Çıktısı önbelleğe alınan şeydir. Her
-  istekte çalışması gereken bir hook, önbelleğe alınan bir sayfayla birleştirilemez.
-- **Boş bir sonuç bir hatadır.** Dağıtımdan (dispatch) sonra `ev.HTML` boşsa, istek
-  boş bir sayfa sunmak yerine 500 ile başarısız olur.
+- **Cache hit'te tekrar çalışmaz.** Cache'e yazılan, zaten onun çıktısıdır. Her
+  request'te çalışması gereken bir hook, cache'lenen bir page ile birlikte
+  kullanılamaz.
+- **Boş bir sonuç hata sayılır.** Dispatch'ten sonra `ev.HTML` boşsa, request boş
+  bir page sunmak yerine 500 ile başarısız olur.
 
-Bir action'ın `RenderPage` ile yanıt verdiği sayfa da onu çalıştırır (v0.10.0'dan
-itibaren; öncesinde yalnızca `BeforeRender`'ı çalıştırıyordu), dolayısıyla bir
-doğrulama sayfası da diğerleri gibi küçültülür. Bir hata, isteği `"after_render"`
-altında 500 ile başarısız kılar.
+Bir action'ın `RenderPage` ile cevap olarak döndüğü page de bu hook'u çalıştırır.
+Bu, v0.10.0'dan beri böyledir; öncesinde yalnızca `BeforeRender` çalışıyordu. Böylece
+bir validation page'i de diğer page'ler gibi minify edilir. Dönen bir hata,
+request'i `"after_render"` altında 500 ile başarısız kılar.
 
 ### DocumentRenderedHook
 
@@ -244,16 +246,16 @@ type DocumentRenderedEvent struct {
 }
 ```
 
-`AfterRenderHook`'un [document'lar](/docs/documents) için karşılığı — sitemap'ler,
-feed'ler, JSON. O olmasaydı, çıktıyı sonradan işleyen bir plugin sayfaları kapsar
-ve geri kalan her şeyi sessizce atlardı. ETag hesaplanmadan ve gövde önbelleğe
-alınmadan önce tetiklenir; dolayısıyla ürettiğiniz şey saklanan ve ETag'in
-tanımladığı şeydir. Bir gövdeye dokunup dokunmayacağınıza karar vermek için
-`ContentType`'a bakın. Dağıtımdan sonra boş bir gövde ya da bir hata, isteği 500
-ile başarısız kılar.
+[Document'lar](/docs/documents) için `AfterRenderHook`'un karşılığıdır: sitemap'ler,
+feed'ler, JSON. Bu hook olmasaydı, çıktıyı post-process eden bir plugin page'leri
+kapsar, geri kalan her şeyi sessizce atlardı. ETag hesaplanmadan ve body cache'e
+yazılmadan önce çalışır. Yani sizin ürettiğiniz içerik saklanır ve ETag de onu
+tanımlar. Bir body'ye dokunup dokunmayacağınıza karar vermek için `ContentType`'a
+bakın. Dispatch'ten sonra body boşsa ya da bir hata dönerse, request 500 ile
+başarısız olur.
 
-Bir document `OnPageResolved`, `OnBeforeRender` ya da `OnAfterRender` dağıtmaz:
-sayfası yoktur ve şablon render etmez.
+Bir document, `OnPageResolved`, `OnBeforeRender` ya da `OnAfterRender` dispatch
+etmez. Çünkü page'i yoktur ve template render etmez.
 
 ### CacheWriteHook
 
@@ -267,10 +269,10 @@ type CacheWriteEvent struct {
 }
 ```
 
-Render edilmiş bir sayfa ya da document saklanmadan önce tetiklenir. **Bir document
-için `Page` `nil`'dir** ve onu korumasız dereference eden bir hook her document
-isteğinde panic'e düşer — panic kontrol altına alınır ama dağıtıldığı yazma işlemi
-bırakılır, dolayısıyla document hiç önbelleğe alınmaz:
+Render edilmiş bir page ya da document saklanmadan önce çalışır. **Document için
+`Page` `nil`'dir.** Onu kontrol etmeden dereference eden bir hook, her document
+request'inde panic'e düşer. Panic kontrol altına alınır, ama hook'un dispatch
+edildiği yazma işlemi bırakılır. Sonuçta document hiçbir zaman cache'lenmez:
 
 ```go
 func (p *Plugin) OnCacheWrite(_ context.Context, ev *collage.CacheWriteEvent) error {
@@ -284,9 +286,9 @@ func (p *Plugin) OnCacheWrite(_ context.Context, ev *collage.CacheWriteEvent) er
 }
 ```
 
-Bir hata ya da `Skip` yazmayı engeller ve istek yine de başarılı olur: sayfa zaten
-render edilmiştir ve onu önbelleğe almadan sunmak, bir önbellek sorununu 500'e
-çevirmekten iyidir. Hata, error hook'larına `"cache_write"` altında bildirilir.
+Bir hata ya da `Skip`, yazmayı engeller; request yine de başarılı olur. Page zaten
+render edilmiştir. Onu cache'lemeden sunmak, bir cache sorununu 500'e çevirmekten
+iyidir. Hata, error hook'larına `"cache_write"` altında raporlanır.
 
 ### CacheInvalidateHook
 
@@ -296,10 +298,11 @@ type CacheInvalidateEvent struct {
 }
 ```
 
-`InvalidateTags` bazı etiketlerin girdilerini düşürdükten sonra tetiklenir — onu
-uygulama, bir action ya da bir plugin çağırmış olsun. Bir istekten değil, o
-çağrıdan dağıtılır ve bir hata `InvalidateTags`'in döndürdüğüne eklenir (join).
-Geçersiz kılmayı kendiniz tetiklemek için `Host.InvalidateTags`'i çağırın.
+`InvalidateTags` bazı tag'lerin entry'lerini düşürdükten sonra çalışır. Onu uygulamanın,
+bir action'ın ya da bir plugin'in çağırması fark etmez. Hook bir request'ten değil,
+o çağrının içinden dispatch edilir. Dönen bir hata, `InvalidateTags`'in döndüğü
+hatayla join edilir. Invalidation'ı kendiniz tetiklemek için `Host.InvalidateTags`'i
+çağırın.
 
 ### ErrorHook
 
@@ -312,49 +315,48 @@ type ErrorEvent struct {
 }
 ```
 
-Bir istek sunulurken oluşan bir hatada tetiklenir: bir sayfa, bir document, bir
-action, bir mount ya da `App.Handle` ile kaydedilmiş bir handler. `Stage` hatanın
-nerede olduğunu adlandırır.
+Bir request sunulurken bir hata oluştuğunda çalışır. Hata bir page'de, bir
+document'ta, bir action'da, bir mount'ta ya da `App.Handle` ile register edilmiş bir
+handler'da olabilir. `Stage`, hatanın nerede olduğunu söyler.
 
-`Page` yalnızca routing'in çözümlediği bir sayfanın kendi hatasında dolu olur.
-Hiçbir sayfa çözümlenmediğinde `nil`'dir; bir document, bir action — action'ın
-`RenderPage` ile yanıt verdiği sayfa dahil —, bir mount ve bir `App.Handle`
-handler'ı için de öyle. Bunları birbirinden ayırmak için `Path`'i okuyun ve
-`Page`'in her kullanımını koruma altına alın. Framework'ün kullandığı aşamalar
-`"route"`, `"not_found"`, `"page_resolved"`, `"before_render"`, `"render"`,
-`"after_render"`, `"cache_write"`, `"error_page"`, `"asset"`, `"handler"` ve
-`"panic"`'tir — küme kapalı bir enum değildir.
+`Page`, yalnızca routing'in resolve ettiği bir page'in kendi hatasında doludur.
+Hiçbir page resolve edilmediğinde `nil`'dir. Document, action, mount ve
+`App.Handle` handler'ı için de `nil`'dir; action'ın `RenderPage` ile cevap olarak
+döndüğü page de buna dahildir. Bunları birbirinden ayırmak için `Path`'e bakın ve
+`Page`'i her kullanışınızda önce kontrol edin. Framework'ün kullandığı stage'ler
+şunlardır: `"route"`, `"not_found"`, `"page_resolved"`, `"before_render"`,
+`"render"`, `"after_render"`, `"cache_write"`, `"error_page"`, `"asset"`,
+`"handler"` ve `"panic"`. Bu küme kapalı bir enum değildir.
 
-Uyarı kurmaya değer olan `"error_page"`'dir: hataları bildiren sayfanın kendisinin
-başarısız olduğu ve istemcinin yine de makul görünen yerleşik bir sayfa aldığı
-anlamına gelir; yani başka türlü kimse bunu fark etmezdi.
+Alarm kurmaya değer olan `"error_page"`'dir. Bu stage, hataları raporlayan page'in
+kendisinin başarısız olduğunu gösterir. Client yine de makul görünen built-in bir
+page alır. Bu yüzden başka türlü kimse durumu fark etmez.
 
-`Err`'i `errors.Is` ile sınıflandırın — hiçbir şeyle eşleşmeyen bir URL için
-`collage.ErrNoRoute`, var olmayan içerik için `collage.ErrNotFound`, bir 405 için
-`collage.ErrMethodNotAllowed`, reddedilen bir gönderim için `collage.ErrCSRFMissing`
-ve kardeşleri, 4xx ya da 5xx yanıt veren bir mount için `collage.ErrAssetFailed`,
-kurtarılmış bir panic için `collage.ErrPanic` ve geri kalanlar
-[Hatalar](/docs/errors#reported-to-error-hooks) sayfasında listelenmiştir.
+`Err`'i `errors.Is` ile sınıflandırın. Hiçbir şeyle eşleşmeyen bir URL için
+`collage.ErrNoRoute`, var olmayan içerik için `collage.ErrNotFound`, 405 için
+`collage.ErrMethodNotAllowed` kullanılır. Reddedilen bir form gönderimi için
+`collage.ErrCSRFMissing` ve benzerleri, 4xx ya da 5xx dönen bir mount için
+`collage.ErrAssetFailed`, recover edilmiş bir panic için `collage.ErrPanic` vardır.
+Geri kalanlar [Hatalar](/docs/errors#reported-to-error-hooks) sayfasında listelenir.
 
-`OnError`'dan döndürülen bir hata loglanır ve yutulur; kalan plugin'ler olayı yine
-de alır: başarısız olan bir hata işleyicisi yeni bir hata işleme turu
-başlatmamalıdır.
+`OnError`'dan dönen bir hata log'lanır ve yutulur. Kalan plugin'ler event'i yine de
+alır. Başarısız olan bir error handler, yeni bir error handling turu başlatmamalıdır.
 
-### Dağıtım kuralları
+### Dispatch kuralları
 
-- Hook'lar **kayıt sırasıyla** çalışır.
-- Her çağrı **panic'e karşı korunur**. Panic'e düşen bir hook, hata döndürmüş bir
-  hook gibi başarısız olur; süreci çökertmez.
+- Hook'lar **register sırasına göre** çalışır.
+- Her çağrı **panic'e karşı korunur**. Panic'e düşen bir hook, hata dönmüş bir hook
+  gibi başarısız sayılır; process'i çökertmez.
 - `OnPageResolved`, `OnBeforeRender`, `OnAfterRender` ve `OnDocumentRendered` için
-  **ilk hata dağıtımı durdurur** ve isteği başarısız kılar.
-- `OnCacheWrite` için ilk hata dağıtımı durdurur ve yazmayı engeller.
-- `OnCacheInvalidate` için ilk hata dağıtımı durdurur ve `InvalidateTags`'ten
-  döndürülür.
-- `OnError` için hatalar loglanır ve dağıtım devam eder.
+  **ilk hata dispatch'i durdurur** ve request'i başarısız kılar.
+- `OnCacheWrite` için ilk hata dispatch'i durdurur ve yazmayı engeller.
+- `OnCacheInvalidate` için ilk hata dispatch'i durdurur ve `InvalidateTags`'ten
+  döner.
+- `OnError` için hatalar log'lanır ve dispatch devam eder.
 
-## Şablon fonksiyonları
+## Template fonksiyonları
 
-Bir plugin, şablon fonksiyonunu `Configure`'dan ekler:
+Bir plugin, template fonksiyonunu `Configure` içinden ekler:
 
 ```go
 func (p *Plugin) Configure(_ context.Context, host collage.ConfigHost) error {
@@ -364,27 +366,30 @@ func (p *Plugin) Configure(_ context.Context, host collage.ConfigHost) error {
 }
 ```
 
-Bundan sonra her şablon `{{readingTime .Words}}` çağırabilir. Fonksiyon,
-`html/template`'in fonksiyon haritasında kabul ettiği herhangi bir değer olabilir.
+Bundan sonra her template `{{readingTime .Words}}` çağırabilir. Fonksiyon,
+`html/template`'in function map'inde kabul ettiği herhangi bir değer olabilir.
 
-- İki kez eklenen bir ad — iki plugin tarafından ya da aynı plugin tarafından iki
-  kez — ikinci `AddTemplateFunc`'tan döndürülen `ErrDuplicateTemplateFunc`'tır.
-  `Configure`'ınız onu döndürürse `New` başarısız olur; hatayı olduğu gibi ilettiğinizde
-  de olan budur. Uygulama bunu `Template.Funcs` ile çözemez: çakışma plugin'ler
-  arasındadır ve birinin geri çekilmesi gerekir.
-- Bunun dışında **uygulama kazanır**. `Config.Template.Funcs` içinde, bir plugin'in
-  eklediği bir ad altındaki girdi plugin'in fonksiyonunun yerini alır: uygulama
-  ikisini de görebilir ve karar verebilir.
-- Yerleşik bir ad altındaki plugin fonksiyonu yerleşik olanın yerini alır — render
-  başına bağlanan fonksiyonlar (`slot`, `hoist`, `asset`, `stylesheet`, `csrfToken`,
-  `pageURL`, `pageURLIn`, `localeURL`) hariç; render motoru onları her seferinde
-  yeniden bağlar. Bkz. [Şablon fonksiyonları](/docs/template-functions).
-- `Configure`'dan çağrılmalıdır. Sonradan eklemenin bir yolu yoktur, çünkü
-  ayrıştırmadan sonra eklenen bir fonksiyonu hiçbir şablon çağıramaz.
+- İki kez eklenen bir ad `ErrDuplicateTemplateFunc` hatasıdır. Adı iki plugin de
+  eklemiş olabilir, aynı plugin iki kez de. Hatayı ikinci `AddTemplateFunc` çağrısı
+  döner. `Configure`'ınız bu hatayı dönerse `New` başarısız olur; hatayı yukarı
+  iletirseniz olan da budur. Uygulama bunu `Template.Funcs` ile çözemez. Çakışma
+  plugin'ler arasındadır ve birinin geri adım atması gerekir.
+- Bunun dışında **uygulama kazanır**. `Config.Template.Funcs` içinde bir plugin'in
+  eklediği adla bir kayıt varsa, plugin'in fonksiyonunun yerini alır. Uygulama
+  ikisini de görebilir ve kararı o verir.
+- Built-in bir adla eklenen plugin fonksiyonu, built-in fonksiyonun yerini alır. Her
+  render'da bağlanan fonksiyonlar bunun istisnasıdır (`slot`, `hoist`, `asset`,
+  `stylesheet`, `csrfToken`, `pageURL`, `pageURLIn`, `localeURL`). Render engine
+  bunları her seferinde yeniden bağlar. Bkz.
+  [Template fonksiyonları](/docs/template-functions).
+- `AddTemplateFunc`, `Configure` içinden çağrılmalıdır. Sonradan eklemenin bir yolu
+  yoktur, çünkü parse işleminden sonra eklenen bir fonksiyonu hiçbir template
+  çağıramaz.
 
-## Mount'ları sarmalamak
+## Mount'ları wrap etmek
 
-`WrapMount`, mount edilen her dosya sistemine uygulanan bir fonksiyon kaydeder:
+`WrapMount`, mount edilen her dosya sistemine uygulanacak bir fonksiyonu register
+eder:
 
 ```go
 func (p *Plugin) Configure(_ context.Context, host collage.ConfigHost) error {
@@ -395,29 +400,31 @@ func (p *Plugin) Configure(_ context.Context, host collage.ConfigHost) error {
 }
 ```
 
-Yanıtı değil dosya sistemini sarmalar, çünkü mount'lar `Range`, `If-Range` ve
-kısmi yanıtları destekleyen `http.ServeContent` üzerinden sunulur. Baytları yanıt
-başına değiştirmek her ofseti kaydırır ve bir range isteği, ilan edilen uzunluğu
-artık tutmayan bir dosyanın yanlış dilimini döndürür. Dosyaları dönüştürülmüş
-olanların *ta kendisi* olan bir sarmalayıcı bu hesabı doğru tutar.
-Sarmalayıcılar kaydedildikleri sırayla çalışır ve `nil` bir sarmalayıcı yok sayılır.
+Response'u değil de dosya sistemini wrap etmesinin sebebi şudur: mount'lar
+`http.ServeContent` üzerinden sunulur ve bu fonksiyon `Range`, `If-Range` ve partial
+response'ları destekler. Byte'ları her response'ta değiştirmek bütün offset'leri
+kaydırır. Bu durumda bir range request'i, ilan edilen uzunluğu artık tutmayan bir
+dosyanın yanlış parçasını döner. Dosyaları *zaten* dönüştürülmüş hâlde sunan bir
+wrapper ise bu hesabı doğru tutar. Wrapper'lar register edildikleri sırayla çalışır;
+`nil` bir wrapper yok sayılır.
 
-## Sayfa, document ve mount eklemek
+## Page, document ve mount eklemek
 
-Bir plugin `Init`'ten, bir uygulamanın kullandığı builder'larla kurulmuş kendi
-route'larını `Host.RegisterPage`, `Host.RegisterDocument` ve `Host.Mount` ile
-ekleyebilir.
+Bir plugin, `Init` içinden kendi route'larını ekleyebilir. Bunun için
+`Host.RegisterPage`, `Host.RegisterDocument` ve `Host.Mount` kullanılır. Bu
+route'lar, bir uygulamanın kullandığı builder'larla oluşturulur.
 
-*Dosya üreten* bir plugin — yeniden boyutlandırılmış görseller, üretilmiş ikonlar —
-onları bir route'tan değil, bir mount'tan sunmalıdır. Statik build her sayfa render
-edildikten sonra her mount'u çıktısına kopyalar; bu yüzden sayfaların ne istediğini
-kaydeden bir dosya sistemi builder'a tam olarak doğru kümeyi verir ve dışa aktarılan
-sitenin arkasında hiçbir şeyin çalışmasına gerek kalmaz. Dinamik bir yoldaki
-document bu şekilde listelenemez.
+*Dosya üreten* bir plugin, örneğin yeniden boyutlandırılmış görseller ya da
+üretilmiş ikonlar, bu dosyaları bir route yerine bir mount'tan sunmalıdır. Static
+build, bütün page'ler render edildikten sonra her mount'u çıktısına kopyalar. Bu
+yüzden page'lerin ne istediğini kaydeden bir dosya sistemi, builder'a tam olarak
+doğru dosya kümesini verir. Export edilen sitenin arkasında da hiçbir şeyin
+çalışmasına gerek kalmaz. Dinamik bir path'teki document ise bu şekilde
+listelenemez.
 
 ## Komutlar
 
-Bir plugin, `Init`'ten bir komut ekler:
+Bir plugin, `Init` içinden bir komut ekler:
 
 ```go
 type Command struct {
@@ -428,19 +435,20 @@ type Command struct {
 }
 ```
 
-`RegisterCommand` boş bir adı (`ErrEmptyCommandName`) ve başka bir komutun zaten
-sahip olduğu bir adı (`ErrDuplicateCommand`) reddeder. `ErrAppStarted` ile asla
-kapanmaz: diğer `Host` kayıt çağrıları gibi `Init` sırasında çalışır, başlangıçtan
-sonra da çalışır — ama `DispatchCommands` çalıştıktan sonra kaydedilen bir komutu
-kimse dağıtmaz.
+`RegisterCommand`, boş bir adı (`ErrEmptyCommandName`) ve başka bir komutun zaten
+kullandığı bir adı (`ErrDuplicateCommand`) reddeder. `ErrAppStarted` ile hiçbir
+zaman kapanmaz. Diğer `Host` register çağrıları gibi `Init` sırasında çalışır,
+startup'tan sonra da çalışmaya devam eder. Ancak `DispatchCommands` çalıştıktan
+sonra register edilen bir komutu kimse dispatch etmez.
 
-`Usage` ve `Short` veridir. Ne framework ne de `collage` binary'si onları yazdırır;
-yardım listesi isteyen bir program onu `app.Commands()`'tan kurar.
+`Usage` ve `Short` yalnızca veridir. Bunları ne framework ne de `collage` binary'si
+yazdırır. Help listesi isteyen bir program, listeyi `app.Commands()` üzerinden
+kendisi oluşturur.
 
-`collage` CLI plugin komutlarını çalıştırmaz: uygulamanızı hiç yüklemez. Onları
-uygulamanın kendi `main`'i `collage.DispatchCommands` ile dağıtır; iskelesi
-oluşturulmuş bir `main.go` da flag'lerden sonra kalan her kelime için bunu yapar.
-Böylece plugin'inizin bir kullanıcısı `go run . <command>` çalıştırır:
+`collage` CLI, plugin komutlarını çalıştırmaz, çünkü uygulamanızı hiçbir zaman
+yüklemez. Komutları uygulamanın kendi `main`'i `collage.DispatchCommands` ile
+dispatch eder. Scaffold edilmiş bir `main.go`, flag'lerden sonra kalan her kelime
+için bunu yapar. Böylece plugin'inizin kullanıcısı `go run . <command>` çalıştırır:
 
 ```go
 flag.Parse()
@@ -457,19 +465,19 @@ if args := flag.Args(); len(args) > 0 {
 log.Fatal(app.ListenAndServe())
 ```
 
-`DispatchCommands` önce uygulamayı başlatır, çünkü komutları kaydeden `Init`'tir.
-Çıkış kodları: başarı için `0`; bir başlangıç hatası, çalışıp başarısız olan bir
-komut ya da `Run`'ı olmayan bir komut için `1`; nil bir app, argüman olmaması ya da
-kimsenin sahiplenmediği bir ad (`ErrUnknownCommand`) için `2`. Plugin'inizin
-README'sinde komutlarının uygulama üzerinden çalıştığını belirtin — v0.10.0'dan
-önce iskelesi oluşturulmuş bir projenin o bloğu kendisinin eklemesi gerekir. Bkz.
-[collage CLI](/docs/cli#plugin-commands).
+`DispatchCommands` önce uygulamayı başlatır, çünkü komutları register eden
+`Init`'tir. Exit code'lar şöyledir: başarı için `0`; startup hatası, çalışıp
+başarısız olan bir komut ya da `Run`'ı olmayan bir komut için `1`; nil bir app,
+argüman verilmemesi ya da hiçbir komutun sahiplenmediği bir ad (`ErrUnknownCommand`)
+için `2`. Plugin'inizin README'sinde, komutlarının uygulama üzerinden çalıştığını
+belirtin. v0.10.0'dan önce scaffold edilmiş bir projenin bu bloğu kendisinin
+eklemesi gerekir. Bkz. [collage CLI](/docs/cli#plugin-commands).
 
 ## Yapılandırma
 
-Bir plugin, `Config.PluginConfig`'in kendi bölümünü her iki aşamada da kullanılabilen
-`host.Config` ile tipli bir struct'a okur. Önce varsayılanlarınızı ayarlayın;
-`Config` uygulamanın bölümünü onların üzerine çözer:
+Bir plugin, `Config.PluginConfig` içindeki kendi bölümünü `host.Config` ile tipli
+bir struct'a okur. `host.Config` her iki aşamada da kullanılabilir. Önce varsayılan
+değerlerinizi atayın; `Config`, uygulamanın bölümünü onların üzerine decode eder:
 
 ```go
 type Config struct {
@@ -483,31 +491,31 @@ func (p *Plugin) Configure(_ context.Context, host collage.ConfigHost) error {
 }
 ```
 
-- **Bulunmayan bir bölüm `v`'yi olduğu gibi bırakır**; böylece "yapılandırılmamış"
-  ile "sıfır değerine yapılandırılmış" farklı ifadeler olarak kalır.
-- **Var olan ama bozuk bir bölüm bir hatadır.** Operatör bir şey yazmıştır ve onun
-  yerine varsayılanlarla çalışmak, bunun reddettiği sessiz hata olurdu.
-- Bölüm, varsayılanlarınızın üzerine `json.Unmarshal` ile çözülür ve onun
-  kurallarına uyar. JSON'daki bir skaler ya da slice varsayılanınızın yerini alır —
-  slice birleştirilmez. Bir haritaya çözülen JSON nesnesi, girdilerini sizin
-  ayarladığınız haritaya ekler, diğerlerini korur. İç içe bir struct'a çözülen JSON
-  nesnesi yalnızca adını verdiği alanları ayarlar, gerisini varsayılanlarınızda
-  bırakır.
-- Uygulama, kayıtlı hiçbir plugin'i adlandırmayan bir anahtarı başlangıç hatası
-  olarak görür (`ErrUnknownPluginConfig`). Bu yüzden `Name`'iniz yapılandırmanızın
-  adresinin tamamıdır; onu değiştirmek geriye dönük uyumluluğu bozan bir
-  değişikliktir.
+- **Bölüm yoksa `v`'ye dokunulmaz.** Böylece "yapılandırılmamış" ile "zero value'ya
+  yapılandırılmış" iki farklı durum olarak kalır.
+- **Bölüm varsa ama bozuksa bu bir hatadır.** Operatör bir şey yazmıştır. Onun
+  yerine varsayılan değerlerle çalışmak, tam da bu kuralın engellediği sessiz hata
+  olurdu.
+- Bölüm, varsayılan değerlerinizin üzerine `json.Unmarshal` ile decode edilir ve onun
+  kurallarına uyar. JSON'daki bir scalar ya da slice, varsayılan değerinizin yerini
+  alır; slice'lar merge edilmez. Bir map'e decode edilen JSON object'i, kendi
+  kayıtlarını sizin atadığınız map'e ekler ve diğer kayıtları korur. İç içe bir
+  struct'a decode edilen JSON object'i yalnızca adını verdiği field'ları atar,
+  gerisini varsayılan değerlerinizde bırakır.
+- Register edilmiş hiçbir plugin'e karşılık gelmeyen bir key, uygulama için bir startup
+  hatasıdır (`ErrUnknownPluginConfig`). Bu yüzden config'inizin adresi tamamen
+  `Name`'inizden ibarettir. Onu değiştirmek bir breaking change'dir.
 
-Her anahtarı, tipini ve varsayılanını README'nizde belgeleyin. `New()`'un yanında
-bir `NewWith(Config)` constructor'ı sunmak, bir uygulamanın sizi Go'da da
-yapılandırmasını sağlar.
+README'nizde her key'i, tipini ve varsayılan değerini belgeleyin. `New()`'un yanında
+bir `NewWith(Config)` constructor'ı da sunarsanız, bir uygulama sizi Go kodunda da
+yapılandırabilir.
 
 ## Eksiksiz bir plugin
 
-`acme/stamp` her sayfanın head'inde üreticiyi (generator) adlandırır, aynı adı
-şablonlara sunar, sayfaları listeleyen bir komut ekler ve başarısız olan bir hata
-sayfasını bildirir. Her iki aşamayı, bir render hook'unu, bir error hook'unu ve bir
-komutu kullanır.
+`acme/stamp`, her page'in head'ine generator'ın adını yazar ve aynı adı
+template'lere de sunar. Page'leri listeleyen bir komut ekler ve başarısız olan bir
+error page'i raporlar. Her iki aşamayı, bir render hook'unu, bir error hook'unu ve
+bir komutu kullanır.
 
 ```go
 // Package stamp names the generator in every page's head, offers the same name
@@ -595,7 +603,7 @@ func (p *Plugin) OnError(_ context.Context, ev *collage.ErrorEvent) error {
 }
 ```
 
-Bir uygulama onu diğer plugin'ler gibi kullanır:
+Bir uygulama bu plugin'i diğer plugin'ler gibi kullanır:
 
 ```go
 app, err := collage.New(&collage.Config{
@@ -607,35 +615,39 @@ app, err := collage.New(&collage.Config{
 
 ## Yaşam döngüsü
 
-1. **Kayıt.** `New` içinde `Config.Plugins` ya da uygulama başlamadan önce
-   `RegisterPlugin`. Ondan sonra `RegisterPlugin` `ErrAppStarted` döner — başarısız
-   olan herhangi bir başlatmadan sonra da (v0.12.0'dan itibaren).
-2. **Configure**, `New` içinde, onu uygulayan plugin'ler için — kayıt sırasıyla,
-   ilk hatada durarak.
-3. **Init**, uygulama başladığında, kayıt sırasıyla. Biri başarısız olursa başlangıç
-   iptal edilir ve zaten başlatılmış her plugin ters sırayla kapatılır. Başarısız
-   olan plugin kapatılmaz, çünkü başlatılmasını hiç tamamlamamıştır.
-4. **Shutdown**, `App.Shutdown`'dan — `ListenAndServe` onu `SIGINT` ya da `SIGTERM`
-   üzerine çağırır — ters kayıt sırasıyla. **Kayıtlı her plugin'in** `Shutdown`'ını
-   çağırır; o plugin'in `Init`'i çalışmış ya da başarılı olmuş olsun olmasın: hiç
-   başlamamış bir uygulama, başlatılması başarısız olmuş bir uygulama ve başarısız
-   başlatmanın zaten geri aldığı plugin'ler çağrıyı alır. Bu yüzden `Shutdown`,
-   `Init` olmadan ve birden fazla kez çağrılmaya karşı güvenli olmalıdır. Biri
-   başarısız olsa bile her plugin sırasını alır ve hatalar birleştirilir.
+1. **Register.** Plugin'ler `New` içinde `Config.Plugins` ile ya da uygulama
+   başlamadan önce `RegisterPlugin` ile register edilir. Uygulama başladıktan sonra
+   `RegisterPlugin`, `ErrAppStarted` döner. Başarısız olan bir başlatma denemesinden
+   sonra da aynı hatayı döner (v0.12.0'dan beri).
+2. **Configure**, `New` içinde, bu metodu implement eden plugin'ler için çalışır.
+   Register sırasına göre çalışır ve ilk hatada durur.
+3. **Init**, uygulama başlarken register sırasına göre çalışır. Biri başarısız
+   olursa startup iptal edilir. O ana kadar initialize edilmiş bütün plugin'ler ters
+   sırayla shutdown edilir. Başarısız olan plugin shutdown edilmez, çünkü
+   initialize işlemini hiç tamamlamamıştır.
+4. **Shutdown**, `App.Shutdown` ile ters register sırasına göre çalışır.
+   `ListenAndServe`, `App.Shutdown`'ı `SIGINT` ya da `SIGTERM` geldiğinde çağırır.
+   `App.Shutdown`, **register edilmiş her plugin'in** `Shutdown`'ını çağırır; o
+   plugin'in `Init`'inin çalışıp çalışmadığı ya da başarılı olup olmadığı fark
+   etmez. Hiç başlamamış bir uygulamanın, başlatılması başarısız olmuş bir
+   uygulamanın ve başarısız başlatmanın zaten geri aldığı plugin'lerin hepsi bu
+   çağrıyı alır. Bu yüzden `Shutdown`, `Init` olmadan ve birden fazla kez
+   çağrıldığında güvenli olmalıdır. Biri başarısız olsa bile her plugin sırasını
+   alır ve hatalar join edilir.
 
-   `ListenAndServe` ile plugin'ler, sunucu isteklerini boşalttıktan sonra ya da
-   boşaltmadıysa `Server.ShutdownTimeout` geçtikten sonra kapatılır — son süre
-   geçtikten sonra bir istek hâlâ çalışıyor olabilir. Kendinize ait bir sunucuyla
-   `App`'in haberi olan bir sunucu yoktur: önce sunucunuzu durdurun, sonra
-   `App.Shutdown`'ı çağırın; yoksa bir plugin, süren bir isteğin altından
-   çekilebilir.
+   `ListenAndServe` kullanıyorsanız, plugin'ler sunucu request'lerini boşalttıktan
+   sonra shutdown edilir. Sunucu bunu bitiremezse, `Server.ShutdownTimeout`
+   dolduğunda shutdown edilirler. Bu süre dolduktan sonra hâlâ çalışan bir request
+   olabilir. Sunucuyu kendiniz yönetiyorsanız, `App`'in bu sunucudan haberi yoktur.
+   Önce sunucunuzu durdurun, sonra `App.Shutdown`'ı çağırın. Aksi hâlde bir plugin,
+   hâlâ devam eden bir request'in altından çekilip alınabilir.
 
 ## Bir plugin'i test etmek
 
-Bir plugin'i, bir uygulamanın onu kullanacağı şekilde test edin: plugin
-`Config.Plugins` içinde olan gerçek bir `App` kurun, şablonu onu çalıştıran bir
-sayfa kaydedin ve uygulamayı `httptest` ile `app.Handler()` üzerinden sürün. Hiçbir
-sunucu dinlemez ve hiçbir port seçilmez.
+Bir plugin'i, bir uygulamanın onu kullanacağı şekilde test edin. Plugin'in
+`Config.Plugins` içinde olduğu gerçek bir `App` oluşturun. Template'i plugin'i
+kullanan bir page register edin. Uygulamayı `httptest` ile `app.Handler()`
+üzerinden çalıştırın. Bu yöntemde hiçbir sunucu dinlemez ve hiçbir port seçilmez.
 
 ```go
 package stamp_test
@@ -739,16 +751,16 @@ func TestStamp_RefusesLateRegistration(t *testing.T) {
 }
 ```
 
-Test etmeye değer, unutması kolay birkaç şey:
+Test etmeye değer ve kolayca unutulan birkaç şey:
 
-- **Yapılandırılmamış durum.** Çoğu uygulama sizin için hiçbir zaman bir bölüm
-  yazmayacaktır.
-- **Document'lar**, `OnCacheWrite` ya da `OnDocumentRendered` uyguluyorsanız: bir
-  document kaydedin ve isteyin; böylece `nil` bir `Page`, hiç önbelleğe alınmayan
-  bir document olarak değil, bir testte yakalanır.
-- **`-race` ile çalıştırın.** Bir olayın canlı `Page`'i üzerinden yazan bir hook,
-  dedektörün bildirdiği ve başka hiçbir şeyin bildirmeyeceği bir veri yarışıdır.
-- **Statik dışa aktarma**, dosya üretiyorsanız: bir `t.TempDir()` içine
-  `collage.NewBuilder(app, ...)`, dışa aktarılan sitenin sunulan sitede olan her
-  şeye sahip olup olmadığını gösterir. Bkz. [Test](/docs/testing) ve
-  [Statik dışa aktarma](/docs/static-export).
+- **Yapılandırılmamış durum.** Çoğu uygulama sizin plugin'iniz için hiçbir zaman bir
+  config bölümü yazmaz.
+- **Document'lar**, `OnCacheWrite` ya da `OnDocumentRendered` implement ediyorsanız.
+  Bir document register edin ve ona request atın. Böylece `nil` bir `Page`, hiç
+  cache'lenmeyen bir document olarak değil, bir testte yakalanır.
+- **`-race` ile çalıştırın.** Bir event'in canlı `Page`'i üzerinden yazan bir hook
+  bir data race'tir. Bunu race detector raporlar, başka hiçbir şey raporlamaz.
+- **Static export**, dosya üretiyorsanız. Bir `t.TempDir()` içine
+  `collage.NewBuilder(app, ...)` ile export alın. Bu, export edilen sitede sunulan
+  sitedeki her şeyin olup olmadığını gösterir. Bkz. [Test yazmak](/docs/testing) ve
+  [Static export](/docs/static-export).

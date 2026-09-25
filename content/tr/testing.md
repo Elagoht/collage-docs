@@ -1,29 +1,31 @@
 ---
-description: Gerçek uygulamayı app.Handler() ve net/http/httptest üzerinden test edin — sayfalar, sahtecilik token'larıyla formlar, document'lar ve statik dışa aktarma.
+description: Gerçek uygulamayı app.Handler() ve net/http/httptest ile test edin. Page'leri, forgery token'ıyla birlikte form'ları, document'ları ve static export'u bu şekilde sınayabilirsiniz.
+reference: NewBuilder, BuildOptions, App
 ---
 
-# Test
+# Test yazmak
 
-Bir collage uygulaması bir `http.Handler`'dır. `app.Handler()` onu döndürür; dinleyen
-bir sunucu, seçilecek bir port yoktur. Böylece `net/http/httptest`, sitenin tamamını
-sıradan bir Go testinden sürer: route'lar, data handler'lar, şablonlar, önbellek,
-formlar, document'lar ve middleware, tam olarak üretim ortamında çalıştıkları gibi.
+Bir collage uygulaması bir `http.Handler`'dır. `app.Handler()` bu handler'ı döndürür.
+Dinleyen bir sunucu yoktur, seçmeniz gereken bir port da yoktur. Bu yüzden
+`net/http/httptest`, sıradan bir Go testinden bütün siteyi çalıştırabilir. Routing,
+data handler'lar, template'ler, cache, form'lar, document'lar ve middleware testte de
+production'daki gibi çalışır.
 
-`collage new`'in iskeletini kurduğu proje, bu şekilde yazılmış bir test dosyasıyla
-gelir. Bu sayfa o dosyanın kalıbını adım adım anlatır.
+`collage new` komutunun scaffold ettiği proje, bu şekilde kurulmuş bir test dosyasıyla
+gelir. Bu sayfa o dosyadaki kalıbı adım adım anlatır.
 
 ## `main`'in kurduğu uygulamayı test edin
 
-İskeletteki `main.go`, uygulamayı kendine ait bir fonksiyonda kurar:
+Scaffold edilen `main.go`, uygulamayı ayrı bir fonksiyonda kurar:
 
 ```go
 func newApp(devMode bool, port int) (*collage.App, error)
 ```
 
-`main` onu sunmak için, testler de test etmek için çağırır. Test dosyasındaki en
-önemli karar budur: testlerin sınadığı şey, gerçek yapılandırması, route'ları ve
-mount'larıyla gerçekten çalışan sitedir; ondan yavaş yavaş uzaklaşan ikinci bir
-kurulum değil.
+`main` bu fonksiyonu siteyi serve etmek için, testler ise test etmek için çağırır.
+Test dosyasındaki en önemli karar budur. Testler, gerçekten çalışan siteyi gerçek
+config'i, route'ları ve mount'larıyla birlikte sınar. Zamanla ondan uzaklaşan ikinci
+bir kurulumu sınamaz.
 
 ```go
 func handler(t *testing.T) http.Handler {
@@ -45,10 +47,11 @@ func get(t *testing.T, h http.Handler, target string) (*httptest.ResponseRecorde
 }
 ```
 
-`newApp(false, 0)` üretim yapılandırmasını kurar: geliştirme modu kapalı ve port
-`0`; collage bunu kendi varsayılanıyla değiştirir — zaten hiçbir şey dinlemez.
+`newApp(false, 0)` production config'ini kurar. Development mode kapalıdır ve port
+`0`'dır. collage bu `0` değerini kendi varsayılan portuyla değiştirir. Zaten hiçbir
+şey bu portu dinlemez.
 
-Bundan sonra bir test, bir istek ve yanıta bir bakıştan ibarettir:
+Bundan sonra her test, bir request atmaktan ve response'a bakmaktan ibarettir:
 
 ```go
 func TestPagesRender(t *testing.T) {
@@ -76,13 +79,13 @@ func TestPagesRender(t *testing.T) {
 ```
 
 `handler(t)`'nin yaptığı gibi her test için yeni bir handler kurun. `app.Handler()`'a
-yapılan ilk çağrı uygulamayı başlatır ve kaydı kapatır; böylece her test boş bir
-önbellekle başlar.
+yapılan ilk çağrı uygulamayı başlatır ve register aşamasını kapatır. Handler her test
+için yeniden kurulduğundan her test boş bir cache ile başlar.
 
-Başlatma başarısız olursa — bir plugin'in `Init`'i hata verirse, bir sayfa kayıtlı
-olmayan bir hata sayfasını adlandırırsa, bir mount bir route'u gölgelerse —
-`app.Handler()` her isteğe 503 ile yanıt verir ve nedenini loglar. Bu başarısızlığı
-testte bir hata olarak almak istediğinizde önce `app.Start()`'ı çağırın:
+Başlatma başarısız olabilir. Örneğin bir plugin'in `Init`'i hata döner, bir page
+register edilmemiş bir error page'i belirtir ya da bir mount bir route'u gölgeler. Bu
+durumda `app.Handler()` her request'e 503 ile cevap verir ve nedenini log'a yazar. Bu
+hatayı testte bir hata olarak almak istiyorsanız önce `app.Start()`'ı çağırın:
 
 ```go
 if err := app.Start(); err != nil {
@@ -90,10 +93,10 @@ if err := app.Start(); err != nil {
 }
 ```
 
-## Disk önbelleğini yalıtın
+## Disk cache'ini izole edin
 
-İskeletin önbellek dizini bir paket değişkenidir ve `handler`, uygulamayı kurmadan
-önce onu yeni bir dizine yönlendirir:
+Scaffold'daki cache dizini bir package değişkenidir. `handler`, uygulamayı kurmadan
+önce bu değişkeni yeni bir dizine yönlendirir:
 
 ```go
 // cacheDir is where rendered pages are kept between restarts. A variable so the
@@ -101,35 +104,35 @@ if err := app.Start(); err != nil {
 var cacheDir = ".cache"
 ```
 
-Geliştirme modu kapalıyken uygulama disk önbelleğini kullanır ve bir disk önbelleği,
-aynı dizini ve aynı build'i kullanan her şey tarafından paylaşılır. `cacheDir =
-t.TempDir()` olmadan bir teste, daha önceki bir testin — ya da önbellek süreçten
-sağ çıktığı için daha önceki bir çalıştırmanın — render ettiği bir sayfa sunulabilir
-ve test, kodla hiçbir ilgisi olmayan nedenlerle geçebilir ya da kalabilir. Ayrıca
-paketinizde bir `.cache` dizini bırakırdı.
+Development mode kapalıyken uygulama disk cache'ini kullanır. Aynı dizini ve aynı
+build'i kullanan her şey bu disk cache'ini paylaşır. `cacheDir = t.TempDir()` satırı
+olmasaydı, bir teste önceki bir testin render ettiği bir page sunulabilirdi. Cache
+process bittikten sonra da kaldığı için bu page önceki bir çalıştırmadan da
+gelebilirdi. Test de kodla hiçbir ilgisi olmayan nedenlerle geçer ya da kalırdı.
+Ayrıca package'ınızın içinde bir `.cache` dizini bırakırdı.
 
-`cacheDir` tüm paket tarafından paylaşıldığı için bu testler `t.Parallel()`
-çağırmaz. Paralel testler istiyorsanız dizini bunun yerine `newApp`'e bir parametre
-olarak verin.
+`cacheDir` bütün package tarafından paylaşıldığı için bu testler `t.Parallel()`
+çağırmaz. Paralel test istiyorsanız dizini bunun yerine `newApp`'e parametre olarak
+verin.
 
-Önbellekle ilgili bir test bundan yararlanabilir: aynı handler'a iki istek yapın ve
-ikincisinin önbellekten sunulduğunu doğrulayın ya da aralarında
-`app.InvalidateTags`'i çağırın ve sunulmadığını doğrulayın.
+Caching'i test eden bir test bu durumdan yararlanabilir. Aynı handler'a iki request
+atın ve ikincisinin cache'ten sunulduğunu kontrol edin. Ya da iki request arasında
+`app.InvalidateTags`'i çağırın ve ikincisinin cache'ten sunulmadığını kontrol edin.
 
-## Formlar ve sahtecilik token'ı
+## Form'lar ve forgery token
 
-Güvenli olmayan bir metodun arkasındaki her action — bir form gönderimi, bir
-`fetch()` — bir istek sahteciliği token'ı denetler ve bir testin de bunu bir
-tarayıcının yaptığı gibi göndermesi gerekir:
+Güvenli olmayan bir HTTP method'unun arkasındaki her action, bir request forgery
+token'ı kontrol eder. Form post'ları da `fetch()` çağrıları da buna dahildir. Testin de
+bu token'ı bir tarayıcının yaptığı gibi göndermesi gerekir:
 
-1. Formun bulunduğu sayfaya `GET` yapın. Yanıt `collage_csrf` çerezini ayarlar ve
-   sayfadaki `{{csrfToken}}`, aynı token'ı taşıyan gizli bir `_csrf` alanı render
+1. Form'un bulunduğu page'e `GET` atın. Response `collage_csrf` cookie'sini set eder.
+   Page'deki `{{csrfToken}}` de aynı token'ı taşıyan gizli bir `_csrf` alanı render
    eder.
-2. Token'ı sayfadan okuyun.
-3. Formu, token `_csrf` alanında — ya da bir `fetch()`'in yaptığı gibi
-   `X-CSRF-Token` header'ında — ve 1. adımdaki çerezle birlikte `POST` edin.
+2. Token'ı page'in içinden okuyun.
+3. Form'u `POST` edin. Token'ı `_csrf` alanında ya da bir `fetch()`'in yaptığı gibi
+   `X-CSRF-Token` header'ında gönderin. 1. adımdaki cookie'yi de ekleyin.
 
-İskeletin yardımcıları:
+Scaffold'daki helper'lar şunlardır:
 
 ```go
 // token reads the forgery token out of a rendered page, the way a browser does.
@@ -161,11 +164,11 @@ func post(t *testing.T, h http.Handler, target string, form url.Values, header h
 }
 ```
 
-`(&http.Response{Header: page.Header()}).Cookies()`, recorder'ın `Set-Cookie`
-header'larını standart kütüphanenin kendi çerez ayrıştırıcısıyla ayrıştırır; böylece
-test tam olarak bir tarayıcının geri göndereceği şeyi gönderir.
+`(&http.Response{Header: page.Header()}).Cookies()`, recorder'daki `Set-Cookie`
+header'larını standart kütüphanenin kendi cookie parser'ıyla parse eder. Böylece
+test, bir tarayıcının geri göndereceği şeyin aynısını gönderir.
 
-Token'ı alanda taşıyan bir form gönderimi:
+Token'ın form alanında gittiği bir form post'u:
 
 ```go
 func TestHelloGreetsTheSubmittedName(t *testing.T) {
@@ -182,7 +185,7 @@ func TestHelloGreetsTheSubmittedName(t *testing.T) {
 }
 ```
 
-Token'ı header'da taşıyan bir JSON uç noktası:
+Token'ın header'da gittiği bir JSON endpoint'i:
 
 ```go
 func TestCountAnswersWithTheNewCount(t *testing.T) {
@@ -203,7 +206,7 @@ func TestCountAnswersWithTheNewCount(t *testing.T) {
 }
 ```
 
-Ve korumayı açık tutan test:
+Korumanın açık kalmasını güvenceye alan test de şudur:
 
 ```go
 // Without a token a submission never reaches its handler. This is the test that
@@ -218,17 +221,16 @@ func TestASubmissionWithNoTokenIsRefused(t *testing.T) {
 }
 ```
 
-Token `Security.CSRFKey` ile, anahtar ayarlanmamışsa uygulama başına üretilen bir
-anahtarla imzalanır. Her iki durumda da bir testteki sayfa ve gönderim aynı
-uygulamaya gider; bu yüzden testlerin kendilerine ait bir anahtara ihtiyacı yoktur.
-`_csrf` ve `collage_csrf` varsayılan adlardır; bunları `Security.CSRFFieldName` ya da
-`CSRFCookieName` ile yeniden adlandıran bir uygulama, testlerinde de yeniden
-adlandırır.
+Token `Security.CSRFKey` ile imzalanır. Bu key ayarlanmamışsa uygulama için üretilen
+bir key kullanılır. Her iki durumda da bir testteki page ve post aynı uygulamaya
+gider. Bu yüzden testlerin kendilerine ait bir key'e ihtiyacı yoktur. `_csrf` ve
+`collage_csrf` varsayılan isimlerdir. Bunları `Security.CSRFFieldName` ya da
+`CSRFCookieName` ile değiştiren bir uygulama, testlerinde de aynı değişikliği yapar.
 
-## Document'lar, yönlendirmeler ve durum kodları
+## Document'lar, redirect'ler ve status code'lar
 
-Bir document, bir sayfa gibi test edilir. Gövdenin yanında içerik tipini de
-denetleyin; çünkü içerik tipi, bir document'ın ne olduğunun yarısıdır:
+Bir document, bir page gibi test edilir. Body'nin yanında content type'ı da kontrol
+edin. Bir document'ı document yapan şeyin yarısı content type'ıdır:
 
 ```go
 func TestHealthCheck(t *testing.T) {
@@ -247,8 +249,8 @@ func TestHealthCheck(t *testing.T) {
 }
 ```
 
-Bulunamadı sayfası, `Allow` header'ıyla bir 405, bir yönlendirmenin `Location`'ı,
-bir `Cache-Control` header'ı — her biri recorder üzerindeki bir alandır:
+Not-found page, `Allow` header'ıyla dönen bir 405, bir redirect'in `Location`'ı ve
+bir `Cache-Control` header'ı recorder üzerinde birer alandır:
 
 ```go
 func TestNotFoundPage(t *testing.T) {
@@ -263,15 +265,16 @@ func TestNotFoundPage(t *testing.T) {
 }
 ```
 
-`app.Use` ile kaydedilen middleware da handler'ın parçası olduğu için bu testlerde
-çalışır. Bir önizlemeyi ya da bir `collage.Vary` boyutunu test etmek için
-`ServeHTTP`'den önce istekteki çerezi ya da header'ı ayarlayın.
+`app.Use` ile register edilen middleware handler'ın bir parçasıdır. Bu yüzden bu
+testlerde de çalışır. Bir preview'ı ya da bir `collage.Vary` boyutunu test etmek
+için `ServeHTTP`'den önce request'e cookie'yi ya da header'ı ekleyin.
 
-## Her sayfa render edilir
+## Her page render edilir
 
-Her sayfayı ziyaret eden bir test, yalnızca bunlardan birinde başarısız olan şablonu
-yakalar. collage-docs içeriğini yükler ve her sayfayı ister — burada yukarıdaki
-`handler` ve `get` yardımcılarıyla, tüm tur için tek bir uygulama:
+Bütün page'leri ziyaret eden bir test, yalnızca birinde hata veren template'i
+yakalar. collage-docs içeriğini yükler ve her page'e request atar. Aşağıdaki örnek
+yukarıdaki `handler` ve `get` helper'larını kullanır ve bütün tur için tek bir
+uygulama kurar:
 
 ```go
 // Every page of the documentation renders, with its own title.
@@ -294,15 +297,15 @@ func TestEveryDocRenders(t *testing.T) {
 }
 ```
 
-Sayfaları bir CMS'ten gelen bir site için aynı test,
-[path provider](/docs/static-export#dynamic-paths-pathprovider)'ınızın döndürdüğü
+Page'leri bir CMS'ten gelen bir sitede aynı test,
+[path provider'ınızın](/docs/static-export#dynamic-paths-pathprovider) döndürdüğü
 listeyi dolaşabilir.
 
-## Dışa aktarmayı test etmek
+## Export'u test etmek
 
-Statik dışa aktarma da koddur ve atlanan bir sayfanın üretim ortamında sessiz kaldığı
-tek yerdir. Onu `t.TempDir()` içine çalıştırın ve beklediğiniz dosyaların orada
-olduğunu denetleyin:
+Static export da koddur. Atlanan bir page'in production'da fark edilmeden geçtiği tek
+yer de burasıdır. Export'u `t.TempDir()` içine çalıştırın ve beklediğiniz dosyaların
+orada olduğunu kontrol edin:
 
 ```go
 // The export writes the home page, every doc and the 404 page.
@@ -329,13 +332,13 @@ func TestExport(t *testing.T) {
 }
 ```
 
-`collage export`'un çalıştırdığı `staticBuild`'in aynısını çağırır; böylece test,
-sayfaların yanında path provider'ı ve builder seçeneklerini de kapsar.
-`staticBuild`, build'in hatasını döndürür; bu da bozulmuş (degraded) bir sayfa, boş
-bir render ya da bir panic için testi başarısız kılar.
+Bu test, `collage export`'un çalıştırdığı `staticBuild` fonksiyonunun aynısını
+çağırır. Böylece test page'lerin yanında path provider'ı ve builder seçeneklerini de
+kapsar. `staticBuild` build'in hatasını döner. Degraded bir page, boş bir render ya
+da bir panic bu hata yüzünden testi başarısız kılar.
 
-Atlamalar ve uyarılar üzerinde de doğrulama yapmak için builder'ı doğrudan çağırın ve
-raporu okuyun:
+Atlanan page'leri ve uyarıları da kontrol etmek için builder'ı doğrudan çağırın ve raporu
+okuyun:
 
 ```go
 builder, err := collage.NewBuilder(app, collage.BuildOptions{OutDir: t.TempDir()})
@@ -359,17 +362,17 @@ if len(report.Warnings) > 0 {
 }
 ```
 
-v0.10.0'dan itibaren `skip.Err`, her atlamanın arkasındaki sentinel hatadır; bkz.
-[Hatalar](/docs/errors#static-builds).
+`skip.Err`, v0.10.0'dan beri her atlamanın arkasındaki sentinel error'dır. Ayrıntılar
+için [Hatalar](/docs/errors#static-builds) sayfasına bakın.
 
 ## HTTP olmadan render etmek
 
-`app.RenderPath`, tek bir sayfayı dışa aktarmanın yaptığı gibi render eder — istek
-yok, sayfa önbelleği yok, middleware yok — ve HTML'i ve render'ın ne yaptığını
-döndürür. Plugin'lerinizin render hook'ları yine çalışır, veri önbelleği de öyle:
-[`collage.Cached`](/docs/caching#caching-data-across-pages)'ın bir render ya da
-sunulan bir istek sırasında sakladığı değer, aynı uygulamadaki bir sonraki
-`RenderPath`'e verilen değerdir. Bir test yeni veriye ihtiyaç duyduğunda yeni bir
+`app.RenderPath` tek bir page'i export'un yaptığı gibi render eder. Bu sırada
+request, page cache ve middleware yoktur. Sonuç olarak HTML'i ve render'ın ne
+yaptığını döner. Plugin'lerinizin render hook'ları yine çalışır, data cache de
+çalışır. [`collage.Cached`](/docs/caching#caching-data-across-pages) bir render ya da
+serve edilen bir request sırasında bir değer saklarsa, aynı uygulamadaki bir sonraki
+`RenderPath` çağrısı o değeri alır. Bir test taze veriye ihtiyaç duyuyorsa yeni bir
 uygulama kurun:
 
 ```go
@@ -382,9 +385,9 @@ if result.Degraded() {
 }
 ```
 
-`app.RenderDocumentPath` aynısını bir document için yapar. Çoğu test için
-`app.Handler()` daha uygundur, çünkü bir okuyucunun ne aldığını test eder; bunlar
-tek bir render'a ayrıntılı bakmak içindir.
+`app.RenderDocumentPath` aynı işi bir document için yapar. Çoğu test için
+`app.Handler()` daha iyi bir seçimdir, çünkü okuyucunun gerçekte ne aldığını test
+eder. Bu iki metot tek bir render'a ayrıntılı bakmak içindir.
 
 ## Testleri çalıştırmak
 
@@ -392,6 +395,6 @@ tek bir render'a ayrıntılı bakmak içindir.
 go test ./...
 ```
 
-Bunu CI'da, build almadan ya da dışa aktarmadan önce çalıştırın. Gerçek `newApp`'i
-kullanan bir test, sitenin başlamasını engelleyecek her şeyde orada başarısız olur;
-bu, sunucuda öğrenmekten daha ucuzdur.
+Bu komutu build ya da export almadan önce CI'da çalıştırın. Gerçek `newApp`'i
+kullanan bir test, sitenin başlamasını engelleyecek her sorunda CI'da başarısız olur.
+Bunu CI'da görmek, sunucuda öğrenmekten daha ucuzdur.

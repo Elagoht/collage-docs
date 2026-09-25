@@ -1,17 +1,17 @@
 ---
-description: Go'yu ve collage CLI'ını kurun, collage new ile bir proje iskeleti oluşturun ve collage dev altında çalıştırın.
+description: Go'yu ve collage CLI'ını kurun, collage new ile bir proje scaffold edin ve onu collage dev ile çalıştırın.
 ---
 
 # Kurulum
 
 Bir collage projesi sıradan bir Go modülüdür. `collage` komut satırı aracı bu
-modülün iskeletini oluşturur, siz üzerinde çalışırken onu çalıştırır ve yayına
-alacağınız zaman derler; framework'ün kendisi ise projenin import ettiği bir
-kütüphanedir. İkisi de Go dışında hiçbir şeye ihtiyaç duymaz.
+projeyi scaffold eder, siz üzerinde çalışırken çalıştırır ve yayına alırken build
+eder. Framework'ün kendisi ise projenin import ettiği bir kütüphanedir. İkisi de Go
+dışında hiçbir şeye ihtiyaç duymaz.
 
 ## Go'yu kurun
 
-collage **Go 1.26 veya daha yenisini** gerektirir. Go'yu [go.dev/dl](https://go.dev/dl)
+collage **Go 1.26 veya daha yeni bir sürüm** ister. Go'yu [go.dev/dl](https://go.dev/dl)
 adresinden ya da paket yöneticinizden kurun ve kontrol edin:
 
 ```sh
@@ -24,17 +24,17 @@ go version
 go install github.com/Elagoht/collage/cmd/collage@latest
 ```
 
-`go install` binary'yi `$(go env GOBIN)` dizinine, `GOBIN` ayarlı değilse
-`$(go env GOPATH)/bin` dizinine koyar; bu dizin `PATH`'inizde olmalıdır. Olduğunu
-kontrol edin:
+`go install` binary'yi `$(go env GOBIN)` dizinine koyar. `GOBIN` ayarlı değilse
+`$(go env GOPATH)/bin` dizinini kullanır. Bu dizin `PATH`'inizde olmalıdır. Olup
+olmadığını kontrol edin:
 
 ```sh
 collage version
 ```
 
-Yazdırdığı sürüm build'in kendisinden okunur; yani `go install` hangi sürümü
-çektiyse odur. `collage help` her komutu listeler, `collage help new` ise tek bir
-komutu açıklar.
+Yazdırılan sürüm build'in kendisinden okunur, yani `go install` hangi sürümü
+çektiyse o görünür. `collage help` bütün komutları listeler, `collage help new` ise
+tek bir komutu açıklar.
 
 ## Proje oluşturun
 
@@ -42,8 +42,8 @@ komutu açıklar.
 collage new mysite
 ```
 
-Bu komut `./mysite` içine, modül yolu `mysite` olan, çalıştırılabilir bir proje
-yazar ve sonraki adımları yazdırır:
+Bu komut `./mysite` içine, module path'i `mysite` olan, çalışmaya hazır bir proje
+yazar ve sonraki adımları ekrana basar:
 
 ```text
 Scaffolded "mysite" in mysite
@@ -55,19 +55,19 @@ Next steps:
   collage dev
 ```
 
-`go mod tidy` framework'ü çeker. İskeletteki `go.mod` yalnızca modülü ve Go
-sürümünü belirtir; dolayısıyla projenin hangi collage sürümüyle derlendiğini
-kaydeden şey ilk tidy'dir.
+`go mod tidy` framework'ü indirir. Scaffold edilen `go.mod` yalnızca modülün adını
+ve Go sürümünü içerir. Bu yüzden projenin hangi collage sürümüyle build edildiğini
+kaydeden şey ilk `tidy` çalıştırmasıdır.
 
-Birkaç flag, projenin nereye ve nasıl yazılacağını değiştirir. Tek ya da çift tireyle
-yazılabilirler ve addan önce de sonra da gelebilirler:
+Birkaç flag, projenin nereye ve nasıl yazılacağını değiştirir. Flag'leri tek ya da
+çift tireyle yazabilirsiniz. Proje adından önce de gelebilirler, sonra da:
 
 | Flag | Etkisi |
 | --- | --- |
-| `--template minimal` | Tek bir sayfayı saran bir layout ve bir stil dosyası — demo yok. Varsayılanı `--template demo`'dur |
-| `-dir path` | İskeleti `./<name>` yerine `path` içine oluşturur |
-| `-module path` | `go.mod`'daki modül yolu, örneğin `github.com/you/mysite`. Varsayılanı addır |
-| `-force` | İskeleti boş olmayan bir dizine oluşturur |
+| `--template minimal` | Tek bir page'i saran bir layout ve bir stylesheet oluşturur, demo içermez. Varsayılan değer `--template demo`'dur |
+| `-dir path` | Projeyi `./<name>` yerine `path` içine scaffold eder |
+| `-module path` | `go.mod`'daki module path'i belirler, örneğin `github.com/you/mysite`. Varsayılan değer proje adıdır |
+| `-force` | Boş olmayan bir dizine de scaffold eder |
 
 ```sh
 collage new mysite -module github.com/you/mysite
@@ -75,21 +75,23 @@ collage new mysite --template minimal
 collage new mysite -dir . -force
 ```
 
-### Demolarla ya da demosuz
+### Demolarla ya da demolar olmadan
 
-Varsayılan şablon olan `demo` ile bir ana sayfa ve canlı demolardan oluşan bir `/features`
-sayfası elde edersiniz: önbellekteki bir sayfayı etiketle geçersiz kılan bir API
-action'ına istek gönderen bir düğme, kendi sayfasına gönderilen bir HTML formu,
-kendi URL'sinde açılan bir saat fragment'i ve `/healthz` adresinde bir JSON
-document'ı. Bunların her birinin çalıştığını görmenin en hızlı yolu budur; her
-birinin arkasındaki kod da bir oturuşta okunacak kadar kısadır.
+Varsayılan template olan `demo`, bir ana sayfa ve canlı demolarla dolu bir
+`/features` page'i oluşturur. Bu demolar şunlardır: bir API action'ına post
+edip cache'lenmiş bir page'i tag ile invalidate eden bir buton, kendi page'ine
+post edilen bir HTML form, kendi URL'sinde açılabilen bir saat fragment'i ve
+`/healthz` adresindeki bir JSON document. Bunların her birini çalışırken görmenin
+en hızlı yolu budur. Her birinin arkasındaki kod da tek oturuşta okunacak kadar
+kısadır.
 
-`--template minimal` ile aynı `main.go`'yu ve dizin düzenini elde edersiniz;
-içinde yalnızca merhaba diyen tek bir sayfayı saran bir layout ve karanlık modu
-olan bir stil dosyası vardır — silinecek hiçbir şey yok. Gerçek bir siteye
-başlarken bunu kullanın. [İlk sayfanız](/docs/your-first-page) minimal bir projeden başlar.
+`--template minimal` aynı `main.go`'yu ve aynı dizin yapısını oluşturur. İçinde
+yalnızca "hello" diyen tek bir page'i saran bir layout ve dark mode'u olan bir
+stylesheet bulunur. Silmeniz gereken hiçbir şey yoktur. Gerçek bir siteye
+başlarken bunu kullanın. [İlk page'iniz](/docs/your-first-page) rehberi de minimal
+bir projeden başlar.
 
-## İskeletin içinde ne var
+## Scaffold'un içinde neler var
 
 Minimal bir proje şöyle görünür:
 
@@ -111,48 +113,50 @@ mysite/
     └── app.css                 the background and text colour, light and dark
 ```
 
-Demo projesi buna şunları ekler: testleri `app.Handler()`'ı sunucu olmadan süren
-`main_test.go`; bir bulunamadı sayfası; `collage dev` için kopyalanacak
-değişkenleri içeren `.env.example`; plugin adına göre anahtarlanmış plugin
-ayarlarını içeren `plugins-config.json`; bir favicon; ve şablonları ve
-script'leriyle birlikte `actions/`, `documents/`, `store/` ve `fragments/demo/`.
+Demo projesi bunlara ek olarak şunları içerir: testleri `app.Handler()`'ı sunucu
+başlatmadan çalıştıran `main_test.go`, bir not-found page'i, `collage dev` için
+kopyalanacak değişkenleri tutan `.env.example`, plugin ayarlarını plugin adına göre
+tutan `plugins-config.json`, bir favicon ve template'leri ile script'leriyle
+birlikte `actions/`, `documents/`, `store/` ve `fragments/demo/` dizinleri.
 
-İçindeki birkaç şeyi değiştirmeden önce bilmeye değer.
+Bu dosyalardan birkaçını değiştirmeden önce bazı şeyleri bilmekte fayda var.
 
-**`main.go` CLI ile bir sözleşmeyi korur.** `collage dev` programı ortamında
-`COLLAGE_DEV=1` ile, `collage export` ise `-collage-build -out <dir>` ile
-çalıştırır. İskeletteki `main.go` ikisini de okur: değişken geliştirme modunu açar,
-flag ise siteyi sunmak yerine dosyalara render eder. Flag'lerden sonra gelen bir
-sözcük — `go run . <command>` — bir [plugin'in komutunu](/docs/plugins) çalıştırır.
-`main.go`'yu yeniden yazarsanız bunların hepsini çalışır hâlde tutun; aksi hâlde bu
-komutlar işe yarar hiçbir şey yapmaz. Ayrıntılar
-[CLI başvurusunda](/docs/cli).
+**`main.go` CLI ile bir sözleşmeye uyar.** `collage dev` programı environment'ında
+`COLLAGE_DEV=1` ile çalıştırır. `collage export` ise programı
+`-collage-build -out <dir>` ile çalıştırır. Scaffold edilen `main.go` ikisini de
+okur. Değişken development mode'u açar. Flag ise siteyi serve etmek yerine
+dosyalara render eder. Flag'lerden sonra gelen bir kelime, yani
+`go run . <command>`, bir [plugin'in komutunu](/docs/plugins) çalıştırır.
+`main.go`'yu yeniden yazarsanız bunların hepsinin çalışmaya devam etmesini
+sağlayın. Aksi hâlde bu komutlar işe yarar hiçbir şey yapmaz. Ayrıntılar
+[CLI referansında](/docs/cli) yer alır.
 
-**`newApp`, `main`'den ayrıdır.** Uygulamanın tamamını — yapılandırmayı,
-`routes.go`'daki route'ları, `/static/` mount'unu — kurar ve bir sunucu başlatmadan
-döndürür. Demo projesinin `main_test.go`'su aynı fonksiyonu çağırır ve `app.Handler()`'ı
-`net/http/httptest` ile sürer; böylece testler sitenin ikinci bir kablolamasını
-değil, gerçekten çalışan siteyi sınar. Bkz. [Test](/docs/testing).
+**`newApp`, `main`'den ayrıdır.** `newApp` bütün uygulamayı kurar: config'i,
+`routes.go`'daki route'ları ve `/static/` mount'unu. Sonra bir sunucu başlatmadan
+uygulamayı döner. Demo projesindeki `main_test.go` aynı fonksiyonu çağırır ve
+`app.Handler()`'ı `net/http/httptest` ile çalıştırır. Böylece testler sitenin ayrıca
+kurulmuş ikinci bir kopyasını değil, gerçekten çalışan siteyi test eder.
+[Test yazmak](/docs/testing) sayfasına bakın.
 
-**Şablonlar ve statik dosyalar gömülüdür.** `//go:embed all:templates` ve
-`//go:embed all:static` onları binary'nin içine koyar; böylece binary herhangi bir
-çalışma dizininden çalışır. Geliştirmede diskteki dizinler, var oldukları her
-durumda önceliklidir; böylece düzenlediğiniz bir şablon bir sonraki istekte yine
-görünür.
+**Template'ler ve static dosyalar embed edilir.** `//go:embed all:templates` ve
+`//go:embed all:static` bunları binary'nin içine gömer. Bu sayede binary herhangi
+bir çalışma dizininden çalışabilir. Development'ta diskteki dizinler varsa her
+zaman onlar kullanılır. Böylece düzenlediğiniz bir template bir sonraki request'te
+yine görünür.
 
-**Geliştirmede statik dosyalar `os.DirFS` ile değil, `os.OpenRoot` ile mount
-edilir.** Bir `os.Root`, dizinin dışına çıkan bir sembolik bağlantıyı reddeder;
-`os.DirFS` ise onu izler. Production'da gömülü kopya sunulur; `static/` dizini
-ikinci bir yol parçası olmasın diye `fs.Sub` üzerinden. Bkz.
-[Statik dosyalar](/docs/assets).
+**Development'ta static dosyalar `os.DirFS` ile değil, `os.OpenRoot` ile mount
+edilir.** Bir `os.Root`, dizinin dışına çıkan bir symlink'i reddeder. `os.DirFS`
+ise onu takip eder. Production'da embed edilmiş kopya serve edilir. Bu kopya
+`fs.Sub` üzerinden sunulur, böylece `static/` dizini URL'de ikinci bir path segment
+olarak görünmez. [Static asset'ler](/docs/assets) sayfasına bakın.
 
-**Production'da render edilen sayfalar disk üzerinde, `.cache/` altında önbelleğe
-alınır.** Geliştirmede sayfa önbelleği hiç okunmaz; böylece bir düzenleme hiçbir
-zaman bayat bir sayfanın arkasında gizli kalmaz. Bkz. [Önbellek](/docs/caching).
+**Production'da render edilen page'ler diskte, `.cache/` altında cache'lenir.**
+Development'ta page cache hiç okunmaz. Böylece yaptığınız bir değişiklik hiçbir
+zaman stale bir page'in arkasında kalmaz. [Caching](/docs/caching) sayfasına bakın.
 
-## Ortam dosyası
+## Environment dosyası
 
-İskelet `.env.example` ile gelir:
+Scaffold, bir `.env.example` dosyasıyla gelir:
 
 ```sh
 COLLAGE_CSRF_KEY=
@@ -160,40 +164,41 @@ PORT=3000
 HOST=localhost
 ```
 
-Onu git tarafından yok sayılan `.env.development` dosyasına kopyalayın:
+Bu dosyayı git'in yok saydığı `.env.development` dosyasına kopyalayın:
 
 ```sh
 cp .env.example .env.development
 ```
 
-`collage dev`, `.env.development` içindeki değişkenleri programın ortamına ekler —
-`.env.development` yoksa `.env` içindekileri. Tek bir dosya okur, asla ikisini
-birden değil. Kurallar kısadır:
+`collage dev`, `.env.development` içindeki değişkenleri programın environment'ına
+ekler. `.env.development` yoksa `.env` içindekileri ekler. Her zaman tek bir dosya
+okur, ikisini birden okumaz. Kurallar kısadır:
 
-- Kabuğunuzda zaten ayarlı olan bir değişken önceliklidir; bu yüzden
-  `PORT=4000 collage dev` çalışır. Dosyada ne yazarsa yazsın `COLLAGE_DEV=1` her
-  zaman ayarlanır.
-- Dosya `KEY=value` satırlarından, `#` yorumlarından ve boş satırlardan oluşur.
-  Başta bir `export ` öneki ve değerin etrafında tırnaklar kullanılabilir.
-- Hatalı bir satır atlanmaz; dosya adı ve satır numarasıyla bildirilir: atlanan bir
-  satır, sizin yazdığınız ama programın hiç görmediği bir ayardır. Siz düzeltene
-  kadar hiçbir şey başlatılmaz ya da yeniden başlatılmaz — zaten çalışan bir build
-  sunmaya devam eder — ve `collage dev` izlemeyi sürdürür; düzeltmeyi kaydettiğinizde
-  kaldığı yerden devam eder.
-- Hiç dosya olmaması bir hata değildir. Bir dosya varsa adı stderr'e yazdırılır.
+- Shell'inizde zaten tanımlı bir değişken önceliklidir. Bu yüzden
+  `PORT=4000 collage dev` beklendiği gibi çalışır. Dosyada ne yazarsa yazsın
+  `COLLAGE_DEV=1` her zaman tanımlanır.
+- Dosya `KEY=value` satırlarından, `#` ile başlayan yorumlardan ve boş satırlardan
+  oluşur. Satır başında `export ` öneki ve değerin etrafında tırnak kullanabilirsiniz.
+- Hatalı bir satır atlanmaz, dosya adı ve satır numarasıyla birlikte raporlanır.
+  Çünkü atlanan bir satır, sizin yazdığınız ama programın hiç görmediği bir
+  ayar demektir. Siz satırı düzeltene kadar hiçbir şey başlatılmaz ya da yeniden
+  başlatılmaz. Zaten çalışan bir build serve etmeye devam eder. `collage dev` de
+  izlemeyi sürdürür, yani düzeltmeyi kaydettiğinizde süreç kaldığı yerden devam
+  eder.
+- Hiç dosya olmaması bir hata değildir. Dosya varsa adı stderr'e yazılır.
 
 **Bu dosyaları yalnızca `collage dev` okur.** `collage build`, `collage export` ve
-derlenmiş binary asla okumaz; production'da ortam, binary nerede çalışıyorsa
-oradan gelir.
+build edilmiş binary bu dosyaları hiçbir zaman okumaz. Production'da environment,
+binary'nin çalıştığı ortamdan gelir.
 
-`COLLAGE_CSRF_KEY`, formların taşıdığı token'ları imzalar. Geliştirirken boş
-bırakmanız sorun değildir — her süreç için bir anahtar üretilir. Form içeren
-herhangi bir şeyi yayına almadan önce bir anahtar ayarlayın; aksi hâlde yeniden
-başlatmadan önce gönderilen her form, yeniden başlatmadan sonra reddedilir. İçinde
-form olan önbellekteki bir sayfa da anahtara bağlıdır: yeni bir anahtarla yeniden
-başlatmadan sonra o sayfa, içinde eski anahtarın token'ı ile sunulmak yerine
-baştan render edilir — bkz. [Önbellek](/docs/caching#the-namespace). Bir anahtarı
-şöyle üretin:
+`COLLAGE_CSRF_KEY`, form'ların taşıdığı token'ları imzalar. Development sırasında
+boş bırakabilirsiniz. Bu durumda her process için yeni bir key üretilir. Form
+içeren herhangi bir şeyi deploy etmeden önce bir key tanımlayın. Aksi hâlde restart
+öncesinde gönderilmiş her form, restart'tan sonra reddedilir. İçinde form olan
+cache'lenmiş bir page de key'e bağlıdır. Yeni bir key ile restart ettikten sonra o
+page, içinde eski key'in token'ı ile serve edilmez, baştan render edilir.
+[Caching](/docs/caching#the-namespace) sayfasına bakın. Bir key'i şöyle
+üretebilirsiniz:
 
 ```sh
 openssl rand -hex 32
@@ -205,61 +210,64 @@ openssl rand -hex 32
 collage dev
 ```
 
-Site [http://localhost:3000](http://localhost:3000) adresindedir. Çalışırken üç şey
-olur.
+Site [http://localhost:3000](http://localhost:3000) adresinde açılır. Program
+çalışırken üç şey olur.
 
-### Go değişiklikleri yeniden derlenir
+### Go değişikliklerinde yeniden build alınır
 
-`collage dev` projeyi `go build` ile derler ve binary'yi çalıştırır. Programın
-neyden oluştuğunu — `.go` dosyalarını (testler hariç), `go.mod`, `go.sum` ve ortam
-dosyasını — izler ve bir değişiklikte yeniden derler.
+`collage dev` projeyi `go build` ile build eder ve binary'yi çalıştırır. Programın
+parçası olan dosyaları izler: `.go` dosyalarını (testler hariç), `go.mod`, `go.sum`
+ve environment dosyasını. Bunlardan biri değiştiğinde projeyi yeniden build eder.
 
-Önce yeni build yapılır. Eski süreç ancak yeni build derlendikten sonra, düzgün bir
-şekilde durdurulur ve yenisi başlatılır. Derlenmeyen bir değişiklik son sağlam
-build'i sunmaya devam ettirir ve derleyicinin hatasını terminale yazdırır; böylece
-bir yazım hatası sizi `localhost:3000`'de hiçbir şey olmadan bırakmaz.
+Önce yeni build alınır. Eski process ancak yeni build başarıyla derlendikten sonra
+düzgünce durdurulur ve yenisi başlatılır. Derlenmeyen bir değişiklikte son sağlam
+build serve etmeye devam eder ve compiler'ın hatası terminale yazılır. Böylece bir
+yazım hatası yüzünden `localhost:3000` hiçbir zaman boş kalmaz.
 
-Art arda yapılan kayıtlar tek bir yeniden derlemedir. Gizli dizinler, `bin`,
-`dist`, `node_modules`, `testdata` ve `vendor` hiçbir zaman izlenmez; böylece
-çalışan programın yazdığı hiçbir şey kendi yeniden derlenmesini tetikleyemez.
-Kendiliğinden çıkan bir program da — başlangıçta bir panic, zaten kullanımda olan
-bir port — bir döngü içinde yeniden başlatılmaz; bir sonraki değişikliğiniz onu
-yeniden başlatır.
+Art arda yapılan kayıtlar tek bir rebuild tetikler. Gizli dizinler, `bin`, `dist`,
+`node_modules`, `testdata` ve `vendor` hiçbir zaman izlenmez. Böylece çalışan
+programın yazdığı hiçbir dosya kendi rebuild'ini tetikleyemez. Kendiliğinden
+kapanan bir program da döngü halinde yeniden başlatılmaz. Başlangıçta oluşan bir
+panic ya da zaten kullanımda olan bir port buna örnektir. Program bir sonraki
+değişikliğinizde yeniden başlar.
 
-### Şablonlar ve statik dosyalar diskten okunur
+### Template'ler ve static dosyalar diskten okunur
 
-Geliştirme modunda her şablon, her render'dan önce diskten yeniden ayrıştırılır ve
-statik dosyalar diskteki `static/` dizininden sunulur. İkisini düzenlemek de
-yeniden derleme gerektirmez ve yeniden derleme olmaz.
+Development mode'da her template, her render'dan önce diskten yeniden parse edilir.
+Static dosyalar da diskteki `static/` dizininden serve edilir. İkisini düzenlemek
+de rebuild gerektirmez ve rebuild yapılmaz.
 
 ### Tarayıcı kendini yeniler
 
-Geliştirmede sunulan her sayfa, bir şablon ya da statik dosya değiştiğinde ve
-program bir yeniden derlemeden geri döndüğünde sayfayı yenileyen küçük bir script
-taşır. Bir dosyayı kaydedin ve tarayıcıya bakın; kurulacak bir şey yok.
-Programınızın diskten kendisinin okuduğu içerik — Markdown, JSON — ne şablondur ne
-de statik dosya; değişikliklerinin de sayfayı yenilemesi için dizinini
+Development'ta serve edilen her page küçük bir script taşır. Bu script bir template
+ya da static dosya değiştiğinde ve program bir rebuild'den sonra yeniden ayağa
+kalktığında page'i yeniler. Bir dosyayı kaydedip tarayıcıya bakmanız yeterlidir,
+kurmanız gereken bir şey yoktur. Programınızın diskten kendisinin okuduğu içerik,
+örneğin Markdown ya da JSON, ne template ne de static dosyadır. Bu içerikteki
+değişikliklerin de page'i yenilemesini istiyorsanız dizinini
 [`Config.DevWatch`](/docs/configuration#devwatch) içinde belirtin (v0.10.0'dan
-itibaren). Script hiçbir zaman bir production sayfasına eklenmez; bir form
-gönderiminin yanıtına da eklenmez, çünkü yenilemek formu yeniden gönderirdi.
+itibaren). Script hiçbir zaman production'daki bir page'e eklenmez. Bir form
+gönderiminin response'una da eklenmez, çünkü sayfayı yenilemek formu yeniden
+gönderirdi.
 
-### Hatalar sayfada görünür
+### Hatalar page'in üzerinde görünür
 
-Geliştirmede hata veren bir fragment sessizce kaybolmaz. Sayfa, üzerinde fragment'i
-ve hatasını — şablon için dosya ve satırla birlikte — belirten bir panelle sunulur;
-bir yedek onun yerini tutmuş olsa bile. Sayfanın tamamı hata verdiğinde yerleşik
-hata sayfası, hatanın başladığı fragment'i adlandırır ve bir panic'in yığınıyla
-birlikte hata zincirinin tamamını gösterir — sizin kendi hata sayfanızın üstüne de
-aynı panel, neyin yerine durduğunu söyleyerek eklenir.
+Development'ta hata veren bir fragment sessizce ortadan kaybolmaz. Page, üzerinde
+bir panel ile serve edilir. Bu panel fragment'in adını ve hatasını gösterir,
+template hatalarında dosya ve satırı da belirtir. Hatayı bir fallback kapatmış olsa
+bile panel yine görünür. Page'in tamamı hata verdiğinde, built-in error page hatanın
+başladığı fragment'i söyler ve bir panic'in stack'i dahil bütün error zincirini
+gösterir. Kendi yazdığınız bir error page'in üstünde de aynı panel çıkar ve hangi
+page'in yerine gösterildiğini belirtir.
 
-Bunların hiçbiri geliştirme dışında yoktur. Production'daki bir hata sayfası tek bir
-genel cümle söyler; çünkü hata mesajları host adları, dosya yolları ve kimlik
-bilgileri taşır ve bir hata sayfası, bunları bir yabancıya teslim etme ihtimali en
-yüksek yanıttır. Bkz. [Hatalar](/docs/errors).
+Bunların hiçbiri development dışında yoktur. Production'daki bir error page tek bir
+genel cümle gösterir. Çünkü hata mesajları hostname'ler, dosya yolları ve
+credential'lar içerir. Bunları bir yabancının eline verme ihtimali en yüksek
+response da tam olarak error page'dir. [Hatalar](/docs/errors) sayfasına bakın.
 
 ## Sırada ne var
 
-[İlk sayfanız](/docs/your-first-page), minimal bir projede sıfırdan veriyle bir
-sayfa kurar. Yayına almaya hazır olduğunuzda `collage build` bir binary üretir,
-`collage export` ise statik dosyalar yazar — bkz. [Yayına alma](/docs/deployment) ve
-[Statik dışa aktarma](/docs/static-export).
+[İlk page'iniz](/docs/your-first-page), minimal bir projede sıfırdan, veri kullanan
+bir page oluşturur. Yayına almaya hazır olduğunuzda `collage build` bir binary
+üretir, `collage export` ise static dosyalar yazar. [Deployment](/docs/deployment)
+ve [Static export](/docs/static-export) sayfalarına bakın.

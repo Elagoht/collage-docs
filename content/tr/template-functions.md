@@ -1,54 +1,56 @@
 ---
-description: Yerleşik şablon fonksiyonlarının tamamı — slot, hoist, asset, stylesheet, csrfToken, URL fonksiyonları ve metin yardımcıları — imzaları, örnekleri ve sınır durumlarıyla.
+description: Built-in template fonksiyonlarının tamamını imzaları, örnekleri ve sınır durumlarıyla anlatır. Bunlar slot, hoist, asset, stylesheet, csrfToken, URL fonksiyonları ve string yardımcılarıdır.
+reference: TemplateConfig, DefaultContentSlot
 ---
 
-# Şablon fonksiyonları
+# Template fonksiyonları
 
-Şablonlar Go'nun `html/template` paketidir, dolayısıyla onun sunduğu her şey
-elinizin altındadır: `if`, `range`, `with`, `define`, `block` ve standart
-fonksiyonlar `and`, `or`, `not`, `len`, `index`, `slice`, `print`, `printf`,
-`println`, `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `call`, `html`, `js` ve `urlquery`.
-collage bunlara bu sayfadaki fonksiyonları ekler.
+Template'ler Go'nun `html/template` paketiyle yazılır. Bu yüzden onun sunduğu her şey
+kullanılabilir: `if`, `range`, `with`, `define`, `block` ve standart fonksiyonlar
+olan `and`, `or`, `not`, `len`, `index`, `slice`, `print`, `printf`, `println`,
+`eq`, `ne`, `lt`, `le`, `gt`, `ge`, `call`, `html`, `js` ve `urlquery`. collage
+bunlara bu sayfadaki fonksiyonları ekler.
 
 | Fonksiyon | İmza | Döndürdüğü |
 | --- | --- | --- |
-| [`slot`](#slot) | `slot name` | bir slot'taki fragment'lerin işaretlemesi |
-| [`hoist`](#hoist) | `hoist area` | yukarı taşınan içeriğin yerleşeceği yer |
-| [`asset`](#asset) | `asset path` | mount edilmiş bir dosyanın içerik adresli URL'si |
-| [`stylesheet`](#stylesheet) | `stylesheet path` | hiçbir şey; head için bir stil dosyası bildirir |
-| [`csrfToken`](#csrftoken) | `csrfToken` | bir formun token'ını taşıyan gizli input |
+| [`slot`](#slot) | `slot name` | bir slot'taki fragment'lerin markup'ı |
+| [`hoist`](#hoist) | `hoist area` | hoist edilen içeriğin yerleşeceği yer |
+| [`asset`](#asset) | `asset path` | mount edilmiş bir dosyanın content-addressed URL'si |
+| [`stylesheet`](#stylesheet) | `stylesheet path` | hiçbir şey; head için bir stylesheet tanımlar |
+| [`csrfToken`](#csrftoken) | `csrfToken` | form'un token'ını taşıyan hidden input |
 | [`pageURL`](#pageurl) | `pageURL name [param value]...` | bir route'un bu render'ın locale'indeki URL'si |
 | [`pageURLIn`](#pageurlin) | `pageURLIn locale name [param value]...` | bir route'un tam olarak o locale'deki URL'si |
-| [`localeURL`](#localeurl) | `localeURL locale` | bu sayfanın başka bir locale'deki URL'si |
-| [`safeHTML`](#safehtml) | `safeHTML string` | HTML olarak güvenilen metin |
-| [`safeURL`](#safeurl) | `safeURL string` | URL olarak güvenilen metin |
-| [`dict`](#dict) | `dict key value [key value]...` | çiftlerden kurulan bir map |
-| [`default`](#default) | `default fallback value` | `value` ya da boşsa `fallback` |
-| [`upper`](#upper-and-lower) | `upper string` | metnin büyük harfli hâli |
-| [`lower`](#upper-and-lower) | `lower string` | metnin küçük harfli hâli |
+| [`localeURL`](#localeurl) | `localeURL locale` | bu page'in başka bir locale'deki URL'si |
+| [`safeHTML`](#safehtml) | `safeHTML string` | HTML olarak güvenilir sayılan string |
+| [`safeURL`](#safeurl) | `safeURL string` | URL olarak güvenilir sayılan string |
+| [`dict`](#dict) | `dict key value [key value]...` | çiftlerden oluşturulan bir map |
+| [`default`](#default) | `default fallback value` | `value`, boşsa `fallback` |
+| [`upper`](#upper-and-lower) | `upper string` | string'in büyük harfli hâli |
+| [`lower`](#upper-and-lower) | `lower string` | string'in küçük harfli hâli |
 | [`title`](#title) | `title string` | her kelimenin ilk harfi büyük |
-| [`join`](#join) | `join sep items` | `sep` ile birleştirilmiş öğeler |
-| [`formatTime`](#formattime) | `formatTime time layout` | biçimlendirilmiş zaman |
+| [`join`](#join) | `join sep items` | `sep` ile birleştirilmiş item'lar |
+| [`formatTime`](#formattime) | `formatTime time layout` | formatlanmış zaman |
 
-Hata döndüren bir fonksiyon şablonu başarısız kılar, fragment da onunla birlikte
-başarısız olur — fragment'in kendi hata politikasına göre: zorunlu bir fragment
-sayfayı başarısız kılar, isteğe bağlı olan yedeğini render eder, yedeği yoksa hiçbir
-şey render etmez. Geliştirme modunda bu "hiçbir şey", fragment'i ve hatasını
-adlandıran bir HTML yorumudur; sayfanın üstündeki geliştirme paneli de yedekli ya da
-yedeksiz, başarısız olan her fragment'i adıyla gösterir.
-Bkz. [Fragment'ler ve slot'lar](/docs/fragments-and-slots).
+Hata dönen bir fonksiyon template'i başarısız kılar, fragment da onunla birlikte
+başarısız olur. Bu durumda fragment'in kendi failure policy'si uygulanır: required
+bir fragment page'i başarısız kılar, optional bir fragment fallback'ini render eder,
+fallback'i yoksa hiçbir şey render etmez. Development mode'da bu "hiçbir şey",
+fragment'in adını ve hatasını içeren bir HTML yorumudur. Page'in üstündeki
+development paneli de fallback'i olsun olmasın, başarısız olan her fragment'i adıyla
+listeler. Ayrıntılar için
+[Fragment'ler ve slot'lar](/docs/fragments-and-slots) sayfasına bakın.
 
 ## Her render'da bağlananlar
 
-İlk sekiz fonksiyon, parçası oldukları render'a ihtiyaç duyar — fragment'e, isteğe,
-locale'e, uygulamanın route'larına ve mount'larına. Şablon çağırabilsin diye
-şablonlar ayrıştırılırken yer tutucu olarak kaydedilirler; gerçek gerçekleştirimi
-render motoru her render'da bağlar. Herhangi bir şekilde render dışında çalışan bir
-yer tutucu tahmin yürütmek yerine hata döndürür.
+İlk sekiz fonksiyon, içinde çalıştıkları render'a ihtiyaç duyar: fragment'e,
+request'e, locale'e, uygulamanın route'larına ve mount'larına. Template'ler parse
+edilirken bu fonksiyonlar placeholder olarak register edilir, böylece template'ler onları
+çağırabilir. Gerçek implementasyonu ise render engine her render'da bağlar. Bir
+placeholder bir şekilde render dışında çalışırsa tahmin yürütmez, hata döner.
 
-Bunun bir sonucu var: `Config.Template.Funcs` içinde ya da bir plugin'den gelen, bu
-adlardan birini taşıyan bir girdi ayrıştırılır ama hiçbir zaman çağrılmaz. Diğer
-dokuzu değiştirilebilir.
+Bunun bir sonucu var: `Config.Template.Funcs` içinde ya da bir plugin'den gelen ve
+bu adlardan birini taşıyan bir entry parse edilir, ama hiçbir zaman çağrılmaz. Geri
+kalan dokuz fonksiyonu ise değiştirebilirsiniz.
 
 ### slot
 
@@ -56,10 +58,10 @@ dokuzu değiştirilebilir.
 {{slot "name"}}
 ```
 
-Bu fragment'in `name` adlı slot'una bağlanmış her fragment'i bağlanma sırasıyla
-render eder ve işaretlemelerini kaçışlamadan yerleştirir. `slot` her zaman *bu*
-fragment'in slot'u demektir; böylece iki fragment'in her biri, birbirine
-karışmadan `"sidebar"` adlı bir slot'a sahip olabilir.
+Bu fragment'in `name` adlı slot'una bağlanmış bütün fragment'leri bağlanma sırasıyla
+render eder ve markup'larını escape etmeden yerleştirir. `slot` her zaman *bu*
+fragment'in slot'unu ifade eder. Bu yüzden iki fragment'in her biri `"sidebar"` adlı
+bir slot'a sahip olabilir ve bu slot'lar birbirine karışmaz.
 
 ```html
 <article>
@@ -68,21 +70,21 @@ karışmadan `"sidebar"` adlı bir slot'a sahip olabilir.
 </article>
 ```
 
-- Fragment'in `WithSlot` ile hiç bildirmediği bir slot hatadır
-  (`ErrUnknownSlot`) ve hata, fragment'in sahip olduğu slot'ları sayar. Hiçbir şey
-  render etmek, bir yazım hatasını sessizce eksik kalan bir bölüme dönüştürürdü.
-- Bildirilmiş ama boş bir slot hiçbir şey render etmez — zorunlu olarak
-  bildirilmediyse. Hiçbir şey bağlanmamış ve resolver'ı olmayan zorunlu bir slot,
-  sayfa kaydedilirken `ErrRequiredSlotUnfilled` ile reddedilir, dolayısıyla hiçbir
-  zaman render'a ulaşmaz. Bir resolver'ın doldurduğu zorunlu slot ise render
-  sırasında denetlenir: hiç fragment döndürmeyen bir resolver render'ı
+- Fragment'in `WithSlot` ile hiç tanımlamadığı bir slot hatadır
+  (`ErrUnknownSlot`). Hata, fragment'in sahip olduğu slot'ları da listeler. Hiçbir
+  şey render etmek, bir yazım hatasını sessizce eksik kalan bir bölüme çevirirdi.
+- Tanımlanmış ama boş olan bir slot hiçbir şey render etmez. Slot required olarak
+  tanımlandıysa durum farklıdır. Hiçbir şey bağlanmamış ve resolver'ı olmayan
+  required bir slot, page register edilirken `ErrRequiredSlotUnfilled` ile reddedilir.
+  Böylece hiçbir zaman bir render'a ulaşmaz. Resolver'ın doldurduğu required bir slot
+  ise render sırasında kontrol edilir: hiç fragment dönmeyen bir resolver render'ı
   `ErrRequiredSlotEmpty` ile başarısız kılar.
-- Bir layout'un içeriği `{{slot "content"}}`'e gider; bu ad
-  `collage.DefaultContentSlot`'ta tutulur.
+- Bir layout'un içeriği `{{slot "content"}}` içine gelir. Bu ad
+  `collage.DefaultContentSlot` içinde tutulur.
 
-`slot` çalıştığında çocukların data handler'ları çoktan başlamıştır: hepsi, üst
-fragment render edilmeden önce birlikte başlar. Bkz.
-[Fragment'ler ve slot'lar](/docs/fragments-and-slots).
+`slot` çalıştığında child fragment'lerin data handler'ları çoktan başlamıştır. Hepsi
+parent render edilmeden önce aynı anda başlar. Ayrıntılar için
+[Fragment'ler ve slot'lar](/docs/fragments-and-slots) sayfasına bakın.
 
 ### hoist
 
@@ -90,9 +92,9 @@ fragment render edilmeden önce birlikte başlar. Bkz.
 {{hoist "head"}}
 ```
 
-`area`'ya taşınan içeriğin nereye yerleşeceğini işaretler. Fragment'ler bu içeriği
-ağacın herhangi bir yerinden — genellikle bir data handler'dan — bildirir, nereye
-gideceğine ise `hoist` karar verir:
+`area`'ya hoist edilen içeriğin nereye yerleşeceğini işaretler. Fragment'ler bu
+içeriği ağacın herhangi bir yerinden, genellikle bir data handler'dan tanımlar.
+İçeriğin nereye gideceğine ise `hoist` karar verir:
 
 ```html
 <head>
@@ -107,16 +109,17 @@ rc.HoistMeta("description", post.Summary)
 rc.HoistLink("canonical", canonicalURL)
 ```
 
-İçerik değil, bir işaretçi yazar; çünkü altındaki hiçbir şey henüz render
-edilmemiştir. Ağacın tamamı render edildiğinde her işaretçi, kendi alanı için
-bildirilenle değiştirilir; böylece sayfanın derinliklerinde yapılan bir bildirim de
-head'e ulaşır. Hiçbir şey bildirilmemiş bir alan, hiçbir şeyle değiştirilir.
+`hoist` içerik değil, bir marker yazar, çünkü altındaki hiçbir şey henüz render
+edilmemiştir. Ağacın tamamı render edildikten sonra her marker, kendi area'sı için
+tanımlanan içerikle değiştirilir. Böylece page'in derinlerinde yapılan bir
+tanım da head'e ulaşır. Hiçbir şey tanımlanmamış bir area'nın marker'ı ise iz
+bırakmadan kaldırılır.
 
 `HoistTitle`, `HoistMeta`, `HoistProperty`, `HoistLink`, `HoistAlternate` ve
-`HoistStylesheet` `"head"` alanına yazar; `rc.Hoist(area, key, html)` ise adını
-verdiğiniz herhangi bir alana yazar. **Head'e katkıda bulunan bir plugin bu
-işaretçiye ihtiyaç duyar**: o olmadan içeriğinin gidecek yeri yoktur. Bkz.
-[Head ve SEO](/docs/head-and-seo).
+`HoistStylesheet` `"head"` area'sına yazar. `rc.Hoist(area, key, html)` ise adını
+verdiğiniz herhangi bir area'ya yazar. **Head'e içerik ekleyen bir plugin bu
+marker'a ihtiyaç duyar**: marker yoksa plugin'in içeriğinin gidecek yeri yoktur.
+Ayrıntılar için [Head ve SEO](/docs/head-and-seo) sayfasına bakın.
 
 ### asset
 
@@ -125,28 +128,28 @@ işaretçiye ihtiyaç duyar**: o olmadan içeriğinin gidecek yeri yoktur. Bkz.
 <img src="{{asset "/static/logo.svg"}}" alt="">
 ```
 
-Bir mount'taki dosyanın içerik adresli URL'sini döndürür: uzantıdan önce içeriğinin
-hash'i eklenmiş dosya yolu.
+Bir mount'taki dosyanın content-addressed URL'sini döner. Bu URL, dosyanın path'ine
+uzantıdan hemen önce içeriğinin hash'i eklenerek elde edilir.
 
 ```text
 /static/app.css  →  /static/app.41014ebb6c2d9f07.css
 ```
 
-Baytlardan türetilen bir ad yalnızca o baytları ifade edebilir; onu bir yıllık,
-`immutable` bir ömürle sunmayı güvenli kılan da budur: değişen bir dosya, değişen
-bir addır ve eskisi bir daha asla istenmez.
+Byte'lardan türetilen bir ad yalnızca o byte'ları ifade edebilir. Dosyayı bir yıllık,
+`immutable` bir ömürle serve etmeyi güvenli kılan da budur: dosya değişirse adı da
+değişir ve eski ad bir daha hiç istenmez.
 
-- Yol, mount'un dosyayı sunduğu URL'dir; mount'un önekini de içerir.
-- **Var olmayan bir dosya bir URL değil, hatadır**: `ErrUnknownAsset`. Alternatifi,
-  sorunsuz render edilen ama 404 veren bir stil dosyasına bağlantı veren bir
-  sayfadır.
-- Hiçbir mount'un sunmadığı bir yol ya da hiç mount'u olmayan bir uygulama da
-  `ErrUnknownAsset`'tir — hiçbir mount'un öneki yolu kapsamıyorsa
-  `ErrNoMountForAsset`'i sarmalar.
-- Statik dışa aktarma, sayfaların istediği parmak izli kopyaların tam olarak
-  kendisini, orijinallerin yanına yazar.
+- Path, mount'un dosyayı serve ettiği URL'dir ve mount'un prefix'ini de içerir.
+- **Var olmayan bir dosya bir URL değil, hata üretir**: `ErrUnknownAsset`. Aksi
+  hâlde page sorunsuz render edilir, ama 404 veren bir stylesheet'e link verirdi.
+- Hiçbir mount'un serve etmediği bir path ya da hiç mount'u olmayan bir uygulama da
+  `ErrUnknownAsset` üretir. Hiçbir mount'un prefix'i path'i kapsamıyorsa bu hata
+  `ErrNoMountForAsset`'i wrap eder.
+- Static export, orijinallerin yanına yalnızca page'lerin istediği fingerprint'li
+  kopyaları yazar.
 
-Go'dan `rc.Asset(path)` aynı URL'yi döndürür. Bkz. [Statik dosyalar](/docs/assets).
+Go tarafında `rc.Asset(path)` aynı URL'yi döner. Ayrıntılar için
+[Static asset'ler](/docs/assets) sayfasına bakın.
 
 ### stylesheet
 
@@ -154,22 +157,22 @@ Go'dan `rc.Asset(path)` aynı URL'yi döndürür. Bkz. [Statik dosyalar](/docs/a
 {{stylesheet "/static/gallery.css"}}
 ```
 
-Bu fragment'in bir stil dosyasına ihtiyaç duyduğunu bildirir ve çağrıldığı yerde
-hiçbir şey render etmez. Sayfanın head'i, layout'un `{{hoist "head"}}` çağırdığı
-yerde, dosyanın [`asset`](#asset) URL'siyle bir
-`<link rel="stylesheet" href="…">` alır.
+Bu fragment'in bir stylesheet'e ihtiyaç duyduğunu tanımlar ve çağrıldığı yerde
+hiçbir şey render etmez. Layout'un `{{hoist "head"}}` çağırdığı yerde, page'in
+head'ine dosyanın [`asset`](#asset) URL'siyle bir
+`<link rel="stylesheet" href="…">` eklenir.
 
-Böylece bir fragment, nerede kullanılırsa kullanılsın kendi stillerini
-beraberinde taşıyabilir:
+Böylece bir fragment, nerede kullanılırsa kullanılsın kendi stillerini yanında
+taşıyabilir:
 
 ```html
 {{stylesheet "/static/gallery.css"}}
 <div class="gallery">…</div>
 ```
 
-Bildirim yola göre anahtarlanır; dolayısıyla birkaç fragment'in istediği bir stil
-dosyası bir kez görünür. `asset` ile aynı koşullarda başarısız olur. Go'dan
-karşılığı `rc.HoistStylesheet(path)`'tir.
+Tanım path'e göre key'lenir. Bu yüzden birkaç fragment'in istediği bir
+stylesheet head'de yalnızca bir kez yer alır. `stylesheet`, `asset` ile aynı
+durumlarda başarısız olur. Go tarafındaki karşılığı `rc.HoistStylesheet(path)`'tir.
 
 ### csrfToken
 
@@ -181,30 +184,30 @@ karşılığı `rc.HoistStylesheet(path)`'tir.
 </form>
 ```
 
-Bir formun istek sahteciliği token'ını taşıyan gizli input'u render eder:
+Form'un request forgery token'ını taşıyan hidden input'u render eder:
 
 ```html
 <input type="hidden" name="_csrf" value="…">
 ```
 
-Çıplak değer değil de bütün bir input, çünkü çıplak değerin tam olarak doğru adı
-taşıyan bir alana konması gerekir ve adı yanlış yazan bir form, nedenini açıklayan
-hiçbir şey olmadan reddedilir.
+Yalnızca değeri değil de input'un tamamını render etmesinin bir nedeni var. Değerin
+tam olarak doğru ada sahip bir field'a konması gerekir. Field adını yanlış yazan bir
+form ise nedenini açıklayan hiçbir şey olmadan reddedilir.
 
-Render sırasında yazılan değer bir yer tutucudur. Yanıt yazılırken her okuyucunun
-kendi token'ıyla değiştirilir; **önbellekteki** bir sayfanın form taşıyabilmesinin
-nedeni de budur: önbellekteki baytlar yer tutucuyu tutar ve her okuyucu kendi
-token'ını alır.
+Render sırasında yazılan değer bir placeholder'dır. Response yazılırken bu
+placeholder her okuyucunun kendi token'ıyla değiştirilir. **Cache'lenmiş** bir
+page'in form taşıyabilmesinin nedeni budur: cache'teki byte'larda placeholder durur
+ve her okuyucu kendi token'ını alır.
 
-- `Security.DisableCSRF` ayarlıyken `csrfToken`, render'ı `ErrCSRFDisabled` ile
-  başarısız kılar: aksi hâlde token bekleyen bir form token'sız render edilirdi.
-- `Security.CSRFFieldName` başka bir şey söylemedikçe alanın adı `_csrf`'tir ve her
-  iki durumda da doğrulayıcının okuduğu ad budur; dolayısıyla adı değiştirilmiş bir
-  alan şablonda hiçbir değişiklik gerektirmez.
-- Statik dışa aktarmada token koyacak bir sunucu yoktur; bu yüzden token taşıyan
-  bir sayfa dışa aktarılmaz ve rapor nedenini söyler.
+- `Security.DisableCSRF` set edildiğinde `csrfToken`, render'ı `ErrCSRFDisabled` ile
+  başarısız kılar. Aksi hâlde token bekleyen bir form token'sız render edilirdi.
+- `Security.CSRFFieldName` farklı bir ad belirtmedikçe field'ın adı `_csrf`'tir.
+  Verifier da her iki durumda bu adı okur. Bu yüzden field'ın adını değiştirdiğinizde
+  template'te bir şey değiştirmeniz gerekmez.
+- Static export'ta token'ı yerleştirecek bir sunucu yoktur. Bu yüzden token taşıyan
+  bir page export edilmez ve rapor bunun nedenini belirtir.
 
-Bkz. [Formlar ve action'lar](/docs/forms-and-actions).
+Ayrıntılar için [Form'lar ve action'lar](/docs/forms-and-actions) sayfasına bakın.
 
 ### pageURL
 
@@ -214,31 +217,31 @@ Bkz. [Formlar ve action'lar](/docs/forms-and-actions).
 <link rel="alternate" type="application/rss+xml" href="{{pageURL "feed"}}">
 ```
 
-`name` altında kaydedilmiş sayfanın ya da document'ın URL'sini, yol pattern'ini
-`param value` çiftleriyle doldurarak döndürür. Ada göre bağlantı vermek, bir
-sayfanın yolu değiştiğinde bağlantının da onu izlemesi demektir.
+`name` altında register edilmiş page'in ya da document'ın URL'sini döner. Path
+pattern'ini `param value` çiftleriyle doldurur. Ada göre link vermek, bir page'in
+path'i değiştiğinde link'in de onu takip etmesini sağlar.
 
-- **Bu render'ın locale'inde.** Türkçe bir sayfada `pageURL "blog-post"` Türkçe
-  yoldur. Geçerli locale'de yolu olmayan bir route, onun yerine varsayılan
-  locale'deki yoluna bağlanır; böylece yalnızca İngilizce olan bir sayfaya bağlantı
-  veren Türkçe bir sayfa yine de render edilir.
-- **Katı.** Bilinmeyen bir ad (`ErrUnknownRoute`), tek sayıda parametre argümanı,
-  eksik ya da boş bir parametre veya pattern'de yer tutucusu olmayan bir parametre
-  (`ErrRouteParams`) render'ı başarısız kılar. Kurulamayan bir bağlantı, okuyucu
-  için bir 404 değil, geliştirme sırasında bulunacak bir hatadır.
-- **Değerler metindir** ve kaçışlanır. Tarayıcının bir yol adımı olarak
-  çözümleyeceği `.` ya da `..` değeri reddedilir. Bir sayıyı `printf` üzerinden
-  geçirin:
+- **Bu render'ın locale'inde çalışır.** Türkçe bir page'de `pageURL "blog-post"`
+  Türkçe path'i döner. Geçerli locale'de path'i olmayan bir route için bunun yerine
+  varsayılan locale'deki path'e link verilir. Böylece yalnızca İngilizce olan bir
+  page'e link veren Türkçe bir page yine de render edilir.
+- **Katıdır.** Bilinmeyen bir ad (`ErrUnknownRoute`) render'ı başarısız kılar. Tek sayıda
+  parametre argümanı, eksik ya da boş bir parametre ve pattern'de placeholder'ı
+  olmayan bir parametre de (`ErrRouteParams`) aynı sonucu verir. Oluşturulamayan bir
+  link, okuyucunun karşısına çıkan bir 404 değil, development'ta bulunması
+  gereken bir bug'dır.
+- **Değerler string'dir** ve escape edilir. Tarayıcının bir path adımı olarak
+  yorumlayacağı `.` ya da `..` değeri reddedilir. Bir sayıyı `printf` ile geçirin:
 
 ```html
 <a href="{{pageURL "user" "id" (printf "%d" .ID)}}">{{.Name}}</a>
 ```
 
-- Hem sayfa hem document olarak kaydedilmiş bir ad, tahmin edilmek yerine
+- Hem page hem document olarak register edilmiş bir ad için tahmin yürütülmez, ad
   reddedilir.
 
-Go'dan karşılığı `app.URL(name, locale, params)`'tır. Bkz.
-[Bağlantılar ve locale'ler](/docs/links-and-locales).
+Go tarafındaki karşılığı `app.URL(name, locale, params)`'tır. Ayrıntılar için
+[Link'ler ve locale'ler](/docs/links-and-locales) sayfasına bakın.
 
 ### pageURLIn
 
@@ -247,10 +250,11 @@ Go'dan karşılığı `app.URL(name, locale, params)`'tır. Bkz.
 <a href="{{pageURLIn "en" "blog-post" "slug" .Slug}}">Read in English</a>
 ```
 
-Tam olarak verilen locale'de, yedeksiz bir `pageURL`: o locale'de yolu olmayan bir
-route `ErrNoPathInLocale`'dir; hiçbir URL'nin ulaşamadığı bir locale — ya
-`Locale.Supported` içinde olmayan ya da `DisablePathLocale` ayarlıyken varsayılan
-dışındaki herhangi biri — `ErrLocaleUnreachable`'dır.
+`pageURL` ile aynı işi tam olarak verilen locale'de yapar ve fallback uygulamaz. O
+locale'de path'i olmayan bir route `ErrNoPathInLocale` üretir. Hiçbir URL'nin
+ulaşamadığı bir locale ise `ErrLocaleUnreachable` üretir. Böyle bir locale ya
+`Locale.Supported` içinde yoktur ya da `DisablePathLocale` set edildiğinde varsayılan
+dışındaki herhangi bir locale'dir.
 
 ### localeURL
 
@@ -259,17 +263,17 @@ dışındaki herhangi biri — `ErrLocaleUnreachable`'dır.
 {{with localeURL "tr"}}<a hreflang="tr" href="{{.}}">Türkçe</a>{{end}}
 ```
 
-Render edilen sayfanın, aynı yol parametreleriyle başka bir locale'deki hâli — bir
-dil değiştiricinin yapıldığı malzeme.
+Render edilen page'in aynı path parametreleriyle başka bir locale'deki URL'sini döner.
+Bir dil seçici bununla yapılır.
 
-- **O locale'de yolu olmayan bir sayfa hata değil, boş metindir**; böylece
-  `{{with}}`, sayfanın çevrilmediği bir dili atlar.
-- Hiçbir URL'nin ulaşamadığı bir locale yine de hatadır (`ErrLocaleUnreachable`):
-  bu eksik bir çeviri değil, şablondaki bir yanlıştır.
-- Bir sayfaya ait olmayan bir render'da başarısız olur.
-- Arama motorlarının okuduğu `<link rel="alternate" hreflang>` için bunları Go'dan
-  `rc.HoistAlternate` ile bildirin — bkz.
-  [Head ve SEO](/docs/head-and-seo#canonical-and-alternate-links).
+- **O locale'de path'i olmayan bir page hata değil, boş string döner.** Böylece
+  `{{with}}`, page'in çevrilmediği bir dili atlar.
+- Hiçbir URL'nin ulaşamadığı bir locale yine de hatadır (`ErrLocaleUnreachable`).
+  Çünkü bu eksik bir çeviri değil, template'teki bir hatadır.
+- Bir page'e ait olmayan bir render'da başarısız olur.
+- Arama motorlarının okuduğu `<link rel="alternate" hreflang>` etiketlerini Go
+  tarafında `rc.HoistAlternate` ile tanımlayın. Ayrıntılar için
+  [Head ve SEO](/docs/head-and-seo#canonical-and-alternate-links) sayfasına bakın.
 
 ### safeHTML
 
@@ -277,10 +281,10 @@ dil değiştiricinin yapıldığı malzeme.
 {{safeHTML .RenderedMarkdown}}
 ```
 
-Bir metni güvenilir HTML olarak işaretler; böylece `html/template` onu kaçışlamadan
-yerleştirir. Bu bir kaçış kapısıdır: yalnızca kendi ürettiğiniz ya da kendiniz
-temizlediğiniz işaretleme için kullanın, bir kullanıcının yazdığı hiçbir şey için
-asla kullanmayın.
+Bir string'i güvenilir HTML olarak işaretler. Böylece `html/template` onu escape
+etmeden yerleştirir. Bu bir kaçış yoludur: yalnızca kendi ürettiğiniz ya da kendiniz
+sanitize ettiğiniz markup için kullanın. Kullanıcının yazdığı hiçbir şey için
+kullanmayın.
 
 ### safeURL
 
@@ -288,9 +292,10 @@ asla kullanmayın.
 <a href="{{safeURL .ExternalLink}}">Visit</a>
 ```
 
-Bir metni güvenilir URL olarak işaretler ve `html/template`'in URL temizlemesini
-atlar — bu temizleme, aksi hâlde güvenmediği bir şemayı, örneğin `javascript:`'i,
-`#ZgotmplZ` ile değiştirir. Yalnızca doğruladığınız URL'ler için.
+Bir string'i güvenilir URL olarak işaretler ve `html/template`'in URL
+sanitization'ını devre dışı bırakır. Bu sanitization normalde güvenmediği bir
+scheme'i, örneğin `javascript:`'i, `#ZgotmplZ` ile değiştirir. Yalnızca validate
+ettiğiniz URL'ler için kullanın.
 
 ### dict
 
@@ -298,9 +303,10 @@ atlar — bu temizleme, aksi hâlde güvenmediği bir şemayı, örneğin `javas
 {{template "card" dict "Title" .Title "URL" (pageURL "post" "slug" .Slug)}}
 ```
 
-Bir alt şablona birkaç değer geçirmek için, sırayla gelen anahtar ve değerlerden bir
-`map` kurar. Anahtarlar metin olmalıdır (`ErrDictKeyNotString`) ve argümanlar çift
-çift gelmelidir (`ErrDictOddArgs`); iki yanlıştan her biri şablonu başarısız kılar.
+Sırayla gelen key ve value'lardan bir `map` oluşturur. Bir sub-template'e birden
+fazla değer geçirmek için kullanılır. Key'ler string olmalıdır
+(`ErrDictKeyNotString`) ve argümanlar çiftler hâlinde gelmelidir (`ErrDictOddArgs`).
+Bu hatalardan herhangi biri template'i başarısız kılar.
 
 ### default
 
@@ -309,9 +315,9 @@ Bir alt şablona birkaç değer geçirmek için, sırayla gelen anahtar ve değe
 <h2>{{.Subtitle | default "Untitled"}}</h2>
 ```
 
-`value`'yu, `value` boş metinse `fallback`'i döndürür. İki argüman da metindir —
-yedek önce gelir ki pipe'lı biçim doğal okunsun, çünkü bir pipeline değerini son
-argüman olarak geçirir.
+`value`'yu döner. `value` boş string ise `fallback`'i döner. İki argüman da
+string'dir. Fallback'in önce gelmesinin nedeni, pipe'lı kullanımın doğal okunmasıdır.
+Çünkü bir pipeline, değerini son argüman olarak geçirir.
 
 ### upper ve lower
 
@@ -320,7 +326,7 @@ argüman olarak geçirir.
 <code>{{lower .Code}}</code>
 ```
 
-`strings.ToUpper` ve `strings.ToLower`.
+`strings.ToUpper` ve `strings.ToLower` ile aynıdır.
 
 ### title
 
@@ -328,9 +334,9 @@ argüman olarak geçirir.
 <h1>{{title .Name}}</h1>
 ```
 
-Her kelimenin ilk harfini büyük, geri kalanını küçük harfe çevirir. Bir kelime
-harflerden oluşan kesintisiz bir dizidir; dolayısıyla harf olmayan her şey — bir
-boşluk, bir tire, bir kesme işareti — yeni bir kelime başlatır:
+Her kelimenin ilk harfini büyük, geri kalan harflerini küçük yapar. Bir kelime, art
+arda gelen harflerden oluşur. Bu yüzden harf olmayan her karakter, yani boşluk, tire
+ya da kesme işareti, yeni bir kelime başlatır:
 
 | Girdi | Çıktı |
 | --- | --- |
@@ -344,8 +350,8 @@ boşluk, bir tire, bir kesme işareti — yeni bir kelime başlatır:
 <p>Tags: {{join ", " .Tags}}</p>
 ```
 
-Ayırıcı önde olmak üzere `strings.Join(items, sep)`. `items` bir `[]string`
-olmalıdır.
+`strings.Join(items, sep)` ile aynıdır, yalnızca separator önce gelir. `items` bir
+`[]string` olmalıdır.
 
 ### formatTime
 
@@ -355,13 +361,13 @@ olmalıdır.
 </time>
 ```
 
-Bir [referans zamanı layout'u](https://pkg.go.dev/time#pkg-constants) ile
-`t.Format(layout)`. `t` bir `time.Time`'dır. Taşıdığı konum neyse o konumda
-biçimlendirilir; başka bir konum istiyorsanız data handler'da dönüştürün.
+[Reference time layout'u](https://pkg.go.dev/time#pkg-constants) ile
+`t.Format(layout)` çağırır. `t` bir `time.Time`'dır. Zaman, taşıdığı location'a göre
+formatlanır. Başka bir location istiyorsanız zamanı data handler'da dönüştürün.
 
 ## Kendi fonksiyonlarınızı eklemek
 
-Fonksiyonları `New`'dan önce `Config.Template.Funcs` ile ekleyin:
+Fonksiyonlarınızı `New`'dan önce `Config.Template.Funcs` ile ekleyin:
 
 ```go
 app, err := collage.New(&collage.Config{
@@ -376,15 +382,16 @@ app, err := collage.New(&collage.Config{
 })
 ```
 
-Yerleşik fonksiyonların üzerine birleştirilirler; dolayısıyla yerleşik bir adı
-taşıyan girdi — her render'da bağlananlar dışında — onun yerini alır. `New`'dan
-önce orada olmaları gerekir, çünkü `html/template` yalnızca şablon ayrıştırılırken
-fonksiyon map'inde bulunan bir adı çağırabilir; kimsenin kaydetmediği bir adı
-çağıran şablon ilk istekte değil, `New`'da başarısız olur.
+Bu fonksiyonlar built-in'lerin üzerine merge edilir. Bu yüzden built-in bir adı
+taşıyan entry, o built-in'in yerini alır. Her render'da bağlanan fonksiyonlar bunun
+dışındadır. Fonksiyonların `New`'dan önce tanımlı olması gerekir, çünkü
+`html/template` yalnızca template parse edilirken function map'te bulunan bir adı
+çağırabilir. Kimsenin register etmediği bir adı çağıran template, ilk request'te
+değil, `New`'da hata verir.
 
-Bir plugin de fonksiyonları aynı şekilde, `Configure` aşamasından ekler; aynı adı
-taşıyan uygulama girdisi kazanır. Bkz.
-[Plugin yazmak](/docs/writing-plugins#template-functions).
+Bir plugin de fonksiyonları aynı şekilde, `Configure` aşamasında ekler. Aynı adı
+taşıyan bir entry uygulamada da varsa uygulamanınki geçerli olur. Ayrıntılar için
+[Plugin yazmak](/docs/writing-plugins#template-functions) sayfasına bakın.
 
-İsteğe ihtiyaç duyan her şeyin yeri bir fonksiyon değil, bir data handler'dır:
-sayfanın verisi zaten oradan gelir.
+Request'e ihtiyaç duyan her şey bir fonksiyona değil, bir data handler'a aittir.
+Page'in verisi de zaten oradan gelir.

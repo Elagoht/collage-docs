@@ -1,12 +1,13 @@
 ---
-description: Stil dosyalarını, script'leri, görselleri ve indirmeleri bir dizinden ya da gömülü bir dosya sisteminden, bir yıl önbellekte tutulabilen URL'lerle sunmak.
+description: Stylesheet'leri, script'leri, görselleri ve indirilecek dosyaları bir dizinden ya da gömülü bir dosya sisteminden, bir yıl boyunca cache'lenebilen URL'lerle sunmak.
+reference: Mount, MountOption, WithCacheControl, WithoutBuildCopy, ErrUnknownAsset
 ---
 
-# Statik dosyalar
+# Static asset'ler
 
-Stil dosyaları, script'ler, görseller, font'lar ve indirmeler bir **asset
-mount**'u tarafından sunulur: bir URL önekinin altında, dosya olarak sunulan bir
-dosya sistemi.
+Stylesheet'ler, script'ler, görseller, font'lar ve indirilecek dosyalar bir **asset
+mount** tarafından sunulur. Asset mount, bir URL prefix'i altında sunulan bir dosya
+sistemidir ve içindekileri dosya olarak sunar.
 
 ```go
 root, err := os.OpenRoot("static")
@@ -18,43 +19,45 @@ if err := app.Mount("/static/", root.FS()); err != nil {
 }
 ```
 
-`app.Mount` herhangi bir `fs.FS` alır; bu da önemli olan iki kaynağı kapsar:
-diskteki bir dizin ve binary'nin içine derlenmiş bir `embed.FS`. `static/app.css`
-artık `/static/app.css`'tir.
+`app.Mount` herhangi bir `fs.FS` kabul eder. Böylece önemli olan iki kaynağın ikisi
+de kapsanır: diskteki bir dizin ve binary'nin içine derlenmiş bir `embed.FS`.
+Artık `static/app.css` dosyası `/static/app.css` adresinden sunulur.
 
-Mount'lar sayfa değildir. [Sayfa önbelleğine](/docs/caching) hiç girmezler,
-etiketlenmezler ve `InvalidateTags` onlara ulaşmaz. Sayfalara göre boyutlandırılmış
-bir önbellekteki 50 MB'lık bir video, binlerce sayfayı dışarı iterdi; bu yüzden
+Mount'lar page değildir. [Page cache](/docs/caching)'e hiç girmezler, tag
+almazlar ve `InvalidateTags` onlara ulaşmaz. Page'lere göre boyutlandırılmış bir
+cache'e 50 MB'lık bir video girseydi, binlerce page'i dışarı iterdi. Bu yüzden
 dosyalar dosya olarak sunulur.
 
 ## os.DirFS değil, os.OpenRoot kullanın
 
-`os.DirFS`, bir dizini sunmanın akla gelen ilk yolu gibi görünür ve internet için
-yanlış olanıdır. Kendi belgeleri, sembolik bağlantı üzerinden dizin dışına çıkmayı
-engellemediğini söyler: dizinin içinde olup dışını gösteren bir sembolik bağlantı
-izlenir ve gösterdiği şey her neyse sunulur.
+Bir dizini sunmanın akla gelen ilk yolu `os.DirFS` gibi görünür, ama internete açık
+bir sunucu için yanlış yoldur. Kendi dokümantasyonu, symlink traversal'ı
+engellemediğini söyler. Dizinin içinde olup dışını gösteren bir symlink takip
+edilir ve gösterdiği şey her neyse sunulur.
 
-`os.OpenRoot` ise işletim sistemi tarafından uygulanır. Açtığı her yol, tuttuğu
-dizinin içinde çözümlenir ve dizinden çıkan bir sembolik bağlantı hiç açılamaz.
-Go'da 1.24'ten beri vardır.
+`os.OpenRoot` ise bu sınırı işletim sistemi düzeyinde uygular. Açtığı her path,
+tuttuğu dizinin içinde çözümlenir. Dizinin dışına çıkan bir symlink ise hiç
+açılamaz. `os.OpenRoot`, Go 1.24'ten beri vardır.
 
-collage bu açığı sizin yerinize kapatamaz. Kendisine bir `fs.FS` verilir ve onun
-üzerinde `Open`'ı çağırır; dosya sisteminin kendi dizini içinde kalıp kalmadığı,
-dosya sisteminin bir özelliğidir. collage'ın yaptığı şey, `Open` çağrılmadan önce
-URL'deki yolu `path.Clean` ile temizlemektir. Mount'un içinde kalan bir `..` ya da
-`.` normalleştirilir ve sunulur — `/static/css/../app.css`, `/static/app.css`'tir —
-mount'un dışına tırmanan bir yol ya da boş bir parçayla başlayan bir yol
-(`/static//…`) ise `404` ile reddedilir. Bu, URL'de yazılmış bir dizin dışına çıkma
-girişimini durdurur; diskteki sembolik bağlantılarla kurulmuş olanı değil.
+collage bu açığı sizin yerinize kapatamaz. collage'a bir `fs.FS` verilir ve collage
+onun üzerinde `Open`'ı çağırır. Dosya sisteminin kendi dizini içinde kalıp
+kalmaması, dosya sisteminin bir özelliğidir. collage'ın yaptığı şey şudur: `Open`
+çağrılmadan önce URL'deki path'i `path.Clean` ile temizler. Mount'un içinde kalan
+bir `..` ya da `.` normalize edilir ve dosya sunulur; örneğin
+`/static/css/../app.css`, `/static/app.css` olarak ele alınır. Mount'un dışına
+çıkan bir path ya da boş bir elemanla başlayan bir path (`/static//…`) ise `404`
+ile reddedilir. Bu kontrol URL'ye yazılmış bir traversal'ı durdurur, ama diskteki
+symlink'lerle kurulmuş bir traversal'ı durdurmaz.
 
-`*os.Root`'u sürecin ömrü boyunca açık tutun: dosya sistemi her isteği sunar.
+`*os.Root`'u process boyunca açık tutun, çünkü onun dosya sistemi her request'i
+sunar.
 
-### Gömmek
+### Embed etmek
 
-Bir `embed.FS`'te sembolik bağlantı yoktur ve yapısı gereği güvenlidir. Ayrıca
-binary'nin herhangi bir çalışma dizininden çalışmasını sağlar. Dizin adını çıkarmak
-için `fs.Sub` kullanın; aksi hâlde stil dosyası `/static/static/app.css` adresinde
-yanıt verir:
+Bir `embed.FS` içinde symlink yoktur, dolayısıyla yapısı gereği güvenlidir. Ayrıca
+binary'nin herhangi bir çalışma dizininden çalışabilmesini sağlar. Dizin adını
+çıkarmak için `fs.Sub` kullanın. Aksi hâlde stylesheet `/static/static/app.css`
+adresinden sunulur:
 
 ```go
 //go:embed all:static
@@ -69,9 +72,9 @@ func mountAssets(app *collage.App) error {
 }
 ```
 
-Geliştirmede ise bunun yerine diskteki dizini istersiniz — gömülü kopya binary
-derlendiğinde sabitlenmiştir, dolayısıyla bir dosyayı düzenlemek hiçbir şeyi
-değiştirmezdi. İskeleti oluşturulmuş bir proje bunu yapar:
+Development'ta ise diskteki dizini kullanmak istersiniz. Gömülü kopya
+binary build edildiği anda sabitlenmiştir, bu yüzden bir dosyayı düzenlemek hiçbir
+şeyi değiştirmez. Scaffold edilmiş bir proje bunu şöyle yapar:
 
 ```go
 func staticFiles(devMode bool) (fs.FS, error) {
@@ -84,56 +87,58 @@ func staticFiles(devMode bool) (fs.FS, error) {
 }
 ```
 
-collage bu seçimi şablonlar için kendisi yapar, çünkü `Template.Root` ona
-şablonların diskte nerede olduğunu söyler. Bir mount'a ise yalnızca bir `fs.FS`
-verilir; dosyalarının nereden geldiğini yalnızca sizin kodunuz bilir.
+collage bu seçimi template'ler için kendisi yapar, çünkü `Template.Root`
+template'lerin diskte nerede olduğunu ona söyler. Bir mount'a ise yalnızca bir
+`fs.FS` verilir. Dosyalarının nereden geldiğini yalnızca sizin kodunuz bilir.
 
-## İçerik adresli URL'ler
+## Content-addressed URL'ler
 
-Mount edilmiş bir dosyaya yolunu yazarak değil, `asset` ile bağlantı verin:
+Mount edilmiş bir dosyaya link verirken path'ini elle yazmayın, `asset` kullanın:
 
 ```html
 <link rel="stylesheet" href="{{asset "/static/app.css"}}">
 <script src="{{asset "/static/app.js"}}" defer></script>
 ```
 
-Sayfaya giren, içinde içeriğinin hash'i bulunan dosya adıdır:
+Page'e yazılan şey, içinde dosya içeriğinin hash'i bulunan bir dosya adıdır:
 
 ```html
 <link rel="stylesheet" href="/static/app.0d5f2b53aebf6c72.css">
 ```
 
-ve bu URL şununla sunulur:
+Bu URL şu header ile sunulur:
 
 ```
 Cache-Control: public, max-age=31536000, immutable
 ```
 
-— bir yıl ve hiç değişmeyeceğine dair bir söz. Söz dürüsttür, çünkü ad baytlardan
-gelir: dosya değiştiğinde ad değişir, sayfalar yenisine bağlantı verir ve eski URL
-bir daha hiç istenmez. Tarayıcılar ve CDN'ler dosyayı bir yıl tutar ve hiç yeniden
-doğrulamaz; kimseye de sayfayla uyuşmayan bir stil dosyası sunulmaz.
+Bu header bir yıl anlamına gelir ve dosyanın hiç değişmeyeceğine dair bir söz
+verir. Söz dürüsttür, çünkü ad byte'lardan türetilir. Dosya değiştiğinde ad da
+değişir, page'ler yeni ada link verir ve eski URL bir daha hiç istenmez.
+Tarayıcılar ve CDN'ler dosyayı bir yıl boyunca tutar ve hiç revalidate etmez.
+Kimseye de page ile uyuşmayan bir stylesheet sunulmaz.
 
-Düz bir ad hiçbir süreyle bu şekilde önbelleğe alınamaz. Er ya da geç birine
-bugünün HTML'iyle dünün stil dosyasını verir.
+Düz bir ad ise hangi süreyle olursa olsun bu şekilde cache'lenemez. Er ya da geç
+birine bugünün HTML'iyle birlikte dünün stylesheet'ini verir.
 
 Üç ayrıntı:
 
-- **Var olmayan bir dosya bir URL değil, bir hatadır.** `{{asset
-  "/static/typo.css"}}` fragment'i `collage.ErrUnknownAsset` ile başarısız kılar.
-  Alternatifi, 404 veren bir stil dosyasına bağlantı verirken "başarıyla" render
-  edilen bir sayfadır.
-- **İstekteki hash denetlenir.** Hash'i dosyanın güncel hash'i olmayan bir URL,
-  dosya değil 404 döner. Onu sunmak, paylaşılan bir önbelleğin arkasındaki herkesin
-  önüne bir yıl boyunca yanlış bir yanıt çakmak olurdu.
-- **Düz adlar yine çalışır.** `/static/app.css` de sunulur; mount'un kendi, daha
-  kısa `Cache-Control`'üyle. Bir URL'nin aynı kalması gereken yerlerde kullanın —
-  sitenin dışından başvurulan bir favicon, bir e-postadan bağlantı verilen bir dosya.
+- **Var olmayan bir dosya URL üretmez, hata üretir.** `{{asset
+  "/static/typo.css"}}`, fragment'in `collage.ErrUnknownAsset` ile başarısız olmasına
+  yol açar. Aksi hâlde page "başarıyla" render edilir, ama 404 dönen bir
+  stylesheet'e link verir.
+- **Request'teki hash kontrol edilir.** Hash'i dosyanın güncel hash'iyle
+  eşleşmeyen bir URL, dosyayı değil 404 döner. O dosyayı sunmak, shared cache'in
+  arkasındaki herkese bir yıl boyunca yanlış bir cevabı sabitlemek olurdu.
+- **Düz adlar da çalışır.** `/static/app.css` de sunulur, ama mount'un kendi, daha
+  kısa `Cache-Control` değeriyle. URL'nin sabit kalması gereken yerlerde bunu
+  kullanın. Örneğin site dışından referans verilen bir favicon ya da bir
+  e-postadan link verilen bir dosya için.
 
 ### Go'dan
 
-URL'ye ihtiyaç duyan bir data handler — bir Open Graph görseli, bir preload ipucu
-için — render context'e sorar:
+URL'ye ihtiyaç duyan bir data handler, örneğin bir Open Graph görseli ya da bir
+preload hint'i için, URL'yi render context'ten ister:
 
 ```go
 cover, err := rc.Asset("/static/covers/" + post.Slug + ".jpg")
@@ -143,12 +148,12 @@ if err != nil {
 rc.HoistProperty("og:image", siteOrigin+cover)
 ```
 
-`rc.Asset`, tam olarak `{{asset}}`'in render ettiğini döndürür; hiçbir mount'un
-sunmadığı bir yol için ise `collage.ErrUnknownAsset` döner. v0.10.0'dan itibaren
-bir [document'ın](/docs/documents#the-handler) handler'ında da çalışır — bir web
-manifest'indeki bir ikon URL'si gibi. Stil dosyaları için `rc.HoistStylesheet` ve
-`{{stylesheet}}`, aramayı ve `<link>`'i tek adımda yapar — bkz.
-[Head ve SEO](/docs/head-and-seo).
+`rc.Asset`, `{{asset}}`'in render ettiği değerin aynısını döner. Hiçbir mount'un
+sunmadığı bir path için `collage.ErrUnknownAsset` döner. v0.10.0'dan beri bir
+[document'ın](/docs/documents#the-handler) handler'ında da çalışır; örneğin bir web
+manifest'indeki icon URL'si için. Stylesheet'ler için `rc.HoistStylesheet` ve
+`{{stylesheet}}`, lookup'ı ve `<link>`'i tek adımda yapar. Ayrıntılar için
+[Head ve SEO](/docs/head-and-seo) sayfasına bakın.
 
 ## Seçenekler
 
@@ -161,100 +166,102 @@ err := app.Mount("/media/", media.FS(),
 
 | Seçenek | Etkisi |
 | --- | --- |
-| `collage.WithCacheControl(value)` | Düz adlarıyla istenen dosyalar için `Cache-Control`. Varsayılanı `public, max-age=3600` |
-| `collage.WithoutBuildCopy()` | [Statik dışa aktarma](/docs/static-export) bu mount'u çıktısına kopyalamaz |
+| `collage.WithCacheControl(value)` | Düz adlarıyla istenen dosyalar için `Cache-Control` değeri. Varsayılanı `public, max-age=3600` |
+| `collage.WithoutBuildCopy()` | [Static export](/docs/static-export) bu mount'u çıktısına kopyalamaz |
 
-`WithCacheControl` yalnızca düz adlarla ilgilidir; içerik adresli URL'ler her zaman
+`WithCacheControl` yalnızca düz adları etkiler. Content-addressed URL'ler her zaman
 bir yıl ve `immutable` ile sunulur, çünkü adları bunu hak eder. Düz bir adın ne
-kadar tutulabileceği, altındaki dosyanın ne sıklıkla değiştiğine bağlıdır ve bunu
-yalnızca siz bilirsiniz — bu yüzden ayarlamak size kalmıştır.
+kadar süre tutulabileceği, o adın altındaki dosyanın ne sıklıkla değiştiğine
+bağlıdır. Bunu yalnızca siz bilirsiniz, bu yüzden ayarlamak da size kalır.
 
-`WithoutBuildCopy`, production'ın başka bir yerden, örneğin bir CDN'den sunduğu ya
-da her build'e kopyalanamayacak kadar büyük olan bir mount içindir.
+`WithoutBuildCopy`, production'da başka bir yerden (örneğin bir CDN'den) sunulan
+ya da her build'e kopyalanamayacak kadar büyük olan bir mount içindir.
 
-## Bir dosya yanıtı neler içerir
+## Bir dosya response'u neleri içerir
 
-Bir mount, `http.FileServer` değil, `fs.Open` ve Go'nun `http.ServeContent`'i
-üzerinde ince bir katmandır:
+Bir mount, `http.FileServer` üzerine değil, `fs.Open` ve Go'nun
+`http.ServeContent`'i üzerine kurulmuş ince bir katmandır:
 
 | | |
 | --- | --- |
-| Metotlar | `GET` ve `HEAD`. Başka her şey `Allow: GET, HEAD` ile bir `405`'tir |
-| `Content-Type` | Dosya uzantısından; olmazsa ilk 512 bayt koklanarak |
-| `ETag` | Dosya içeriğinin güçlü bir hash'i; ilk istekte hesaplanır ve hatırlanır |
+| Method'lar | `GET` ve `HEAD`. Diğer her method `Allow: GET, HEAD` ile birlikte `405` alır |
+| `Content-Type` | Dosya uzantısından belirlenir. Belirlenemezse ilk 512 byte sniff edilir |
+| `ETag` | Dosya içeriğinin strong hash'idir. İlk request'te hesaplanır ve hatırlanır |
 | `Range` | `If-Range` ve `206 Partial Content` ile desteklenir |
-| Dizinler | Hiçbir zaman listelenmez. Bir dizin ya da çıplak önek bir 404'tür |
+| Dizinler | Hiçbir zaman listelenmez. Bir dizin ya da yalnızca prefix 404 döner |
 | `index.html` | Hiçbir zaman örtük olarak sunulmaz |
-| Eksik bir dosya | Düz metin bir `404`, `no-store` — asla sizin HTML bulunamadı sayfanız değil |
+| Olmayan bir dosya | Düz metin bir `404`, `no-store` ile döner. Sizin HTML not-found page'iniz asla dönmez |
 
-**`Range` istekleri**, bir tarayıcının bir ses ya da video dosyasında baştan çekmeden
-ileri sarmasını ya da bir indirmeye kaldığı yerden devam etmesini sağlar.
-`http.ServeContent`'ten gelirler ve dosyaların, gövdeleri bellekte bütün olarak
-üretilen [document'lardan](/docs/documents) ayrı bir mekanizma olmasının nedeni de
-onlardır.
+**`Range` request'leri**, tarayıcının bir ses ya da video dosyasında dosyayı baştan
+indirmeden ileri sarabilmesini ya da bir indirmeye kaldığı yerden devam
+edebilmesini sağlar. Bu destek `http.ServeContent`'ten gelir. Dosyaların
+[document'lardan](/docs/documents) ayrı bir mekanizma olmasının nedeni de budur,
+çünkü document'ların body'si bellekte bir bütün olarak üretilir.
 
-**ETag bir içerik hash'idir**, çünkü bir Go programında statik dosyaların en yaygın
-kaynağı olan `embed.FS`, her dosya için sıfır değişiklik zamanı bildirir — dolayısıyla
-`Last-Modified` ve boyut-tarih doğrulaması onun için hiç çalışmaz. Dosya değil,
-yalnızca hash hatırlanır; bu yüzden harcadığı bellek dosyaların boyutuyla değil,
-sayısıyla büyür.
+**ETag bir içerik hash'idir.** Bunun nedeni, bir Go programında asset'lerin en
+yaygın kaynağı olan `embed.FS`'in her dosya için sıfır modification time
+bildirmesidir. Bu yüzden `Last-Modified` ve boyut ile tarihe dayalı validation
+onun için hiç çalışmaz. Dosyanın kendisi değil, yalnızca hash'i hatırlanır. Bu
+yüzden harcanan bellek dosyaların boyutuyla değil, sayısıyla artar.
 
-Eksik bir stil dosyası bilerek sitenizin bulunamadı sayfasını değil, düz metin bir
-404 alır: CSS isteyen bir tarayıcıya verilen bir HTML hata sayfası, hangi yönden
-bakılsa bir hatadır.
+Olmayan bir stylesheet için sitenizin not-found page'i yerine düz metin bir 404
+dönmesi bilinçli bir tercihtir. CSS isteyen bir tarayıcıya HTML bir error page
+vermek, hangi taraftan bakılırsa bakılsın bir hatadır.
 
-## Önekler ve route'lar
+## Prefix'ler ve route'lar
 
-Bir önek `/` ile başlamalı ve bitmelidir; tek başına `/` olamaz — kökteki bir mount
-her sayfayı yutardı (`collage.ErrInvalidPrefix`). Nil bir dosya sistemi
-`collage.ErrNilFS`'tir.
+Bir prefix `/` ile başlamalı ve `/` ile bitmelidir. Prefix tek başına `/` olamaz,
+çünkü kökteki bir mount bütün page'leri yutardı (`collage.ErrInvalidPrefix`). Nil
+bir dosya sistemi `collage.ErrNilFS` hatasını verir.
 
-Bir mount'un öneki altındaki bir isteğe mount yanıt verir ve istek router'a hiç
-ulaşmaz. Bu güvenlidir, çünkü başlangıç, bir sayfanın, document'ın ya da
-yönlendirmenin zaten yanıt verdiği bir URL'yi gizleyecek bir öneki reddeder —
-locale önekli olanlar dahil; dolayısıyla Türkçe sayfaları olan bir sitede `/tr/`
-adresindeki bir mount başarısız olur (`collage.ErrMountShadowsRoute`). Önekleri
-örtüşen iki mount da reddedilir (`collage.ErrMountConflict`). İki denetim de kayıt
-kapandığında çalışır; bu yüzden `Mount` ve `RegisterPage`'i hangi sırayla
-çağırdığınızın önemi yoktur.
+Bir mount'un prefix'i altına düşen bir request'e mount cevap verir ve request
+router'a hiç ulaşmaz. Bu güvenlidir, çünkü uygulama başlarken bir page'in,
+document'ın ya da redirect'in zaten cevap verdiği bir URL'yi gölgeleyecek bir
+prefix reddedilir. Locale prefix'li URL'ler de buna dahildir. Örneğin Türkçe
+page'leri olan bir sitede `/tr/` altındaki bir mount başarısız olur
+(`collage.ErrMountShadowsRoute`). Prefix'leri çakışan iki mount da reddedilir
+(`collage.ErrMountConflict`). İki kontrol de register aşaması kapandığında çalışır. Bu
+yüzden `Mount` ve `RegisterPage`'i hangi sırayla çağırdığınızın bir önemi yoktur.
 
-Denetim önekleri kayıtlı pattern'lerle karşılaştırır; bu yüzden önekin üstündeki
-her şeyi yakalayan bir pattern'i göremez: `/{rest...}` adresindeki bir sayfa
-`/static/…` ile de eşleşirdi ve bu URL'leri mount alır. Bir öneki sahiplenmenin
-bedeli budur.
+Bu kontrol prefix'leri register edilmiş pattern'lerle karşılaştırır. Bu yüzden prefix'in
+üst seviyesindeki bir catch-all'u göremez. Örneğin `/{rest...}` adresindeki bir
+page `/static/…` ile de eşleşirdi, ama bu URL'leri mount alır. Bir prefix'i
+sahiplenmenin bedeli budur.
 
-## Geliştirmede
+## Development'ta
 
-İçerik adresli bir URL ile düzenlemekte olduğunuz bir dosya birbiriyle çelişir.
-Geliştirme dışında hash bir kez hesaplanır ve hatırlanır, URL de bir yıl için söz
-verilir; çalışan bir sürecin altında dosyayı düzenlerseniz sayfa, tarayıcıya hiç
-değişmeyeceği söylenmiş olan eski ada bağlantı vermeye devam ederdi.
+Content-addressed bir URL ile düzenlemekte olduğunuz bir dosya birbiriyle çelişir.
+Development dışında hash bir kez hesaplanır ve hatırlanır, URL için de bir yıllık
+söz verilir. Çalışan bir process'in altında dosyayı düzenlerseniz page eski ada
+link vermeye devam ederdi. Oysa tarayıcıya o adın hiç değişmeyeceği söylenmiştir.
 
-Bu yüzden `DevMode` açıkken her mount, bir dosyanın hash'ini her istekte yeniden
-hesaplar ve her şeyi `no-store` ile sunar. Düzenlenen bir dosya yeni bir URL alır,
-sayfa ona bağlantı verir ve tarayıcı onu çeker — geliştirmedeki yenileme script'i de
-mount edilmiş bir dosya değiştiğinde sayfayı yeniler. (Handler'larınızın okuduğu
-Markdown gibi mount edilmemiş bir dizin,
-[`Config.DevWatch`](/docs/configuration#devwatch) içinde belirtildiğinde sayfayı
-yeniler.) Geliştirme dışında, diskte değişen bir dosya, süreç yeniden başlatılana
-kadar hatırlanan hash'ini korur: mount'lar, çalışan bir sunucunun altında
-düzenlenen dosyalar için değil, yayına alınan dosyalar içindir.
+Bu yüzden `DevMode` açıkken her mount, bir dosyanın hash'ini her request'te
+yeniden hesaplar ve her şeyi `no-store` ile sunar. Düzenlenen bir dosya yeni bir URL
+alır, page bu URL'ye link verir ve tarayıcı dosyayı yeniden çeker. Ayrıca
+development'taki reload script'i, mount edilmiş bir dosya değiştiğinde
+page'i yeniler. (Handler'larınızın okuduğu Markdown dosyaları gibi mount edilmemiş
+bir dizin, [`Config.DevWatch`](/docs/configuration#devwatch) içinde belirtildiğinde
+page'i yeniler.) Development dışında ise diskte değişen bir dosya, process yeniden
+başlatılana kadar hatırlanan hash'ini korur. Mount'lar, çalışan bir sunucunun
+altında düzenlenen dosyalar için değil, deploy edilen dosyalar içindir.
 
-## Statik dışa aktarma
+## Static export
 
-Bir [statik dışa aktarma](/docs/static-export), her mount'u kendi önekinin altında
-çıktısına kopyalar — `/static/app.css`, `dist/static/app.css` olur — ve bir sayfanın
-`{{asset}}` ile gerçekten bağlantı verdiği her dosyanın içerik adresli bir
-kopyasını da ekler. Yalnızca bunların: bir medya dizini, hiçbir sayfanın
-kullanmadığı adlar için ikiye katlanmaz. `collage.WithoutBuildCopy()` bir mount'u
-dışarıda bırakır.
+[Static export](/docs/static-export), her mount'u kendi prefix'i altında çıktıya
+kopyalar. Örneğin `/static/app.css`, `dist/static/app.css` olur. Buna ek olarak, bir
+page'in `{{asset}}` ile gerçekten link verdiği her dosyanın content-addressed bir
+kopyasını da çıktıya ekler. Yalnızca bu dosyaların kopyası eklenir. Böylece bir
+medya dizini, hiçbir page'in kullanmadığı adlar için ikiye katlanmaz.
+`collage.WithoutBuildCopy()` bir mount'u bu kopyalamanın dışında bırakır.
 
 ## Mount'ların yapmadıkları
 
-- **Sıkıştırma yok.** Gzip ya da Brotli yok, önceden sıkıştırılmış yan dosyalar da
-  yok. Önüne bir reverse proxy ya da CDN koyun veya `app.Handler()`'ı sarın.
-- **Paketleme, küçültme ya da görsel işleme yok.** Bir mount kendisine verilen
-  baytları sunar; [plugin'ler](/docs/plugins) daha fazlasını yapabilir.
-- **Yalnızca `fs.FS` kaynakları.** S3 gibi bir nesne deposu bunlardan biri değildir.
-  Onu [`app.Handle`](/docs/middleware-and-apis) ile kendiniz sunun ya da doğrudan
-  ona bağlantı verin.
+- **Sıkıştırma yapmazlar.** Gzip ya da Brotli yoktur, önceden sıkıştırılmış
+  sidecar dosyalar da desteklenmez. Önüne bir reverse proxy ya da CDN koyun veya
+  `app.Handler()`'ı wrap edin.
+- **Bundling, minification ya da görsel işleme yapmazlar.** Bir mount kendisine
+  verilen byte'ları olduğu gibi sunar. Daha fazlası için [plugin'ler](/docs/plugins)
+  kullanılabilir.
+- **Yalnızca `fs.FS` kaynaklarıyla çalışırlar.** S3 gibi bir object store bir
+  `fs.FS` değildir. Onu [`app.Handle`](/docs/middleware-and-apis) ile kendiniz
+  sunun ya da doğrudan ona link verin.

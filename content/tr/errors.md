@@ -1,12 +1,13 @@
 ---
-description: collage'ın dışa açtığı her hata değeri, nereden geldiğine göre gruplanmış hâlde; ne anlama geldiği ve ne yapmanız gerektiğiyle birlikte.
+description: collage'ın export ettiği bütün error değerleri, nereden geldiklerine göre gruplanmış hâlde; her birinin ne anlama geldiği ve ne yapmanız gerektiğiyle birlikte.
+reference: PanicError
 ---
 
 # Hatalar
 
-collage hataları `pkg/collage`'dan dışa açılan sabit (sentinel) hata değerleriyle
-bildirir ve onları ayrıntılarla — sayfa, yol, alan — sarmalar. Bunları mesajları
-karşılaştırarak değil, her zaman `errors.Is` ile eşleştirin:
+collage hataları sentinel error değerleriyle bildirir. Bu değerler `pkg/collage`
+paketinden export edilir ve ayrıntılarla (page, path, alan) wrap edilir. Onları
+mesajları karşılaştırarak değil, her zaman `errors.Is` ile eşleştirin:
 
 ```go
 if err := app.RegisterPage(page); errors.Is(err, collage.ErrDuplicateRoute) {
@@ -14,130 +15,131 @@ if err := app.RegisterPage(page); errors.Is(err, collage.ErrDuplicateRoute) {
 }
 ```
 
-Çoğu **başlangıçta** bildirilir: `New` yapılandırmayı doğrular ve her şablonu
-ayrıştırır, kayıt her sayfayı doğrular, uygulamanın başlatılması da ancak bütün
-kümenin ortaya çıkarabileceği şeyleri denetler. Sitenin bir araya getirilişindeki bir
-hata, onu ilk bulan okuyucuda patlayan bir sayfa değil, başlamayı reddeden bir
-programdır.
+Bunların çoğu **uygulama açılırken** bildirilir. `New` config'i doğrular ve bütün
+template'leri parse eder. Register işlemi her page'i doğrular. Uygulama başlarken de
+ancak kümenin tamamına bakınca görülebilecek sorunlar kontrol edilir. Böylece sitenin
+bir araya getirilişindeki bir hata, onu ilk bulan okuyucuda patlayan bir page olarak
+değil, hiç başlamayan bir program olarak ortaya çıkar.
 
-Aşağıdaki tablolar her hatanın nereden geldiğine göre gruplanmıştır. Mesaj, herhangi
-bir sarmalama ayrıntı eklemeden önce sentinel'in taşıdığı metindir.
+Aşağıdaki tablolar her hatanın nereden geldiğine göre gruplanmıştır. Mesaj,
+sentinel'in wrap işlemi ayrıntı eklemeden önce taşıdığı metindir.
 
-v0.10.0'dan itibaren aşağıdaki her hata dışa açıktır. Öncesinde action, istek
-sahteciliği, metot, asset, `{{dict}}` ve şablonun kök dizinden kaçması hataları ile
-`ErrNotStatic` vardı, ama birbirinden yalnızca mesajlarıyla ayırt edilebiliyordu.
-(`ErrTemplateRootMissing` zaten dışa açıktı.)
+v0.10.0'dan beri aşağıdaki bütün hatalar export edilir. Daha önce action, request
+forgery, method, asset, `{{dict}}` ve template-escapes-root hataları ile `ErrNotStatic`
+vardı, ama birbirinden ancak mesajlarıyla ayırt edilebiliyordu.
+(`ErrTemplateRootMissing` zaten export ediliyordu.)
 
-## Yapılandırma
+## Config
 
-`collage.New` tarafından, `Config.Validate`'ten ya da uygulama kurulurken döner.
-Bkz. [Yapılandırma](/docs/configuration#validation).
+Bu hataları `collage.New` döner. `Config.Validate` içinden ya da uygulama kurulurken
+ortaya çıkarlar. Bkz. [Config](/docs/configuration#validation).
 
 | Hata | Mesaj | Anlamı | Ne yapmalı |
 | --- | --- | --- | --- |
-| `ErrNilConfig` | `collage: nil config` | `New(nil)`. | Bir `*Config` verin; sıfır değeri de olur. |
-| `ErrInvalidPort` | `collage: invalid port` | `Server.Port`, `1`–`65535` aralığının dışında. | `3000` için sıfır bırakın ya da geçerli bir port verin. |
-| `ErrEmptyTemplateRoot` | `collage: empty template root` | `Template.Root` boş ve `Template.FS` nil. | Yalnızca `Validate`'i kendiniz çağırırsanız karşılaşılır; `New` önce `Root`'a varsayılan değer atar. |
-| `ErrTemplateRootMissing` | `collage: template root missing` | `Template.Root` yok ya da bir dizin değil. | En sık görülen başlangıç hatası: çalışma dizinini kontrol edin ya da şablonları gömün. |
-| `ErrTemplateEscapesRoot` | `collage: template escapes root` | `Template.Root` altındaki bir şablon, dizinin dışına çözümleniyor — dizinden dışarı çıkan bir sembolik bağlantı. | Dosyaya bağlantı vermek yerine dosyayı içeri kopyalayın. |
-| `ErrInvalidCacheType` | `collage: invalid cache type` | `Cache.Enabled` açık, `Store` yok ve `Type` ne `"memory"` ne `"disk"`. | Yazımı düzeltin ya da bir `Store` verin. |
-| `ErrEmptyCacheDir` | `collage: disk cache needs a directory` | `Cache.Type` `"disk"` ve `Cache.Dir` boş. | `Dir`'i ayarlayın. |
-| `ErrEmptyCacheVersion` | `collage: disk cache needs a version` | Bir disk önbelleği sürüm olmadan kuruldu. | Normalde karşılaşılmaz: boş bir `Version` binary'den türetilir. |
-| `ErrUnsupportedCache` | `collage: unsupported cache type` | Önbellek tipi, framework'ün kurabileceği hiçbir şeyi adlandırmıyor. | Normalde daha önce `ErrInvalidCacheType` olarak yakalanır. |
-| `ErrEmptyLocaleDefault` | `collage: empty default locale` | `Locale.Default` boş. | Yalnızca `Validate` üzerinden karşılaşılır; `New` varsayılan olarak `"en"` atar. |
-| `ErrLocaleDefaultNotSupported` | `collage: default locale not in supported locales` | `Locale.Supported`, `Locale.Default`'u içermiyor. | Varsayılanı `Supported`'a ekleyin. |
-| `ErrNegativeDuration` | `collage: negative duration` | Altı süre alanından biri negatif; mesaj hangisi olduğunu söyler. | Varsayılan için sıfır kullanın. |
+| `ErrNilConfig` | `collage: nil config` | `New(nil)` çağrılmıştır. | Bir `*Config` verin; zero value'su da yeterlidir. |
+| `ErrInvalidPort` | `collage: invalid port` | `Server.Port`, `1`–`65535` aralığının dışındadır. | `3000` için sıfır bırakın ya da geçerli bir port verin. |
+| `ErrEmptyTemplateRoot` | `collage: empty template root` | `Template.Root` boştur ve `Template.FS` nil'dir. | Bu hataya yalnızca `Validate`'i kendiniz çağırırsanız ulaşılır; `New` önce `Root` için varsayılan değeri atar. |
+| `ErrTemplateRootMissing` | `collage: template root missing` | `Template.Root` yoktur ya da bir dizin değildir. | En yaygın başlangıç hatasıdır. Çalışma dizinini kontrol edin ya da template'leri embed edin. |
+| `ErrTemplateEscapesRoot` | `collage: template escapes root` | `Template.Root` altındaki bir template, onun dışına çıkan bir yere çözülür. Bu, dizinin dışına giden bir symlink'tir. | Dosyaya link vermek yerine onu dizine kopyalayın. |
+| `ErrInvalidCacheType` | `collage: invalid cache type` | `Cache.Enabled` açıktır, `Store` yoktur ve `Type` ne `"memory"` ne de `"disk"`'tir. | Yazımı düzeltin ya da bir `Store` verin. |
+| `ErrEmptyCacheDir` | `collage: disk cache needs a directory` | `Cache.Type` `"disk"`'tir ve `Cache.Dir` boştur. | `Dir`'i ayarlayın. |
+| `ErrEmptyCacheVersion` | `collage: disk cache needs a version` | Bir disk cache'i version olmadan kurulmuştur. | Normalde bu hataya ulaşılmaz: boş bir `Version` binary'den türetilir. |
+| `ErrUnsupportedCache` | `collage: unsupported cache type` | Cache tipi framework'ün kurabildiği hiçbir şeye karşılık gelmez. | Normalde bu durum daha önce `ErrInvalidCacheType` olarak yakalanır. |
+| `ErrEmptyLocaleDefault` | `collage: empty default locale` | `Locale.Default` boştur. | Bu hataya yalnızca `Validate` üzerinden ulaşılır; `New` onu varsayılan olarak `"en"` yapar. |
+| `ErrLocaleDefaultNotSupported` | `collage: default locale not in supported locales` | `Locale.Supported`, `Locale.Default`'u içermez. | Varsayılan locale'i `Supported`'a ekleyin. |
+| `ErrNegativeDuration` | `collage: negative duration` | Altı süre alanından biri negatiftir; mesaj hangisi olduğunu söyler. | Varsayılan değer için sıfır kullanın. |
 
 ## Plugin'ler ve komutlar
 
 | Hata | Mesaj | Anlamı | Ne yapmalı |
 | --- | --- | --- | --- |
-| `ErrNilPlugin` | `collage: nil plugin` | `nil` bir plugin kaydedildi. | — |
-| `ErrEmptyPluginName` | `collage: empty plugin name` | Bir plugin'in `Name()`'i boş. | `acme/stamp` gibi bir ad verin. |
-| `ErrDuplicatePlugin` | `collage: duplicate plugin` | İki plugin aynı adı taşıyor. | Her plugin'i bir kez kaydedin. |
-| `ErrConfigurerRegisteredLate` | `collage: plugin needs Configure and must be supplied in Config.Plugins` | `RegisterPlugin`'e `Configure` aşaması olan bir plugin verildi; o aşama çoktan geçti. | Onu `Config.Plugins`'e taşıyın. |
-| `ErrDuplicateTemplateFunc` | `collage: duplicate plugin template function` | `AddTemplateFunc` zaten eklenmiş bir ad için çağrıldı — başka bir plugin tarafından ya da aynı plugin tarafından ikinci kez. | `AddTemplateFunc` bunu plugin'in `Configure`'una döndürür; `New` yalnızca `Configure` bunu döndürürse başarısız olur. Plugin'ler çakışıyor: `Template.Funcs` bunu önleyemez, bu yüzden birini çıkarın ya da yeniden adlandırın. |
-| `ErrUnknownPluginConfig` | `collage: plugin configuration names no registered plugin` | Bir `PluginConfig` anahtarı kayıtlı hiçbir plugin'le eşleşmiyor. Uygulama başlarken denetlenir. | Neredeyse her zaman anahtardaki bir yazım hatasıdır. |
-| `ErrEmptyCommandName` | `collage: empty command name` | Adsız bir `RegisterCommand`. | — |
-| `ErrDuplicateCommand` | `collage: duplicate command name` | İki komut aynı adı taşıyor. | — |
-| `ErrNilApp` | `collage: nil app` | `DispatchCommands`'a nil bir `*App` verildi. | — |
-| `ErrUnknownCommand` | `collage: unknown command` | `DispatchCommands` hiç argüman almadı ya da hiçbir plugin'in kaydetmediği bir ad aldı. | İskelet olarak üretilen `main.go` bunda, bir kullanım hatası olarak `2` ile çıkar; bunun yerine sunmayı tercih eden bir program bu hatada akışı sürdürebilir. |
+| `ErrNilPlugin` | `collage: nil plugin` | `nil` bir plugin register edilmiştir. | — |
+| `ErrEmptyPluginName` | `collage: empty plugin name` | Bir plugin'in `Name()`'i boştur. | Ona `acme/stamp` gibi bir isim verin. |
+| `ErrDuplicatePlugin` | `collage: duplicate plugin` | İki plugin aynı ismi taşır. | Her plugin'i bir kez register edin. |
+| `ErrConfigurerRegisteredLate` | `collage: plugin needs Configure and must be supplied in Config.Plugins` | `RegisterPlugin`'e `Configure` aşaması olan bir plugin verilmiştir, oysa bu aşama çoktan geçmiştir. | Plugin'i `Config.Plugins`'e taşıyın. |
+| `ErrDuplicateTemplateFunc` | `collage: duplicate plugin template function` | `AddTemplateFunc`, daha önce eklenmiş bir isim için çağrılmıştır. İsmi başka bir plugin ya da aynı plugin ikinci kez eklemiş olabilir. | `AddTemplateFunc` bu hatayı plugin'in `Configure`'una döner; `New` ancak `Configure` onu dönerse başarısız olur. Plugin'ler çakışmaktadır ve `Template.Funcs` bunu önleyemez. Bu yüzden birini kaldırın ya da ismini değiştirin. |
+| `ErrUnknownPluginConfig` | `collage: plugin configuration names no registered plugin` | Bir `PluginConfig` key'i register edilmiş hiçbir plugin'le eşleşmez. Bu, uygulama başlarken kontrol edilir. | Neredeyse her zaman key'de bir yazım hatası vardır. |
+| `ErrEmptyCommandName` | `collage: empty command name` | `RegisterCommand` isim olmadan çağrılmıştır. | — |
+| `ErrDuplicateCommand` | `collage: duplicate command name` | İki komut aynı ismi taşır. | — |
+| `ErrNilApp` | `collage: nil app` | `DispatchCommands`'a nil bir `*App` verilmiştir. | — |
+| `ErrUnknownCommand` | `collage: unknown command` | `DispatchCommands` hiç argüman almamıştır ya da hiçbir plugin'in register etmediği bir isim almıştır. | Scaffold edilen `main.go` bu hatada bir kullanım hatası olarak `2` koduyla çıkar. Sunucu olarak çalışmayı tercih eden bir program ise bu hatada bir sonraki adıma geçebilir. |
 
 Bkz. [Plugin yazmak](/docs/writing-plugins).
 
-## Fragment'ler ve sayfalar
+## Fragment'ler ve page'ler
 
-Bunları iki yer bildirir. Birkaçını builder'lar zincir çalışırken kaydeder —
-`WithSlot`, `WithSlotResolver` ve `WithSlotFragment`'tan `ErrDuplicateSlot`,
-`ErrUnknownSlot` ve `ErrSlotResolved` (`WithSlotFragment` ayrıca `Bind`'ın
-`ErrNilFragment` ve `ErrSlotOccupied` hatalarını da kaydeder), `WithTimeout`'tan
-`ErrInvalidTimeout`, bir sayfanın `Build`'inden `ErrMissingContent` ve bir
-document'ın `Build`'inden `ErrNoDocumentHandler` — ve bunları `BuildErr()` ile
-okuyabilirsiniz. Bir builder'ın kaydettiği hata, kurduğu değerin üzerinde kalır;
-`RegisterPage` ve `RegisterDocument` de böyle bir hata taşıyan — sayfanın kendisine
-ya da ağacındaki herhangi bir fragment'e ait — bir değeri, `BuildErr()` çağrılmış
-olsun ya da olmasın, `collage: page %q was built with errors: %w` (bir document için
-`collage: document %q was built with
-errors: %w`) olarak sarmalayıp reddeder.
+Bu hataları iki yer bildirir. Birkaçını builder'lar zincir çalışırken kaydeder:
+`WithSlot`, `WithSlotResolver` ve `WithSlotFragment` `ErrDuplicateSlot`,
+`ErrUnknownSlot` ve `ErrSlotResolved`'u kaydeder (`WithSlotFragment` ayrıca `Bind`'ın
+`ErrNilFragment` ve `ErrSlotOccupied` hatalarını da kaydeder). `WithTimeout`
+`ErrInvalidTimeout`'u, bir page'in `Build`'i `ErrMissingContent`'i, bir document'ın
+`Build`'i de `ErrNoDocumentHandler`'ı kaydeder. Bunları `BuildErr()` ile
+okuyabilirsiniz. Bir builder'ın kaydettiği hatalar, kurduğu değerin üzerinde kalır.
+`RegisterPage` ve `RegisterDocument`, böyle bir hata taşıyan değeri reddeder. Hata
+page'in kendisine ya da ağacındaki herhangi bir fragment'e ait olabilir. Red,
+`collage: page %q was built with errors: %w` olarak wrap edilir (document için
+`collage: document %q was built with errors: %w`). Bu, `BuildErr()` çağrılmış olsun
+ya da olmasın geçerlidir.
 
-Geri kalanları, sayfa kaydedilirken doğrulama bulur: `RegisterPage` ağaçtaki her
-fragment'i; adlarını, şablonlarını, slot'larını, zaman aşımlarını, TTL'lerini,
-yollarını ve hata sayfalarını denetler ve ilk hatayı döndürür. `WithFragmentPath` ile
-açılan bir fragment bu açıdan sayfanın bir parçasıdır (v0.11.0'dan itibaren): şablonu,
-builder'ının hataları ve doğrulaması, diğerleri gibi kayıt sırasında denetlenir. Her
-iki durumda da hatalı kurulmuş bir sayfa, herhangi bir şey sunmadan önce reddedilir.
+Geri kalanları, page register edilirken validation bulur. `RegisterPage` ağaçtaki
+her fragment'i kontrol eder: isimlerini, template'lerini, slot'larını, timeout'larını,
+TTL'lerini, path'lerini ve error page'lerini. İlk hatayı döner. `WithFragmentPath`
+ile açılan bir fragment de bu açıdan page'in bir parçası sayılır (v0.11.0'dan beri).
+Onun template'i, builder hataları ve validation'ı da diğerleri gibi register sırasında
+kontrol edilir. Her iki durumda da hatalı bir page, hiçbir şey serve etmeden
+reddedilir.
 
 | Hata | Mesaj | Anlamı |
 | --- | --- | --- |
-| `ErrEmptyName` | `collage: empty name` | Bir fragment'in ya da sayfanın adı yok. |
-| `ErrEmptyTemplatePath` | `collage: empty template path` | Bir fragment hiçbir şablon adlandırmıyor. |
-| `ErrNilFragment` | `collage: nil fragment` | Fragment gereken bir yerde `nil` bir fragment kullanıldı — bir slot'a bağlandı ya da bir slot resolver'ı tarafından döndürüldü. |
-| `ErrDuplicateSlot` | `collage: slot already declared` | `WithSlot` aynı adla iki kez çağrıldı. |
-| `ErrUnknownSlot` | `collage: unknown slot` | Fragment'in hiç bildirmediği bir slot'a bir fragment bağlandı ya da bir şablon onun için `{{slot}}` çağırdı. |
-| `ErrInvalidSlotDefinition` | `collage: invalid slot definition` | Bir slot'un adı boş ya da map anahtarı kendi adıyla eşleşmiyor. |
-| `ErrSlotOccupied` | `collage: slot already occupied` | Zaten bir fragment tutan bir slot'a ikinci bir fragment bağlandı — ya da bir resolver onun için birkaç tane döndürdü. |
-| `ErrSlotResolved` | `collage: slot is filled by a resolver` | Bir slot'a hem bir resolver hem de bağlı fragment'ler verildi. |
-| `ErrRequiredSlotUnfilled` | `collage: required slot has no fill` | Zorunlu olarak bildirilen bir slot'a hiçbir şey bağlanmamış. |
-| `ErrFragmentCycle` | `collage: fragment cycle detected` | Bir fragment'e kendisinden ulaşılabiliyor. |
-| `ErrMissingContent` | `collage: missing content` | Bir sayfanın içerik fragment'i yok. |
-| `ErrInvalidTimeout` | `collage: invalid timeout` | Bir fragment'in zaman aşımı negatif. |
-| `ErrMissingTTL` | `collage: missing cache ttl for incremental strategy` | `Incremental`'a sıfır bir TTL verildi. |
-| `ErrInvalidTTL` | `collage: invalid cache ttl` | Bir sayfanın TTL'i negatif. |
-| `ErrInvalidPath` | `collage: invalid path` | Bir yol pattern'i `/` ile başlamıyor. |
-| `ErrInvalidRedirectStatus` | `collage: invalid redirect status code` | `0`, `301`, `302`, `307` ya da `308` dışında bir yönlendirme durum kodu. |
-| `ErrSelfErrorPage` | `collage: page cannot reference itself as an error page` | Bir sayfa kendi bulunamadı ya da hata sayfası. |
+| `ErrEmptyName` | `collage: empty name` | Bir fragment'in ya da page'in ismi yoktur. |
+| `ErrEmptyTemplatePath` | `collage: empty template path` | Bir fragment hiçbir template belirtmez. |
+| `ErrNilFragment` | `collage: nil fragment` | Fragment gereken bir yerde `nil` bir fragment kullanılmıştır. Bu bir slot'a bağlanmış ya da bir slot resolver tarafından döndürülmüş olabilir. |
+| `ErrDuplicateSlot` | `collage: slot already declared` | `WithSlot` aynı isimle iki kez çağrılmıştır. |
+| `ErrUnknownSlot` | `collage: unknown slot` | Bir fragment, fragment'in hiç tanımlamadığı bir slot'a bağlanmıştır ya da bir template böyle bir slot için `{{slot}}` çağırmıştır. |
+| `ErrInvalidSlotDefinition` | `collage: invalid slot definition` | Bir slot'un ismi boştur ya da map key'i slot'un kendi ismiyle eşleşmez. |
+| `ErrSlotOccupied` | `collage: slot already occupied` | Zaten bir fragment taşıyan bir slot'a ikinci bir fragment bağlanmıştır. Ya da bir resolver o slot için birden fazla fragment dönmüştür. |
+| `ErrSlotResolved` | `collage: slot is filled by a resolver` | Aynı slot'a hem bir resolver hem de bağlanmış fragment'ler verilmiştir. |
+| `ErrRequiredSlotUnfilled` | `collage: required slot has no fill` | Required olarak tanımlanmış bir slot'a hiçbir şey bağlanmamıştır. |
+| `ErrFragmentCycle` | `collage: fragment cycle detected` | Bir fragment'e kendisinden ulaşılabilir. |
+| `ErrMissingContent` | `collage: missing content` | Bir page'in content fragment'i yoktur. |
+| `ErrInvalidTimeout` | `collage: invalid timeout` | Bir fragment'in timeout'u negatiftir. |
+| `ErrMissingTTL` | `collage: missing cache ttl for incremental strategy` | `Incremental`'a sıfır bir TTL verilmiştir. |
+| `ErrInvalidTTL` | `collage: invalid cache ttl` | Bir page'in TTL'i negatiftir. |
+| `ErrInvalidPath` | `collage: invalid path` | Bir path pattern'i `/` ile başlamaz. |
+| `ErrInvalidRedirectStatus` | `collage: invalid redirect status code` | Redirect status'u `0`, `301`, `302`, `307` ya da `308` dışında bir değerdir. |
+| `ErrSelfErrorPage` | `collage: page cannot reference itself as an error page` | Bir page kendi not-found ya da error page'idir. |
 
-Bkz. [Sayfalar ve layout'lar](/docs/pages-and-layouts) ve
+Bkz. [Page'ler ve layout'lar](/docs/pages-and-layouts) ve
 [Fragment'ler ve slot'lar](/docs/fragments-and-slots).
 
-## Kayıt ve yönlendirme
+## Register ve routing
 
-`RegisterPage`, `RegisterNotFoundPage`, `RegisterErrorPage` ve `RegisterDocument`
-tarafından ya da uygulama başlarken döner.
+Bu hataları `RegisterPage`, `RegisterNotFoundPage`, `RegisterErrorPage` ve
+`RegisterDocument` döner. Bir kısmı da uygulama başlarken ortaya çıkar.
 
 | Hata | Mesaj | Anlamı | Ne yapmalı |
 | --- | --- | --- | --- |
-| `ErrAppStarted` | `collage: application already started` | Uygulama başladıktan sonra bir kayıt metodu çağrıldı — başarısız olan herhangi bir başlatmadan sonra çağrılan `RegisterPlugin` dahil (v0.12.0'dan itibaren; bir plugin'in `Init`'inde başarısız olan bir başlatmadan sonra v0.11.0'dan itibaren). | Her şeyi `Handler`, `ListenAndServe`, `Start`, `RenderPath` ya da `DispatchCommands`'tan önce kaydedin. |
-| `ErrNilPage` | `collage: nil page` | `nil` bir sayfa kaydedildi. | — |
-| `ErrDuplicatePage` | `collage: duplicate page name` | İki sayfa aynı adı taşıyor. | Bağlantılar sayfaları adlarıyla bulur; adları benzersiz yapın. |
-| `ErrTemplateNotFound` | `collage: template not found` | Bir sayfanın fragment'i yüklenmemiş bir şablonu adlandırıyor. | Yolu, uzantısıyla birlikte, `Template.Root`'a göre kontrol edin. |
-| `ErrUnregisteredErrorPage` | `collage: error page not registered` | Bir sayfa hiç kaydedilmemiş bir bulunamadı ya da hata sayfasını adlandırıyor. Başlangıçta denetlenir. | Onu `RegisterNotFoundPage` ya da `RegisterErrorPage` ile kaydedin; kaydedilmemiş olan, gerektiğinde boş render edilirdi. |
-| `ErrInvalidPattern` | `collage: invalid pattern` | Bir yol ya da yönlendirme kaynağı hatalı: başta `/` yok, boş bir segment var, boş bir yer tutucu adı var, catch-all en sonda değil ya da — v0.11.0'dan itibaren — `/feeds/{category}.xml` gibi bir segmentin içinde bir yer tutucu var. | Pattern'i düzeltin. Bir yer tutucu bütün bir segmenttir: `/feeds/{category}/rss.xml`. |
-| `ErrDuplicateRoute` | `collage: duplicate route` | Bir yol ya da yönlendirme kaynağı o locale'de zaten kayıtlı. | — |
-| `ErrAmbiguousParameterName` | `collage: ambiguous parameter name` | İki pattern aynı konumda farklı parametre adları kullanıyor, örneğin `/blog/{slug}` ve `/blog/{id}/edit`. | O konumda tek bir ad kullanın. |
-| `ErrRedirectShadowsPage` | `collage: redirect shadows a registered page` | Bir yönlendirmenin kaynağı aynı zamanda bir sayfanın yolu. | İkisinden birine ulaşılamazdı; birini kaldırın. |
-| `ErrUnsubstitutedPlaceholder` | `collage: redirect placeholder not captured by from pattern` | Bir yönlendirmenin hedefi, kaynağının yakalamadığı bir `{name}` kullanıyor. | Onu kaynakta yakalayın ya da kaldırın. |
+| `ErrAppStarted` | `collage: application already started` | Uygulama başladıktan sonra bir register metodu çağrılmıştır. Başarısız olan herhangi bir başlatmadan sonra çağrılan `RegisterPlugin` de buna dahildir (v0.12.0'dan beri; bir plugin'in `Init`'inde başarısız olan başlatmadan sonrası için v0.11.0'dan beri). | `Handler`, `ListenAndServe`, `Start`, `RenderPath` ya da `DispatchCommands`'tan önce her şeyi register edin. |
+| `ErrNilPage` | `collage: nil page` | `nil` bir page register edilmiştir. | — |
+| `ErrDuplicatePage` | `collage: duplicate page name` | İki page aynı ismi taşır. | Link'ler page'leri isimleriyle bulur; isimleri benzersiz yapın. |
+| `ErrTemplateNotFound` | `collage: template not found` | Bir page'in fragment'i, yüklenmemiş bir template belirtir. | Path'i `Template.Root`'a göre, uzantısıyla birlikte kontrol edin. |
+| `ErrUnregisteredErrorPage` | `collage: error page not registered` | Bir page, hiç register edilmemiş bir not-found ya da error page belirtir. Bu, başlarken kontrol edilir. | Onu `RegisterNotFoundPage` ya da `RegisterErrorPage` ile register edin. Register edilmemiş bir error page, gerektiğinde boş render edilirdi. |
+| `ErrInvalidPattern` | `collage: invalid pattern` | Bir path ya da redirect kaynağı hatalıdır: başta `/` yoktur, boş bir segment vardır, placeholder ismi boştur, catch-all en sonda değildir ya da (v0.11.0'dan beri) bir segment'in içinde placeholder vardır, örneğin `/feeds/{category}.xml`. | Pattern'i düzeltin. Bir placeholder segment'in tamamını kaplar: `/feeds/{category}/rss.xml`. |
+| `ErrDuplicateRoute` | `collage: duplicate route` | Bir path ya da redirect kaynağı o locale'de zaten register edilmiştir. | — |
+| `ErrAmbiguousParameterName` | `collage: ambiguous parameter name` | İki pattern aynı pozisyonda farklı parametre isimleri kullanır, örneğin `/blog/{slug}` ve `/blog/{id}/edit`. | O pozisyonda tek bir isim kullanın. |
+| `ErrRedirectShadowsPage` | `collage: redirect shadows a registered page` | Bir redirect'in kaynağı aynı zamanda bir page'in path'idir. | İkisinden birine ulaşılamazdı; birini kaldırın. |
+| `ErrUnsubstitutedPlaceholder` | `collage: redirect placeholder not captured by from pattern` | Bir redirect'in hedefi, kaynağının capture etmediği bir `{name}` kullanır. | Onu kaynakta capture edin ya da kaldırın. |
 
 ## Document'lar
 
 | Hata | Mesaj | Anlamı |
 | --- | --- | --- |
-| `ErrNilDocument` | `collage: nil document` | `nil` bir document kaydedildi. |
-| `ErrEmptyContentType` | `collage: empty content type` | Bir document hiçbir içerik tipi bildirmiyor. İçerik tipi zorunludur ve asla tahmin edilmez. |
-| `ErrNoDocumentHandler` | `collage: document has no handler` | Bir document'ın handler'ı yok. Bir sayfanın aksine, geri çekilebileceği bir şablonu yoktur. |
-| `ErrDuplicateDocument` | `collage: duplicate document name` | İki document aynı adı taşıyor. |
-| `ErrDocumentNotFound` | `collage: no document at path` | `RenderDocumentPath` yolda hiçbir document bulamadı — orada bir sayfa ya da yönlendirme olduğu durum dahil. |
-| `ErrEmptyDocumentBody` | `collage: document handler produced an empty body` | Bir handler boş bir gövdeyle başarılı oldu: sunulurken 500'dür ve bir build tarafından yazılmaz. Gerçekten "boş" demek isteyen bir handler tek bir satır sonu döndürebilir. |
+| `ErrNilDocument` | `collage: nil document` | `nil` bir document register edilmiştir. |
+| `ErrEmptyContentType` | `collage: empty content type` | Bir document hiçbir content type tanımlamaz. Content type zorunludur ve asla tahmin edilmez. |
+| `ErrNoDocumentHandler` | `collage: document has no handler` | Bir document'ın handler'ı yoktur. Page'in aksine, geri düşebileceği bir template'i yoktur. |
+| `ErrDuplicateDocument` | `collage: duplicate document name` | İki document aynı ismi taşır. |
+| `ErrDocumentNotFound` | `collage: no document at path` | `RenderDocumentPath` path'te hiçbir document bulamamıştır. O path'te bir page ya da redirect olması da buna dahildir. |
+| `ErrEmptyDocumentBody` | `collage: document handler produced an empty body` | Bir handler başarılı olmuş ama boş bir body dönmüştür. Serve edilirken bu bir 500'dür ve build bu document'ı yazmaz. Gerçekten "boş" demek isteyen bir handler tek bir newline dönebilir. |
 
 Bkz. [Document'lar](/docs/documents).
 
@@ -145,37 +147,37 @@ Bkz. [Document'lar](/docs/documents).
 
 | Hata | Mesaj | Anlamı |
 | --- | --- | --- |
-| `ErrUnknownAsset` | `collage: unknown asset` | `rc.Asset`, `rc.HoistStylesheet`, `{{asset}}` ya da `{{stylesheet}}`'e hiçbir mount'un sunmadığı bir yol verildi. Bir şablonda render başarısız olur. |
-| `ErrNoMountForAsset` | `collage: no mount serves that asset` | Hiçbir mount'un önekinin yolu hiç kapsamadığı durumda `ErrUnknownAsset`'in içine sarmalanır — böyle bir dosyası olmayan bir mount'un aksine. |
-| `ErrInvalidPrefix` | `collage: invalid mount prefix` | Bir mount öneki `/` ile başlayıp bitmiyor, yalnızca `/`'dan ibaret ya da `//` ile başlıyor. `/`'daki bir mount her route'u yutardı. |
-| `ErrNilFS` | `collage: nil mount file system` | Bir mount'a hiçbir dosya sistemi verilmedi. |
-| `ErrMountConflict` | `collage: mount prefixes overlap` | İki mount — ya da bir mount ile bir `App.Handle` öneki — çakışan önekler talep ediyor. |
-| `ErrMountShadowsRoute` | `collage: mount shadows a route` | Bir mount öneki ya da bir `App.Handle` öneki, bir route'un yolunu — bir sayfanın, bir document'ın, bir yönlendirmenin ya da bir action'ın — yutardı. Kayıt sırası ne olursa olsun başlangıçta denetlenir. |
-| `ErrInvalidHandlerPrefix` | `collage: handler prefix must begin and end with "/" and not be "/"` | `App.Handle`'a hatalı bir önek verildi. |
-| `ErrNilHandler` | `collage: nil handler` | `App.Handle`'a ya da `App.Use`'a çalıştıracak hiçbir şey verilmedi. |
+| `ErrUnknownAsset` | `collage: unknown asset` | `rc.Asset`, `rc.HoistStylesheet`, `{{asset}}` ya da `{{stylesheet}}`'e hiçbir mount'un serve etmediği bir path verilmiştir. Bir template'te bu durumda render başarısız olur. |
+| `ErrNoMountForAsset` | `collage: no mount serves that asset` | Hiçbir mount'un prefix'i path'i hiç kapsamadığında `ErrUnknownAsset`'in içinde wrap edilir. Bu, mount'un olup böyle bir dosyanın olmadığı durumdan farklıdır. |
+| `ErrInvalidPrefix` | `collage: invalid mount prefix` | Bir mount prefix'i `/` ile başlamaz ya da bitmez, tek başına `/`'dır ya da `//` ile başlar. `/`'daki bir mount bütün route'ları yutardı. |
+| `ErrNilFS` | `collage: nil mount file system` | Bir mount'a hiçbir filesystem verilmemiştir. |
+| `ErrMountConflict` | `collage: mount prefixes overlap` | İki mount ya da bir mount ile bir `App.Handle` prefix'i çakışan prefix'ler talep eder. |
+| `ErrMountShadowsRoute` | `collage: mount shadows a route` | Bir mount prefix'i ya da bir `App.Handle` prefix'i bir route'un path'ini yutardı. Bu route bir page'in, bir document'ın, bir redirect'in ya da bir action'ın olabilir. Register sırası ne olursa olsun, başlarken kontrol edilir. |
+| `ErrInvalidHandlerPrefix` | `collage: handler prefix must begin and end with "/" and not be "/"` | `App.Handle`'a hatalı bir prefix verilmiştir. |
+| `ErrNilHandler` | `collage: nil handler` | `App.Handle`'a ya da `App.Use`'a çalıştırılacak hiçbir şey verilmemiştir. |
 
-Bkz. [Statik dosyalar](/docs/assets) ve
+Bkz. [Static asset'ler](/docs/assets) ve
 [Middleware ve kendi API'niz](/docs/middleware-and-apis).
 
 ## Render
 
 | Hata | Mesaj | Anlamı | Ne yapmalı |
 | --- | --- | --- | --- |
-| `ErrNotFound` | `collage: not found` | **Bunu siz döndürürsünüz.** Bunu sarmalayan bir data handler, içeriğin yüklenemediğini değil, var olmadığını söyler. | `fmt.Errorf("post %q: %w", slug, collage.ErrNotFound)`, zorunlu bir fragment'in hatasını 500 yerine bulunamadı sayfasıyla birlikte bir 404 yapar. |
-| `ErrRequiredSlotEmpty` | `collage: required slot is empty` | Render sırasında zorunlu bir slot hiçbir şey tutmuyor — genellikle bir resolver hiç fragment döndürmemiştir. | Fragment'in hata politikasına tabidir. |
-| `ErrMaxDepthExceeded` | `collage: max fragment depth exceeded` | Fragment ağacı, motorun izin verdiğinden daha derin iç içe geçiyor. | Neredeyse her zaman, doğrudan ya da dolaylı olarak kendi slot'una bağlanmış bir fragment'tir. |
-| `ErrNoRootFragment` | `collage: page has no root fragment` | Bir sayfanın ne layout'u ne de içeriği var. | — |
-| `ErrPageNotFound` | `collage: no page at path` | `App.RenderPath` yolda hiçbir sayfa bulamadı. | — |
-| `ErrOnceTypeMismatch` | `collage: once key fetched as two different types` | İki `collage.Once` çağrısı, tek bir render içinde aynı anahtarı farklı tiplerle istedi. | Anahtarlar çakışıyor; onlara ad alanı verin. |
-| `ErrCachedTypeMismatch` | `collage: Cached key holds a value of a different type` | İki `collage.Cached` çağrısı aynı anahtarı farklı tiplerle istedi. | Yukarıdaki gibi. |
-| `ErrDictOddArgs` | `collage: dict requires an even number of arguments` | `{{dict}}`'e değeri olmayan bir anahtar verildi. | Her anahtarı bir değerle eşleştirin. |
-| `ErrDictKeyNotString` | `collage: dict key must be a string` | Bir `{{dict}}` anahtarı string değil. | Anahtarı tırnak içine alın. |
-| `ErrCSRFDisabled` | `collage: csrfToken used but request-forgery protection is disabled` | `Security.DisableCSRF` ayarlanmış bir uygulamada bir şablon `{{csrfToken}}` çağırıyor. | Çağrıyı kaldırın ya da korumayı yeniden açın. |
+| `ErrNotFound` | `collage: not found` | **Bu hatayı siz dönersiniz.** Onu wrap eden bir data handler, içeriğin yüklenemediğini değil, var olmadığını söyler. | `fmt.Errorf("post %q: %w", slug, collage.ErrNotFound)`, required bir fragment'in hatasını 500 yerine not-found page'li bir 404'e çevirir. |
+| `ErrRequiredSlotEmpty` | `collage: required slot is empty` | Render sırasında required bir slot boştur. Bu genellikle bir resolver hiç fragment dönmediğinde olur. | Fragment'in failure policy'sine tabidir. |
+| `ErrMaxDepthExceeded` | `collage: max fragment depth exceeded` | Fragment ağacı engine'in izin verdiğinden daha derin iç içe geçer. | Neredeyse her zaman sebep, doğrudan ya da dolaylı olarak kendi slot'una bağlanmış bir fragment'tir. |
+| `ErrNoRootFragment` | `collage: page has no root fragment` | Bir page'in ne layout'u ne de içeriği vardır. | — |
+| `ErrPageNotFound` | `collage: no page at path` | `App.RenderPath` path'te hiçbir page bulamamıştır. | — |
+| `ErrOnceTypeMismatch` | `collage: once key fetched as two different types` | Tek bir render içinde iki `collage.Once` çağrısı aynı key'i farklı tiplerle istemiştir. | Key'ler çakışmaktadır; onlara namespace verin. |
+| `ErrCachedTypeMismatch` | `collage: Cached key holds a value of a different type` | İki `collage.Cached` çağrısı aynı key'i farklı tiplerle istemiştir. | Yukarıdakiyle aynı. |
+| `ErrDictOddArgs` | `collage: dict requires an even number of arguments` | `{{dict}}`'e değeri olmayan bir key verilmiştir. | Her key'i bir değerle eşleştirin. |
+| `ErrDictKeyNotString` | `collage: dict key must be a string` | Bir `{{dict}}` key'i string değildir. | Key'i tırnak içine alın. |
+| `ErrCSRFDisabled` | `collage: csrfToken used but request-forgery protection is disabled` | `Security.DisableCSRF` ayarlanmış bir uygulamada bir template `{{csrfToken}}` çağırır. | Çağrıyı kaldırın ya da korumayı yeniden açın. |
 
-Bir data handler'daki, bir slot resolver'ındaki ya da bir şablon fonksiyonundaki
-panic süreci çökertmez: bir `collage.PanicError`'a dönüşür ve fragment, diğer her
-hatada olduğu gibi başarısız olur. Panic değerini ve yığınını geri almak için ona
-`errors.As` ile ulaşın:
+Bir data handler'daki, bir slot resolver'daki ya da bir template fonksiyonundaki panic
+process'i çökertmez. Panic bir `collage.PanicError`'a dönüşür ve fragment diğer her
+hatada olduğu gibi başarısız olur. Panic değerine ve stack'ine ulaşmak için ona
+`errors.As` ile erişin:
 
 ```go
 var panicked *collage.PanicError
@@ -184,121 +186,120 @@ if errors.As(err, &panicked) {
 }
 ```
 
-Bir hatanın nasıl 404'e, 500'e, bir yedeğe ya da hiçliğe dönüştüğü için bkz.
-[Data handler'lar](/docs/data-handlers).
+Bir hatanın nasıl 404'e, 500'e, fallback'e ya da hiçbir şeye dönüştüğünü görmek için
+[Data handler'lar](/docs/data-handlers) sayfasına bakın.
 
-## Bağlantılar ve URL'ler
+## Link'ler ve URL'ler
 
-`App.URL` tarafından ve `{{pageURL}}`, `{{pageURLIn}}` ve `{{localeURL}}`'den
-kaynaklanan başarısız render'larda döner. Bkz.
-[Bağlantılar ve locale'ler](/docs/links-and-locales).
+Bu hataları `App.URL` döner. `{{pageURL}}`, `{{pageURLIn}}` ve `{{localeURL}}` ise
+başarısız olan render'larla bildirir. Bkz. [Link'ler ve locale'ler](/docs/links-and-locales).
 
 | Hata | Mesaj | Anlamı |
 | --- | --- | --- |
-| `ErrUnknownRoute` | `collage: no page or document by that name` | O adla kayıtlı hiçbir sayfa ya da document yok — ya da ikisi de kayıtlı ve bağlantı belirsiz. |
-| `ErrNoPathInLocale` | `collage: no path in that locale` | Route'un istenen locale'de yolu yok. `{{pageURL}}` bunun yerine varsayılan locale'e geri döner, `{{localeURL}}` ise boş string render eder. |
-| `ErrRouteParams` | `collage: route parameters do not match the pattern` | Bir parametre eksik ya da boş, hiçbir yer tutucuyu adlandırmıyor, `.` ya da `..`, ya da şablon tek sayıda argüman geçti. |
-| `ErrLocaleUnreachable` | `collage: no URL reaches that locale` | Locale `Locale.Supported` içinde değil ya da varsayılan değil ve yol locale'leri kapalı. |
+| `ErrUnknownRoute` | `collage: no page or document by that name` | O isimle register edilmiş hiçbir page ya da document yoktur. Ya da ikisi birden vardır ve link belirsizdir. |
+| `ErrNoPathInLocale` | `collage: no path in that locale` | Route'un istenen locale'de bir path'i yoktur. `{{pageURL}}` bu durumda varsayılan locale'e fallback yapar, `{{localeURL}}` ise boş string render eder. |
+| `ErrRouteParams` | `collage: route parameters do not match the pattern` | Bir parametre eksik ya da boştur, hiçbir placeholder'a karşılık gelmez, `.` ya da `..`'dır, ya da template tek sayıda argüman vermiştir. |
+| `ErrLocaleUnreachable` | `collage: no URL reaches that locale` | Locale `Locale.Supported`'da yoktur ya da varsayılan locale değildir ve path locale'leri kapalıdır. |
 
 ## Action'lar
 
-`RegisterAction` tarafından döner. `RegisterPage` bir sayfaya bağlı bir action'ı da
-denetler — `ErrNilAction`, `ErrNoMethods` ve v0.10.0'dan itibaren
-`ErrNoActionHandler` ile `ErrDuplicateAction` — ve `nil` bir fragment yolunu
-`ErrNilFragmentPath` ile reddeder. v0.11.0'dan itibaren tek bir `ErrNoActionHandler`
-vardır; kayıtta da bir istekte de aynı değerdir.
+Bu hataları `RegisterAction` döner. `RegisterPage` de bir page'e eklenmiş action'ı
+kontrol eder: `ErrNilAction`, `ErrNoMethods` ve v0.10.0'dan beri `ErrNoActionHandler`
+ile `ErrDuplicateAction`. `nil` bir fragment path'ini ise `ErrNilFragmentPath` ile
+reddeder. v0.11.0'dan beri tek bir `ErrNoActionHandler` vardır; register sırasında
+ve request'te aynı değerdir.
 
 | Hata | Mesaj | Anlamı | Ne yapmalı |
 | --- | --- | --- | --- |
-| `ErrNilAction` | `collage: nil action` | `nil` bir action kaydedildi ya da bir sayfaya bağlandı. | — |
-| `ErrEmptyActionName` | `collage: action has no name` | Bir action'ın adı yok. | Bir ad verin; ad, action'ı loglarda ve hatalarda tanımlar. |
-| `ErrDuplicateAction` | `collage: duplicate action` | Zaten alınmış bir adla ikinci bir action kaydedildi. | — |
-| `ErrNoActionPaths` | `collage: action has no paths` | Bağımsız bir action'ın `WithPath`'i yok. | Bir sayfadaki action sayfanın yollarını alır; kendi başına olan bir action'ın kendi yollarına ihtiyacı vardır. |
-| `ErrNoActionHandler` | `collage: action has no handler` | Bir action'ın `WithHandler`'ı yok. | — |
-| `ErrNoMethods` | `collage: action declares no methods` | Bir action hiçbir metoda yanıt vermiyor. | `WithMethods(http.MethodPost)` ya da bir sayfada `WithAction`. |
-| `ErrNilFragmentPath` | `collage: fragment path has no fragment` | `WithFragmentPath`'e `nil` bir fragment verildi. | — |
-| `ErrUnregisteredPage` | `collage: action answered with a page that was never registered` | Bir action'ın `RenderPage`'i kaydedilmemiş bir sayfa döndürdü. İstek 500 ile başarısız olur. | Sayfayı kaydedin ve handler içinde yeni bir tane kurmak yerine o aynı değerle yanıt verin. |
+| `ErrNilAction` | `collage: nil action` | `nil` bir action register edilmiş ya da bir page'e eklenmiştir. | — |
+| `ErrEmptyActionName` | `collage: action has no name` | Bir action'ın ismi yoktur. | Ona bir isim verin; log'larda ve hatalarda action'ı bu isim tanımlar. |
+| `ErrDuplicateAction` | `collage: duplicate action` | Alınmış bir isimle ikinci bir action register edilmiştir. | — |
+| `ErrNoActionPaths` | `collage: action has no paths` | Bağımsız bir action'ın `WithPath`'i yoktur. | Bir page'e bağlı action page'in path'lerini alır; tek başına duran bir action'ın kendi path'leri olmalıdır. |
+| `ErrNoActionHandler` | `collage: action has no handler` | Bir action'ın `WithHandler`'ı yoktur. | — |
+| `ErrNoMethods` | `collage: action declares no methods` | Bir action hiçbir method'a cevap vermez. | `WithMethods(http.MethodPost)` kullanın ya da page'de `WithAction` kullanın. |
+| `ErrNilFragmentPath` | `collage: fragment path has no fragment` | `WithFragmentPath`'e `nil` bir fragment verilmiştir. | — |
+| `ErrUnregisteredPage` | `collage: action answered with a page that was never registered` | Bir action'ın `RenderPage`'i register edilmemiş bir page dönmüştür. Request 500 ile başarısız olur. | Page'i register edin ve handler içinde yeni bir page kurmak yerine aynı değerle cevap verin. |
 
-Bkz. [Formlar ve action'lar](/docs/forms-and-actions).
+Bkz. [Form'lar ve action'lar](/docs/forms-and-actions).
 
 ## Vary ve SkipCache
 
-Middleware'den çağrılması gereken `collage.Vary` ve `collage.SkipCache` tarafından
-döner. Bkz. [Önbellekleme](/docs/caching) ve [Önizlemeler](/docs/previews).
+Bu hataları `collage.Vary` ve `collage.SkipCache` döner. Bu iki fonksiyon middleware
+içinden çağrılmalıdır. Bkz. [Caching](/docs/caching) ve [Preview'lar](/docs/previews).
 
 | Hata | Mesaj | Anlamı | Ne yapmalı |
 | --- | --- | --- | --- |
-| `ErrVaryTooLate` | `collage: Vary or SkipCache called after routing; call it from middleware` | `Vary` ya da `SkipCache` yönlendirme başladıktan sonra çağrıldı — örneğin bir data handler'dan. v0.11.0'dan itibaren her route'ta; öncesinde yalnızca önbelleğe alınan bir sayfada döner, başka yerdeki geç bir çağrı hiçbir şey yapmazdı. | Onu `App.Use` ile kaydedilmiş middleware'den çağırın. |
-| `ErrVaryOutsideRequest` | `collage: Vary called on a request collage is not serving` | `Vary` ya da `SkipCache`, collage'ın handler'ından geçmemiş bir istek üzerinde çağrıldı. | — |
+| `ErrVaryTooLate` | `collage: Vary or SkipCache called after routing; call it from middleware` | `Vary` ya da `SkipCache` routing başladıktan sonra çağrılmıştır, örneğin bir data handler'dan. v0.11.0'dan beri bu her route'ta geçerlidir. Öncesinde yalnızca cache'lenen bir page'de geçerliydi ve başka yerlerdeki geç bir çağrı hiçbir şey yapmıyordu. | Onu `App.Use` ile register edilmiş bir middleware'den çağırın. |
+| `ErrVaryOutsideRequest` | `collage: Vary called on a request collage is not serving` | `Vary` ya da `SkipCache`, collage'ın handler'ından geçmemiş bir request üzerinde çağrılmıştır. | — |
 
-## İstek sahteciliği
+## Request forgery
 
-Sahtecilik denetiminden geçemeyen bir gönderim, action'ın handler'ı çalışmadan önce
-bir **403** ile yanıtlanır; hata hook'ları da nedeni, action'ın adıyla sarmalanmış
-olarak `"route"` aşamasında alır:
+Forgery kontrolünden geçemeyen bir gönderim, action'ın handler'ı çalışmadan önce
+**403** ile cevaplanır. Error hook'ları sebebi `"route"` stage'i altında, action'ın
+ismiyle wrap edilmiş olarak alır:
 
 | Hata | Mesaj | Anlamı |
 | --- | --- | --- |
-| `ErrCSRFMissing` | `collage: no csrf token` | Gönderim hiçbir token ya da hiçbir cookie taşımıyordu. |
-| `ErrCSRFMismatch` | `collage: csrf token does not match` | Token, cookie'deki token değil. |
-| `ErrCSRFInvalid` | `collage: csrf token is not valid` | Token bu uygulamanın anahtarıyla imzalanmamış. |
+| `ErrCSRFMissing` | `collage: no csrf token` | Gönderimde token ya da cookie yoktur. |
+| `ErrCSRFMismatch` | `collage: csrf token does not match` | Token, cookie'deki token değildir. |
+| `ErrCSRFInvalid` | `collage: csrf token is not valid` | Token bu uygulamanın key'iyle imzalanmamıştır. |
 
-Olağan nedenler, `{{csrfToken}}` içermeyen bir form ve süreç başına üretilen bir
-anahtardır — token'ların yeniden başlatmalardan sağ çıkması ve instance'lar arasında
-çalışması için `Security.CSRFKey`'i ayarlayın. Boyut sınırını aşan bir gövde ise,
-sınıra takılan şey token'ın okunması olsa bile, bunun yerine bir **413**'tür. Bkz.
-[Formlar ve action'lar](/docs/forms-and-actions#forgery-protection).
+Yaygın sebepler iki tanedir: `{{csrfToken}}` içermeyen bir form ve her process'te
+yeniden üretilen bir key. Token'ların restart'lardan sonra da geçerli kalması ve
+instance'lar arasında çalışması için `Security.CSRFKey`'i ayarlayın. Boyut limitini
+aşan bir body ise **413** ile cevaplanır; limite takılan şey token'ın okunması olsa
+bile böyledir. Bkz. [Form'lar ve action'lar](/docs/forms-and-actions#forgery-protection).
 
-`Security.DisableCSRF` ayarlanmış bir uygulamadaki `{{csrfToken}}`,
-`ErrCSRFDisabled`'dır; bkz. [Render](#rendering).
+`Security.DisableCSRF` ayarlanmış bir uygulamada `{{csrfToken}}` kullanmak
+`ErrCSRFDisabled` hatasına yol açar; bkz. [Render](#rendering).
 
-## Hata hook'larına bildirilenler
+## Error hook'larına bildirilenler
 
-Bunlar bir plugin'in `OnError`'ına `ErrorEvent.Err` içinde ulaşır; böylece plugin,
-mesajları okumadan hataları birbirinden ayırt edebilir. Bkz.
+Bu hatalar bir plugin'in `OnError`'una `ErrorEvent.Err` içinde ulaşır. Böylece
+plugin, mesajları okumadan hataları birbirinden ayırabilir. Bkz.
 [Plugin yazmak](/docs/writing-plugins#errorhook).
 
-| Hata | Mesaj | Aşama | Anlamı |
+| Hata | Mesaj | Stage | Anlamı |
 | --- | --- | --- | --- |
-| `ErrNoRoute` | `collage: no route matched the request` | `not_found` | İstekle hiçbir route eşleşmedi — bir bağlantı ya da yönlendirme sorunu. Bilerek `ErrNotFound` değildir: ikisi de 404'tür ama nedenleri farklıdır. |
-| `ErrNotFound` | bkz. [Render](#rendering) | `render` | Zorunlu bir fragment'in içeriği yok — bir içerik sorunu. |
-| `ErrMethodNotAllowed` | `collage: method not allowed` | `route` | Yol var ama böyle bir metoda yanıt vermiyor: yanıt verdiği metotları adlandıran bir `Allow` header'ıyla bir 405. Bir document'ın URL'sinde 405 düz metindir (v0.11.0'dan itibaren). |
-| `ErrEmptyRender` | `collage: page rendered no markup` | `render` | Bir sayfa başarıyla render edildi ama sunulurken ya da bir action tarafından yanıt olarak verilirken hiçbir markup üretmedi: bir 500. Statik bir build'in kaydettiği sentinel'in aynısıdır. |
-| `ErrCSRFMissing`, `ErrCSRFMismatch`, `ErrCSRFInvalid` | bkz. [yukarısı](#request-forgery) | `route` | Sahtecilik denetiminin reddettiği bir gönderim. |
-| `ErrEmptyErrorPage` | `collage: error page rendered empty` | `error_page` | Kayıtlı bir hata sayfası başarıyla render edildi ama hiçbir markup üretmedi; bu yüzden yerine yerleşik sayfa sunuldu. |
-| `ErrPanic` | `collage: panic recovered while serving the request` | `panic` | Sunum sırasında bir şey panic'ledi — bir `Cache`, `Metrics` ya da `Tracer` implementasyonu, bir router, bir plugin hook'u — ve bir 500'e dönüştürülerek kurtarıldı. Data handler'lardaki ve şablonlardaki panic'ler ise `PanicError`'dır. |
-| `ErrAssetFailed` | `collage: asset request failed` | `asset` | Mount edilmiş bir dosya isteği 400 ya da üzeri bir durum koduyla yanıtlandı: bu tür her durum için tek bir sentinel. |
-| `ErrHandlerFailed` | `collage: mounted handler failed` | `handler` | `App.Handle` ile mount edilmiş bir handler bir sunucu hatasıyla yanıt verdi. |
-| `ErrUnsafeRedirectTarget` | `collage: unsafe redirect target` | `route` | Bir yönlendirmenin hedefi, yer değiştirmeden sonra tek eğik çizgiyle başlayan göreli bir yol değil — `//host`, `/\host` ya da kontrol karakteri içeren bir yol. Bir `Location` header'ıyla değil, bir 500 ile yanıtlanır. |
+| `ErrNoRoute` | `collage: no route matched the request` | `not_found` | Hiçbir route request'le eşleşmemiştir; bu bir link ya da routing sorunudur. Bilerek `ErrNotFound` değildir: ikisi de 404'tür, ama sebepleri farklıdır. |
+| `ErrNotFound` | bkz. [Render](#rendering) | `render` | Required bir fragment'in içeriği yoktur; bu bir içerik sorunudur. |
+| `ErrMethodNotAllowed` | `collage: method not allowed` | `route` | Path vardır ama o method'a cevap vermez. Sonuç, cevap verdiği method'ları listeleyen bir `Allow` header'ıyla birlikte 405'tir. Bir document'ın URL'sinde bu 405 düz metindir (v0.11.0'dan beri). |
+| `ErrEmptyRender` | `collage: page rendered no markup` | `render` | Bir page başarıyla render edilmiş ama hiç markup üretmemiştir. Page ister serve edilsin ister bir action'ın cevabı olsun, sonuç 500'dür. Static build'in kaydettiği sentinel de budur. |
+| `ErrCSRFMissing`, `ErrCSRFMismatch`, `ErrCSRFInvalid` | bkz. [yukarıda](#request-forgery) | `route` | Forgery kontrolünün reddettiği bir gönderim. |
+| `ErrEmptyErrorPage` | `collage: error page rendered empty` | `error_page` | Register edilmiş bir error page başarıyla render edilmiş ama hiç markup üretmemiştir. Bu yüzden onun yerine built-in page serve edilmiştir. |
+| `ErrPanic` | `collage: panic recovered while serving the request` | `panic` | Serve sırasında bir şey panic etmiş ve bu panic recover edilip 500'e çevrilmiştir. Bu bir `Cache`, `Metrics` ya da `Tracer` implementasyonu, bir router veya bir plugin hook'u olabilir. Data handler'lardaki ve template'lerdeki panic'ler ise `PanicError` olur. |
+| `ErrAssetFailed` | `collage: asset request failed` | `asset` | Mount edilmiş bir dosya request'i 400 ya da üstü bir status ile cevaplanmıştır. Bu tür bütün status'lar için tek bir sentinel vardır. |
+| `ErrHandlerFailed` | `collage: mounted handler failed` | `handler` | `App.Handle` ile mount edilmiş bir handler server error ile cevap vermiştir. |
+| `ErrUnsafeRedirectTarget` | `collage: unsafe redirect target` | `route` | Bir redirect'in hedefi, substitution'dan sonra tek slash'le başlayan relative bir path değildir: `//host`, `/\host` ya da control character içeren bir path'tir. Bir `Location` header'ıyla değil, 500 ile cevaplanır. |
 
-Alarm kurmaya değer aşama `"error_page"`'dir: hataları bildiren sayfanın kendisi
-başarısız oldu ve okuyucu yine de makul görünen bir sayfa gördü; yani bunu size
-başka hiçbir şey söylemezdi.
+Alarm kurmaya değer stage `"error_page"`'dir. Hataları bildiren page'in kendisi başarısız
+olmuştur, ama okuyucu yine de makul görünen bir page görmüştür. Bu yüzden size bunu
+başka hiçbir şey söylemez.
 
-## Statik build'ler
+## Static build'ler
 
-`collage.NewBuilder` ve `Builder.Build` tarafından döner ya da `BuildReport`'a
-kaydedilir. Bkz. [Statik dışa aktarma](/docs/static-export).
+Bu hataları `collage.NewBuilder` ve `Builder.Build` döner ya da `BuildReport`'a
+kaydedilirler. Bkz. [Static export](/docs/static-export).
 
 | Hata | Mesaj | Nerede | Anlamı |
 | --- | --- | --- | --- |
-| `ErrNilRenderer` | `collage: nil renderer` | `NewBuilder` | App `nil`. |
-| `ErrInvalidOutDir` | `collage: invalid output directory` | `NewBuilder` | `BuildOptions.OutDir` boş. |
-| `ErrDangerousOutDir` | `collage: refusing to use a dangerous output directory` | `Build` | `OutDir` bir dosya sistemi köküne — ya da `Clean` ile birlikte bir depo köküne — çözümleniyor. |
-| `ErrOutputPathCollision` | `collage: two builds target one output path` | `Build` | İki sayfa tek bir dosyaya yazılacaktı — yalnızca sondaki eğik çizgiyle ayrılan pattern'ler ya da bir yolu iki kez döndüren bir path provider. Herhangi bir sayfa render edilmeden önce bildirilir ve ardından hiçbir sayfa render edilmez: document'lar, `404.html` ve asset'ler yine de yazılır. |
-| `ErrPathEscapesOutDir` | `collage: resolved path escapes the output directory` | rapor hatası | Bir çıktı yolu ya da ona giden yoldaki bir sembolik bağlantı `OutDir`'in dışına çıkıyor. O tek dosya yazılmadan önce denetlenir; yalnızca o yol başarısız olur. |
-| `ErrDynamicPathUnresolved` | `collage: dynamic path pattern requires a path provider` | atlama | Bir sayfanın ya da document'ın yolunda bir `{param}` var ve path provider yok. |
-| `ErrNotStatic` | `collage: a Dynamic() route cannot be built statically` | atlama | Bir sayfa ya da document `Dynamic()`; dolayısıyla dışa aktarılacak bir şey yok. |
-| `ErrDuplicateOutputPath` | `collage: two build tasks write the same output path` | atlama | İki document görevi tek bir dosyaya çözümleniyor — bir yolu iki kez döndüren bir `DocumentPathProvider`. İlki derlenir, diğerleri atlanır. |
-| `ErrDegradedRender` | `collage: refusing to write a degraded render` | rapor hatası | Bir sayfa başarısız bir fragment'le render edildi ve `AllowDegraded` kapalı. Hiçbir dosya yazılmaz. |
-| `ErrEmptyRender` | `collage: page rendered no markup` | rapor hatası | Bir sayfa hiç markup render etmedi. `AllowDegraded` açıkken bile reddedilir. Yukarıdaki sunum sentinel'iyle aynıdır. |
-| `ErrUnresolvedToken` | `collage: refusing to write a page whose forgery token was never resolved` | rapor hatası, atlama | Bulunamadı sayfası bir `{{csrfToken}}` taşıyor: bir rapor hatası. Token taşıyan diğer her sayfa ise atlanır: bir sunucuya ihtiyacı vardır. |
-| `ErrBuildPanic` | `collage: panic while building a page` | rapor hatası | Bir sayfanın render edilmesi ya da yazılması panic'ledi; build kurtarıldı ve diğerleriyle devam etti. |
-| `ErrEmptyDocumentBody` | bkz. [Document'lar](#documents) | rapor hatası | Bir document boş bir gövde üretti. |
+| `ErrNilRenderer` | `collage: nil renderer` | `NewBuilder` | App `nil`'dir. |
+| `ErrInvalidOutDir` | `collage: invalid output directory` | `NewBuilder` | `BuildOptions.OutDir` boştur. |
+| `ErrDangerousOutDir` | `collage: refusing to use a dangerous output directory` | `Build` | `OutDir` bir filesystem root'una çözülür. `Clean` açıksa bir repository root'una çözülmesi de bu hatayı verir. |
+| `ErrOutputPathCollision` | `collage: two builds target one output path` | `Build` | İki page aynı dosyaya yazılacaktır. Sebep yalnızca sondaki slash'le ayrılan pattern'ler ya da bir path'i iki kez dönen bir path provider olabilir. Hiçbir page render edilmeden önce bildirilir ve ardından hiçbir page render edilmez. Document'lar, `404.html` ve asset'ler yine de yazılır. |
+| `ErrPathEscapesOutDir` | `collage: resolved path escapes the output directory` | report error | Bir output path'i ya da ona giden yoldaki bir symlink `OutDir`'in dışına çıkar. Bu, o dosya yazılmadan önce kontrol edilir; yalnızca o path başarısız olur. |
+| `ErrDynamicPathUnresolved` | `collage: dynamic path pattern requires a path provider` | skip | Bir page'in ya da document'ın path'inde bir `{param}` vardır ve path provider yoktur. |
+| `ErrNotStatic` | `collage: a Dynamic() route cannot be built statically` | skip | Bir page ya da document `Dynamic()`'tir, dolayısıyla export edilecek bir şey yoktur. |
+| `ErrDuplicateOutputPath` | `collage: two build tasks write the same output path` | skip | İki document görevi aynı dosyaya çözülür; bir `DocumentPathProvider` aynı path'i iki kez dönmüştür. İlki build edilir, diğerleri atlanır. |
+| `ErrDegradedRender` | `collage: refusing to write a degraded render` | report error | Bir page başarısız olan bir fragment'le render edilmiştir ve `AllowDegraded` kapalıdır. Hiçbir dosya yazılmaz. |
+| `ErrEmptyRender` | `collage: page rendered no markup` | report error | Bir page hiç markup render etmemiştir. `AllowDegraded` açık olsa bile reddedilir. Yukarıda serve için anlatılanla aynı sentinel'dir. |
+| `ErrUnresolvedToken` | `collage: refusing to write a page whose forgery token was never resolved` | report error, skip | Not-found page bir `{{csrfToken}}` taşıyorsa bu bir report error'dır. Token taşıyan diğer page'ler ise atlanır, çünkü onlar bir sunucuya ihtiyaç duyar. |
+| `ErrBuildPanic` | `collage: panic while building a page` | report error | Bir page'in render edilmesi ya da yazılması panic etmiştir. Build bunu recover etmiş ve diğerleriyle devam etmiştir. |
+| `ErrEmptyDocumentBody` | bkz. [Document'lar](#documents) | report error | Bir document boş bir body üretmiştir. |
 
-Rapor hataları, `errors.Is` ile eşleşen hatalardan oluşan bir dilim olan
-`BuildReport.Errors`'tadır. Bir atlama, `BuildReport.Skipped` içindeki bir
-`SkipRecord`'dur: `Reason`'ı insanlar için bir cümle, `Err`'i ise (v0.10.0'dan
-itibaren) kod için sentinel'dir — `ErrNotStatic`, `ErrDynamicPathUnresolved`,
-`ErrUnresolvedToken` ya da `ErrDuplicateOutputPath` — bu yüzden onu `Reason`'ı okuyarak
-değil, `errors.Is(skip.Err, …)` ile eşleştirin.
+Report error'lar `BuildReport.Errors` içindedir. Bu, `errors.Is` ile eşleşen
+hatalardan oluşan bir slice'tır. Bir atlama ise `BuildReport.Skipped` içindeki bir
+`SkipRecord`'dur. Onun `Reason`'ı insanlar için yazılmış bir cümledir. `Err`'i ise
+(v0.10.0'dan beri) kod için sentinel'dir: `ErrNotStatic`, `ErrDynamicPathUnresolved`,
+`ErrUnresolvedToken` ya da `ErrDuplicateOutputPath`. Bu yüzden `Reason`'ı okumak
+yerine onu `errors.Is(skip.Err, …)` ile eşleştirin.

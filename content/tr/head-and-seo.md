@@ -1,20 +1,21 @@
 ---
-description: Başlıklar, meta etiketleri, stil dosyaları ve structured data; onları bilen fragment bildirir, layout yerleştirir.
+description: Title'ları, meta tag'leri, stylesheet'leri ve structured data'yı onları bilen fragment tanımlar, layout yerleştirir.
+reference: RenderContext, Effect, ErrNoPathInLocale
 ---
 
 # Head ve SEO
 
-Bir sayfanın başlığını bilen fragment, `<head>`'i yazan fragment nadiren olur. Yazı
-kendi başlığını ve özetini bilir; galeri `gallery.css`'e ihtiyaç duyduğunu bilir;
-`<head>`'i ikisi de render edilmeden önce yazmış olan layout ise ikisini de bilmez.
+Bir page'in title'ını bilen fragment, `<head>`'i yazan fragment nadiren olur. Post
+kendi title'ını ve özetini bilir. Gallery, `gallery.css`'e ihtiyacı olduğunu bilir.
+Layout ise `<head>`'i ikisi de render edilmeden önce yazmıştır ve ikisini de bilmez.
 
-collage bunu **hoisting** (yukarı taşıma) ile çözer: bir fragment, sayfada nerede
-durursa dursun head'e neyin ait olduğunu *bildirir*, layout da bildirimlerin nereye
-düşeceğini söyler.
+collage bu sorunu **hoisting** ile çözer. Fragment, page içinde nerede durursa
+dursun head'e neyin gireceğini *tanımlar*. Tanımların nereye yerleşeceğini
+ise layout belirler.
 
-## Nereye düşer
+## Nereye yerleşir
 
-Layout, `<head>`'inin içine bir işaret koyar:
+Layout, `<head>`'inin içine bir marker koyar:
 
 ```html
 <!doctype html>
@@ -31,18 +32,18 @@ Layout, `<head>`'inin içine bir işaret koyar:
 </html>
 ```
 
-`{{hoist "head"}}` içerik değil bir işaret yazar — altındaki hiçbir şey henüz render
-edilmemiştir. Sayfanın tamamı bittiğinde collage, işareti ağacın herhangi bir yerinde
-`"head"` alanı için bildirilmiş her şeyle değiştirir. Tek geçiş; konuma yine layout
-karar verir.
+`{{hoist "head"}}` içerik yazmaz, bir marker yazar. Çünkü o noktada altındaki hiçbir
+şey henüz render edilmemiştir. Page'in tamamı bittiğinde collage bu marker'ı, ağacın
+herhangi bir yerinde `"head"` alanı için tanımlanmış her şeyle değiştirir. Bu iş
+tek geçişte yapılır ve konumu yine layout belirler.
 
-İşaret olmadan bildirimler hiçbir yere gitmez. Bir başlık ya da bir plugin'in
-çıktısı eksik olduğunda kontrol edilecek ilk şey budur.
+Marker yoksa tanımlar hiçbir yere yerleşmez. Bir title ya da bir plugin'in
+çıktısı eksikse ilk kontrol etmeniz gereken şey budur.
 
-## Bir data handler'dan bildirmek
+## Data handler'dan tanımlamak
 
-`RenderContext` üzerindeki yardımcılar neredeyse her sayfanın ihtiyacını karşılar.
-Onları bir data handler'dan çağırın:
+`RenderContext` üzerindeki helper'lar neredeyse her page'in ihtiyacını karşılar.
+Bunları bir data handler'dan çağırın:
 
 ```go
 func loadPost(ctx context.Context, rc *collage.RenderContext) (postView, []string, error) {
@@ -64,50 +65,52 @@ func loadPost(ctx context.Context, rc *collage.RenderContext) (postView, []strin
 }
 ```
 
-| Çağrı | Ürettiği | Anahtar |
+| Çağrı | Ürettiği | Key |
 | --- | --- | --- |
 | `rc.HoistTitle(text)` | `<title>text</title>` | `title` |
 | `rc.HoistMeta(name, content)` | `<meta name="…" content="…">` | `meta:<name>` |
 | `rc.HoistProperty(property, content)` | `<meta property="…" content="…">` (Open Graph) | `property:<property>` |
 | `rc.HoistLink(rel, href)` | `<link rel="…" href="…">` | `link:<rel>` |
-| `rc.HoistAlternate(hreflang, href)` | `<link rel="alternate" hreflang="…" href="…">` (v0.10.0'dan itibaren) | `alternate:<hreflang>` |
-| `rc.HoistStylesheet(path)` | Dosyanın [içerik adresli URL'sinde](/docs/assets) `<link rel="stylesheet" href="…">` | `stylesheet:<path>` |
+| `rc.HoistAlternate(hreflang, href)` | `<link rel="alternate" hreflang="…" href="…">` (v0.10.0'dan beri) | `alternate:<hreflang>` |
+| `rc.HoistStylesheet(path)` | Dosyanın [content-addressed URL'siyle](/docs/assets) `<link rel="stylesheet" href="…">` | `stylesheet:<path>` |
 
-Her yardımcı kendisine verileni escape eder; bu yüzden bir yazının adından kurulan
-başlık, yazının adı ne olursa olsun güvenlidir. `HoistStylesheet` dosyanın mount
-edilmiş yolunu alır ve hiçbir mount o dosyaya sahip değilse bir hata döndürür — var
-olmayan bir stil dosyasına bağlanan sayfa bozuk bir sayfadır ve bunu söylemelidir.
+Her helper kendisine verilen değeri escape eder. Bu yüzden bir post'un adından
+oluşturulan title, post'un adı ne olursa olsun güvenlidir. `HoistStylesheet`,
+dosyanın mount edilmiş path'ini alır. O dosya hiçbir mount'ta yoksa hata döner.
+Var olmayan bir stylesheet'e link veren page bozuk bir page'dir ve bunu açıkça
+söylemesi gerekir.
 
-Onları senkron olarak, data handler'ın kendi goroutine'inden çağırın. Handler'ın
-başlattığı bir goroutine'den yapılan bildirimin sayfada bir konumu yoktur.
+Bu helper'ları senkron olarak, data handler'ın kendi goroutine'inden çağırın.
+Handler'ın başlattığı başka bir goroutine'den yapılan tanımın page içinde bir
+konumu yoktur.
 
-### Bir şablondan
+### Template'ten
 
-Bir fragment'in şablonu stil dosyasını kendisi isteyebilir:
+Bir fragment'in template'i stylesheet'i kendisi de isteyebilir:
 
 ```html
 {{stylesheet "/static/gallery.css"}}
 <div class="gallery">…</div>
 ```
 
-`{{stylesheet}}` durduğu yerde hiçbir şey render etmez; `HoistStylesheet`'in
-yaptığını yapar. Galerinin CSS'i galeriyle birlikte, galeri hangi sayfadaysa oraya
+`{{stylesheet}}` bulunduğu yerde hiçbir şey render etmez, `HoistStylesheet` ile aynı
+işi yapar. Böylece gallery'nin CSS'i, gallery hangi page'deyse onunla birlikte oraya
 gider.
 
-## Anahtarlar ve en içteki kazanır
+## Key'ler ve en içtekinin kazanması
 
-Her bildirimin bir anahtarı vardır ve neyin aynı şey sayılacağına anahtar karar
-verir:
+Her tanımın bir key'i vardır. Neyin aynı şey sayılacağını bu key belirler:
 
-- **Farklı anahtarların hepsi görünür**, her biri sayfa sırasındaki en erken
-  bildiriminin yerinde.
-- **Aynı anahtar iki kez bildirilirse en içteki bildirim kalır.**
+- **Farklı key'lerin hepsi görünür.** Her biri, page sırasındaki ilk
+  tanımının yerinde durur.
+- **Aynı key iki kez tanımlanırsa en içteki tanım kalır.**
 
-Bu tek kural iki işi birden görür. Stil dosyası yoluna göre anahtarlanır; böylece
-`gallery.css` isteyen beş fragment tek bir `<link>` üretir, farklı stil dosyaları da
-birikir. Başlığın tek bir anahtarı vardır; böylece daha özel bir fragment'in başlığı
-daha genel olanınkinin yerini alır. Bu, varsayılanları kolaylaştırır — onları
-layout'ta bildirin ve herhangi bir sayfanın üzerine yazmasına izin verin:
+Bu tek kural iki işi birden görür. Stylesheet'in key'i path'idir. Bu yüzden
+`gallery.css` isteyen beş fragment tek bir `<link>` üretir, farklı stylesheet'ler ise
+birikir. Title'ın ise tek bir key'i vardır. Bu yüzden daha spesifik bir fragment'in
+title'ı, daha genel olanın title'ının yerine geçer. Bu da varsayılan değerleri
+kolaylaştırır. Varsayılanları layout'ta tanımlayın, her page istediğinde onları
+override etsin:
 
 ```go
 layout := collage.NewFragment("layout", "layouts/default.html").
@@ -120,74 +123,76 @@ layout := collage.NewFragment("layout", "layouts/default.html").
 	Build()
 ```
 
-O layout'un içine yerleşmiş bir yazı kendi başlığını ve açıklamasını bildirir ve
-sayfada görünenler onlardır. Hiçbir şey bildirmeyen bir sayfa layout'unkileri korur.
-Layout'un şablonuna ayrıca düz bir `<title>` yazmayın — hoist edilenin yanında
-dururdu ve iki başlığı olan bir sayfanın başlıklarından birini tarayıcı yok sayar.
-`collage new`'un iskeletini oluşturduğu layout sitenin adını bu şekilde bildirir;
-böylece bir sayfanın `rc.HoistTitle`'ı onun yerini alır.
+Bu layout'un içindeki bir post kendi title'ını ve description'ını tanımlar.
+Page'de görünenler de bunlar olur. Hiçbir şey tanımlamayan bir page layout'unkileri
+korur. Layout'un template'ine ayrıca elle bir `<title>` yazmayın. Yazarsanız o title,
+hoist edilen title'ın yanında durur. İki title'ı olan bir page'de tarayıcı bunlardan
+birini yok sayar. `collage new`'un oluşturduğu layout da sitenin adını bu şekilde
+tanımlar. Böylece bir page'in `rc.HoistTitle` çağrısı onun yerine geçer.
 
-Sürpriz olmasınlar diye üç ayrıntı:
+Sürpriz olmasınlar diye üç ayrıntıyı belirtelim:
 
-- **Konum, kazanan bildirimden değil ilk bildirimden gelir.** Head, iç içe bir şeyin
-  bir başlığın üzerine yazıp yazmamasına göre kendini yeniden sıralamaz.
-- **Eşit derinlikte, daha sonra bildiren fragment kazanır.** Aynı anahtarı bildiren
-  iki kardeş fragment gerçek bir çakışmadır ve sayfadaki sıralarıyla çözülür —
-  hangisinin data handler'ının önce bittiğiyle değil; öyle olsaydı head istekten
-  isteğe değişirdi.
-- **Sıra saatin değil sayfanındır.** Kardeş data handler'lar eşzamanlı çalışır, ama
-  bir anahtar, önce onu ilk bildiren fragment'in sayfadaki yerine, sonra o
-  fragment'in bildirim sırasına göre yerleştirilir — böylece head, birbirinin üzerine
-  yazan stil dosyaları dahil, her render'da aynıdır. (v0.12.0'dan önce bir anahtar,
-  ilk bildiriminin tesadüfen ulaştığı yere oturuyordu ve kardeşlerin anahtarları
-  istekler arasında yer değiştirebiliyordu.)
+- **Konumu kazanan tanım değil, ilk tanım belirler.** Head, iç taraftaki
+  bir fragment'in title'ı override edip etmemesine göre kendini yeniden sıralamaz.
+- **Aynı derinlikte, sonra tanımlayan fragment kazanır.** Aynı key'i tanımlayan
+  iki kardeş fragment gerçek bir çakışmadır. Bu çakışma, fragment'lerin page içindeki
+  sırasıyla çözülür. Hangi data handler'ın önce bittiği belirleyici değildir, öyle
+  olsaydı head request'ten request'e değişirdi.
+- **Sırayı saat değil, page belirler.** Kardeş data handler'lar eşzamanlı çalışır.
+  Ama bir key, önce onu ilk tanımlayan fragment'in page içindeki yerine, sonra o
+  fragment'in tanımlama sırasına göre yerleştirilir. Böylece head, birbirini
+  override eden stylesheet'ler de dahil olmak üzere her render'da aynı olur.
+  (v0.12.0'dan önce bir key, ilk tanımı nereye denk gelirse oraya
+  yerleşiyordu ve kardeş fragment'lerin key'leri request'ler arasında yer
+  değiştirebiliyordu.)
 
 ## Geri kalan her şey: rc.Hoist
 
-Yardımcılar tek bir metot üzerine kuruludur:
+Helper'ların hepsi tek bir method üzerine kuruludur:
 
 ```go
 func (rc *RenderContext) Hoist(area, key string, html template.HTML)
 ```
 
-`html`'i `key` altında, `area`'ya **tam olarak yazıldığı gibi** ekler. Varlık
-nedeni de budur — yardımcıların kapsamadığı markup — ve bu, escape etmenin sizin
-işiniz olduğu anlamına gelir. Markup'ı kontrol ettiğiniz değerlerden kurun ya da
-onları escape edin:
+Bu method `html`'i `key` altında, `area`'ya **tam yazıldığı gibi** ekler. Zaten var
+olma sebebi budur: helper'ların kapsamadığı markup. Bu da escape işinin size düştüğü
+anlamına gelir. Markup'ı kontrolünüzdeki değerlerden oluşturun ya da değerleri escape
+edin:
 
 ```go
 rc.Hoist("head", "preload:hero", template.HTML(
 	`<link rel="preload" as="image" href="`+html.EscapeString(post.CoverURL)+`">`))
 ```
 
-Aynı anahtar kuralları geçerlidir; bu yüzden şeyin ne olduğunu söyleyen bir anahtar
-seçin: bir kez görünmesi gereken her şey için bir anahtar, biriken şeyler için de
-değer başına bir anahtar.
+Aynı key kuralları burada da geçerlidir. Bu yüzden eklediğiniz şeyin ne olduğunu
+anlatan bir key seçin. Bir kez görünmesi gereken her şey için tek bir key kullanın.
+Biriken şeyler için ise her değere ayrı bir key verin.
 
-Alan herhangi bir ad olabilir ve bir layout'ta birden fazla işaret olabilir —
-örneğin bir fragment'in ihtiyaç duyduğu script'ler için `</body>`'den önce bir `{{hoist "scripts"}}`:
+Area herhangi bir isim olabilir ve bir layout'ta birden fazla marker bulunabilir.
+Örneğin fragment'lerin ihtiyaç duyduğu script'ler için `</body>`'den önce bir `{{hoist
+"scripts"}}` koyabilirsiniz:
 
 ```go
 rc.Hoist("scripts", "script:map", template.HTML(`<script src="`+mapJS+`" defer></script>`))
 ```
 
-## Canonical ve alternate bağlantılar
+## Canonical ve alternate link'ler
 
-Canonical bağlantı, aynı içeriğe birden fazla URL ulaştığında — örneğin izleme
-query'siyle ve onsuz — arama motorlarına hangisinin asıl URL olduğunu söyler. Ona
-mutlak bir URL verin. collage origin'leri değil yolları kurar; bu yüzden sitenizin
-origin'ini kendi yapılandırmanızda tutun ve ikisini birleştirin:
+Aynı içeriğe birden fazla URL ile ulaşılabiliyorsa, örneğin tracking query'siyle ve
+onsuz, canonical link arama motorlarına hangisinin asıl URL olduğunu söyler. Bu link'e
+mutlak bir URL verin. collage origin değil path üretir. Bu yüzden sitenizin
+origin'ini kendi config'inizde tutun ve ikisini birleştirin:
 
 ```go
 rc.HoistLink("canonical", siteOrigin+rc.Request.URL.Path)
 ```
 
-Birden fazla dilde olan bir site, her çevirinin nerede olduğunu da dil başına bir
-`<link rel="alternate" hreflang="…">` ile söylemelidir. `HoistLink` her `rel` için
-tek bağlantı tutar, bu yüzden bunu söyleyemez; `rc.HoistAlternate` ise her
-bağlantıyı diline göre anahtarlar, böylece her çeviri bir kez görünür. Onları
-layout'tan, hangi sayfa render ediliyorsa onun için,
-[`app.URL`](/docs/links-and-locales#links-from-go) ile bildirin:
+Birden fazla dildeki bir site, her çevirinin nerede olduğunu da belirtmelidir. Bunun
+için her dile bir `<link rel="alternate" hreflang="…">` gerekir. `HoistLink` her
+`rel` için tek bir link tuttuğundan bunu ifade edemez. `rc.HoistAlternate` ise her
+link'in key'ini diline göre belirler, böylece her çeviri bir kez görünür. Bu link'leri
+layout'tan, o an hangi page render ediliyorsa onun için,
+[`app.URL`](/docs/links-and-locales#links-from-go) ile tanımlayın:
 
 ```go
 func Layout(app *collage.App) *collage.Fragment {
@@ -210,11 +215,12 @@ func Layout(app *collage.App) *collage.Fragment {
 }
 ```
 
-Çevirisinin slug'ı farklı olan bir sayfa — bunu yalnızca içeriği bilir — o dil için
-kendi `rc.HoistAlternate`'ini bildirir ve daha içte olduğu için layout'unkinin
-yerini alır. Handler'ı olmayan bir layout için şablondaki karşılığı
-[`localeURL`](/docs/links-and-locales#a-language-switcher)'dir; sayfanın var
-olmadığı bir dil için boştur:
+Bazı page'lerin çevirisi farklı bir slug kullanır ve bunu yalnızca o page'in içeriği
+bilir. Böyle bir page, o dil için kendi `rc.HoistAlternate` çağrısını yapar. Daha
+içte olduğu için de layout'un tanımının yerine geçer. Handler'ı olmayan bir
+layout için template'teki karşılığı
+[`localeURL`](/docs/links-and-locales#a-language-switcher) fonksiyonudur. Page'in var
+olmadığı bir dil için boş döner:
 
 ```html
 {{with localeURL "tr"}}<link rel="alternate" hreflang="tr" href="https://thewire.example{{.}}">{{end}}
@@ -223,8 +229,8 @@ olmadığı bir dil için boştur:
 ## Structured data
 
 Arama motorları schema.org structured data'sını head'deki JSON-LD bloklarından okur.
-[`elagoht/jsonld` plugin'i](/docs/plugins#elagohtjsonld) bunları sizin için, elle
-kurulmuş JSON yerine tipli değerlerden yazar:
+[`elagoht/jsonld` plugin'i](/docs/plugins#elagohtjsonld) bu blokları sizin yerinize
+yazar. Bunu elle oluşturulmuş JSON'dan değil, tipli değerlerden yapar:
 
 ```go
 import "github.com/Elagoht/collage-jsonld"
@@ -244,21 +250,22 @@ func loadPost(ctx context.Context, rc *collage.RenderContext) (postView, []strin
 }
 ```
 
-`jsonld.Emit` `"head"`'e hoist eder; bu yüzden bu sayfadaki diğer her şeyle aynı
-işarete ihtiyaç duyar ve aynı kurallara uyar: schema.org tipi başına bir anahtar, en
-içteki kazanır. Plugin'i kaydetmek (`Config.Plugins` içinde `jsonld.New()`), bir site
-adıyla yapılandırıldığında site genelinde bir `WebSite` düğümü ekler; sayfa başına
-veri ise her zaman data handler'larınızdan gelir, çünkü sayfanın ne hakkında olduğunu
-yalnızca onlar bilir.
+`jsonld.Emit`, `"head"` area'sına hoist eder. Bu yüzden bu sayfada anlatılan diğer
+her şeyle aynı marker'a ihtiyaç duyar ve aynı kurallara uyar: her schema.org tipi için
+bir key vardır ve en içteki kazanır. Plugin'i register ettiğinizde (`Config.Plugins`
+içinde `jsonld.New()`), bir site adıyla yapılandırılmışsa site genelinde bir
+`WebSite` node'u ekler. Page'e özel veri ise her zaman data handler'larınızdan gelir.
+Çünkü page'in ne hakkında olduğunu yalnızca onlar bilir.
 
 ## Hoisting ve collage'ın geri kalanı
 
-- **Önbellekteki sayfalar head'lerini korur.** İşaret, sayfa saklanmadan önce
-  değiştirilir; böylece önbellekteki bir sayfa bildirilmiş her şeyle birlikte sunulur.
-- **Kendi URL'sindeki bir fragment'in head'i yoktur.**
-  [`WithFragmentPath`](/docs/forms-and-actions#a-fragment-at-its-own-url) üzerinden
-  sunulan bir fragment'in layout'u yoktur; bu yüzden hoist ettiklerinin düşeceği bir
-  yer yoktur.
-- **`rc.Page`'den değil, data handler'lardan hoist edin.** `rc.Page` kaydedilmiş
-  sayfadır ve her istek tarafından paylaşılır; ona yazmak bir data race'tir. İstek
-  başına değişen şey `rc` üzerinden bildirilir.
+- **Cache'lenen page'ler head'lerini korur.** Marker, page saklanmadan önce
+  değiştirilir. Bu yüzden cache'lenmiş bir page, tanımlanmış her şeyle birlikte
+  sunulur.
+- **Kendi URL'sinde sunulan bir fragment'in head'i yoktur.**
+  [`WithFragmentPath`](/docs/forms-and-actions#a-fragment-at-its-own-url) ile sunulan
+  bir fragment'in layout'u yoktur. Bu yüzden hoist ettiği şeylerin yerleşeceği bir
+  yer de yoktur.
+- **Hoist işlemini `rc.Page` üzerinden değil, data handler'lardan yapın.** `rc.Page`
+  register edilmiş page'dir ve her request tarafından paylaşılır. Ona yazmak data
+  race'e yol açar. Request'e göre değişen her şey `rc` üzerinden tanımlanır.

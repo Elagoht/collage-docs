@@ -1,12 +1,13 @@
 ---
-description: collage.Config ve alt yapılarının her alanı, varsayılan değerleri ve doğrulamanın neyi denetlediği.
+description: collage.Config ve alt struct'larının her alanı, varsayılan değerleri ve validation'ın neleri kontrol ettiği.
+reference: Config, CacheConfig, ServerConfig, SecurityConfig, TemplateConfig, LocaleConfig, ObservabilityConfig, Config.Validate
 ---
 
-# Yapılandırma
+# Config
 
-Bir uygulama, `collage.New`'a verilen tek bir `collage.Config` değeriyle
-yapılandırılır. Her alanın kullanılabilir bir sıfır değeri vardır; bu yüzden bir
-yapılandırma yalnızca varsayılanlardan farklı olanı söyler:
+Bir uygulamanın config'i tek bir `collage.Config` değeridir ve bu değer
+`collage.New`'a verilir. Her alanın kullanılabilir bir sıfır değeri vardır. Bu yüzden
+bir config'e yalnızca varsayılanlardan farklı olanları yazarsınız:
 
 ```go
 app, err := collage.New(&collage.Config{
@@ -16,54 +17,55 @@ app, err := collage.New(&collage.Config{
 
 `New` bu değerle sırasıyla üç şey yapar:
 
-1. **Varsayılanları doldurur.** `cfg.ApplyDefaults()`'u çağırır; bu da varsayılanı
-   olan ve sıfır değerde duran her alanı ayarlar. Verdiğiniz değeri değiştirir; böylece
-   uygulamanın tam olarak neyle kurulduğunu geri okuyabilirsiniz.
-2. **Doğrular.** `cfg.Validate()`'i çağırır ve bulduğu ilk sorunu hata olarak döner —
-   bkz. [Doğrulama](#validation).
-3. **Uygulamayı kurar.** Var olmayan bir şablon kökü, ayrıştırılamayan bir şablon, bir
-   plugin'in `Configure`'unun başarısız olması — her biri ilk istekte değil, burada
-   bildirilir.
+1. **Varsayılanları doldurur.** `cfg.ApplyDefaults()`'u çağırır. Bu metot, varsayılanı
+   olan ve sıfır değerde duran her alanı ayarlar. Verdiğiniz değeri yerinde
+   değiştirdiği için uygulamanın tam olarak hangi değerlerle kurulduğunu sonradan
+   okuyabilirsiniz.
+2. **Validation yapar.** `cfg.Validate()`'i çağırır ve bulduğu ilk sorunu hata olarak
+   döner. Ayrıntılar için [Validation](#validation) bölümüne bakın.
+3. **Uygulamayı kurar.** Var olmayan bir template root'u, parse edilemeyen bir
+   template ya da bir plugin'in `Configure` metodunun başarısız olması bu adımda
+   bildirilir. Bu hataların hiçbiri ilk request'e kadar beklemez.
 
-`nil` vermek `ErrNilConfig`'dir. nil bir yapılandırma varsayılanları istemek değil,
-bir hatadır; çünkü şablonlarınızın nerede olduğunu yapılandırma söyler.
+`nil` verirseniz `ErrNilConfig` alırsınız. nil bir config varsayılanları istemek
+anlamına gelmez, bir hatadır. Çünkü template'lerinizin nerede olduğunu config söyler.
 
 ## Config
 
 | Alan | Tip | Varsayılan | Anlamı |
 | --- | --- | --- | --- |
-| `DevMode` | `bool` | `false` | Framework genelinde geliştirme modu. |
-| `DevWatch` | `[]string` | yok | Değiştiğinde geliştirme sayfasını yenileyen ek dizinler. v0.10.0'dan itibaren. |
-| `Logger` | `*slog.Logger` | başlangıçta seçilir | Framework'ün ve plugin'lerin yazdığı logger. |
+| `DevMode` | `bool` | `false` | Framework genelinde development modu. |
+| `DevWatch` | `[]string` | yok | Değiştiğinde development'taki page'i yeniden yükleyen ek dizinler. v0.10.0'dan beri. |
+| `Logger` | `*slog.Logger` | başlangıçta seçilir | Framework'ün ve plugin'lerin log yazdığı logger. |
 | `Server` | `ServerConfig` | | HTTP sunucusu. |
-| `Security` | `SecurityConfig` | | İstek sahteciliği koruması. |
-| `Template` | `TemplateConfig` | | Şablon yükleme ve render etme. |
-| `Cache` | `CacheConfig` | | Sayfa önbelleği. |
+| `Security` | `SecurityConfig` | | Request forgery koruması. |
+| `Template` | `TemplateConfig` | | Template'lerin yüklenmesi ve render edilmesi. |
+| `Cache` | `CacheConfig` | | Page cache. |
 | `Locale` | `LocaleConfig` | | URL'lerin hangi locale'leri taşıdığı. |
-| `TrailingSlash` | `bool` | `false` | Her sayfanın URL'sini `/` ile bitirir. v0.13.0'dan itibaren. |
-| `Observability` | `ObservabilityConfig` | | Metrikler ve izleme (tracing). |
-| `Plugins` | `[]Plugin` | yok | Uygulama kurulurken kaydedilen plugin'ler. |
-| `PluginConfig` | `map[string]json.RawMessage` | yok | Plugin adına göre anahtarlanmış, her plugin'in kendi yapılandırması. |
+| `TrailingSlash` | `bool` | `false` | Her page'in URL'si `/` ile biter. v0.13.0'dan beri. |
+| `Observability` | `ObservabilityConfig` | | Metric'ler ve tracing. |
+| `Plugins` | `[]Plugin` | yok | Uygulama kurulurken register edilen plugin'ler. |
+| `PluginConfig` | `map[string]json.RawMessage` | yok | Her plugin'in kendi config'i, plugin adına göre key'lenmiş. |
 
 ### DevMode
 
-Geliştirme modunu açar: şablonlar her render'dan önce diskten yeniden yüklenir,
-sayfalar tarayıcıda kendilerini yeniler, başarısız fragment'ler sayfada gösterilir,
-sayfa önbelleğinden hiç okunmaz, disk önbelleğinin yerini bellek alır, `DevWatch`'ta
-adı geçen dizinler izlenir ve yerleşik hata sayfası hatanın başladığı fragment'in
-adını verip hata zincirinin tamamını gösterir. **Production'da kapalı olmalıdır** —
-bu tanılama bilgileri yolları, sunucu adlarını ve hata mesajlarının içerdiği her şeyi
-taşır.
+Development modunu açar. Bu modda template'ler her render'dan önce diskten yeniden
+yüklenir ve page'ler tarayıcıda kendilerini yeniler. Başarısız fragment'ler page'in
+üzerinde gösterilir, page cache'ten hiç okunmaz ve disk cache'in yerini memory alır.
+`DevWatch`'ta adı geçen dizinler izlenir. Built-in error page de hatanın hangi
+fragment'te başladığını söyler ve hata zincirinin tamamını gösterir. **Production'da
+kapalı olmalıdır.** Bu tanı bilgileri dosya yollarını, host adlarını ve hata
+mesajlarında ne varsa hepsini içerir.
 
-Geçerli değer `cfg.IsDevMode()`'dur; bu da `DevMode || Template.DevMode`'dur. İskelet
-olarak oluşturulan bir proje bunu `COLLAGE_DEV=1`'den ayarlar; `collage dev` bunu
-sizin için ayarlar.
+Geçerli değeri `cfg.IsDevMode()` verir. Bu değer `DevMode || Template.DevMode`'dur.
+Scaffold edilmiş bir proje bu alanı `COLLAGE_DEV=1`'e göre ayarlar. `collage dev` bu
+değişkeni sizin yerinize set eder.
 
 ### DevWatch
 
-Şablonlar ve mount'lar dışında, değiştiğinde geliştirme sayfasını yenileyen
-dizinler — uygulamanızın diskten kendisi okuduğu Markdown ya da JSON gibi içerikler
-için. v0.10.0'dan itibaren.
+Template'ler ve mount'lar dışında, değiştiğinde development'taki page'i yeniden
+yükleyen dizinlerdir. Uygulamanızın diskten kendisinin okuduğu Markdown ya da JSON
+gibi içerikler için kullanılır. v0.10.0'dan beri vardır.
 
 ```go
 app, err := collage.New(&collage.Config{
@@ -73,126 +75,131 @@ app, err := collage.New(&collage.Config{
 })
 ```
 
-Var olmayan bir dizin hata sayılmaz, atlanır; çünkü aynı yapılandırma binary nerede
-başlatılırsa orada çalışır. Geliştirme dışında yok sayılır. Bir dizini izlemek yalnızca
-tarayıcıyı yeniler; yeni içeriği bir sonraki render'da — başlangıçta yüklenmiş bir
-kopyadan değil — okumak sizin kodunuzun işidir.
+Var olmayan bir dizin hata sayılmaz, atlanır. Çünkü aynı config, binary nerede
+başlatılırsa orada çalışır. Development dışında bu alan dikkate alınmaz. Bir dizini
+izlemek yalnızca tarayıcıyı yeniler. Yeni içeriği başlangıçta yüklenmiş bir kopyadan
+değil de bir sonraki render'da okumak sizin kodunuzun işidir.
 
 ### Logger
 
-Varsayılan olan `nil`, seçimi uygulamayı kurarken framework'e bırakır: bir
-terminalde — ve yalnızca slog'un varsayılan handler'ını hiçbir şey değiştirmemişse —
-bir insan için tasarlanmış, her kayıt için tek satır ve renkli bir seviye işaretiyle
-yazan derli toplu bir handler. Diğer her yerde, değiştirilmeden `slog.Default()`.
-`slog.SetDefault`'u çağırmış bir uygulama kendi handler'ını korur. Emin olmak için
-bir logger verin; örneğin bir makinenin okuyacağı loglar için bir JSON handler'ı.
-`ApplyDefaults` bu alanı `nil` bırakır.
+Varsayılan değer olan `nil`, seçimi framework'e bırakır ve framework uygulamayı
+kurarken seçer. Terminalde, ve yalnızca slog'un varsayılan handler'ını hiçbir şey
+değiştirmemişse, insanların okuması için tasarlanmış kompakt bir handler kullanılır.
+Bu handler her kaydı tek satırda ve renkli bir level işaretiyle yazar. Diğer bütün
+ortamlarda `slog.Default()` olduğu gibi kullanılır. `slog.SetDefault`'u çağırmış bir
+uygulama kendi handler'ını korur. Sonuçtan emin olmak istiyorsanız bir logger verin,
+örneğin makinelerin okuyacağı loglar için bir JSON handler. `ApplyDefaults` bu alanı
+`nil` bırakır.
 
 ### Plugins ve PluginConfig
 
-`Plugins`, `New` çalışırken sırayla kaydedilir. Şablonlar ayrıştırılmadan önce
-harekete geçmesi gereken — bir şablon fonksiyonu eklemek ya da mount'ları sarmalamak
-için — bir plugin, `app.RegisterPlugin` üzerinden değil, buradan gelmelidir.
+`Plugins` içindeki plugin'ler, `New` çalışırken sırayla register edilir. Template'ler
+parse edilmeden önce devreye girmesi gereken bir plugin, örneğin template fonksiyonu
+ekleyen ya da mount'ları saran bir plugin, `app.RegisterPlugin` ile değil bu alanla
+verilmelidir.
 
 `PluginConfig` her plugin'in bölümünü ham JSON olarak tutar. Framework hiçbir dosya
-okumaz: bunu dilediğiniz gibi doldurun ya da eksik bir dosya için `nil` dönen
-`collage.LoadPluginConfig("plugins-config.json")`'u kullanın. Kayıtlı hiçbir plugin'i
-adlandırmayan bir anahtar, uygulamanın `ErrUnknownPluginConfig` ile başlamasını
-engeller. Bkz. [Plugin kullanmak](/docs/plugins).
+okumaz. Bu alanı istediğiniz gibi doldurabilir ya da
+`collage.LoadPluginConfig("plugins-config.json")`'u kullanabilirsiniz. Bu fonksiyon
+dosya yoksa `nil` döner. Register edilmiş hiçbir plugin'in adına karşılık gelmeyen bir
+key, uygulamanın başlamasını `ErrUnknownPluginConfig` ile engeller. Ayrıntılar için
+[Plugin kullanmak](/docs/plugins) sayfasına bakın.
 
 ### TrailingSlash
 
-Her sayfanın tek bir adresi vardır; `TrailingSlash` bu adresin `/` ile bitip
-bitmediğini söyler. Açıkken sayfa `/blog/hello/` adresindedir ve `/blog/hello` oraya
-`301` ile yönlendirilir; varsayılan olan kapalı durumda tersi geçerlidir. Adla
-kurulan bağlantılar — `pageURL`, `pageURLIn`, `localeURL`, `app.URL` — seçilen
-yazımla çıkar; bir locale'in ana sayfası da buna dahildir: açıkken `/tr/`,
-kapalıyken `/tr`.
+Her page'in tek bir adresi vardır. `TrailingSlash` bu adresin `/` ile bitip
+bitmeyeceğini belirler. Açıksa page `/blog/hello/` adresindedir ve `/blog/hello`
+oraya `301` ile redirect edilir. Varsayılan olan kapalı durumda bunun tersi geçerlidir.
+İsimle üretilen link'ler (`pageURL`, `pageURLIn`, `localeURL`, `app.URL`) seçilen
+yazımla çıkar. Bir locale'in ana sayfası da buna dahildir: açıkken `/tr/`, kapalıyken
+`/tr`.
 
-Statik bir barındırma hizmetine [dışa aktardığınız](/docs/static-export#hosting) bir
-site için açın. Dışa aktarma bir sayfayı `<path>/index.html` olarak yazar; barındırma
-hizmeti bu dosyayı `/blog/hello/` adresinde sunar, `/blog/hello` adresinden ise
-ancak bir yönlendirmeyle ulaşır. Yani ayar kapalıyken her canonical bağlantı, her
-sitemap girdisi ve her iç bağlantı bir yönlendirmeyi gösterir.
+Static bir host'a [export](/docs/static-export#hosting) ettiğiniz bir sitede bu
+ayarı açın. Export bir page'i `<path>/index.html` olarak yazar. Host bu dosyayı
+`/blog/hello/` adresinden sunar, `/blog/hello` adresinden ise ancak bir redirect ile
+ulaşılır. Bu yüzden ayar kapalıyken her canonical link, her sitemap girdisi ve her
+iç link bir redirect'e işaret eder.
 
-Ayar sayfalara uygulanır. Bir [document](/docs/documents) bir dosyadır ve yolunu
-yazıldığı gibi korur, iki durumda da `/sitemap.xml`; bir action ise hangi yazıma
-gönderildiyse orada yanıtlanır.
+Bu ayar yalnızca page'lere uygulanır. Bir [document](/docs/documents) bir dosyadır ve
+path'ini yazıldığı gibi korur, yani iki durumda da `/sitemap.xml` olarak kalır. Bir
+action ise hangi yazıma post edildiyse o adreste cevap verir.
 
 ## ServerConfig
 
 | Alan | Tip | Varsayılan | Anlamı |
 | --- | --- | --- | --- |
 | `Host` | `string` | `"localhost"` | Sunucunun dinlediği adres. |
-| `Port` | `int` | `3000` | TCP portu, `1`–`65535`. |
-| `ReadTimeout` | `time.Duration` | `15s` | Bir isteği okumanın ne kadar sürebileceği. |
-| `WriteTimeout` | `time.Duration` | `30s` | Bir yanıtı yazmanın ne kadar sürebileceği. |
-| `IdleTimeout` | `time.Duration` | `60s` | Bir keep-alive bağlantısının ne kadar boşta bekleyebileceği. |
-| `ShutdownTimeout` | `time.Duration` | `10s` | Düzgün kapanışın süren istekleri ne kadar beklediği. |
-| `MaxBodyBytes` | `int64` | 4 MiB | Action kendisi bir sınır koymadığında, action'ın istek gövdesine uygulanan sınır. |
+| `Port` | `int` | `3000` | TCP port'u, `1`–`65535`. |
+| `ReadTimeout` | `time.Duration` | `15s` | Bir request'i okumanın en fazla ne kadar sürebileceği. |
+| `WriteTimeout` | `time.Duration` | `30s` | Bir response'u yazmanın en fazla ne kadar sürebileceği. |
+| `IdleTimeout` | `time.Duration` | `60s` | Bir keep-alive bağlantısının en fazla ne kadar boşta bekleyebileceği. |
+| `ShutdownTimeout` | `time.Duration` | `10s` | Graceful shutdown'ın devam eden request'leri ne kadar beklediği. |
+| `MaxBodyBytes` | `int64` | 4 MiB | Action kendi sınırını koymadığında action'ın request body'sine uygulanan sınır. |
 
-`Host`'un varsayılanı `localhost`'tur ve makinenin dışından erişilemez — bir
-container'da bunu `0.0.0.0` yapın. `MaxBodyBytes`'ı `ApplyDefaults` doldurmaz: sıfır,
-bir istek geldiğinde uygulanan yerleşik 4 MiB (`4 << 20` bayt) anlamına gelir; negatif
-bir değer ise sınırsız demektir. Sınırsız bir gövde, boyutunu anonim bir çağıranın
-seçtiği bellektir; bunu bilinçli olarak seçin. Bir action kendi sınırını
-`WithMaxBodyBytes` ile koyabilir; bkz. [Formlar ve action'lar](/docs/forms-and-actions).
+`Host`'un varsayılanı `localhost`'tur ve bu adrese makinenin dışından erişilemez.
+Container içinde bu alanı `0.0.0.0` yapın. `MaxBodyBytes`'ı `ApplyDefaults`
+doldurmaz. Sıfır, request geldiğinde uygulanan yerleşik 4 MiB (`4 << 20` byte)
+demektir. Negatif bir değer ise sınır olmadığı anlamına gelir. Sınırsız bir body,
+boyutunu anonim bir çağıranın belirlediği bir bellek kullanımıdır. Bu yüzden bunu
+bilerek seçin. Bir action kendi sınırını `WithMaxBodyBytes` ile koyabilir. Ayrıntılar
+için [Form'lar ve action'lar](/docs/forms-and-actions) sayfasına bakın.
 
 ## SecurityConfig
 
 | Alan | Tip | Varsayılan | Anlamı |
 | --- | --- | --- | --- |
-| `CSRFKey` | `[]byte` | her süreç için üretilir | Sahtecilik token'larını imzalayan anahtar. |
-| `CSRFCookieName` | `string` | `"collage_csrf"` | Token'ın taşındığı cookie. |
+| `CSRFKey` | `[]byte` | her process için üretilir | Forgery token'larını imzalayan key. |
+| `CSRFCookieName` | `string` | `"collage_csrf"` | Token'ı taşıyan cookie. |
 | `CSRFFieldName` | `string` | `"_csrf"` | Token'ın gönderildiği form alanı. |
-| `CSRFHeaderName` | `string` | `"X-CSRF-Token"` | Token'ın bunun yerine gönderilebileceği header. |
-| `DisableCSRF` | `bool` | `false` | Sahtecilik denetimini tüm uygulama için kapatır. |
+| `CSRFHeaderName` | `string` | `"X-CSRF-Token"` | Token'ın alternatif olarak gönderilebileceği header. |
+| `DisableCSRF` | `bool` | `false` | Forgery kontrolünü bütün uygulama için kapatır. |
 
-**Form içeren herhangi bir şeyi yayına almadan önce `CSRFKey`'i ayarlayın.** En az
-32 rastgele bayt olmalı, diğer gizli bilgilerinizle birlikte saklanmalı ve her
-instance'ta aynı olmalıdır. Boş bırakılırsa her süreç için bir anahtar üretilir: ilk
-çalıştırma için sorun değildir, yayına almak içinse yanlıştır; çünkü yeniden
-başlatmadan önce — ya da başka bir instance tarafından — verilmiş bir token reddedilir.
-Uygulama bir anahtar ürettiğini loglar — geliştirme dışında uyarı, geliştirmede info
-seviyesinde — ve bunu yalnızca güvenli olmayan bir metoda (`POST`, `PUT`, `PATCH`,
-`DELETE`) yanıt veren ve `WithoutCSRF` ile muaf tutulmamış bir action varsa yapar;
-çünkü token'ı yalnızca böyle bir action doğrular (`WithoutCSRF` muafiyeti v0.11.0'dan
-itibaren). Anahtar disk önbelleğinin ad alanına dahil değildir, bu yüzden önbellek yeni
-bir anahtardan etkilenmeden kalır; içinde form olan ve eski anahtarla saklanmış bir
-önbellekteki sayfa ise sunulmaz, yeniden render edilir — bkz.
-[Önbellekleme](/docs/caching#the-namespace). İskelet olarak oluşturulan `main.go` onu
-`COLLAGE_CSRF_KEY`'den okur; `openssl rand -hex 32` bir tane üretir.
+**Form içeren herhangi bir şeyi deploy etmeden önce `CSRFKey`'i ayarlayın.** Key en
+az 32 byte rastgele veri olmalı, diğer secret'larınızla birlikte saklanmalı ve her
+instance'ta aynı olmalıdır. Boş bırakılırsa her process için yeni bir key üretilir.
+Bu ilk çalıştırma için yeterlidir ama deploy için yanlıştır. Çünkü restart'tan önce ya
+da başka bir instance tarafından üretilmiş bir token reddedilir. Uygulama key
+ürettiğini log'lar. Development dışında bu bir uyarı, development'ta ise info
+seviyesinde bir kayıttır. Bu log yalnızca unsafe bir method'a (`POST`, `PUT`, `PATCH`,
+`DELETE`) cevap veren ve `WithoutCSRF` ile muaf tutulmamış bir action varsa yazılır.
+Çünkü token'ı yalnızca böyle bir action doğrular (`WithoutCSRF` muafiyeti v0.11.0'dan
+beri vardır). Key disk cache'in namespace'ine dahil değildir, bu yüzden cache yeni bir
+key'e rağmen korunur. İçinde form olan ve eski key ile saklanmış bir cache'lenmiş page ise
+sunulmaz, yeniden render edilir. Ayrıntılar için
+[Caching](/docs/caching#the-namespace) sayfasına bakın. Scaffold edilmiş `main.go`
+key'i `COLLAGE_CSRF_KEY`'den okur. `openssl rand -hex 32` ile bir key
+üretebilirsiniz.
 
-Yukarıdaki ad varsayılanlarını `ApplyDefaults` değil, sahtecilik koruması uygular; bu
-yüzden alanlar `Config`'inizde boş kalır. `CSRFFieldName` alanı iki tarafta da yeniden
-adlandırır: `{{csrfToken}}` denetimin okuduğu adı yazar, formlarda değişiklik gerekmez.
-Token'ı formdan okuyan script'ler — `input[name="_csrf"]` — yeni adı kullanmak
-zorundadır.
+Yukarıdaki isim varsayılanlarını `ApplyDefaults` değil forgery guard uygular. Bu
+yüzden bu alanlar `Config`'inizde boş kalır. `CSRFFieldName` alanın adını iki tarafta
+birden değiştirir. `{{csrfToken}}` kontrolün okuduğu adı yazdığı için form'larınızda
+değişiklik gerekmez. Ancak token'ı form'dan okuyan script'lerin
+(`input[name="_csrf"]`) yeni adı kullanması gerekir.
 
-`DisableCSRF`, tarayıcıdan gönderilen hiçbir formu olmayan bir uygulama içindir —
-kendi kimlik doğrulamasının arkasındaki bir API. Ayarlandığında `{{csrfToken}}`,
-gönderimi hiçbir anlam taşımayacak bir form render etmek yerine render'ı başarısız
-kılar. Bunun yerine tek bir action'ı muaf tutmak için o action'da `WithoutCSRF`
-kullanın.
+`DisableCSRF`, tarayıcıdan gönderilen hiçbir form'u olmayan uygulamalar içindir,
+örneğin kendi authentication'ının arkasında duran bir API. Bu ayar açıkken
+`{{csrfToken}}`, gönderilmesi anlamsız olacak bir form'u render etmek yerine render'ı
+başarısız kılar. Yalnızca tek bir action'ı muaf tutmak istiyorsanız o action'da
+`WithoutCSRF` kullanın.
 
 ## TemplateConfig
 
 | Alan | Tip | Varsayılan | Anlamı |
 | --- | --- | --- | --- |
-| `FS` | `fs.FS` | `nil` | Şablonların yüklendiği dosya sistemi; `nil` disk demektir. |
-| `Root` | `string` | diskte `"./templates"` | Şablonların yüklendiği, her şablon adından çıkarılan dizin. |
-| `Extension` | `string` | `".html"` | Şablon dosyalarının uzantısı. |
-| `Funcs` | `template.FuncMap` | yok | Yerleşiklerin üzerine birleştirilen ek şablon fonksiyonları. |
-| `DevMode` | `bool` | `false` | Şablonları her render'da diskten yeniden yükler. |
-| `Timeout` | `time.Duration` | `5s` | Varsayılan data handler zaman aşımı ve her document handler'ının toplam süre bütçesi. |
+| `FS` | `fs.FS` | `nil` | Template'lerin yüklendiği dosya sistemi. `nil` disk demektir. |
+| `Root` | `string` | diskte `"./templates"` | Template'lerin yüklendiği dizin. Her template adının başından çıkarılır. |
+| `Extension` | `string` | `".html"` | Template dosyalarının uzantısı. |
+| `Funcs` | `template.FuncMap` | yok | Built-in fonksiyonların üzerine eklenen ek template fonksiyonları. |
+| `DevMode` | `bool` | `false` | Template'leri her render'da diskten yeniden yükler. |
+| `Timeout` | `time.Duration` | `5s` | Data handler'ların varsayılan timeout'u ve her document handler'ın toplam süre bütçesi. |
 
 ### FS ve Root
 
-`FS` `nil` iken `Root` çalışma dizinine göre diskteki bir yoldur ve varsayılanı
-`./templates`'tir. `FS` ayarlıyken `Root` onun içinde eğik çizgiyle ayrılmış bir
-dizindir ve varsayılanı **yoktur** — boş bir `Root`, `FS`'in kendi kökü demektir.
+`FS` `nil` ise `Root` diskte, çalışma dizinine göre bir path'tir ve varsayılanı
+`./templates`'tir. `FS` ayarlıysa `Root` onun içinde slash ile ayrılmış bir dizindir
+ve **varsayılan değer almaz**. Boş bir `Root`, `FS`'in kendi kökü demektir.
 
-Bir binary'nin herhangi bir dizinden çalışabilmesini sağlayan şey gömmektir:
+Bir binary'nin herhangi bir dizinden çalışabilmesini sağlayan şey embed etmektir:
 
 ```go
 //go:embed all:templates
@@ -203,114 +210,121 @@ app, err := collage.New(&collage.Config{
 })
 ```
 
-Geliştirmede gömülü bir küme değişemeyeceği için collage, oradaysa diskteki dizini
-tercih eder. Var olmayan bir `Root`, `New`'dan `ErrTemplateRootMissing` döner; altında
-olup — bir symlink üzerinden — dışına çözümlenen bir şablon ise
-`ErrTemplateEscapesRoot`'tur.
+Development'ta embed edilmiş bir template seti değişemez. Bu yüzden collage, diskteki
+dizin varsa onu tercih eder. Var olmayan bir `Root` için `New`
+`ErrTemplateRootMissing` döner. Altındaki bir template bir symlink üzerinden dışarıya
+çözümleniyorsa `ErrTemplateEscapesRoot` döner.
 
 ### Funcs
 
-Şablonlar ayrıştırılırken yerleşik fonksiyonlara eklenir; yerleşik bir adla girilen
-bir kayıt o yerleşiğin yerini alır, bir plugin'in eklediği adla girilen bir kayıt da
-plugin'inkinin. `New`'dan önce ayarlanmalıdır; çünkü bir şablon yalnızca
-ayrıştırıldığı sırada var olan bir fonksiyonu çağırabilir — bilinmeyen bir adı çağıran
-şablon `New`'da başarısız olur. Her render'a bağlanan fonksiyonlar (`slot`, `hoist`,
-`asset`, `stylesheet`, `csrfToken`, `pageURL`, `pageURLIn`, `localeURL`) her render'da
-yeniden bağlanır; bu yüzden onları geçersiz kılmanın hiçbir etkisi yoktur. Bkz.
-[Şablon fonksiyonları](/docs/template-functions).
+Bu fonksiyonlar template'ler parse edilirken built-in fonksiyonlara eklenir. Built-in
+bir fonksiyonla aynı adı taşıyan bir kayıt o built-in fonksiyonun yerini alır. Bir
+plugin'in eklediği bir adı taşıyan kayıt da plugin'in fonksiyonunun yerini alır. Bu
+alan `New`'dan önce ayarlanmalıdır. Çünkü bir template yalnızca parse edildiği anda
+var olan bir fonksiyonu çağırabilir. Bilinmeyen bir adı çağıran template `New`'da
+hata verir. Her render'a bağlanan fonksiyonlar (`slot`, `hoist`, `asset`,
+`stylesheet`, `csrfToken`, `pageURL`, `pageURLIn`, `localeURL`) her render'da yeniden
+bağlanır. Bu yüzden onları override etmenin hiçbir etkisi olmaz. Ayrıntılar için
+[Template fonksiyonları](/docs/template-functions) sayfasına bakın.
 
 ### Timeout
 
-Fragment'i `WithTimeout` ile bir süre koymamış bir data handler'ın son süresi. Aynı
-zamanda kendi zaman aşımı olmayan bir [document](/docs/documents) handler'ının tek
-sınırıdır — dolayısıyla yavaş tek bir fragment için onu artırmak, her sitemap ve feed
-için de artırır. collage'daki her zaman aşımı gibi, handler'ın aldığı context'i
-sınırlar; `ctx.Done()`'ı hiç denetlemeyen bir handler bu süreyi aşabilir.
+Fragment'i `WithTimeout` ile kendi süresini koymamış bir data handler'ın deadline'ıdır.
+Bir [document](/docs/documents) handler'ın kendi timeout'u yoktur ve bu değer onun
+tek sınırıdır. Bu yüzden yavaş tek bir fragment için değeri yükseltirseniz her sitemap
+ve feed için de yükseltmiş olursunuz. collage'daki bütün timeout'lar gibi bu da
+handler'a verilen context'i sınırlar. `ctx.Done()`'ı hiç kontrol etmeyen bir handler
+bu süreyi aşabilir.
 
 ## CacheConfig
 
 | Alan | Tip | Varsayılan | Anlamı |
 | --- | --- | --- | --- |
-| `Enabled` | `bool` | `false` | Sayfa önbelleğinin ana şalteri. |
-| `Store` | `Cache` | `nil` | Kendi önbellek gerçeklemeniz. |
-| `Type` | `string` | etkinse `"memory"` | `Store` `nil` iken yerleşik önbellek: `"memory"` ya da `"disk"`. |
-| `DefaultTTL` | `time.Duration` | `5m` | Sayfa bir süre koymadığında kaydın ömrü. |
-| `MaxEntries` | `int` | `10000` | Önbellek kaydı sayısının üst sınırı; negatif sınırsız demektir. |
-| `Dir` | `string` | yok | Disk önbelleğinin kayıtları sakladığı yer. `"disk"` için zorunlu. |
-| `Version` | `string` | binary'den türetilir | Disk önbelleğindeki kayıtların hangi build'e ait olduğunu belirler. |
-| `MaxKeysPerTag` | `int` | `10000` | Tek bir etiket altında tutulan önbellek anahtarı sayısının üst sınırı; negatif sınırsız demektir. |
+| `Enabled` | `bool` | `false` | Page cache'in ana şalteri. |
+| `Store` | `Cache` | `nil` | Kendi cache implementasyonunuz. |
+| `Type` | `string` | açıksa `"memory"` | `Store` `nil` olduğunda kullanılan built-in cache: `"memory"` ya da `"disk"`. |
+| `DefaultTTL` | `time.Duration` | `5m` | Page bir süre koymadığında entry'nin ömrü. |
+| `MaxEntries` | `int` | `10000` | Cache entry sayısının üst sınırı. Negatif değer sınırsız demektir. |
+| `Dir` | `string` | yok | Disk cache'in entry'leri sakladığı yer. `"disk"` için zorunludur. |
+| `Version` | `string` | binary'den türetilir | Disk cache'teki entry'lerin hangi build'e ait olduğunu belirler. |
+| `MaxKeysPerTag` | `int` | `10000` | Tek bir tag altında tutulan cache key sayısının üst sınırı. Negatif değer sınırsız demektir. |
 
-**Önbellekleme varsayılan olarak kapalıdır.** `Enabled` false iken, bir `Store`
-ayarlı olsa bile hiçbir şey önbelleğe alınmaz. `Type`'ın varsayılanı yalnızca `Enabled`
-true ve `Store` `nil` olduğunda `"memory"`'dir.
+**Caching varsayılan olarak kapalıdır.** `Enabled` false iken bir `Store` ayarlı olsa
+bile hiçbir şey cache'lenmez. `Type`'ın varsayılanı yalnızca `Enabled` true ve `Store`
+`nil` olduğunda `"memory"` olur.
 
-**Bir `Store`, doğrulama da dahil olmak üzere `Type`'ın yerini tamamen alır.**
-Sayfaları Redis'e ya da başka bir yere koymak için `collage.Cache`'i (`Get`, `Set`,
-`Invalidate`, `InvalidateKey`, `Clear`) gerçekleyin; ayrıca `collage.TaggedCache`'i de
-gerçekleyen bir depoya her kaydın etiketleri yazma sırasında verilir. Somut bir tipin
-nil pointer'ını atamak yerine alanı boş bırakın; o, ilk aramada panic'e yol açan nil
-olmayan bir interface'tir.
+**Bir `Store`, validation dahil `Type`'ın yerini tamamen alır.** Page'leri Redis'e ya
+da başka bir yere koymak için `collage.Cache`'i (`Get`, `Set`, `Invalidate`,
+`InvalidateKey`, `Clear`) implement edin. `collage.TaggedCache`'i de implement eden bir
+store'a her entry yazılırken o entry'nin tag'leri de verilir. Somut bir tipin nil
+pointer'ını atamak yerine alanı boş bırakın. Böyle bir pointer nil olmayan bir
+interface'tir ve ilk lookup'ta panic'e yol açar.
 
-**Disk önbelleği süreçten uzun yaşar.** Kayıtları `Dir`'in, `Version`'ın hash'iyle
-adlandırılmış bir alt dizininde durur; böylece yeni bir build farklı bir dizini okur
-ve bayat hiçbir şey bulmaz. `Version`'ı boş bırakırsanız çalışan executable'ın hash'i
-olur; bu da tam olarak çıktının değişebileceği anda değişir. Sayfaların nasıl
-görüneceğine binary'nin dışındaki bir şey karar veriyorsa onu ayarlayın — bir commit,
-bir sürüm etiketi. Executable'ın hash'i alınamıyorsa bir uyarıyla birlikte bellek içi
-bir önbellek kullanılır — v0.11.0'dan itibaren dizin oluşturulamadığında da (örneğin
-salt okunur bir dosya sisteminde) böyledir: `collage.New` başarısız olmak yerine uyarır
-ve bellekle devam eder. Uygulama çalışırken başarısız olan bir yazma loglanır ve sayfa
-önbelleğe alınmadan sunulur. Geliştirmede disk önbelleği hiç kullanılmaz: yerini bellek
-içi bir önbellek alır.
+**Disk cache process'ten uzun yaşar.** Entry'leri `Dir` altında, adı `Version`'ın
+hash'i olan bir alt dizinde durur. Böylece yeni bir build farklı bir dizini okur ve
+stale hiçbir şey bulmaz. `Version`'ı boş bırakırsanız değeri çalışan executable'ın
+hash'i olur. Bu hash tam da çıktının değişebileceği durumlarda değişir. Page'lerin
+nasıl görüneceğini binary dışındaki bir şey belirliyorsa `Version`'ı kendiniz
+ayarlayın, örneğin bir commit ya da release tag'i ile. Executable'ın hash'i
+alınamazsa bir uyarıyla birlikte memory cache kullanılır. v0.11.0'dan beri dizin
+oluşturulamadığında da (örneğin salt okunur bir dosya sisteminde) aynısı olur:
+`collage.New` başarısız olmak yerine bir uyarı verir ve memory ile devam eder.
+Uygulama çalışırken başarısız olan bir yazma log'lanır ve page cache'lenmeden sunulur.
+Development'ta disk cache hiç kullanılmaz, onun yerine bir memory cache devreye
+girer.
 
-**`MaxEntries`** ayrıca `collage.Cached`'in istekler arasında tuttuğu değerleri de
-sınırlar. **`MaxKeysPerTag`** ise framework'ün bağımlılık izleyicisini, yani bir
-etiketi önbellek anahtarlarına geri eşleyen süreç başına dizini sınırlar. Her farklı
-query string farklı bir anahtardır ve önbellek bir kaydı çıkardığında ya da kaydın
-süresi dolduğunda hiçbir şey anahtarı izleyiciden silmez; bu yüzden bir üst sınır
-olmadan bir istemci bu dizini sınırsızca büyütebilir. Bir etiket sınıra ulaştığında
-en eski anahtarı yalnızca izleyiciden düşürülür, önbellekten değil.
+**`MaxEntries`**, `collage.Cached`'in request'ler arasında tuttuğu değerleri de
+sınırlar. **`MaxKeysPerTag`** ise framework'ün dependency tracker'ını sınırlar. Bu
+tracker, her process'te bir tag'i cache key'lerine eşleyen bir index'tir. Her farklı
+query string ayrı bir key'dir. Cache bir entry'yi evict ettiğinde ya da entry'nin
+süresi dolduğunda key tracker'dan silinmez. Bu yüzden bir üst sınır olmasa bir client
+bu index'i sınırsızca büyütebilirdi. Bir tag sınıra ulaştığında o tag'in en eski key'i
+yalnızca tracker'dan düşürülür, cache'ten silinmez.
 
-Bunun bedeli depoya bağlıdır. Yerleşik bellek ve disk önbellekleri etiketleri kendileri
-dizinler (`TaggedCache`'i gerçeklerler); bu yüzden `InvalidateTags` tuttukları her
-kayda yine ulaşır; yalnızca `InvalidateTagsN`'in bildirdiği sayı — izleyicinin
-çözümlediği sayı — daha düşük çıkabilir. `TaggedCache`'i gerçeklemeyen özel bir `Store`
-yalnızca izleyiciye dayanır ve onun için düşürülen bir anahtar, `InvalidateTags`'in
-artık ulaşamadığı bir kayıttır — süresi dolana kadar sunulur. Böyle bir depoyla, sınırı
-herhangi bir etiketin kapsayabileceği canlı kayıt sayısının üzerine ayarlayın.
+Bunun bedeli store'a göre değişir. Built-in memory ve disk cache'ler tag'leri
+kendileri index'ler (`TaggedCache`'i implement ederler). Bu yüzden `InvalidateTags`
+tuttukları her entry'ye yine ulaşır. Yalnızca `InvalidateTagsN`'in raporladığı sayı,
+yani tracker'ın çözümlediği sayı, daha düşük çıkabilir. `TaggedCache`'i implement
+etmeyen custom bir `Store` ise yalnızca tracker'a güvenir. Onun için düşürülen bir
+key, `InvalidateTags`'in artık ulaşamadığı bir entry demektir ve bu entry süresi
+dolana kadar sunulmaya devam eder. Böyle bir store kullanıyorsanız sınırı, tek bir
+tag'in kapsayabileceği canlı entry sayısının üzerinde bir değere ayarlayın.
 
-İki sınır için de sıfır varsayılan demektir; yalnızca negatif bir değer sınırsız
-demektir. Bkz. [Önbellekleme](/docs/caching).
+İki sınırda da sıfır varsayılan değer demektir. Sınırsız anlamına gelen tek değer
+negatif bir değerdir. Ayrıntılar için [Caching](/docs/caching) sayfasına bakın.
 
 ## LocaleConfig
 
 | Alan | Tip | Varsayılan | Anlamı |
 | --- | --- | --- | --- |
-| `Default` | `string` | `"en"` | Locale öneki olmayan bir URL'nin locale'i. |
-| `Supported` | `[]string` | `[Default]` | Uygulamanın sunduğu her locale. |
-| `DisablePathLocale` | `bool` | `false` | Locale'i yoldan çözümlemeyi bırakır; her istek `Default`'tadır. |
-| `PrefixDefault` | `bool` | `false` | `Default`'un sayfalarına da önek verir: `/en/about`. v0.14.0'dan itibaren. |
+| `Default` | `string` | `"en"` | Locale prefix'i olmayan bir URL'nin locale'i. |
+| `Supported` | `[]string` | `[Default]` | Uygulamanın sunduğu bütün locale'ler. |
+| `DisablePathLocale` | `bool` | `false` | Locale path'ten çözümlenmez. Her request `Default` locale'indedir. |
+| `PrefixDefault` | `bool` | `false` | `Default`'un page'leri de prefix alır: `/en/about`. v0.14.0'dan beri. |
 
-Locale'i seçen tek şey URL'dir: `/about` `Default`'tadır, `/tr/hakkinda` ise `"tr"`'de.
-collage hiçbir zaman `Accept-Language`'ten ya da bir cookie'den locale seçmez; çünkü
-farklı okuyuculara farklı şeyler ifade eden bir URL'yi önbellekler, crawler'lar ve
-paylaşılan bağlantılar yanlış anlar. Varsayılan locale'in kendi öneki olan `/en/about`,
-`/about`'a kalıcı olarak yönlendirilir — `PrefixDefault` ayarlanmadıkça; o zaman
-adres `/en/about` olur ve `/about` oraya yönlendirilir. Bkz.
-[Bağlantılar ve locale'ler](/docs/links-and-locales#the-url-decides-the-locale). Dil seçimini müzakere etmek istiyorsanız bunu
-middleware'de yapın: Türkçe bir tarayıcıyı `/tr`'ye yönlendirin ya da tek bir URL'yi
-her dil için render edip bunu `collage.Vary` ile bildirin. Bkz.
-[Bağlantılar ve locale'ler](/docs/links-and-locales#negotiating-a-language-yourself).
+Locale'i seçen tek şey URL'dir. `/about` `Default` locale'indedir, `/tr/hakkinda` ise
+`"tr"` locale'indedir. collage locale'i hiçbir zaman `Accept-Language`'ten ya da bir
+cookie'den seçmez. Çünkü farklı okuyuculara farklı şey ifade eden bir URL'yi cache'ler,
+crawler'lar ve paylaşılan link'ler hep yanlış ele alır. Varsayılan locale'in kendi
+prefix'i olan `/en/about`, `/about`'a kalıcı olarak redirect edilir. `PrefixDefault`
+ayarlıysa durum tersine döner: adres `/en/about` olur ve `/about` oraya redirect
+edilir. Ayrıntılar için
+[Link'ler ve locale'ler](/docs/links-and-locales#the-url-decides-the-locale) sayfasına
+bakın. Dili kendiniz belirlemek istiyorsanız bunu middleware'de yapın. Türkçe bir
+tarayıcıyı `/tr`'ye redirect edebilir ya da her dil için ayrı bir URL render edip bunu
+`collage.Vary` ile bildirebilirsiniz. Ayrıntılar için
+[Link'ler ve locale'ler](/docs/links-and-locales#negotiating-a-language-yourself)
+sayfasına bakın.
 
 ## ObservabilityConfig
 
 | Alan | Tip | Varsayılan | Anlamı |
 | --- | --- | --- | --- |
-| `Metrics` | `Metrics` | işlemsiz | Sayaçları ve süreleri alır. |
-| `Tracer` | `Tracer` | işlemsiz | İstekler, render'lar ve fragment'ler etrafında span başlatır. |
+| `Metrics` | `Metrics` | no-op | Counter'ları ve süre ölçümlerini alır. |
+| `Tracer` | `Tracer` | no-op | Request'lerin, render'ların ve fragment'lerin etrafında span başlatır. |
 
-İkisi de collage'ı kendi altyapınıza bağlamak için gerçeklediğiniz interface'lerdir;
-`nil` hiçbir şey yapmayan (no-op) bir gerçekleme demektir.
+İkisi de collage'ı kendi backend'inize bağlamak için implement ettiğiniz
+interface'lerdir. `nil` no-op demektir.
 
 ```go
 type Metrics interface {
@@ -332,31 +346,33 @@ type Span interface {
 }
 ```
 
-`CacheEvent`; `collage.CacheHit`, `CacheMiss`, `CacheSet`, `CacheEvict`,
-`CacheInvalidate` ve `CacheCoalesced`'ten biridir — sonuncusu, bir isteğin aynı
-anahtar için zaten çalışmakta olan bir render tarafından karşılandığı anlamına gelir.
+`CacheEvent` şu değerlerden biridir: `collage.CacheHit`, `CacheMiss`, `CacheSet`,
+`CacheEvict`, `CacheInvalidate` ve `CacheCoalesced`. Sonuncusu, bir request'in aynı
+key için zaten çalışmakta olan bir render tarafından karşılandığı anlamına gelir.
 
-## Doğrulama
+## Validation
 
-`Validate`, `ApplyDefaults` çalıştıktan sonra bunlardan bulduğu ilkini döner:
+`Validate`, `ApplyDefaults` çalıştıktan sonra aşağıdaki durumlardan bulduğu ilkini
+döner:
 
 | Koşul | Hata |
 | --- | --- |
 | `Server.Port` `1`–`65535` aralığının dışında | `ErrInvalidPort` |
 | `Template.Root` boş ve `Template.FS` nil | `ErrEmptyTemplateRoot` |
-| `Cache.Enabled`, `Store` yok ve `Type` ne `"memory"` ne `"disk"` | `ErrInvalidCacheType` |
-| `Cache.Enabled`, `Store` yok, `Type` `"disk"` ve `Cache.Dir` boş | `ErrEmptyCacheDir` |
+| `Cache.Enabled` açık, `Store` yok ve `Type` ne `"memory"` ne `"disk"` | `ErrInvalidCacheType` |
+| `Cache.Enabled` açık, `Store` yok, `Type` `"disk"` ve `Cache.Dir` boş | `ErrEmptyCacheDir` |
 | `Locale.Default` boş | `ErrEmptyLocaleDefault` |
-| `Locale.Default`, `Locale.Supported` içinde değil | `ErrLocaleDefaultNotSupported` |
-| Negatif bir `Server.ReadTimeout`, `WriteTimeout`, `IdleTimeout`, `ShutdownTimeout`, `Template.Timeout` ya da `Cache.DefaultTTL` | `ErrNegativeDuration` |
+| `Locale.Default`, `Locale.Supported` içinde yok | `ErrLocaleDefaultNotSupported` |
+| `Server.ReadTimeout`, `WriteTimeout`, `IdleTimeout`, `ShutdownTimeout`, `Template.Timeout` ya da `Cache.DefaultTTL` negatif | `ErrNegativeDuration` |
 
-Negatif süre hatası altı alanın hepsi için tek bir sentinel'dir; mesaj başarısız olan
-alanı adlandırır, örneğin `server.read_timeout`. Varsayılanlar önce uygulandığı için
-sıfır bir port ya da boş bir varsayılan locale `New`'dan doğrulamaya hiç ulaşmaz —
-yalnızca açıkça ayarladığınız bir değer başarısız olabilir. Bunları `errors.Is` ile
-eşleştirin; tam liste [Hatalar](/docs/errors#configuration) sayfasındadır.
+Negatif süre hatası altı alanın hepsi için tek bir sentinel error'dır. Mesaj, hataya
+yol açan alanın adını verir, örneğin `server.read_timeout`. Varsayılanlar önce
+uygulandığı için `New` üzerinden gelen sıfır bir port ya da boş bir varsayılan locale
+validation'a hiç ulaşmaz. Yalnızca açıkça set ettiğiniz bir değer hataya yol
+açabilir. Bu hataları `errors.Is` ile karşılaştırın. Tam liste
+[Hatalar](/docs/errors#configuration) sayfasındadır.
 
-İkisini de kendiniz çağırabilirsiniz — örneğin bir testte bir yapılandırmayı denetlemek
+İki metodu da kendiniz çağırabilirsiniz. Örneğin bir testte bir config'i kontrol etmek
 için:
 
 ```go
@@ -365,13 +381,13 @@ cfg.ApplyDefaults()
 err := cfg.Validate() // wraps collage.ErrInvalidPort
 ```
 
-`ApplyDefaults` idempotent'tir: varsayılanları zaten olan bir yapılandırmaya
-uygulamak hiçbir şeyi değiştirmez.
+`ApplyDefaults` idempotent'tir. Varsayılanları zaten uygulanmış bir config'e tekrar
+uygulandığında hiçbir şeyi değiştirmez.
 
-## Eksiksiz bir yapılandırma
+## Eksiksiz bir config
 
-İskelet olarak oluşturulan bir projenin başladığı yapılandırma; ortama göre değişen
-kısımlar ortamdan okunur:
+Aşağıdaki, scaffold edilmiş bir projenin başladığı config'dir. Ortama göre değişen
+kısımlar ortam değişkenlerinden okunur:
 
 ```go
 pluginConfig, err := collage.LoadPluginConfig("plugins-config.json")
@@ -403,5 +419,6 @@ app, err := collage.New(&collage.Config{
 })
 ```
 
-`envString` ve `envInt`, iskelet `main.go`'daki, bir değişkeni okuyup yoksa bir
-varsayılana dönen iki küçük yardımcıdır.
+`envString` ve `envInt`, scaffold edilmiş `main.go` içindeki iki küçük yardımcı
+fonksiyondur. Bir environment değişkenini okurlar, değişken yoksa varsayılan bir
+değere dönerler.

@@ -1,14 +1,15 @@
 ---
-description: Fragment'ler, sundukları slot'lar, biri başarısız olduğunda ne olduğu ve render sırasında içerikten doldurulan slot'lar.
+description: Fragment'ler, sundukları slot'lar, bir fragment başarısız olduğunda ne olduğu ve render sırasında içerikten doldurulan slot'lar.
+reference: NewFragment, FragmentBuilder, Fragment, FragmentBuilder.WithFallback, SlotResolverFunc
 ---
 
 # Fragment'ler ve slot'lar
 
-**Fragment**, bir sayfanın yapıldığı birimdir: bir şablon, şablonun render ettiğini
-getiren isteğe bağlı bir data handler ve başka fragment'lerin yerleştiği, adı konmuş
-**slot**'lar. Bir layout bir fragment'tir. Bir sayfanın içeriği, bir kenar çubuğu,
-bir yazar kartı, bir yorum listesi de öyle. Bir sayfa, kökünde layout bulunan bir
-fragment ağacıdır.
+**Fragment**, bir page'in yapı taşıdır. Bir template'ten, template'in render ettiği
+veriyi çeken isteğe bağlı bir data handler'dan ve başka fragment'lerin yerleştiği
+isimli **slot**'lardan oluşur. Layout da bir fragment'tir. Bir page'in içeriği, bir
+sidebar, bir yazar kartı ve bir yorum listesi de birer fragment'tir. Bir page, kökünde
+layout'un durduğu bir fragment ağacıdır.
 
 ```go
 author := collage.NewFragment("author", "fragments/author.html").
@@ -18,50 +19,52 @@ author := collage.NewFragment("author", "fragments/author.html").
 	Build()
 ```
 
-## Fragment kurmak
+## Fragment oluşturmak
 
-`collage.NewFragment(name, templatePath)` bir builder başlatır; `Build()` ise
-`*collage.Fragment`'i döndürür.
+`collage.NewFragment(name, templatePath)` bir builder başlatır. `Build()` ise
+`*collage.Fragment`'i döner.
 
-- **Ad**, fragment'in raporlarda nasıl anıldığıdır: hata mesajlarında, geliştirme
-  hata panelinde, render metadata'sında ve trace'lerde. Sayfanın hangi parçası
-  olduğunu söylesin — `"list"` değil, `"post-comments"`.
-- **Şablon yolu**, uzantısıyla birlikte şablon köküne görecelidir:
-  `"fragments/author.html"`, `templates/fragments/author.html` demektir. Şablon
-  motorunun yüklemediği bir yol, fragment'i içeren sayfa kaydedildiğinde
-  `ErrTemplateNotFound` olur — v0.11.0'dan itibaren sayfanın `WithFragmentPath` ile
-  kendi URL'sinde açtığı bir fragment de buna dahildir. Yalnızca bir
-  [slot resolver](#slots-filled-per-render)'ın döndürdüğü fragment daha sonra, render
-  edildiğinde denetlenir. Bkz. [Şablonlar](/docs/templates).
+- **İsim**, fragment'in raporlarda nasıl görüneceğini belirler: hata mesajlarında,
+  development error panel'inde, render metadata'sında ve trace'lerde. İsim,
+  fragment'in page'in hangi kısmı olduğunu anlatmalıdır: `"list"` değil,
+  `"post-comments"`.
+- **Template path'i** template root'una göredir ve uzantıyı da içerir:
+  `"fragments/author.html"`, `templates/fragments/author.html` dosyasıdır. Template
+  engine'in yüklemediği bir path, fragment'i içeren page register edilirken
+  `ErrTemplateNotFound` hatası verir. v0.11.0'dan beri bu kural, page'in
+  `WithFragmentPath` ile kendi URL'sinde açtığı fragment'ler için de geçerlidir.
+  Yalnızca bir [slot resolver](#slots-filled-per-render)'ın döndüğü fragment daha
+  sonra, render edilirken kontrol edilir. Bkz. [Template'ler](/docs/templates).
 
 Geri kalan her şey isteğe bağlıdır:
 
 | Metot | Neyi ayarlar |
 | --- | --- |
-| `WithDataHandler(h)` | Şablonun verisini getiren fonksiyon — bkz. [Data handler'lar](/docs/data-handlers) |
-| `WithSlot(name, required, allowMultiple)` | Bir slot bildirir |
-| `WithSlotFragment(slot, child)` | Bir alt fragment'i bir slot'a bağlar |
-| `WithSlotResolver(slot, resolve)` | Bunun yerine slot'u her render'da doldurur |
-| `Required()` | Bu fragment'in başarısızlığı sayfayı başarısız kılar |
-| `WithFallback(f)` | Bu fragment başarısız olduğunda ne render edileceği |
-| `WithTimeout(d)` | Data handler'ının ne kadar sürebileceği |
+| `WithDataHandler(h)` | Template'in verisini çeken fonksiyonu. Bkz. [Data handler'lar](/docs/data-handlers) |
+| `WithSlot(name, required, allowMultiple)` | Bir slot tanımlar |
+| `WithSlotFragment(slot, child)` | Bir child fragment'i bir slot'a bağlar |
+| `WithSlotResolver(slot, resolve)` | Slot'u bunun yerine her render'da doldurur |
+| `Required()` | Bu fragment başarısız olursa page de başarısız olur |
+| `WithFallback(f)` | Bu fragment başarısız olduğunda neyin render edileceğini |
+| `WithTimeout(d)` | Data handler'ının ne kadar sürebileceğini |
 
-Sayfa builder'ı gibi fragment builder'ı da hataları zinciri durdurmak yerine kayda
-geçirir ve `BuildErr()` bunları döndürür. Kaydettikleri, kurduğu fragment'in üzerinde
-kalır; böylece her biri — iki kez bildirilmiş bir slot, hiç bildirilmemiş bir slot'a
-bağlanmış bir alt fragment, negatif bir zaman aşımı — ağacında o fragment bulunan her
-sayfayı, biri `BuildErr()`'ü çağırmış olsun ya da olmasın, kayıt sırasında durdurur.
-Hatayı `RegisterPage`'de değil, ona yol açan satırda almak istediğinizde onu çağırın;
-bkz. [Sayfalar ve layout'lar](/docs/pages-and-layouts#building-a-page).
+Page builder'da olduğu gibi fragment builder da hataları zinciri durdurmadan kaydeder
+ve `BuildErr()` bunları döner. Kaydedilen hatalar, builder'ın oluşturduğu fragment'in
+üzerinde kalır. İki kez tanımlanmış bir slot, hiç tanımlanmamış bir slot'a bağlanmış
+bir child ya da negatif bir timeout gibi hataların her biri, ağacında bu fragment
+bulunan her page'i register sırasında durdurur. Birinin `BuildErr()`'ü çağırıp
+çağırmadığı fark etmez. Hatayı `RegisterPage`'de değil de ona yol açan satırda almak
+istediğinizde `BuildErr()`'ü çağırın. Bkz.
+[Page'ler ve layout'lar](/docs/pages-and-layouts#building-a-page).
 
-Data handler'ı olmayan bir fragment, şablonunu veri olmadan render eder. Bu, hiç
-değişmeyen işaretlemeler — bir altbilgi, statik bir duyuru — ve tek işi slot'ları
-düzenlemek olan bir layout için doğrudur.
+Data handler'ı olmayan bir fragment, template'ini veri olmadan render eder. Bu, hiç
+değişmeyen markup için doğru seçimdir: bir footer ya da static bir duyuru gibi. Tek
+işi slot'ları yerleştirmek olan bir layout için de doğrudur.
 
 ## Slot'lar
 
-Slot, bir fragment'in şablonunda adı konmuş bir konumdur. Fragment üzerinde bildirilir
-ve şablona `{{slot "name"}}` ile yazılır:
+Slot, bir fragment'in template'inde isimli bir konumdur. Fragment üzerinde tanımlanır
+ve template'e `{{slot "name"}}` ile yazılır:
 
 ```go
 post := collage.NewFragment("post", "pages/post.html").
@@ -86,51 +89,53 @@ post := collage.NewFragment("post", "pages/post.html").
 
 `WithSlot(name, required, allowMultiple)` iki flag alır.
 
-- **`required`** — slot'ta bir şey olmalıdır. Hiçbir şey bağlanmamış zorunlu bir slot
-  kayıt sırasında reddedilir (`ErrRequiredSlotUnfilled`) ve şablon çalışmadan önce
-  yeniden denetlenir; böylece şablon onu hiç istemese bile yakalanır.
-- **`allowMultiple`** — slot birden fazla fragment tutabilir. Bunlar bağlandıkları
-  sırayla, art arda render edilir. Tek fragment tutan bir slot'a ikinci bir fragment
-  bağlamak `ErrSlotOccupied` kaydeder.
+- **`required`**: Slot'ta bir şey olmak zorundadır. Hiçbir şey bağlanmamış required
+  bir slot, register sırasında reddedilir (`ErrRequiredSlotUnfilled`). Template
+  çalışmadan önce de tekrar kontrol edilir. Böylece template bu slot'u hiç
+  kullanmasa bile hata yakalanır.
+- **`allowMultiple`**: Slot birden fazla fragment tutabilir. Bu fragment'ler
+  bağlandıkları sırayla, art arda render edilir. Tek fragment tutan bir slot'a ikinci
+  bir fragment bağlamak `ErrSlotOccupied` hatasını kaydeder.
 
-`WithSlotFragment`, bildirilmemiş bir slot için `ErrUnknownSlot` — önce slot'ları
-bildirin — ve nil bir alt fragment için `ErrNilFragment` kaydeder. Aynı adı iki kez
-bildirmek `ErrDuplicateSlot` kaydeder.
+`WithSlotFragment`, tanımlanmamış bir slot için `ErrUnknownSlot` kaydeder. Bu yüzden
+slot'ları önce tanımlayın. Nil bir child için de `ErrNilFragment` kaydeder. Aynı ismi
+iki kez tanımlamak `ErrDuplicateSlot` kaydeder.
 
-Şablonda `{{slot "name"}}`, slot'un tuttuğunu HTML olarak render eder ve bu HTML
-yeniden escape edilmez: alt fragment'ler kendi değerlerini render edilirken zaten
-escape etmiştir. Hiçbir şey tutmayan bir slot hiçbir şey render etmez. Fragment'in hiç
-bildirmediği bir ad ise boş çıktı değil, bir **hata**dır — aksi hâlde şablondaki bir
-yazım hatası, sessizce eksik kalan bir bölüm olurdu.
+Template'te `{{slot "name"}}`, slot'un tuttuğu içeriği HTML olarak render eder ve bu
+HTML tekrar escape edilmez. Çünkü child'lar kendi değerlerini render edilirken zaten
+escape etmiştir. Boş bir slot hiçbir şey render etmez. Fragment'in hiç tanımlamadığı
+bir isim ise boş çıktı değil, bir **hata**dır. Aksi hâlde template'teki bir yazım
+hatası, sessizce eksik kalan bir bölüme dönüşürdü.
 
 ### Her fragment'in kendi verisi vardır
 
-Bir alt fragment, üst fragment'inin verisini görmez. `fragments/author.html` içinde
-`.`, yazı değil, `loadAuthor`'ın döndürdüğüdür. Üst fragment'inin getirdiği bir şeye
-ihtiyaç duyan bir alt fragment, onu render'ın paylaşılan verisinden okur ya da
-yalnızca bir kez getirilmesi için `collage.Once` veya `collage.Cached` ile kendisi
-ister — bkz. [Data handler'lar](/docs/data-handlers#sharing-data-between-fragments).
+Bir child, parent'ının verisini görmez. `fragments/author.html` içinde `.`, post
+değil, `loadAuthor`'ın döndüğü değerdir. Parent'ın çektiği bir şeye ihtiyacı olan
+bir child, bunu render'ın shared data'sından okur. Ya da veriyi `collage.Once`
+veya `collage.Cached` ile kendisi ister, böylece veri yalnızca bir kez çekilir.
+Bkz. [Data handler'lar](/docs/data-handlers#sharing-data-between-fragments).
 
 ### Fragment'leri yeniden kullanmak
 
-Bir `*collage.Fragment`, pek çok sayfadaki pek çok slot'a bağlanabilir; yukarıdaki
-`author` hem yazı sayfasında hem de bir arama sonuçları sayfasında görünebilir. İki
-kez bağlanan bir fragment iki kez render edilir ve data handler'ı her bağlama için
-bir kez çalışır.
+Bir `*collage.Fragment`, birçok page'deki birçok slot'a bağlanabilir. Yukarıdaki
+`author` hem post page'inde hem de bir arama sonuçları page'inde görünebilir. İki kez
+bağlanan bir fragment iki kez render edilir ve data handler'ı her bağlama için bir kez
+çalışır.
 
-Bir fragment kendisini içermemelidir. Bir fragment'i doğrudan ya da bir alt fragment
-zinciri üzerinden kendi slot'una bağlamak, kayıt sırasında `ErrFragmentCycle` ile
+Bir fragment kendisini içeremez. Bir fragment'i doğrudan ya da bir child zinciri
+üzerinden kendi slot'una bağlarsanız, bu register sırasında `ErrFragmentCycle` ile
 reddedilir.
 
 ## Bir fragment başarısız olduğunda
 
-Bir fragment; data handler'ı bir hata döndürdüğünde, şablonu çalıştırılamadığında,
-zorunlu bir slot'u boş olduğunda ya da bunlardan biri panic ettiğinde başarısız olur
-— bir data handler'daki ya da bir şablon fonksiyonundaki panic, bir
-`*collage.PanicError`'a dönüştürülerek kurtarılır ve çöken bir süreç olarak değil,
-bir başarısızlık olarak ele alınır.
+Bir fragment şu durumlarda başarısız olur: data handler'ı bir hata döndüğünde,
+template'i çalıştırılamadığında, required bir slot'u boş kaldığında ya da data
+handler veya template panic ettiğinde. Bir data handler'daki ya da bir template
+fonksiyonundaki panic recover edilir ve bir `*collage.PanicError`'a çevrilir. Bu
+durum çöken bir process olarak değil, bir başarısızlık olarak ele alınır.
 
-Bundan sonra ne olacağı fragment'in **başarısızlık politikası**dır ve üç tane vardır.
+Bundan sonra ne olacağını fragment'in **failure policy**'si belirler. Üç policy
+vardır.
 
 ```go
 postContent := collage.NewFragment("post", "pages/post.html").
@@ -148,49 +153,49 @@ related := collage.NewFragment("related", "fragments/related.html").
 	Build()
 ```
 
-- **`Required()`** — fragment'in başarısızlığı sayfayı başarısız kılar. Bunu sayfanın
-  göstermek için var olduğu şey için kullanın. Sayfanın hata sayfası 500 ile sunulur
-  — ya da hata `collage.ErrNotFound`'u sarıyorsa, bulunamadı sayfası 404 ile.
-  Başarısızlık, üstündeki isteğe bağlı fragment'lerin içinden geçip yukarı taşınır:
-  isteğe bağlı bir kenar çubuğunun içindeki zorunlu bir fragment yine de sayfayı
-  başarısız kılar.
-- **`WithFallback(f)`** — onun yerine `f` render edilir. Yedek de başarısız olursa
-  fragment hiçbir şey render etmez ve sayfa yine başarılı olur: yedek, bir
-  başarısızlığı sınırlamak için vardır; bu yüzden içindeki bir şey zorunlu olarak
-  işaretlenmiş olsa bile kendi başarısızlığı da sınırlanır.
-- **Hiçbiri** — fragment hiçbir şey render etmez ve sayfa onsuz sunulur.
+- **`Required()`**: Fragment başarısız olursa page de başarısız olur. Bunu, page'in
+  asıl göstermek için var olduğu içerik için kullanın. Page'in error page'i 500 ile
+  sunulur. Hata `collage.ErrNotFound`'u wrap ediyorsa not-found page'i 404 ile
+  sunulur. Başarısızlık, üstündeki optional fragment'lerden geçerek yukarı taşınır.
+  Optional bir sidebar'ın içindeki required bir fragment de page'i başarısız kılar.
+- **`WithFallback(f)`**: Fragment'in yerine `f` render edilir. Fallback de başarısız
+  olursa fragment hiçbir şey render etmez ve page yine başarılı olur. Fallback bir
+  başarısızlığı sınırlamak için vardır. Bu yüzden içindeki bir şey required olarak
+  işaretlenmiş olsa bile fallback'in kendi başarısızlığı da sınırlanır.
+- **Hiçbiri**: Fragment hiçbir şey render etmez ve page onsuz sunulur.
 
-`collage.ErrNotFound` yalnızca zorunlu bir fragment'te "404" anlamına gelir. İsteğe
-bağlı bir fragment'te diğerleri gibi bir başarısızlıktır, çünkü sayfa onsuz da render
-edilebilir.
+`collage.ErrNotFound` yalnızca required bir fragment'te "404" anlamına gelir. Optional
+bir fragment'te diğerleri gibi sıradan bir başarısızlıktır, çünkü page onsuz da
+render edilebilir.
 
-Yedekli ya da yedeksiz, başarısız olmuş herhangi bir fragment'le sunulan sayfa
-**bozulmuş** (degraded) sayılır. Okuyucuya gönderilir ama asla önbelleğe alınmaz;
-böylece bir sonraki istek, başarısızlığı bir TTL boyunca sunmak yerine yeniden dener.
-Statik dışa aktarma, kendisine söylenmedikçe bozulmuş bir sayfayı yazmaz.
+Fallback'li ya da fallback'siz, başarısız olmuş herhangi bir fragment'le sunulan
+page **degraded** sayılır. Degraded page okuyucuya gönderilir ama asla cache'lenmez.
+Böylece sonraki request, hatayı bir TTL boyunca sunmak yerine yeniden dener.
+Static export, açıkça söylenmedikçe degraded bir page'i yazmaz.
 
-Geliştirme modunda bir başarısızlık asla sessiz kalmaz. Hiçbir şey render etmeyen
-başarısız bir fragment, çıktısının olacağı yere adını ve hatasını içeren bir HTML
-yorumu bırakır; sayfa da başarısız olan her fragment'i hatasıyla — bir şablon için
-dosya ve satırıyla — adlandıran bir panel taşır, bir yedek onun yerini tutmuş olsa
-bile. Zorunlu bir fragment sayfanın tamamını başarısız kıldığında, geliştirme hata
-sayfası o fragment'i adlandırır — içinden geçip yukarı çıktığı layout'u değil,
-başarısızlığın başladığı yeri. Geliştirme modu dışında ikisi de yoktur.
+Development'ta bir hata asla sessiz kalmaz. Hiçbir şey render etmeyen, başarısız
+olmuş bir fragment, çıktısının olacağı yere ismini ve hatasını içeren bir HTML yorumu
+bırakır. Page ayrıca başarısız olan her fragment'i hatasıyla birlikte listeleyen bir
+panel taşır. Template hatalarında panel dosyayı ve satırı da gösterir. Bir fallback
+fragment'in yerini tutmuş olsa bile panel yine görünür. Required bir fragment bütün
+page'i başarısız kıldığında, development error page'i o fragment'in ismini verir.
+Yani hatanın içinden geçerek yukarı çıktığı layout'u değil, başladığı yeri gösterir.
+Development dışında bunların hiçbiri yoktur.
 
-### Şablonun atladığı bir slot
+### Template'in atladığı bir slot
 
-Bir fragment'in alt fragment'leri, art arda değil aynı anda getirsinler diye, şablon
-çalışmadan önce veri getirmeye başlar. Bu da şablonun render etmemeye karar verdiği
-bir slot'taki fragment'in — `{{if .ShowComments}}{{slot "comments"}}{{end}}` — handler'ının
-yine de başlatılmış olduğu anlamına gelir. Şablon biter bitmez context'i iptal edilir
-ve başarısızlığı yok sayılır: hiç render edilmemiş bir fragment, `Required()` olsa
-bile sayfayı başarısız kılamaz.
+Bir fragment'in child'ları, template çalışmadan önce veri çekmeye başlar. Böylece
+verileri art arda değil, aynı anda çekerler. Bu, template'in render etmemeye karar
+verdiği bir slot'taki fragment'in de handler'ının başlatılmış olduğu anlamına gelir:
+`{{if .ShowComments}}{{slot "comments"}}{{end}}`. Template biter bitmez bu
+fragment'in context'i cancel edilir ve hatası yok sayılır. Hiç render edilmemiş bir
+fragment, `Required()` olsa bile page'i başarısız kılamaz.
 
-## Zaman aşımları
+## Timeout'lar
 
-`WithTimeout(d)`, fragment'in data handler'ına bir sınır koyar. Zaman aşımı
-ayarlamayan bir fragment, varsayılanı beş saniye olan `Config.Template.Timeout`'u
-alır; negatif bir süre `ErrInvalidTimeout` kaydeder.
+`WithTimeout(d)`, fragment'in data handler'ına bir süre sınırı koyar. Timeout
+ayarlamayan bir fragment, `Config.Template.Timeout` değerini alır. Bu değerin
+varsayılanı beş saniyedir. Negatif bir süre `ErrInvalidTimeout` kaydeder.
 
 ```go
 recommendations := collage.NewFragment("recommendations", "fragments/recommendations.html").
@@ -200,23 +205,24 @@ recommendations := collage.NewFragment("recommendations", "fragments/recommendat
 	Build()
 ```
 
-Zaman aşımı, doğal olarak bir yedekle eşleşir. Yavaş bir öneri servisi, sayfaya
-okuyucunun sabrına değil, 300 milisaniyeye ve bir yedeğe mal olur.
+Timeout, fallback ile doğal olarak birlikte kullanılır. Yavaş bir öneri servisi,
+page'e okuyucunun sabrına değil, 300 milisaniyeye ve bir fallback'e mal olur.
 
-Zaman aşımı handler'ı değil, handler'ın aldığı **context**'i sınırlar: `ctx`'i yok
-sayan bir handler istediği kadar çalışır. Bekleyebilecek her çağrıya `ctx`'i geçirin —
-bkz. [Data handler'lar](/docs/data-handlers#timeouts-and-the-context).
+Timeout handler'ı değil, handler'ın aldığı **context**'i sınırlar. `ctx`'i yok sayan
+bir handler istediği kadar çalışır. Bekleyebilecek her çağrıya `ctx`'i geçin. Bkz.
+[Data handler'lar](/docs/data-handlers#timeouts-and-the-context).
 
 ## Her render'da doldurulan slot'lar
 
-Yukarıdaki her şey alt fragment'leri program başlarken bağlar. Bazı sayfalar ise
-içerikleri tarafından düzenlenir: bölümlerini bir editörün bir CMS'te seçip sıraladığı
-bir açılış sayfası, bir kullanıcının seçtiği widget'lardan oluşan bir pano. Bunları
-başlangıçta bağlamak, her değişiklikte yeniden başlatma ve neyin nereye gittiği
-konusunda veriyle uyuşması gereken kod demek olurdu.
+Buraya kadar anlatılan her şey, child'ları program başlarken bağlar. Bazı page'lerin
+düzenini ise içerikleri belirler. Örneğin bölümlerini bir editörün CMS'te seçip
+sıraladığı bir landing page ya da kullanıcının seçtiği widget'lardan oluşan bir
+dashboard. Bunları başlangıçta bağlamak, her değişiklikte yeniden başlatma gerektirir.
+Ayrıca neyin nereye gideceği konusunda veriyle uyumlu kalması gereken bir kod
+yazmanız gerekir.
 
-`WithSlotResolver` bir slot'u her render'da doldurur. Resolver, render context'ini
-alır ve slot'un bu sefer tuttuğu fragment'leri döndürür:
+`WithSlotResolver`, bir slot'u her render'da doldurur. Resolver, render context'ini
+alır ve slot'un bu render'da tutacağı fragment'leri döner:
 
 ```go
 type block struct {
@@ -251,8 +257,9 @@ landing := collage.NewFragment("landing", "pages/landing.html").
 	Build()
 ```
 
-Bir resolver, program boyunca var olan fragment'leri döndürebilir ya da onları o anda
-kurabilir. Her bloğun kendi verisini alması, onları kurmakla olur:
+Bir resolver, program boyunca var olan fragment'leri dönebilir ya da onları o anda
+oluşturabilir. Her block'un kendi verisini alması, fragment'leri o anda oluşturarak
+sağlanır:
 
 ```go
 func blockFragment(i int, b block) (*collage.Fragment, error) {
@@ -268,51 +275,52 @@ func blockFragment(i int, b block) (*collage.Fragment, error) {
 }
 ```
 
-Kurallar:
+Kurallar şunlardır:
 
-- **Resolver, kendi fragment'inin data handler'ından sonra çalışır**; böylece o
-  handler'ın getirdiğini okuyabilir. **Döndürdüğü fragment'ler kendi handler'larını
-  başlatmadan önce** de çalışır — bu handler'lar ardından, diğer alt fragment'lerinki
+- **Resolver, kendi fragment'inin data handler'ından sonra çalışır.** Böylece o
+  handler'ın çektiği veriyi okuyabilir. **Döndüğü fragment'ler kendi handler'larını
+  başlatmadan önce çalışır.** Bu handler'lar da ardından, diğer child'larda olduğu
   gibi eşzamanlı çalışır.
-- **Döndürdüğü şey slot'un kurallarına tabidir**: slot birden fazlasına izin
-  vermiyorsa en fazla bir fragment, zorunluysa en az bir fragment
-  (`ErrRequiredSlotEmpty`). Resolver'dan gelen bir hata ya da bir panic, onun
-  fragment'ini başarısız kılar ve o fragment'in başarısızlık politikası uygulanır.
-- **Önce slot'u bildirin**, `WithSlot` ile. Bir slot ya bir resolver'la ya da
-  `WithSlotFragment` ile doldurulur, asla ikisiyle birden değil — ikisini karıştırmak
-  `ErrSlotResolved` kaydeder.
-- **Fragment'leri yalnızca render edildiklerinde denetlenir.** Kayıt onları göremez;
-  bu yüzden şablonu olmayan, döndürülmüş bir fragment başlangıcı değil, o render'ı
-  başarısız kılar. Builder'ının kaydettiği bir hata da aynı şekilde yakalanır:
-  hatalarla kurulmuş, döndürülmüş bir fragment, slot'un sahibi olan fragment'i o
-  fragment'in başarısızlık politikası altında ve hatada döndürülen fragment'in adıyla
-  başarısız kılar. Bunu resolver'da ele almayı tercih ettiğinizde `BuildErr()`'ü
-  kendiniz denetleyin. Şablonların hepsi başlangıçta yüklenir; bu yüzden bir
-  resolver'ın kullanabileceği blok türleri kümesi yine de program tarafından
-  belirlenir.
+- **Resolver'ın döndüğü değer slot'un kurallarına tabidir.** Slot birden fazla
+  fragment'e izin vermiyorsa en fazla bir fragment dönebilir. Slot required ise en az
+  bir fragment dönmelidir (`ErrRequiredSlotEmpty`). Resolver'ın döndüğü bir hata ya
+  da resolver'daki bir panic, resolver'ın ait olduğu fragment'i başarısız kılar ve
+  o fragment'in failure policy'si uygulanır.
+- **Slot'u önce `WithSlot` ile tanımlayın.** Bir slot ya bir resolver ile ya da
+  `WithSlotFragment` ile doldurulur, ikisiyle birden asla doldurulmaz. İkisini
+  karıştırmak `ErrSlotResolved` kaydeder.
+- **Resolver'ın fragment'leri yalnızca render edilirken kontrol edilir.** Register
+  işlemi bu fragment'leri göremez. Bu yüzden template'i olmayan bir fragment
+  döndürülürse uygulama başlarken değil, o render sırasında hata oluşur. Builder'ın
+  kaydettiği bir hata da aynı şekilde yakalanır. Hatalarla oluşturulmuş bir fragment
+  döndürülürse, slot'un sahibi olan fragment başarısız olur. Bu durumda o fragment'in
+  failure policy'si uygulanır ve hata, döndürülen fragment'in ismini içerir. Hatayı
+  resolver'ın içinde ele almak isterseniz `BuildErr()`'ü kendiniz kontrol edin.
+  Template'lerin hepsi başlangıçta yüklenir. Bu yüzden bir resolver'ın
+  kullanabileceği block türleri yine de program tarafından belirlenir.
 
-Bölümleri içerikten gelen bir sayfa, o içeriğin etiketlerini de bildirmelidir —
-burada açılış sayfasının handler'ı, `collage.Effect` yerine `collage.DataHandler` ile
-`"landing"`'i bir etiket olarak döndürebilir — böylece bir editör sayfayı yeniden
-sıraladığında önbellekteki sayfa düşürülür. Bkz. [Önbellek](/docs/caching).
+Bölümleri içerikten gelen bir page, o içeriğin tag'lerini de bildirmelidir. Buradaki
+örnekte landing handler'ı, `collage.Effect` yerine `collage.DataHandler` kullanarak
+`"landing"`'i tag olarak dönebilir. Böylece bir editör page'i yeniden sıraladığında
+cache'teki page atılır. Bkz. [Caching](/docs/caching).
 
 ## İç içe geçme sınırı
 
-Bir fragment ağacı, kök de sayılmak üzere en fazla **32 seviye** derin olabilir. Daha
-derine inen bir sayfa, fragment'lerinin başarısızlık politikaları ne olursa olsun
-`ErrMaxDepthExceeded` ile render edilemez ve hata, sınıra ulaşan fragment zincirini
-adlandırır.
+Bir fragment ağacı, root dahil en fazla **32 seviye** derinliğinde olabilir. Daha
+derine inen bir page, fragment'lerinin failure policy'leri ne olursa olsun
+`ErrMaxDepthExceeded` ile render edilemez. Hata, sınıra ulaşan fragment zincirini
+isim isim gösterir.
 
-Gerçek sayfalar bu sınırın yanına bile yaklaşmaz. Sınır, kaydın dışarıda
-bırakamayacağı tek durum için vardır: aşağıda bir yerde yeniden kendisine çözümlenen
-bir fragment döndüren bir resolver. Bağlanmış bir döngü zaten kayıt sırasında
-`ErrFragmentCycle` olarak reddedilir.
+Gerçek page'ler bu sınırın yakınına bile gelmez. Sınır, register işleminin önceden
+engelleyemediği tek bir durum için vardır: döndüğü bir fragment'in, aşağıda bir
+yerde yine kendisine resolve olduğu bir resolver. Bağlanmış bir döngü zaten register
+sırasında `ErrFragmentCycle` olarak reddedilir.
 
 ## Kendi URL'si olan fragment'ler
 
-Bir fragment, etrafındaki sayfa olmadan da getirilebilir — bir `fetch()` ile
-yenilenen arama sonuçları, bir form gönderildikten sonra yerine takılan bir panel. Bu,
-sayfa üzerinde `WithFragmentPath(locale, pattern, fragment)` ile bildirilir ve
-bildirilmedikçe hiçbir şeye bu yolla erişilemez. Böyle bir fragment kayıt sırasında
-sayfayla birlikte denetlenir — şablonu, builder'ının hataları, doğrulaması. Bkz.
-[Formlar ve action'lar](/docs/forms-and-actions).
+Bir fragment, etrafındaki page olmadan da getirilebilir. Örneğin bir `fetch()` ile
+yenilenen arama sonuçları ya da bir form gönderildikten sonra yerine konan bir panel.
+Bu, page üzerinde `WithFragmentPath(locale, pattern, fragment)` ile tanımlanır.
+Tanımlanmayan hiçbir şeye bu yolla erişilemez. Böyle bir fragment, register sırasında
+page ile birlikte kontrol edilir: template'i, builder'ının kaydettiği hatalar ve
+validation'ı. Bkz. [Form'lar ve action'lar](/docs/forms-and-actions).

@@ -1,56 +1,59 @@
 ---
-description: Binary'yi derleyin, bir container'da ya da systemd altında çalıştırın, production'ın gerektirdiklerini ayarlayın ve TLS'in arkasına koyun.
+description: Binary'yi build edin, bir container'da ya da systemd altında çalıştırın, production'ın ihtiyaç duyduklarını ayarlayın ve TLS'in arkasına koyun.
+reference: ServerConfig, CacheConfig, LoadPluginConfig
 ---
 
-# Yayına alma
+# Deployment
 
-Bir collage sitesi bir Go programıdır; dolayısıyla yayına aldığınız şey derlenmiş bir
-binary'dir. Şablonlar ve statik dosyalar onun içine gömülüdür, bu yüzden yanına hiçbir
-şey kopyalanmadan her dizinden çalışır — plugin yapılandırıyorsanız
-`plugins-config.json` hariç; bkz. [aşağısı](#plugin-configuration). Bu sayfa o
-binary'yi bir sunucuda çalıştırmakla ilgilidir; hiç sunucusu olmayan bir site için
-bkz. [Statik dışa aktarma](/docs/static-export).
+Bir collage sitesi bir Go programıdır. Bu yüzden deploy ettiğiniz şey derlenmiş bir
+binary'dir. Template'ler ve static dosyalar binary'nin içine gömülüdür. Binary,
+yanına hiçbir şey kopyalamadan herhangi bir dizinden çalışır. Tek istisna, plugin'leri
+yapılandırıyorsanız `plugins-config.json` dosyasıdır; [aşağıya](#plugin-configuration)
+bakın. Bu sayfa o binary'yi bir sunucuda çalıştırmayı anlatır. Hiç sunucusu olmayan
+bir site için [Static export](/docs/static-export) sayfasına bakın.
 
-## Derleme: `collage build`
+## Build: `collage build`
 
 ```sh
 collage build
 ./bin/mysite
 ```
 
-`collage build`, aksi hâlde aklınızda tutmanız gereken `go build` komutunu sizin
+`collage build`, normalde aklınızda tutmanız gereken `go build` komutunu sizin
 yerinize çalıştırır:
 
 ```sh
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o bin/mysite .
 ```
 
-- **CGO kapalı**, çünkü collage'ın ve standart kütüphanenin C'ye ihtiyacı yoktur ve
-  statik bir binary, başka hiçbir şey içermeyen bir imaja konabilir.
-- **`-trimpath`**, böylece binary kendisini derleyen makinenin yollarını taşımaz.
-- **`-s -w`** debug tablolarını atar; boyutun çoğu onlardır.
-- **Varsayılan olarak bu makine değil, linux/amd64.** Mac için derlenmiş bir binary
-  bir Linux container'ında çalışmaz ve bunu öğrenmek için yanlış yer, sunucuda
-  karşınıza çıkan bir `exec format error`'dır.
+- **CGO kapalıdır**, çünkü ne collage ne de standart kütüphane C'ye ihtiyaç duyar.
+  Static bir binary, içinde başka hiçbir şey olmayan bir image'a konabilir.
+- **`-trimpath`** sayesinde binary, kendisini build eden makinenin path'lerini
+  taşımaz.
+- **`-s -w`** debug tablolarını atar. Boyutun büyük kısmı bu tablolardır.
+- **Varsayılan hedef bu makine değil, linux/amd64'tür.** Mac için build edilmiş bir
+  binary Linux container'ında çalışmaz. Bunu sunucuda bir `exec format error` ile
+  öğrenmek istemezsiniz.
 
 | Flag | Varsayılan | Anlamı |
 | --- | --- | --- |
 | `-o path` | `bin/<module name>` | Binary'nin yazılacağı yer. |
 | `-os name` | `linux` | Hedef işletim sistemi. |
-| `-arch name` | `amd64` | Hedef mimari — Graviton ya da Ampere makineler için `arm64`. |
+| `-arch name` | `amd64` | Hedef mimari. Graviton ya da Ampere makineler için `arm64` kullanın. |
 | `-i` | kapalı | Binary'nin yanına bir Dockerfile ve bir systemd unit'i yazmayı önerir. |
 
-Binary `dist/`'e değil, `bin/`'e gider: `dist/`, `collage export`'a aittir ve onun
-`-clean`'i içinde duran bir binary'yi silerdi.
+Binary `dist/`'e değil, `bin/`'e yazılır. `dist/` dizini `collage export`'a aittir
+ve export'un `-clean` seçeneği orada duran bir binary'yi silerdi.
 
-`collage start` diye bir şey yoktur. Derlenmiş bir binary'yi çalıştırmak için hiçbir
-şeyi aklınızda tutmanız gerekmez; bir start komutu da ancak `go run .` çalıştırabilirdi
-— bu da Go araç zincirini production imajınıza koyar ve her açılışta derleme yapar.
+`collage start` diye bir komut yoktur. Derlenmiş bir binary'yi çalıştırmak için
+hiçbir şeyi aklınızda tutmanız gerekmez. Bir start komutu olsaydı yapabileceği tek şey
+`go run .` çalıştırmak olurdu. Bu da Go toolchain'ini production image'ınıza koyar ve
+her açılışta yeniden derleme yapar.
 
 ### `collage build -i`: bir Dockerfile ve bir systemd unit'i
 
-`-i` ile `collage build`, binary'nin yanına bir `Dockerfile` ve bir systemd unit'i
-yazıp yazmayacağını sorar:
+`-i` verildiğinde `collage build`, binary'nin yanına bir `Dockerfile` ve bir systemd
+unit'i yazıp yazmayacağını sorar:
 
 ```sh
 $ collage build -i
@@ -67,13 +70,13 @@ Building mysite for linux/amd64.
 9.3 MB · linux/amd64 · 4.1s
 ```
 
-Üretildikleri için `bin/`'e giderler; proje kökü sizin yazdıklarınız içindir. Var olan
-bir dosyanın üzerine asla yazılmaz — bunlar düzenlemeniz beklenen dosyalardır — ve
-iskelet olarak üretilen bir projenin `.gitignore`'u yalnızca binary'yi yok sayar;
-bu yüzden onları diğer her dosya gibi commit'lersiniz.
+Bu dosyalar üretildikleri için `bin/`'e yazılır. Proje kökü sizin yazdığınız dosyalar
+içindir. Var olan bir dosyanın üzerine asla yazılmaz, çünkü bunlar düzenlemeniz
+beklenen dosyalardır. Scaffold edilen bir projenin `.gitignore`'u yalnızca binary'yi
+yok sayar. Bu dosyaları da diğer dosyalar gibi commit edersiniz.
 
-Dockerfile iki aşamalıdır: Go imajında derler ve distroless bir taban üzerinde
-yalnızca binary'yi taşır:
+Dockerfile iki stage'den oluşur. Önce Go image'ında build eder, sonra distroless bir
+base image üzerinde yalnızca binary'yi taşır:
 
 ```dockerfile
 FROM golang:1.26 AS build
@@ -92,63 +95,62 @@ EXPOSE 8080
 ENTRYPOINT ["/usr/local/bin/mysite"]
 ```
 
-Onu proje kökünden `docker build -f bin/Dockerfile .` ile derleyin. Şablonlar ya da
-statik dosyalar için bir `COPY` yoktur, çünkü onlar binary'nin içindedir. Son aşama
-binary'yi kopyalar — ve v0.11.1'den itibaren, Dockerfile yazıldığı sırada projede
-`plugins-config.json` varsa onu da; bkz. [Plugin yapılandırması](#plugin-configuration).
-`WORKDIR`, sayfa önbelleği ve o dosya için önemlidir; aşağıya bakın.
-`COLLAGE_CSRF_KEY`'i dosyada değil, platformunuzun gizli değerlerinden (secret)
-ayarlayın.
+Image'ı proje kökünden `docker build -f bin/Dockerfile .` ile build edin.
+Template'ler ya da static dosyalar için bir `COPY` satırı yoktur, çünkü onlar
+binary'nin içindedir. Son stage binary'yi kopyalar. v0.11.1'den itibaren, Dockerfile
+yazıldığı sırada projede `plugins-config.json` varsa onu da kopyalar;
+[Plugin config'i](#plugin-configuration) bölümüne bakın. `WORKDIR`, page cache ve bu
+dosya için önemlidir; ayrıntıları aşağıda bulabilirsiniz. `COLLAGE_CSRF_KEY`'i dosyanın içinde değil,
+platformunuzun secret'larından ayarlayın.
 
-systemd unit'i binary'yi `/usr/local/bin`'den, `/srv/<name>` içinde, aynı adı taşıyan
-bir kullanıcı olarak çalıştırır ve önündeki bir reverse proxy için `127.0.0.1:8080`'i
-dinler. `/etc/systemd/system/<name>.service` konumuna kurmadan önce kullanıcıyı,
-dizini ve yolu düzenleyin:
+systemd unit'i binary'yi `/usr/local/bin`'den, `/srv/<name>` dizininde ve aynı adı
+taşıyan bir kullanıcıyla çalıştırır. Binary, önüne konacak bir reverse proxy için
+`127.0.0.1:8080`'i dinler. Unit'i `/etc/systemd/system/<name>.service` konumuna
+kurmadan önce kullanıcıyı, dizini ve path'i kendinize göre düzenleyin:
 
 ```sh
 systemctl daemon-reload && systemctl enable --now mysite
 ```
 
-## Ortam
+## Ortam değişkenleri
 
-İskelet olarak üretilen `main.go` dört değişken okur. Production'da hiçbir şey `.env`
-dosyalarını okumaz — onlar `collage dev` içindir — bu yüzden bunları binary nerede
+Scaffold edilen `main.go` dört değişken okur. Production'da `.env` dosyalarını okuyan
+hiçbir şey yoktur, çünkü onlar `collage dev` içindir. Bu değişkenleri binary nerede
 çalışıyorsa orada ayarlayın.
 
-| Değişken | Varsayılan | Ne olmalı |
+| Değişken | Varsayılan | Değeri |
 | --- | --- | --- |
-| `HOST` | `localhost` | Bir container'da `0.0.0.0`. `localhost` makinenin dışından hiçbir şey kabul etmez; bu, yerel bir reverse proxy'nin arkasında doğru, diğer her yerde yanlıştır. |
-| `PORT` | `3000` | Platformunuz ne atıyorsa o. Binary'nin `-port` flag'i bunu geçersiz kılar. |
-| `COLLAGE_CSRF_KEY` | üretilir | En az 32 rastgele bayt. **Bunu ayarlayın.** |
-| `COLLAGE_DEV` | ayarlanmamış | **Hiçbir şey — ayarlamayın.** `collage dev` onu `1` yapar ve bu geliştirme modunu açar: şablonlar ve statik dosyalar diskten okunur, hiç okunmayan bellek içi bir önbellek kullanılır, hata sayfalarında hata zincirlerinin tamamı gösterilir. Bununla çalışan bir sunucu bir geliştirme sunucusudur. |
+| `HOST` | `localhost` | Container'da `0.0.0.0`. `localhost` makinenin dışından gelen hiçbir bağlantıyı kabul etmez. Bu, yerel bir reverse proxy'nin arkasında doğrudur, başka her yerde yanlıştır. |
+| `PORT` | `3000` | Platformunuz hangi port'u atıyorsa o. Binary'nin `-port` flag'i bu değeri ezer. |
+| `COLLAGE_CSRF_KEY` | üretilir | En az 32 rastgele byte. **Bunu mutlaka ayarlayın.** |
+| `COLLAGE_DEV` | ayarlı değil | **Hiçbir şey; ayarlamadan bırakın.** `collage dev` bu değişkeni `1` yapar ve development mode'u açar. Bu modda template'ler ve static dosyalar diskten okunur, cache bellekte tutulur ama hiç okunmaz, error page'lerde hata zincirinin tamamı gösterilir. Bu değişkenle çalışan bir sunucu bir development sunucusudur. |
 
-Bir anahtarı şöyle üretin:
+Key'i şu komutla üretin:
 
 ```sh
 openssl rand -hex 32
 ```
 
-Anahtar yoksa collage her süreç için bir anahtar üretir ve başlangıçta uyarır. Bu
-kendi makinenizde sorun değildir, bir sunucuda ise iki nedenle yanlıştır:
+Key verilmezse collage her process için bir key üretir ve açılışta uyarı verir. Bu
+kendi makinenizde sorun değildir. Bir sunucuda ise iki nedenle yanlıştır:
 
-- **Formlar yeniden başlatmalar ve instance'lar arasında bozulur.** Bir yayına
-  almadan önce render edilmiş bir form, sonrasında gönderildiğinde reddedilir; bir
-  instance da diğerinin verdiğini reddeder. Anahtarı her instance'ta ve yeniden
-  başlatmalar boyunca aynı tutun.
-- **Form içeren önbellekteki sayfalar her başlatmadan sonra yeniden render edilir.**
-  Önbellekteki bir sayfadaki sahtecilik token'ı yer tutucusu anahtardan türetilir;
-  bu yüzden önceki sürecin anahtarıyla saklanmış bir sayfa ıskalama (miss) sayılır ve
-  baştan render edilir. Form içermeyen sayfalar etkilenmez; disk önbelleğinin geri
-  kalanı her durumda yeniden başlatmadan sağ çıkar. Bkz.
-  [Önbellekleme](/docs/caching#the-namespace).
+- **Form'lar restart'lar ve instance'lar arasında bozulur.** Deploy'dan önce render
+  edilmiş bir form, deploy'dan sonra gönderildiğinde reddedilir. Bir instance da
+  başka bir instance'ın verdiği token'ı reddeder. Key'i her instance'ta aynı tutun ve
+  restart'lar arasında değiştirmeyin.
+- **Form içeren cache'lenmiş page'ler her açılıştan sonra yeniden render edilir.**
+  Cache'lenmiş bir page'deki forgery token placeholder'ı key'den türetilir. Bu yüzden
+  önceki process'in key'iyle saklanmış bir page miss sayılır ve baştan render edilir.
+  Form içermeyen page'ler bundan etkilenmez. Disk cache'inin geri kalanı her durumda
+  restart'tan sağ çıkar. [Caching](/docs/caching#the-namespace) sayfasına bakın.
 
-Anahtarı değiştirmek güvenlidir ama bedelsiz değildir: değişiklikten önce render
-edilmiş formlar reddedilir ve form içeren önbellekteki sayfalar birer kez yeniden
-render edilir.
+Key'i değiştirmek güvenlidir ama bedelsiz değildir. Değişiklikten önce render edilmiş
+form'lar reddedilir ve form içeren cache'lenmiş page'ler birer kez yeniden render
+edilir.
 
-## Gömülü şablonlar ve statik dosyalar
+## Gömülü template'ler ve static dosyalar
 
-İskelet olarak üretilen bir proje ikisini de gömer:
+Scaffold edilen bir proje ikisini de gömer:
 
 ```go
 //go:embed all:templates
@@ -158,31 +160,32 @@ var templatesFS embed.FS
 var staticFS embed.FS
 ```
 
-Şablonlar collage'a `Template.FS` olarak verilir, statik dosyalar ise
-`fs.Sub(staticFS, "static")`'tan mount edilir. Geliştirme modunda diskteki dizinler
-önceliklidir; böylece bir şablonu düzenlediğinizde değişiklik bir sonraki istekte
-görünür. Production'da yalnızca gömülü kopya okunur; böylece süreç nerede başlarsa
-başlasın, çalışan şey test ettiğiniz şeydir.
+Template'ler collage'a `Template.FS` olarak verilir. Static dosyalar ise
+`fs.Sub(staticFS, "static")` üzerinden mount edilir. Development mode'da diskteki
+dizinler önceliklidir. Böylece bir template'i düzenlediğinizde değişiklik bir sonraki
+request'te görünür. Production'da yalnızca gömülü kopya okunur. Böylece process nerede
+başlatılırsa başlatılsın, çalışan şey test ettiğiniz şeydir.
 
-Sayfalarınızın çalışma zamanında okuduğu içeriği — Markdown dosyaları, bir JSON
-kataloğu — aynı şekilde gömmek size kalmıştır. collage-docs, tam da bu nedenle kendi
-`content/` dizinini gömer ve geliştirmede onu diskten okur. Böyle bir dizini
-[`Config.DevWatch`](/docs/configuration#devwatch) içinde adlandırın (v0.10.0'dan
-itibaren); içindeki bir dosyayı düzenlemek de tarayıcıyı yeniler.
+Page'lerinizin runtime'da okuduğu içerikleri, örneğin Markdown dosyalarını ya da bir
+JSON kataloğunu, aynı şekilde gömmek size kalmıştır. collage-docs da tam bu nedenle
+kendi `content/` dizinini gömer ve development'ta bu dizini diskten okur. Böyle bir
+dizini [`Config.DevWatch`](/docs/configuration#devwatch) içinde belirtirseniz
+(v0.10.0'dan itibaren), içindeki bir dosyayı düzenlediğinizde tarayıcı da yenilenir.
 
-## Plugin yapılandırması
+## Plugin config'i
 
-İskelet olarak üretilen `main.go`, `plugins-config.json`'ı
-`collage.LoadPluginConfig("plugins-config.json")` ile okur — binary'ye değil, çalışma
-dizinine göre bir yol; gömülü de değil. Eksik bir dosya hata değildir: her plugin
-sessizce varsayılanlarıyla çalışır. Yani dosyanın bulunmadığı bir yerde başlatılan
-bir sunucu, plugin ayarlarınızı tek kelime etmeden yok sayar.
+Scaffold edilen `main.go`, `plugins-config.json` dosyasını
+`collage.LoadPluginConfig("plugins-config.json")` ile okur. Bu path binary'ye göre
+değil, çalışma dizinine göredir ve dosya binary'ye gömülmez. Dosyanın bulunmaması bir
+hata değildir. Bu durumda her plugin sessizce kendi varsayılanlarıyla çalışır. Yani
+dosyanın olmadığı bir yerde başlatılan sunucu, plugin ayarlarınızı hiçbir uyarı
+vermeden yok sayar.
 
-`collage build -i`'nin yazdığı Dockerfile, Dockerfile yazıldığı sırada projede bu
-dosya varsa onu kopyalar (v0.11.1'den itibaren; öncekiler yalnızca binary'yi
-kopyalıyordu). Dosyayı sonradan oluşturursanız satırı kendiniz ekleyin —
-`collage build -i` bir Dockerfile'ın üzerine asla yazmaz — sürecin başladığı
-`WORKDIR`'in yanına:
+`collage build -i`'nin yazdığı Dockerfile, yazıldığı sırada projede bu dosya varsa onu
+da kopyalar (v0.11.1'den itibaren; önceki sürümler yalnızca binary'yi kopyalıyordu).
+Dosyayı sonradan oluşturursanız satırı kendiniz ekleyin, çünkü `collage build -i` var
+olan bir Dockerfile'ın üzerine asla yazmaz. Dosyayı process'in başladığı `WORKDIR`'e
+koyun:
 
 ```dockerfile
 WORKDIR /srv
@@ -190,7 +193,7 @@ COPY --from=build /mysite /usr/local/bin/mysite
 COPY --from=build /src/plugins-config.json /srv/plugins-config.json
 ```
 
-ya da onu gömün; böylece şablonlar gibi binary'nin içinde taşınır:
+Ya da dosyayı gömün. Böylece dosya, template'ler gibi binary'nin içinde taşınır:
 
 ```go
 //go:embed plugins-config.json
@@ -202,46 +205,48 @@ if err := json.Unmarshal(pluginConfigJSON, &pluginConfig); err != nil {
 }
 ```
 
-systemd ile dosyayı unit'in `WorkingDirectory`'sinde tutun.
+systemd kullanıyorsanız dosyayı unit'in `WorkingDirectory`'sinde tutun.
 
-## Düzgün kapanış
+## Graceful shutdown
 
-`app.ListenAndServe`, `SIGINT` ve `SIGTERM`'ü yakalar. İkisinden birinde yeni
-bağlantı kabul etmeyi bırakır, süren isteklerin bitmesi için `Server.ShutdownTimeout`
-kadar (varsayılan 10 saniye) bekler, her plugin'in `Shutdown`'ını çalıştırır ve `nil`
-döner. `SIGTERM` gönderip bekleyen bir container çalışma ortamı, hiçbir şey eklemeden
-temiz bir boşaltma elde eder. Üretilen systemd unit'i `TimeoutStopSec=30` ayarlar; bu,
-kapanış zaman aşımından rahatça uzundur, böylece systemd hâlâ boşaltmakta olan bir
-süreci öldürmez.
+`app.ListenAndServe`, `SIGINT` ve `SIGTERM` sinyallerini yakalar. Bunlardan biri
+geldiğinde yeni bağlantı kabul etmeyi bırakır. Devam eden request'lerin bitmesi için
+en fazla `Server.ShutdownTimeout` kadar (varsayılan 10 saniye) bekler. Ardından her
+plugin'in `Shutdown`'ını çalıştırır ve `nil` döner. `SIGTERM` gönderip bekleyen bir
+container runtime, sizin hiçbir şey eklemenize gerek kalmadan temiz bir drain elde
+eder. Üretilen systemd unit'i `TimeoutStopSec=30` ayarlar. Bu süre shutdown
+timeout'undan rahatça uzundur, böylece systemd hâlâ drain eden bir process'i
+öldürmez.
 
-Boşaltmanın süresi dolarsa — zaman aşımı geçtiğinde hâlâ açık bir istek varsa —
-plugin'ler yine de kapatılır ve `ListenAndServe` bunu söyleyen bir hata döndürür
-(`collage: server shutdown: context deadline exceeded`); `Shutdown`'ı başarısız olan
-bir plugin için de aynısını yapar. İskeletin `main.go`'su bunu `log.Fatalf`'e verir;
-bu yüzden süreç 0 yerine 1 durum koduyla çıkar. Durdurma sırasında sıfırdan farklı bir
-çıkışı çökme olarak değerlendiren bir platform bunu böyle bildirir.
+Drain için süre yetmezse, yani timeout dolduğunda hâlâ açık bir request varsa,
+plugin'ler yine de kapatılır. `ListenAndServe` de bunu bildiren bir hata döner
+(`collage: server shutdown: context deadline exceeded`). `Shutdown`'ı başarısız olan
+bir plugin için de aynı şekilde hata döner. Scaffold'daki `main.go` bu hatayı
+`log.Fatalf`'e verir. Bu yüzden process 0 yerine 1 status koduyla çıkar. Durdurma
+sırasında sıfırdan farklı bir exit kodunu crash olarak gören bir platform bunu crash
+olarak raporlar.
 
-`ShutdownTimeout`'u yükseltirseniz, platformunuzun bekleme süresini de onunla birlikte
-yükseltin.
+`ShutdownTimeout`'u artırırsanız platformunuzun grace period'unu da onunla birlikte
+artırın.
 
-## Sağlık denetimleri
+## Health check'ler
 
-`collage new`'in iskelet olarak ürettiği proje, `/healthz`'ye `status`'ü `ok` olan
-küçük bir JSON gövdesiyle yanıt verir. Bu bir sayfa değil, bir
-[document](/docs/documents)'tır; dolayısıyla hiçbir şablon içermez ve bir şablon
-bozuldu diye başarısız olmaya başlayamaz. `Dynamic()`'tir; böylece her denetim
-gerçekten sürece ulaşır.
+`collage new` ile scaffold edilen proje, `/healthz` isteğine `status` alanı `ok` olan
+küçük bir JSON body ile cevap verir. Bu bir page değil, bir
+[document](/docs/documents)'tır. Bu yüzden hiçbir template kullanmaz ve bir template
+bozuldu diye başarısız olmaya başlamaz. `Dynamic()` olduğu için her check gerçekten
+process'e ulaşır.
 
-Platformunuzun liveness denetimini ona yönlendirin. Size sürecin ayakta olduğunu ve
-sunum yaptığını söyler. Veritabanınıza ulaşılamadığında da başarısız olması gereken
-bir readiness denetimi, aynı şekilde yazılmış kendi document'ınızdır; bir hata
-döndürün, 500 ile yanıt verir. `collage new --template minimal` ile oluşturulan bir
-projede `/healthz` yoktur; bir tane istiyorsanız demo iskeletinin
-`documents/health.go`'sunu kopyalayın.
+Platformunuzun liveness check'ini bu adrese yönlendirin. Bu check size process'in
+ayakta olduğunu ve request'lere cevap verdiğini söyler. Veritabanınıza
+ulaşılamadığında da başarısız olması gereken bir readiness check istiyorsanız, onu aynı
+şekilde kendi document'ınız olarak yazarsınız. Document bir hata dönerse 500 ile
+cevap verir. `collage new --template minimal` ile oluşturulan projede `/healthz`
+yoktur. İsterseniz demo scaffold'undaki `documents/health.go` dosyasını kopyalayın.
 
-## Production'da sayfa önbelleği
+## Production'da page cache
 
-İskelet bir disk önbelleği yapılandırır:
+Scaffold bir disk cache'i yapılandırır:
 
 ```go
 Cache: collage.CacheConfig{
@@ -252,66 +257,65 @@ Cache: collage.CacheConfig{
 },
 ```
 
-Render edilmiş sayfalar yeniden başlatmadan sağ çıkar; böylece aynı build'in yeniden
-yayına alınması, siteyi soğuk bir önbelleğe baştan render etmez. Yeni bir build'in ne
+Render edilmiş page'ler restart'tan sağ çıkar. Böylece aynı build'i yeniden deploy
+ettiğinizde site boş bir cache'e baştan render edilmez. Yeni bir build'in ne
 bulacağı, neyin değiştiğine bağlıdır:
 
-- **Önbellek, binary'nin bir hash'iyle ad alanına ayrılır.** Yeni bir build farklı bir
-  dizini, `.cache/<hash>`'i okur; bu yüzden önceki build'in render ettiği sayfaları
-  asla sunmaz. Doğruluk için hiçbir şeyin temizlenmesi gerekmez — ama yer açmak için
-  de hiçbir şey temizlemez: önceki build'lerin dizinleri asla silinmez; bu yüzden yeni
-  bir container olarak değil de yerinde yeniden yayına alınan bir sunucu, her build
-  için bir tane biriktirir. Eskilerini yayına alma betiğinizden silin. Sayfaların
-  nasıl göründüğüne binary dışındaki bir şey karar veriyorsa `Cache.Version`'ı — bir
-  commit, bir sürüm etiketi — ayarlayın.
-- **Dizin, çalışma dizinine göredir.** İskelet olarak üretilen bir projede, nerede
+- **Cache, binary'nin hash'iyle namespace'lenir.** Yeni bir build farklı bir dizini,
+  `.cache/<hash>`'i okur. Bu yüzden önceki build'in render ettiği page'leri asla
+  sunmaz. Doğruluk için hiçbir şeyi temizlemeniz gerekmez. Ama yer açmak için de
+  hiçbir şey temizlik yapmaz: önceki build'lerin dizinleri hiç silinmez. Yeni bir
+  container yerine yerinde yeniden deploy edilen bir sunucuda her build için bir dizin
+  birikir. Eski dizinleri deploy script'inizden silin. Page'lerin nasıl görüneceğini
+  binary dışındaki bir şey belirliyorsa `Cache.Version`'ı bir commit ya da release
+  tag'i ile ayarlayın.
+- **Dizin, çalışma dizinine göredir.** Scaffold edilen bir projede nerede
   başlatıldığına bağlı olan tek şey budur. Container'da `WORKDIR`'i ya da unit'te
-  `WorkingDirectory`'yi ayarlayın veya `Dir`'e mutlak bir yol verin ve sürecin oraya
-  yazabildiğinden emin olun.
-- **Yazamadığı bir önbellek hata değildir.** Başlangıçta oluşturulamayan bir dizin —
-  salt okunur bir dosya sistemi, sürecin yazamayacağı bir çalışma dizini — collage'ın
-  başlamayı reddetmek yerine bir uyarıyla bellek içi bir önbelleğe geri dönmesine yol
-  açar (v0.11.0'dan itibaren). Çalışırken başarısız olan bir yazma loglanır, sayfa
-  önbelleğe alınmadan sunulur ve bir sonraki istek onu yeniden render eder: yavaş,
-  ama bozuk değil. Uyarıya bakın ve bir yayına almadan sonra dizinin dolduğunu kontrol
-  edin.
-- **Her instance'ın kendi önbelleği vardır.** Bir container'da dizin container'ın
-  içindedir; bu yüzden her instance kendi önbelleğini, instance başına sayfa başına
-  bir render ile doldurur.
+  `WorkingDirectory`'yi ayarlayın veya `Dir`'e mutlak bir path verin. Process'in
+  oraya yazabildiğinden de emin olun.
+- **Cache'in yazamaması bir hata değildir.** Açılışta dizin oluşturulamazsa collage
+  başlamayı reddetmez; bir uyarı verip in-memory cache'e geçer (v0.11.0'dan itibaren).
+  Buna read-only bir dosya sistemi ya da process'in yazma izni olmayan bir çalışma
+  dizini yol açabilir. Çalışırken başarısız olan bir yazma log'lanır, page cache'lenmeden
+  sunulur ve bir sonraki request onu yeniden render eder. Sonuç yavaştır ama bozuk
+  değildir. Bu uyarıyı takip edin ve deploy'dan sonra dizinin dolduğunu kontrol edin.
+- **Her instance'ın kendi cache'i vardır.** Container'da dizin container'ın
+  içindedir. Bu yüzden her instance kendi cache'ini doldurur. Her page, her instance'ta
+  bir kez render edilir.
 
-### Birden çok instance ile geçersiz kılma
+### Birden fazla instance ile invalidation
 
-`app.InvalidateTags`, içinde çalıştığı sürecin önbelleğinden girdileri düşürür. Tek
-bir instance varken, bir yazının etiketini geçersiz kılan bir CMS webhook'u siteyi
-günceller. Birkaç instance varken ise yalnızca webhook'un ulaştığı instance'ı
-günceller; diğerleri eski sayfayı TTL'i dolana kadar sunmaya devam eder.
+`app.InvalidateTags`, içinde çalıştığı process'in cache'inden entry'leri düşürür. Tek
+instance varken, bir yazının tag'ini invalidate eden bir CMS webhook'u siteyi
+günceller. Birden fazla instance varsa yalnızca webhook'un ulaştığı instance
+güncellenir. Diğerleri eski page'i TTL'i dolana kadar sunmaya devam eder.
 
-Üç yanıttan birini seçin: değişen sayfalara `Incremental(ttl)` verin ki bayat bir
-kopya kendiliğinden sona ersin, webhook'u her instance'a gönderin ya da
-`Cache.Store` üzerinden `collage.TaggedCache`'i uygulayan paylaşımlı bir depolama
-yapılandırın; bu, tek bir geçersiz kılmanın herhangi bir instance'ın yazdığı
-girdilere ulaşmasını sağlar. Bkz. [Önbellekleme](/docs/caching).
+Üç çözümden birini seçin. Değişen page'lere `Incremental(ttl)` verin, böylece stale
+kopya kendiliğinden expire olur. Ya da webhook'u her instance'a gönderin. Ya da
+`Cache.Store` üzerinden `collage.TaggedCache`'i implement eden paylaşımlı bir store
+yapılandırın. Böylece tek bir invalidation, herhangi bir instance'ın yazdığı
+entry'lere ulaşır. [Caching](/docs/caching) sayfasına bakın.
 
-Paylaşımlı bir depolama veriyi değil, sayfaları tutar.
+Paylaşımlı bir store veriyi değil, page'leri tutar.
 [`collage.Cached`](/docs/caching#caching-data-across-pages) ile tutulan değerler,
-`Cache.Store` ne olursa olsun her sürecin belleğinde yaşar ve bir geçersiz kılma
-yalnızca içinde çalıştığı instance'a ulaşır. Bir webhook A instance'ına ulaştıktan
-sonra B instance'ı, hâlâ tuttuğu eski değerden — paylaşımlı depolama sayfayı
-düşürdüğü için — taze bir sayfa render eder. Bu değerlere katlanabileceğiniz kadar
-kısa bir TTL verin ya da geçersiz kılmayı her instance'a gönderin.
+`Cache.Store` ne olursa olsun her process'in kendi belleğinde yaşar. Bir invalidation
+da yalnızca içinde çalıştığı instance'a ulaşır. Webhook A instance'ına ulaştıktan
+sonra, paylaşımlı store page'i düşürdüğü için B instance'ı page'i yeniden render eder.
+Ama bunu hâlâ elinde tuttuğu eski değerle yapar. Bu değerlere katlanabileceğiniz
+kadar kısa bir TTL verin ya da invalidation'ı her instance'a gönderin.
 
 ## TLS, bir proxy'nin arkasında
 
-collage düz HTTP sunar ve `ListenAndServeTLS`'i yoktur. TLS'i iyi sonlandırmak;
-sertifikalar, yenileme, HTTP/2, HSTS ve 80 numaralı porttan bir yönlendirme demektir
-ve bunun üzerinde çalıştığı her platform — bir load balancer, bir reverse proxy,
-Cloudflare, Fly, Render — bunu bir framework flag'inin yapabileceğinden zaten daha iyi
-yapar.
+collage düz HTTP sunar ve `ListenAndServeTLS` sağlamaz. TLS'i düzgün terminate etmek
+sertifikalar, yenileme, HTTP/2, HSTS ve 80 numaralı port'tan redirect demektir. collage'ın
+çalıştığı her platform bunu zaten bir framework flag'inin yapabileceğinden daha iyi
+yapar: load balancer, reverse proxy, Cloudflare, Fly, Render.
 
 Binary'yi bunlardan birinin arkasına koyun ve proxy'nin `X-Forwarded-Proto: https`
-gönderdiğinden emin olun. collage bunu sahtecilik token'ı cookie'sini `Secure` olarak
-işaretlemek için kullanır; böylece HTTPS üzerinden sunulan bir site o cookie'yi asla
-düz HTTP üzerinden göndermez. Sertifikayı da alan minimal bir Caddy yapılandırması:
+gönderdiğinden emin olun. collage bu header'a bakarak forgery token cookie'sini
+`Secure` olarak işaretler. Böylece HTTPS üzerinden sunulan bir site bu cookie'yi asla
+düz HTTP üzerinden göndermez. Sertifikayı da kendisi alan minimal bir Caddy config'i
+şöyledir:
 
 ```
 example.com {
@@ -319,11 +323,11 @@ example.com {
 }
 ```
 
-nginx ile `location` bloğundaki `proxy_set_header X-Forwarded-Proto $scheme;` aynı
-işi görür.
+nginx'te `location` bloğuna eklenen `proxy_set_header X-Forwarded-Proto $scheme;`
+aynı işi görür.
 
-TLS'i binary'nin kendisinin sonlandırmasını istiyorsanız, `app.Handler()` sıradan bir
-`http.Handler`'dır:
+TLS'i binary'nin kendisinin terminate etmesini istiyorsanız, `app.Handler()` sıradan
+bir `http.Handler`'dır:
 
 ```go
 srv := &http.Server{
@@ -334,21 +338,21 @@ srv := &http.Server{
 log.Fatal(srv.ListenAndServeTLS(certFile, keyFile))
 ```
 
-Bunu yapmak, `ListenAndServe`'ün sizin için yaptığı zaman aşımlarını ve sinyal
-işlemeyi artık sizin üstlendiğiniz anlamına gelir; plugin'lerin kapanması için
+Bu durumda `ListenAndServe`'ün sizin yerinize hallettiği timeout'lar ve signal
+handling artık sizin sorumluluğunuzdadır. Plugin'lerin kapanması için
 `app.Shutdown(ctx)`'i de kendiniz çağırırsınız.
 
-## Zaman aşımları
+## Timeout'lar
 
-`ListenAndServe`, `Config.Server` içindeki zaman aşımlarını uygular:
+`ListenAndServe`, `Config.Server` içindeki timeout'ları uygular:
 
-| Alan | Varsayılan | Sınırladığı |
+| Alan | Varsayılan | Neyi sınırlar |
 | --- | --- | --- |
-| `ReadTimeout` | 15s | Header'lar dahil bir isteğin okunması — header'ları yavaş gönderen bir istemci bir bağlantıyı açık tutamaz. |
-| `WriteTimeout` | 30s | Yanıtın yazılması. Verisi bundan uzun süren bir sayfa yarıda kesilir. |
-| `IdleTimeout` | 60s | Bir sonraki isteğini bekleyen bir keep-alive bağlantısı. |
-| `ShutdownTimeout` | 10s | `SIGTERM` üzerine yapılan düzgün boşaltma. |
-| `MaxBodyBytes` | 4 MiB | Action kendi sınırını belirlemedikçe, bir action'ın istek gövdesi. Negatif değer sınırsızdır. |
+| `ReadTimeout` | 15s | Header'lar dahil request'in okunmasını. Header'ları yavaş gönderen bir client bağlantıyı açık tutamaz. |
+| `WriteTimeout` | 30s | Response'un yazılmasını. Verisi bundan uzun süren bir page yarıda kesilir. |
+| `IdleTimeout` | 60s | Bir sonraki request'ini bekleyen keep-alive bağlantısını. |
+| `ShutdownTimeout` | 10s | `SIGTERM` geldiğinde yapılan graceful drain'i. |
+| `MaxBodyBytes` | 4 MiB | Bir action'ın request body'sini, action kendi sınırını belirlemediyse. Negatif değer sınırsız demektir. |
 
 ```go
 Server: collage.ServerConfig{
@@ -358,17 +362,18 @@ Server: collage.ServerConfig{
 },
 ```
 
-Bir data handler'ın ne kadar sürebileceği ayrı bir ayardır: her fragment'in
-`WithTimeout`'u ya da hiçbir şey ayarlamayan fragment'ler ve document'lar için
-`Template.Timeout` (5 saniye). Onu `WriteTimeout`'un epey altında tutun; böylece
-yavaş bir dış servis, sayfanın ortasında kapanan bir bağlantıya değil, bir fragment'in
-yedeğine dönüşür. Bkz. [Yapılandırma](/docs/configuration).
+Bir data handler'ın ne kadar sürebileceği ayrı bir ayardır. Bunu her fragment'in
+`WithTimeout`'u belirler. Timeout belirtmeyen fragment'ler ve document'lar için
+`Template.Timeout` (5 saniye) geçerlidir. Bu süreyi `WriteTimeout`'un epey altında
+tutun. Böylece yavaş bir upstream, page'in ortasında kapanan bir bağlantıya değil,
+fragment'in fallback'ine dönüşür. [Config](/docs/configuration) sayfasına
+bakın.
 
 ## Loglar
 
-`Config.Logger` yoksa collage, `slog`'un varsayılan handler'ına — ya da bir
-terminaldeyse insanlar için biçimlendirilmiş bir handler'a — log yazar. Logların bir
-makine tarafından okunduğu bir sunucuda bir JSON handler'ı verin:
+`Config.Logger` verilmezse collage, `slog`'un varsayılan handler'ına log yazar.
+Terminalde çalışıyorsa insanların okuması için formatlanmış bir handler kullanır. Bir
+sunucuda loglar bir makine tarafından okunur. Orada bir JSON handler verin:
 
 ```go
 Logger: slog.New(slog.NewJSONHandler(os.Stdout, nil)),
@@ -377,13 +382,14 @@ Logger: slog.New(slog.NewJSONHandler(os.Stdout, nil)),
 ## Kontrol listesi
 
 - `COLLAGE_CSRF_KEY` ayarlı ve her instance'ta aynı.
-- Bir container'da `HOST=0.0.0.0`; `PORT` platformdan.
-- `.cache` için yazılabilir bir çalışma dizini ve yayına almada silinen eski
-  `.cache/<hash>` dizinleri.
-- Plugin yapılandırıyorsanız, çalışma dizininde ya da gömülü bir
-  `plugins-config.json`.
-- `COLLAGE_DEV` ayarlanmamış.
-- Proxy'de TLS ve iletilen `X-Forwarded-Proto`.
-- Platformun durdurma bekleme süresi `Server.ShutdownTimeout`'tan uzun.
-- `/healthz` üzerinde liveness denetimi.
-- Build'den önce CI'da `go test ./...` — bkz. [Test](/docs/testing).
+- Container'da `HOST=0.0.0.0`, `PORT` platformdan geliyor.
+- `.cache` için yazılabilir bir çalışma dizini var ve eski `.cache/<hash>` dizinleri
+  deploy sırasında siliniyor.
+- Plugin'leri yapılandırıyorsanız `plugins-config.json` çalışma dizininde duruyor ya
+  da gömülü.
+- `COLLAGE_DEV` ayarlı değil.
+- TLS proxy'de terminate ediliyor ve `X-Forwarded-Proto` iletiliyor.
+- Platformun stop grace period'u `Server.ShutdownTimeout`'tan uzun.
+- Liveness check `/healthz`'ye bakıyor.
+- Build'den önce CI'da `go test ./...` çalışıyor. [Test yazmak](/docs/testing) sayfasına
+  bakın.

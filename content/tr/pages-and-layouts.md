@@ -1,14 +1,15 @@
 ---
-description: Sayfa nedir, layout'u ve içeriği nasıl bir araya gelir, ona hangi yollar ulaşır, nasıl önbelleğe alınır, başarısız olduğunda ne gösterir ve kayıt ona ne yapar.
+description: Page nedir, layout'u ve içeriği nasıl bir araya gelir, ona hangi path'ler ulaşır, nasıl cache'lenir, başarısız olduğunda ne gösterir ve register edilmek onu nasıl değiştirir.
+reference: NewPage, PageBuilder, Page, RenderPage, DefaultContentSlot
 ---
 
-# Sayfalar ve layout'lar
+# Page'ler ve layout'lar
 
-Bir **sayfa**, adı olan bir render yapılandırmasıdır. Sayfayı hangi fragment'lerin
-oluşturduğunu — bir layout ve içindeki içerik —, ona hangi URL'lerin ulaştığını,
-çıktısının nasıl önbelleğe alındığını ve render edilemediğinde onun yerine hangi
-sayfanın gösterileceğini söyler. Kendine ait bir şablonu ya da verisi yoktur; bunlar
-fragment'lerine aittir.
+Bir **page**, adı olan bir render yapılandırmasıdır. Page'i hangi fragment'lerin
+oluşturduğunu belirler: bir layout ve onun içindeki içerik. Ayrıca page'e hangi
+URL'lerin ulaştığını, çıktısının nasıl cache'lendiğini ve render edilemediğinde
+yerine hangi page'in gösterileceğini de belirler. Page'in kendine ait bir template'i
+ya da verisi yoktur. Bunlar fragment'lerine aittir.
 
 ```go
 page := collage.NewPage("blog-post").
@@ -23,18 +24,18 @@ if err := app.RegisterPage(page); err != nil {
 }
 ```
 
-## Sayfa kurmak
+## Page oluşturmak
 
-`collage.NewPage(name)` bir builder başlatır, her `WithX` çağrısı tek bir şeyi
-ayarlar ve `Build()` `*collage.Page`'i döndürür.
+`collage.NewPage(name)` bir builder başlatır. Her `WithX` çağrısı tek bir şeyi
+ayarlar, `Build()` da `*collage.Page`'i döner.
 
-Ad, sayfanın kimliğidir. Bağlantılar ondan kurulur
-(`{{pageURL "blog-post" "slug" .Slug}}`), testler ve plugin'ler sayfaları onunla
-arar ve iki sayfa aynı adı paylaşamaz. Adı sayfanın nerede durduğuna göre değil, ne
-olduğuna göre seçin; böylece URL değiştiğinde de geçerli kalır.
+Ad, page'in kimliğidir. Link'ler bu addan üretilir
+(`{{pageURL "blog-post" "slug" .Slug}}`), testler ve plugin'ler page'leri bu adla
+bulur ve iki page aynı adı taşıyamaz. Adı page'in nerede durduğuna göre değil, ne
+olduğuna göre seçin. Böylece URL değişse de ad geçerliliğini korur.
 
-Builder'lar bir hata döndürmek için zinciri asla kesmez. İsteneni yapamayan bir
-çağrı hatayı not eder ve devam eder; `BuildErr()` not edilen her şeyi döndürür:
+Builder'lar hata dönmek için zinciri hiçbir zaman kesmez. İstenen şeyi yapamayan bir
+çağrı hatayı kaydeder ve devam eder. `BuildErr()` kaydedilen bütün hataları döner:
 
 ```go
 builder := collage.NewPage("blog-post").WithLayout(layout).WithPath("en", "/blog/{slug}")
@@ -44,20 +45,21 @@ if err := builder.BuildErr(); err != nil {
 }
 ```
 
-`BuildErr`'ü görmezden gelmek bir hatanın geçip gitmesine izin vermez. Bir builder'ın
-not ettiği şey kurduğu değerin üzerinde kalır ve `RegisterPage`, böyle bir hata
-taşıyan sayfayı — hata ister sayfanın kendisine, ister ağacındaki herhangi bir
-fragment'e ait olsun, örneğin iki kez bildirilmiş bir slot — sayfanın adını veren bir
-hatayla reddeder; birinin `BuildErr`'ü çağırıp çağırmadığından bağımsız olarak.
-`BuildErr`'ü, kontrolünüzde olmayan bir girdiden kurulan ve hatayı nedenine daha
-yakın bir yerde görmek istediğiniz sayfalarda denetleyin.
+`BuildErr`'ü görmezden gelmek bir hatanın gözden kaçmasına yol açmaz. Builder'ın
+kaydettiği hatalar, ürettiği değerin üzerinde kalır. `RegisterPage` bu hatalardan
+birini taşıyan bir page'i reddeder ve page'in adını içeren bir hata döner. Hatanın
+page'in kendisine ya da ağacındaki herhangi bir fragment'e ait olması fark etmez;
+örneğin iki kez tanımlanmış bir slot da buna dahildir. Birinin `BuildErr`'ü çağırıp
+çağırmamış olması da sonucu değiştirmez. `BuildErr`'ü, kontrolünüzde olmayan bir
+girdiden oluşturulan page'lerde kontrol edin. Orada hatayı kaynağına daha yakın bir
+yerde görmek istersiniz.
 
 ## Layout ve içerik
 
-Bir sitedeki çoğu sayfa dış kısmını — `<head>`, üst bilgi, alt bilgi — paylaşır ve
-içeride farklılaşır. Dış kısım **layout**'tur: `content` adında bir slot'u olan bir
-fragment. İç kısım ise **içerik fragment'i**dir: sayfanın göstermek için var olduğu
-fragment.
+Bir sitedeki page'lerin çoğu dış kısmı ortak kullanır: `<head>`, header ve footer.
+Farklı olan iç kısımdır. Dış kısım **layout**'tur. Layout, `content` adında bir
+slot'u olan bir fragment'tir. İç kısım ise **content fragment**'tir. Page, bu
+fragment'i göstermek için vardır.
 
 ```go
 layout := collage.NewFragment("layout", "layouts/default.html").
@@ -78,36 +80,38 @@ layout := collage.NewFragment("layout", "layouts/default.html").
 </html>
 ```
 
-`WithLayout(layout)` ve `WithContent(post)` bu ikisini adlandırır ve **içeriği
-layout'un `content` slot'una kayıt yerleştirir**. Bağlamayı kendiniz yapmazsınız.
-Layout'un `content` slot'unu boş bırakın: onu kayıt doldurur ve tek fragment tutan
-bir slot ikincisini reddeder (`ErrSlotOccupied`).
+`WithLayout(layout)` ve `WithContent(post)` bu ikisini belirtir. **İçeriği
+layout'un `content` slot'una register işlemi yerleştirir.** Bu bağlamayı kendiniz
+yapmazsınız. Layout'un `content` slot'unu boş bırakın. Onu register işlemi doldurur
+ve tek fragment alan bir slot ikinci bir fragment'i reddeder (`ErrSlotOccupied`).
 
-Bir sayfanın içeriği olmalıdır — yoksa `ErrMissingContent`. Layout ise isteğe
-bağlıdır: layout'u olmayan bir sayfa, içerik fragment'ini yanıtın tamamı olarak
-render eder; şablonu eksiksiz bir HTML belgesi olan bir sayfanın istediği de budur.
+Her page'in bir içeriği olmalıdır, yoksa `ErrMissingContent` alırsınız. Layout ise
+isteğe bağlıdır. Layout'u olmayan bir page, content fragment'ini response'un
+tamamı olarak render eder. Template'i baştan sona eksiksiz bir HTML belgesi olan bir
+page'in istediği de tam olarak budur.
 
-### Tek layout, çok sayfa
+### Tek layout, birçok page
 
-Layout, bir sitede en çok yeniden kullanılan şeydir; bu yüzden tek bir
-`*collage.Fragment` değerini hata sayfaları dahil bütün sayfalar arasında paylaşmak
-güvenlidir. Kayıt, içeriği bağlamadan önce her sayfaya **layout'un slot tablosunun
-özel bir kopyasını** verir; böylece A sayfasının içeriği asla B sayfasında görünmez.
+Layout, bir sitede en çok tekrar kullanılan şeydir. Bu yüzden tek bir
+`*collage.Fragment` değerini error page'ler dahil bütün page'ler arasında paylaşmak
+güvenlidir. Register işlemi, içeriği bağlamadan önce her page'e **layout'un slot
+tablosunun kendine ait bir kopyasını** verir. Böylece A page'inin içeriği hiçbir
+zaman B page'inde görünmez.
 
-Yalnızca slot tablosu kopyalanır. Layout'un şablonu, data handler'ı, yedeği ve diğer
-slot'larına zaten bağlanmış fragment'ler paylaşımlı kalır — yani kayıt bu
-bağlamaların anlık bir görüntüsünü alır. Bir sayfa kaydedildikten sonra paylaşılan
-layout'a bağlanan bir fragment o sayfada görünmez. Layout'u eksiksiz kurun, sonra
-sayfaları onunla kaydedin.
+Yalnızca slot tablosu kopyalanır. Layout'un template'i, data handler'ı, fallback'i
+ve diğer slot'larına önceden bağlanmış fragment'ler ortak kalır. Bu da register
+işleminin o bağlamaların bir anlık görüntüsünü aldığı anlamına gelir. Bir page
+register edildikten sonra ortak layout'a bağlanan bir fragment o page'de görünmez.
+Önce layout'u eksiksiz oluşturun, sonra page'leri onunla register edin.
 
-İskelet (scaffold) layout'unu, her çağrıda yeni bir fragment döndüren
-`layouts.Layout()` fonksiyonu olarak yazar. Bu da aynı derecede iyi çalışır; tek bir
-değeri paylaşmak yalnızca izin verilen bir seçenektir.
+Scaffold, layout'unu her çağrıda yeni bir fragment dönen bir fonksiyon olarak
+yazar: `layouts.Layout()`. Bu yöntem de aynı şekilde çalışır. Tek bir değeri
+paylaşmak yalnızca izin verilen bir seçenektir.
 
-## Yollar
+## Path'ler
 
-`WithPath(locale, pattern)` sayfaya tek bir locale'de ulaşan URL'yi kaydeder. Tek
-dilli bir site tek bir locale kullanır; bir sayfanın her locale'de farklı bir yolu
+`WithPath(locale, pattern)`, bir locale'de page'e ulaşan URL'yi register eder. Tek
+dilli bir site tek bir locale kullanır. Bir page'in her locale'de farklı bir path'i
 olabilir:
 
 ```go
@@ -119,87 +123,89 @@ collage.NewPage("about").
 
 Bir pattern segment'lerden oluşur:
 
-| Segment | Eşleştiği |
+| Segment | Neyle eşleşir |
 | --- | --- |
-| `blog` | Tam olarak bu metin |
-| `{slug}` | Tam olarak bir segment, `slug` olarak yakalanır |
-| `{rest...}` | Geriye kalan her şey, `rest` olarak yakalanır. Yalnızca son segment olarak |
+| `blog` | Tam olarak bu metinle |
+| `{slug}` | Tam olarak bir segment'le, `slug` adıyla yakalanır |
+| `{rest...}` | Geriye kalan her şeyle, `rest` adıyla yakalanır. Yalnızca son segment olabilir |
 
-Bir data handler yakalananı `rc.Param("slug")` ya da `rc.PathParams["slug"]` ile
-okur. Değerler percent-decode edilmiş olarak, her seferinde bir segment gelir; bu
-yüzden bir segmentin içindeki kodlanmış bir `/` yeni bir segment değil, değerin
-parçasıdır.
+Bir data handler yakalanan değeri `rc.Param("slug")` ya da `rc.PathParams["slug"]`
+ile okur. Değerler percent-decode edilmiş olarak ve segment segment gelir. Bu yüzden
+bir segment'in içindeki encode edilmiş bir `/` yeni bir segment başlatmaz, değerin
+bir parçası olur.
 
-Her düzeyde statik bir segment `{param}`'dan önce, `{param}` da `{rest...}`'ten önce
-denenir — geri izlemeyle (backtracking); böylece ikisi de eşleşebilecek olsa bile
-`/blog/archive`, `/blog/{slug}`'a üstün gelir. `/blog` ve `/blog/` aynı route'tur.
+Her seviyede static bir segment `{param}`'dan önce, `{param}` da `{rest...}`'ten
+önce denenir. Eşleştirme backtracking ile yapılır. Böylece iki route da
+eşleşebilecek olsa bile `/blog/archive`, `/blog/{slug}`'a karşı kazanır. `/blog` ve
+`/blog/` aynı route'tur.
 
-Pattern'lerdeki hatalar, istek anında çıkan sürprizler değil, kayıt sırasındaki
-hatalardır:
+Pattern'lerdeki hatalar request anında sürpriz olarak çıkmaz. Register sırasında
+hata verirler:
 
-- Bir pattern `/` ile başlamalı, boş segment ve boş placeholder adı içermemeli ve
-  catch-all'u yalnızca en sona koymalıdır — `ErrInvalidPath` ya da
-  `ErrInvalidPattern`.
-- Placeholder bütün bir segmenttir. v0.11.0'dan itibaren bir segmentin içine
-  yazılmış bir placeholder, örneğin `/feeds/{category}.xml` ya da `/post-{id}`,
-  `ErrInvalidPattern`'dir; bunun yerine `/feeds/{category}/rss.xml` yazın.
-- Tek bir locale'de aynı yolda iki route — `ErrDuplicateRoute`. Bir sayfa ile bir
-  [document](/docs/documents)'ın çakışması da buna dahildir, çünkü ikisi tek bir
-  ağacı paylaşır.
-- Aynı konumda iki parametre adı, örneğin `/blog/{slug}` ve `/blog/{id}/edit` —
-  `ErrAmbiguousParameterName`.
+- Bir pattern `/` ile başlamalıdır. Boş segment ve boş placeholder adı içeremez,
+  catch-all'u da yalnızca en sona koyabilir. Aksi hâlde `ErrInvalidPath` ya da
+  `ErrInvalidPattern` alırsınız.
+- Bir placeholder bütün bir segment'i kaplar. v0.11.0'dan itibaren bir segment'in
+  içine yazılmış bir placeholder, örneğin `/feeds/{category}.xml` ya da `/post-{id}`,
+  `ErrInvalidPattern` verir. Bunun yerine `/feeds/{category}/rss.xml` yazın.
+- Bir locale'de aynı path'te iki route olursa `ErrDuplicateRoute` alırsınız. Bir
+  page ile bir [document](/docs/documents)'ın çakışması da buna dahildir, çünkü
+  ikisi aynı ağacı kullanır.
+- Aynı konumda iki farklı parametre adı, örneğin `/blog/{slug}` ve
+  `/blog/{id}/edit`, `ErrAmbiguousParameterName` verir.
 
-Bir sayfa `GET` ve `HEAD`'e, `OPTIONS`'a da `Allow` header'ı URL'nin kabul ettiği
-metotları listeleyen bir `204` ile yanıt verir. Diğer her metot, sayfanın o metot
-için bir [action](/docs/forms-and-actions)'ı yoksa, aynı `Allow` header'ıyla bir
-405'tir — bir form da üzerinde durduğu sayfaya böyle gönderilir.
+Bir page `GET` ve `HEAD` request'lerine cevap verir. `OPTIONS` request'ine de
+`204` ile cevap verir. Bu response'un `Allow` header'ı, URL'nin kabul ettiği
+metotları listeler. Diğer bütün metotlar aynı `Allow` header'ıyla 405 alır. Tek
+istisna, page'in o metot için bir [action](/docs/forms-and-actions)'ı olmasıdır.
+Bir form, üzerinde bulunduğu page'e bu sayede post eder.
 
-Locale'ler, `/tr/hakkinda` gibi locale önekleri — ve `/en/about`'u `/about`'a
-gönderen yönlendirme — ve sayfa adlarından bağlantı kurmak
-[Bağlantılar ve locale'ler](/docs/links-and-locales) sayfasında anlatılıyor. Bir sayfa
-ayrıca `WithRedirect(from, to, status)` ve `WithPermanentRedirect(from, to)` ile eski
-URL'lerden yönlendirmeler taşıyabilir.
+Locale'ler, `/tr/hakkinda` gibi locale prefix'leri, `/en/about`'u `/about`'a
+gönderen redirect ve page adlarından link üretmek
+[Link'ler ve locale'ler](/docs/links-and-locales) sayfasında anlatılıyor. Bir page
+ayrıca eski URL'lerden redirect'ler de taşıyabilir. Bunun için
+`WithRedirect(from, to, status)` ve `WithPermanentRedirect(from, to)` kullanılır.
 
 ## Render stratejileri
 
-Her sayfanın, çıktısının önbelleğe alınıp alınmayacağına karar veren üç stratejiden
-biri vardır:
+Her page'in üç stratejiden biri vardır. Strateji, page'in çıktısının cache'lenip
+cache'lenmeyeceğini belirler:
 
 | Metot | Strateji | Davranış |
 | --- | --- | --- |
-| `Dynamic()` | `StrategyDynamic` | Her istekte render edilir, asla önbelleğe alınmaz. **Varsayılan** |
-| `Static()` | `StrategyStatic` | Bir kez render edilir, etiketleri geçersiz kılınana kadar önbellekten sunulur |
-| `Incremental(ttl)` | `StrategyIncremental` | Önbellekten sunulur, `ttl` geçtikten sonra yeniden render edilir |
+| `Dynamic()` | `StrategyDynamic` | Her request'te render edilir, hiçbir zaman cache'lenmez. **Varsayılan budur** |
+| `Static()` | `StrategyStatic` | Bir kez render edilir, tag'leri invalidate edilene kadar cache'ten sunulur |
+| `Incremental(ttl)` | `StrategyIncremental` | Cache'ten sunulur, `ttl` dolduktan sonra yeniden render edilir |
 
-`Incremental` pozitif bir TTL ister (`ErrMissingTTL`). `collage export`'un dosyalara
-yazabildiği sayfalar da `Static` ve `Incremental` sayfalardır; `Dynamic` bir sayfa,
-istek başına render edilmek için var olduğundan
+`Incremental` pozitif bir TTL ister (`ErrMissingTTL`). `collage export`'un dosyaya
+yazabildiği page'ler de `Static` ve `Incremental` page'lerdir. `Dynamic` bir page
+her request'te render edilmek için vardır, bu yüzden
 [atlanır](/docs/static-export#what-is-skipped).
 
-Önbelleğe alma yalnızca uygulama onu etkinleştirdiğinde gerçekleşir
-(`Config.Cache.Enabled`, iskelette açık) ve geliştirme modunda asla gerçekleşmez;
-orada önbellekteki bir sayfa az önce düzenlediğiniz şablonu gizlerdi.
+Cache yalnızca uygulama onu açtığında devreye girer (`Config.Cache.Enabled`,
+scaffold'da açıktır). Development'ta ise hiçbir zaman devreye girmez. Orada
+cache'lenmiş bir page, az önce düzenlediğiniz template'i gizlerdi.
 
-İki builder metodu daha önbellekteki bir sayfayı şekillendirir.
-`WithDependency(tags...)`, data handler'ların bildirdiği bağımlılık etiketlerine
-sayfanın kendi etiketlerini ekler; `WithCacheParams(names...)` ise hangi query
-parametrelerinin önbellek anahtarına katıldığını söyler. Bütün bunların — etiketler,
-geçersiz kılma, query parametreleri, sayfalar yerine verinin önbelleğe alınması —
-nasıl bir araya geldiği [Önbellekleme](/docs/caching) sayfasında anlatılıyor.
+Cache'lenen bir page'i iki builder metodu daha etkiler. `WithDependency(tags...)`,
+data handler'ların bildirdiği dependency tag'lerine page'in kendi tag'lerini ekler.
+`WithCacheParams(names...)` ise cache key'ine hangi query parametrelerinin
+katılacağını belirler. Bunların hepsinin nasıl bir araya geldiği
+[Caching](/docs/caching) sayfasında anlatılıyor: tag'ler, invalidation, query
+parametreleri ve page'ler yerine veriyi cache'lemek.
 
-## Bulunamadı ve hata sayfaları
+## Not-found ve error page'leri
 
-Bir sayfa gösterilemediğinde onun yerine başka bir sayfa gösterilir. İki durum ve
-iki düzey vardır.
+Bir page gösterilemediğinde yerine başka bir page gösterilir. Bunun iki durumu ve
+iki seviyesi vardır.
 
-- **Bulunamadı — 404.** Hiçbir route URL ile eşleşmedi ya da `Required()` bir
-  fragment'in data handler'ı `collage.ErrNotFound`'u sarmalayan bir hata döndürdü:
-  URL'nin adlandırdığı içerik mevcut değil.
-- **Hata — 500.** `Required()` bir fragment başka bir şekilde başarısız oldu ya da
-  framework'ün kendi yolundaki bir şey başarısız oldu.
+- **Not found, 404.** Ya hiçbir route URL ile eşleşmemiştir ya da `Required()` bir
+  fragment'in data handler'ı `collage.ErrNotFound`'u wrap eden bir hata dönmüştür.
+  Yani URL'nin işaret ettiği içerik yoktur.
+- **Error, 500.** Ya `Required()` bir fragment başka bir sebeple başarısız olmuştur
+  ya da framework'ün kendi akışında bir şey başarısız olmuştur.
 
-Bir sayfa kendi yerine geçecek sayfaları adlandırabilir, uygulama da site genelinde
-geçerli olanları:
+Bir page kendi yerine geçecek page'leri belirleyebilir. Uygulama da site genelinde
+geçerli olanları belirleyebilir:
 
 ```go
 post := collage.NewPage("blog-post").
@@ -214,14 +220,14 @@ app.RegisterNotFoundPage(siteNotFound)
 app.RegisterErrorPage(siteError)
 ```
 
-Bir hata durumunda önce sayfanın kendi `NotFoundPage`'i ya da `ErrorPage`'i, sonra
-site genelindeki sayfa, sonra da framework'ün yerleşik sayfası kullanılır. Hiçbir
-route ile eşleşmeyen bir URL'nin soracağı bir sayfa yoktur; bu yüzden doğrudan site
-genelindeki bulunamadı sayfasına gider.
+Bir hata olduğunda önce page'in kendi `NotFoundPage`'i ya da `ErrorPage`'i
+kullanılır. Sonra site genelindeki page, en son da framework'ün built-in page'i
+devreye girer. Hiçbir route ile eşleşmeyen bir URL'nin sorabileceği bir page yoktur.
+Bu yüzden doğrudan site genelindeki not-found page'ine gider.
 
-Bir hata sayfası diğerleri gibi bir sayfadır — bir layout, bir içerik fragment'i,
-isterse data handler'lar — ama yolu yoktur. Yola ihtiyacı da yoktur; ona bir şeyin
-başarısız olmasıyla ulaşılır.
+Bir error page de diğerleri gibi bir page'dir. Bir layout'u, bir content fragment'i
+ve isterse data handler'ları olur, ama path'i yoktur. Path'e ihtiyacı da yoktur,
+çünkü ona bir şeyin başarısız olmasıyla ulaşılır.
 
 ```go
 func NotFoundPage() *collage.Page {
@@ -235,30 +241,33 @@ func NotFoundPage() *collage.Page {
 }
 ```
 
-Birkaç kural, hata sayfalarının en kötü anda başarısız olmasını önler:
+Birkaç kural, error page'lerin en kötü anda başarısız olmasını önler:
 
-- **`WithNotFoundPage` ya da `WithErrorPage` ile adlandırılan her sayfa kaydedilmiş
-  olmalıdır**: `RegisterPage`, `RegisterNotFoundPage` ya da `RegisterErrorPage` ile.
-  Aksi hâlde uygulama `ErrUnregisteredErrorPage` ile başlamayı reddeder — nedeni için
-  [aşağıya](#why-the-registered-value-matters) bakın.
-- Şablonları, onları adlandıran sayfa kaydedildiğinde denetlenir; böylece bir 500
-  sayfasındaki yazım hatası, site zaten hata verirken keşfedilen bir şey değil, bir
-  başlangıç hatası olur.
-- Bir sayfa kendi hata sayfası olamaz (`ErrSelfErrorPage`).
-- Bir hata sayfasının render'ı asla önbelleğe alınmaz; başarısız olursa ya da hiçbir
-  şey render etmezse onun yerine yerleşik sayfa sunulur, hata da loglanır ve
-  plugin'lere bildirilir. Kendi içine 500 verebilen bir 500 sayfası bir kesintidir.
+- **`WithNotFoundPage` ya da `WithErrorPage` ile belirtilen her page register
+  edilmiş olmalıdır.** Bunun için `RegisterPage`, `RegisterNotFoundPage` ya da
+  `RegisterErrorPage` kullanılır. Aksi hâlde uygulama `ErrUnregisteredErrorPage` ile
+  başlamayı reddeder. Nedenini [aşağıda](#why-the-registered-value-matters)
+  bulabilirsiniz.
+- Bu page'lerin template'leri, onları belirten page register edilirken kontrol
+  edilir. Böylece bir 500 page'indeki yazım hatası, site zaten hata verirken fark
+  edilmez. Uygulama başlarken hata olarak karşınıza çıkar.
+- Bir page kendi error page'i olamaz (`ErrSelfErrorPage`).
+- Bir error page'in render çıktısı hiçbir zaman cache'lenmez. Render başarısız olursa
+  ya da hiçbir şey üretmezse yerine built-in page sunulur. Hata da log'lanır ve
+  plugin'lere bildirilir. Kendi kendine 500 verebilen bir 500 page'i, sitenin
+  tamamen çökmesi demektir.
 
-Yerleşik sayfa, harici dosya kullanmayan, kendi kendine yeten bir HTML'dir; bu yüzden
-bozulan şey asset'ler olsa bile render edilir. Geliştirme modunda hatanın başladığı
-fragment'i adlandırır ve hata zincirini gösterir; production'da ise tek bir genel
-cümle gösterir, çünkü hata metni host adlarını, dosya yollarını ve kimlik bilgilerini
-sızdırır. [Hatalar](/docs/errors) framework'ün bildirdiği her hatayı listeler.
+Built-in page, hiçbir harici dosyaya ihtiyaç duymayan, kendi içinde tamamlanmış bir
+HTML'dir. Bu yüzden bozulan şey asset'ler olsa bile render edilir. Development'ta
+hatanın başladığı fragment'in adını verir ve hata zincirini gösterir.
+Production'da ise tek bir genel cümle gösterir, çünkü hata metinleri host adlarını,
+dosya yollarını ve credential'ları sızdırır. [Hatalar](/docs/errors) sayfası,
+framework'ün bildirdiği bütün hataları listeler.
 
-`collage export`, `RegisterNotFoundPage` ile kaydedilen sayfayı `404.html` olarak
-yazar; statik barındırma hizmetlerinin eksik bir URL için sunduğu dosya budur.
+`collage export`, `RegisterNotFoundPage` ile register edilen page'i `404.html`
+olarak yazar. Static host'lar, bulunamayan bir URL için bu dosyayı sunar.
 
-## Kayıt
+## Register etmek
 
 ```go
 if err := app.RegisterPage(page); err != nil {
@@ -266,55 +275,58 @@ if err := app.RegisterPage(page); err != nil {
 }
 ```
 
-`RegisterPage`, bir sayfanın denetlendiği ve bir araya getirildiği yerdir; böylece
-render sırasında başarısız olacak şey burada, başlangıçta, mesajda sayfanın adıyla
-başarısız olur — sayfanın tuttuğu her fragment için, kendi URL'sinde açtığı fragment
-dahil. Bir istek çalışırken bir
-[slot resolver](/docs/fragments-and-slots#slots-filled-per-render)'ın döndürdüğü
-fragment buradan görülemez; o, ilk render edildiğinde denetlenir.
-Sırasıyla şunları yapar:
+Bir page `RegisterPage`'te kontrol edilir ve bir araya getirilir. Böylece render
+sırasında başarısız olacak bir şey burada, uygulama başlarken başarısız olur ve
+hata mesajında page'in adı yer alır. Bu, page'in içerdiği bütün fragment'ler için
+geçerlidir. Page'in kendi URL'sinde açtığı bir fragment de buna dahildir. Bir
+request çalışırken
+[slot resolver](/docs/fragments-and-slots#slots-filled-per-render)'ın döndüğü bir
+fragment ise buradan görülemez. O fragment ilk render edildiğinde kontrol edilir.
+`RegisterPage` sırasıyla şunları yapar:
 
-1. nil bir sayfayı, boş bir adı, başka bir sayfanın tuttuğu bir adı
-   (`ErrDuplicatePage`) ve uygulama başladıktan sonra yapılan her kaydı
+1. nil bir page'i, boş bir adı, başka bir page'in kullandığı bir adı
+   (`ErrDuplicatePage`) ve uygulama başladıktan sonra yapılan her register işlemini
    (`ErrAppStarted`) reddeder;
-2. builder'ı ya da ondan ulaşılabilen veya
-   [`WithFragmentPath`](/docs/forms-and-actions#a-fragment-at-its-own-url) ile açılan
-   herhangi bir fragment'in builder'ı bir hata not etmiş olan sayfayı — yani
-   `BuildErr()`'ün döndüreceği şeyi — reddeder;
-3. layout'un slot tablosunu kopyalar ve içerik fragment'ini onun `content` slot'una
-   bağlar;
-4. sayfayı ve fragment yolları dahil bütün fragment ağacını doğrular: yollar,
-   strateji ve TTL, yönlendirmeler, içi boş zorunlu slot'lar, kendisinden
-   ulaşılabilen bir fragment;
-5. her fragment'in şablonunun yüklendiğini denetler (`ErrTemplateNotFound`) —
-   v0.11.0'dan itibaren ağacın geri kalanı gibi denetlenen, `WithFragmentPath` ile
-   açılmış fragment'ler ve sayfanın kendi bulunamadı ve hata sayfaları dahil;
-6. sayfanın yollarını, yönlendirmelerini, action'larını ve fragment yollarını
+2. builder'ı bir hata kaydetmiş olan page'i reddeder. Page'den ulaşılabilen ya da
+   [`WithFragmentPath`](/docs/forms-and-actions#a-fragment-at-its-own-url) ile
+   açılan herhangi bir fragment'in builder'ı için de aynısı geçerlidir. Bu hatalar,
+   `BuildErr()`'ün döneceği hatalardır;
+3. layout'un slot tablosunu kopyalar ve content fragment'i bu kopyanın `content`
+   slot'una bağlar;
+4. page'i ve fragment path'leri dahil bütün fragment ağacını doğrular: path'ler,
+   strateji ve TTL, redirect'ler, içi boş kalmış required slot'lar ve kendisinden
+   yine kendisine ulaşılabilen bir fragment;
+5. her fragment'in template'inin yüklendiğini kontrol eder (`ErrTemplateNotFound`).
+   `WithFragmentPath` ile açılan fragment'ler de buna dahildir; bunlar v0.11.0'dan
+   beri ağacın geri kalanı gibi kontrol edilir. Page'in kendi not-found ve error
+   page'leri de kontrol edilir;
+6. page'in path'lerini, redirect'lerini, action'larını ve fragment path'lerini
    router'a ekler.
 
-Her hatayı ölümcül sayın. Yarıda başarısız olan bir kayıt geri alınmaz — bir
-locale'de kabul edilen yol, bir sonrakinin reddedilmesi üzerine router'da kalır —
-çünkü başarısız bir kayıt, toparlanılacak bir durum değil, başlamaması gereken bir
-programdır.
+Her hatayı fatal kabul edin. Yarıda başarısız olan bir register işlemi geri
+alınmaz. Örneğin bir locale'de kabul edilen path, bir sonraki locale reddedildiğinde
+router'da kalır. Bunun sebebi, başarısız bir register işleminin toparlanılacak bir
+durum olmamasıdır. Bu, hiç başlamaması gereken bir programdır.
 
-### Kaydedilen değer neden önemli
+### Register edilen değer neden önemli
 
-Kayıt, kendisine verilen sayfayı değiştirir. 3. adım `page.LayoutFragment`'i,
-layout'un sayfaya özel, bağlanmış kopyasıyla değiştirir ve render edilen şey —
-slot'unda içerikle birlikte — o kopyadır. Aynı constructor yeniden çağrılarak kurulan
-bir sayfa farklı bir değerdir ve layout'unun `content` slot'u boştur.
+Register işlemi kendisine verilen page'i değiştirir. 3. adım `page.LayoutFragment`'i,
+layout'un bu page'e ait ve içeriği bağlanmış kopyasıyla değiştirir. Render edilen
+şey, slot'unda içerik bulunan bu kopyadır. Aynı constructor tekrar çağrılarak
+oluşturulan bir page ise farklı bir değerdir. Onun layout'unun `content` slot'u
+boştur.
 
-Dolayısıyla `RegisterPage`'e verdiğiniz değer o andan itibaren sayfanın ta
-kendisidir ve bir sayfaya değer üzerinden başvuran her şey o değeri kullanmalıdır:
+Bu yüzden o andan itibaren page, `RegisterPage`'e verdiğiniz değerin ta kendisidir.
+Bir page'e değer üzerinden başvuran her şey o değeri kullanmalıdır:
 
-- **Hata sayfaları.** `WithNotFoundPage(p)`, kaydedilmiş olan `*collage.Page`'in ta
-  kendisini göstermelidir. Aynı adla ayrıca kurulmuş bir sayfa
-  `ErrUnregisteredErrorPage` ile reddedilir, çünkü layout'unu hiçbir şeyin etrafında
-  render ederdi.
-- **Sayfayla yanıt veren action'lar.** Bir action'daki `collage.RenderPage(p)`'ye
-  kaydedilmiş değer verilmelidir; kaydedilmemiş bir değer boş render edilmek yerine
-  `ErrUnregisteredPage` ile reddedilir. Olağan biçim, sayfayı bir kez kurmak ve
-  action'ın closure'ının onu yakalamasına izin vermektir:
+- **Error page'ler.** `WithNotFoundPage(p)`, register edilmiş olan `*collage.Page`
+  değerinin ta kendisini göstermelidir. Aynı adla ayrıca oluşturulmuş bir page
+  `ErrUnregisteredErrorPage` ile reddedilir, çünkü o page layout'unu boş bir
+  içeriğin etrafında render ederdi.
+- **Page ile cevap veren action'lar.** Bir action'da `collage.RenderPage(p)`'ye
+  register edilmiş değer verilmelidir. Register edilmemiş bir değer boş render
+  edilmez, `ErrUnregisteredPage` ile reddedilir. Genelde page bir kez oluşturulur ve
+  action'ın closure'ı onu yakalar:
 
   ```go
   var page *collage.Page
@@ -329,12 +341,14 @@ kendisidir ve bir sayfaya değer üzerinden başvuran her şey o değeri kullanm
   return page
   ```
 
-- **`rc.Page` de o değerdir**; sayfayı render eden her istek ve onlara hizmet eden
-  her goroutine tarafından paylaşılır. Onu serbestçe okuyun; asla ona yazmayın.
-  İstekten isteğe değişen her şeyin yeri, bir handler'ın döndürdüğü veri ya da
-  render'ın paylaşılan verisidir — bkz. [Data handler'lar](/docs/data-handlers#the-render-context).
+- **`rc.Page` de aynı değerdir.** Bu değeri, page'i render eden bütün request'ler
+  ve onlara hizmet eden bütün goroutine'ler ortak kullanır. Onu dilediğiniz gibi
+  okuyun, ama hiçbir zaman ona yazmayın. Request'ten request'e değişen her şey, bir
+  handler'ın döndüğü veride ya da render'ın shared data'sında yer almalıdır.
+  Ayrıntılar için [Data handler'lar](/docs/data-handlers#the-render-context)
+  sayfasına bakın.
 
-`app.Page(name)` ve `app.Pages()`, kaydedilmiş sayfaların kopyalarını onlara bakmak
-için döndürür — her sayfanın yollarını listeleyen bir sitemap, bir stratejiyi
-denetleyen bir test. Kopya, kaydedilmiş değer değildir; bu yüzden kaydedilmiş bir
-sayfanın beklendiği yere kopya vermeyin.
+`app.Page(name)` ve `app.Pages()`, register edilmiş page'lerin kopyalarını döner.
+Bu kopyalar incelemek içindir: örneğin her page'in path'lerini listeleyen bir
+sitemap ya da bir stratejiyi kontrol eden bir test. Kopya, register edilmiş değer
+değildir. Bu yüzden register edilmiş bir page beklenen yere kopya vermeyin.

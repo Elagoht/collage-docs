@@ -1,14 +1,15 @@
 ---
-description: Şablonlar nerede durur, nasıl yüklenir ve gömülür, geliştirmede nasıl yeniden yüklenir; slot'lar, yerleşik ve özel fonksiyonlar ve kaçışlama.
+description: Template'lerin nerede durduğu, nasıl yüklenip binary'ye embed edildiği, development'ta nasıl yeniden yüklendiği; slot'lar, built-in ve kendi fonksiyonlarınız, escaping.
+reference: TemplateConfig, Config
 ---
 
-# Şablonlar
+# Template'ler
 
-Her fragment bir şablon render eder. Şablonlar Go'nun
-[`html/template`](https://pkg.go.dev/html/template) paketidir — aynı sözdizimi,
-aynı bağlama duyarlı kaçışlama — ve bir fragment'in ihtiyaç duyduğu şeyler için
-eklenmiş birkaç fonksiyon: slot'ları, diğer sayfalara bağlantılar, statik dosyalar,
-formlar ve sayfanın `<head>`'i.
+Her fragment bir template render eder. Template'ler Go'nun
+[`html/template`](https://pkg.go.dev/html/template) paketiyle yazılır: sözdizimi
+de, bağlama göre yapılan escaping de aynıdır. Buna, bir fragment'in ihtiyaç duyduğu
+şeyler için birkaç fonksiyon eklenmiştir. Bu fonksiyonlar fragment'in slot'larını,
+diğer page'lere link'leri, asset'leri, form'ları ve page'in `<head>`'ini kapsar.
 
 ```html
 <!-- templates/pages/post.html -->
@@ -20,9 +21,9 @@ formlar ve sayfanın `<head>`'i.
 </article>
 ```
 
-## Şablonlar nerede durur
+## Template'ler nerede durur
 
-Onları nerede bulacağını `Config.Template` söyler:
+Template'lerin nerede bulunacağını `Config.Template` belirler:
 
 ```go
 app, err := collage.New(&collage.Config{
@@ -33,12 +34,13 @@ app, err := collage.New(&collage.Config{
 })
 ```
 
-`Root` altında, uzantısı `Extension` olan her dosya bir şablondur. `Root`'un
-varsayılanı `./templates`, `Extension`'ınki `.html`'dir; başka uzantılı dosyalar yok
-sayılır, dolayısıyla şablonların yanındaki bir `README.md` zararsızdır.
+`Root` altındaki, uzantısı `Extension` olan her dosya bir template'tir. `Root`'un
+varsayılan değeri `./templates`, `Extension`'ınki ise `.html`'dir. Başka uzantılı
+dosyalar yok sayılır. Bu yüzden template'lerin yanında duran bir `README.md` sorun
+çıkarmaz.
 
-Bir şablonun adı, uzantı dahil, `Root`'a göre yoludur ve bir fragment'in belirttiği
-de budur:
+Bir template'in adı, `Root`'a göre göreli yoludur ve uzantıyı da içerir. Fragment'te
+yazdığınız ad da budur:
 
 ```text
 templates/
@@ -51,42 +53,45 @@ templates/
 collage.NewFragment("author", "fragments/author.html")
 ```
 
-### Bir kez yüklenir, erken denetlenir
+### Bir kez yüklenir, erkenden kontrol edilir
 
-`collage.New`, herhangi bir şey sunulmadan önce her şablonu tek bir kümeye
-ayrıştırır. Her hata türü, yakalanabileceği en erken noktada yakalanır:
+`collage.New`, daha hiçbir şey serve edilmeden bütün template'leri parse edip tek bir
+set'e toplar. Her hata türü, yakalanabileceği en erken noktada yakalanır:
 
-- **Var olmayan bir kök dizin**, `New`'u `ErrTemplateRootMissing` ile başarısız
-  kılar — bu, en sık karşılaşılan başlangıç hatasıdır ve ayrıştırılamayan bir şablondan
-  ayırt edilmeye değer.
-- **Ayrıştırılamayan** ya da kimsenin kaydetmediği bir fonksiyonu çağıran **bir
-  şablon**, `New`'u dosyayı adlandırarak başarısız kılar.
-- **Yüklenmemiş bir şablonu belirten bir fragment**, `RegisterPage`'i sayfayı,
-  fragment'i ve yolu adlandıran bir `ErrTemplateNotFound` ile başarısız kılar.
-- **Çalışırken hata veren bir şablon** — verinin sahip olmadığı bir alan, hata
-  döndüren bir fonksiyon — kendi fragment'ini başarısız kılar ve fragment'in
-  [hata politikası](/docs/fragments-and-slots#when-a-fragment-fails) uygulanır.
-  Çıktı tamponlanır; bu yüzden yarı yolda hata veren bir şablon yarım bir fragment
-  değil, hiçbir şey yazmaz.
+- **Var olmayan bir root** olduğunda `New`, `ErrTemplateRootMissing` ile hata döner.
+  Bu, açılışta en sık karşılaşılan hatadır. Parse edilemeyen bir template'ten ayırt
+  edebilmeniz için ayrı bir hatadır.
+- **Parse edilemeyen bir template** ya da register edilmemiş bir fonksiyonu çağıran bir
+  template olduğunda `New` hata döner ve hatada dosyanın adı yer alır.
+- **Yüklenmemiş bir template'i gösteren bir fragment** olduğunda `RegisterPage`,
+  `ErrTemplateNotFound` ile hata döner. Hata page'i, fragment'i ve yolu belirtir.
+- **Çalışırken hata veren bir template**, örneğin veride olmayan bir alana erişen ya
+  da hata dönen bir fonksiyonu çağıran bir template, kendi fragment'ini başarısız
+  kılar.
+  Bu durumda fragment'in
+  [failure policy'si](/docs/fragments-and-slots#when-a-fragment-fails) devreye
+  girer. Çıktı buffer'lanır. Bu yüzden yarıda hata veren bir template yarım bir
+  fragment yazmaz, hiçbir şey yazmaz.
 
-Her şablon tek bir kümede olduğundan bir şablon, bir başkasını adıyla içerebilir:
+Bütün template'ler tek bir set'te olduğu için bir template başka bir template'i
+adıyla include edebilir:
 
 ```html
 {{template "partials/byline.html" .}}
 ```
 
-`{{define}}` ile verilen adlar, her dosya genelinde bu tek ad alanını paylaşır; bu
-yüzden onları ayırt edici seçin.
+`{{define}}` ile verdiğiniz adlar, bütün dosyalarda bu tek namespace'i paylaşır. Bu
+yüzden ayırt edici adlar seçin.
 
-Yalnızca `Root` ile şablonlar diskten `os.OpenRoot` üzerinden okunur; böylece
-dizinin dışına çıkan bir sembolik bağlantı izlenmez, reddedilir: `New`, dosyayı
-adlandıran bir `ErrTemplateEscapesRoot` ile başarısız olur.
+Yalnızca `Root` verildiğinde template'ler diskten `os.OpenRoot` üzerinden okunur.
+Dolayısıyla dizinin dışına çıkan bir symlink takip edilmez, reddedilir: `New`,
+`ErrTemplateEscapesRoot` ile hata döner ve hatada dosyanın adı yer alır.
 
-### Şablonları binary'ye gömmek
+### Template'leri binary'ye embed etmek
 
-Şablonlarını `./templates`'ten okuyan bir binary yalnızca onların bulunduğu bir
-dizinden çalışır. Bunun yerine onları gömün; binary her yerden çalışır — bir
-container'dan, bir systemd biriminden, bir sunucudaki bir kopyadan:
+Template'lerini `./templates`'ten okuyan bir binary, yalnızca bu dizinin bulunduğu
+bir yerden çalışır. Template'leri embed ederseniz binary her yerden çalışır: bir
+container'da, bir systemd unit'inde ya da bir sunucuya kopyalanmış hâliyle.
 
 ```go
 //go:embed all:templates
@@ -101,49 +106,50 @@ app, err := collage.New(&collage.Config{
 })
 ```
 
-`FS` ayarlıyken `Root`, o dosya sistemi içindeki bir dizindir. Yine de her addan
-çıkarılır ve gerekli olmasının nedeni budur: `embed.FS` dosyaları kaynak
-ağacındaki yollarıyla adlandırır ve `Root` olmadan her şablonun adı
-`templates/pages/post.html` olurdu. `FS` ile birlikte boş bir `Root`, dosya
-sisteminin kökü anlamına gelir. `all:` öneki, gömmenin adları `.` ya da `_` ile
-başlayan dosyaları da içermesini sağlar; düz bir `//go:embed templates` bunları
-atlardı.
+`FS` verildiğinde `Root`, o filesystem içindeki bir dizini gösterir. `Root` yine her
+template adının başından çıkarılır ve gerekli olmasının sebebi de budur. `embed.FS`
+dosyaları source tree'deki yollarıyla adlandırır. `Root` olmasaydı her template'in
+adı `templates/pages/post.html` gibi olurdu. `FS` ile birlikte boş bir `Root`,
+filesystem'in kökü anlamına gelir. `all:` prefix'i, adı `.` ya da `_` ile başlayan
+dosyaların da embed edilmesini sağlar. Düz bir `//go:embed templates` bu dosyaları
+atlar.
 
-`collage new`'un iskeletini oluşturduğu da budur.
+`collage new` da projeyi bu şekilde oluşturur.
 
-## Geliştirmede yeniden yükleme
+## Development'ta yeniden yükleme
 
-Geliştirmede — `Config.DevMode` ya da tek başına `Config.Template.DevMode` — her
-şablon, her render'dan önce yeniden ayrıştırılır. Bir şablonu kaydedin; bir sonraki
-istek onu kullanır. Framework `COLLAGE_DEV`'i okumaz: onu `collage dev` ayarlar,
-iskeletteki `main.go` da onu `Config.DevMode`'a dönüştürür.
+Development'ta, yani `Config.DevMode` ya da tek başına `Config.Template.DevMode`
+açıkken, her render'dan önce bütün template'ler yeniden parse edilir. Bir template'i
+kaydettiğinizde bir sonraki request onu kullanır. Framework `COLLAGE_DEV`'i okumaz.
+Bu değişkeni `collage dev` set eder, scaffold edilen `main.go` da onu
+`Config.DevMode`'a çevirir.
 
-Gömülü bir küme bunu yapamazdı: baytları binary derlendiğinde sabitlenmiştir ve
-onları yeniden ayrıştırmak hiçbir şeyi değiştirmez. Bu yüzden `Root` çalışma
-dizinine göre bir dizin olarak var olduğu her durumda **geliştirmede diskteki dizin
-gömülü kopyaya göre önceliklidir** ve uygulama bu seçimi log'a yazar. Proje
-dizininizde çalışan `collage dev` altında bu her zaman böyledir.
+Embed edilmiş bir set bunu yapamaz. Byte'ları binary build edildiği anda sabitlenmiştir
+ve onları yeniden parse etmek hiçbir şeyi değiştirmez. Bu yüzden `Root`, çalışma
+dizinine göre bir dizin olarak var olduğunda **development'ta diskteki dizin
+embed edilmiş kopyanın önüne geçer** ve uygulama bu seçimi log'lar. `collage dev`
+proje dizininizde çalıştığı için bu dizin orada her zaman vardır.
 
-Bir düzenlemenin hemen görünmesini sağlayan iki şey daha var:
+Bir değişikliğin hemen görünmesini iki şey daha sağlar:
 
-- Geliştirmede sayfa önbelleği hiç okunmaz; böylece düzenlemeden önce önbelleğe
-  alınmış bir sayfa onu gizlemez.
-- Her geliştirme sayfası, bir şablon ya da statik dosya değiştiğinde — ya da
-  handler'larınızın diskten okuduğu Markdown gibi içerikler için
-  [`Config.DevWatch`](/docs/configuration#devwatch) içinde belirtilen bir dizindeki
-  bir dosya değiştiğinde (v0.10.0'dan itibaren) — tarayıcıyı yenileyen küçük bir
-  script taşır.
+- Development'ta page cache hiç okunmaz. Böylece değişiklikten önce cache'lenmiş bir
+  page, değişikliği gizlemez.
+- Development'taki her page, küçük bir script içerir. Bu script bir template ya da
+  static bir dosya değiştiğinde tarayıcıyı yeniler. v0.10.0'dan itibaren
+  [`Config.DevWatch`](/docs/configuration#devwatch)'ta belirttiğiniz bir dizindeki
+  dosyalar da buna dahildir. Bu, handler'larınızın diskten okuduğu Markdown gibi
+  içerikler içindir.
 
-Kümenin tamamı yeniden ayrıştırıldığından herhangi bir şablondaki bir sözdizimi
-hatası, düzeltilene kadar her render'ı başarısız kılar — geliştirmede, yani hatada
-dosya ve satırla birlikte onu hemen göreceğiniz yerde.
+Bütün set yeniden parse edildiği için herhangi bir template'teki bir syntax hatası,
+düzeltilene kadar bütün render'ları başarısız kılar. Bu development'ta olur. Hatayı orada
+hemen, dosya ve satır numarasıyla birlikte görürsünüz.
 
-## Bir şablon ne alır
+## Bir template ne alır
 
-`.`, tam olarak fragment'in data handler'ının döndürdüğü şeydir —
-`collage.DataHandler`, `collage.Load` ya da `collage.Data` ile kendi tipinizden bir
-değer. Data handler'ı olmayan ya da
-`collage.Effect` ile uyarlanmış bir fragment veri olmadan render edilir.
+`.`, tam olarak fragment'in data handler'ının döndürdüğü değerdir.
+`collage.DataHandler`, `collage.Load` ya da `collage.Data` kullandığınızda bu, kendi
+tanımladığınız bir tipte bir değerdir. Data handler'ı olmayan ya da
+`collage.Effect` ile uyarlanmış bir fragment, veri olmadan render edilir.
 
 ```go
 type postView struct {
@@ -159,63 +165,64 @@ type postView struct {
 {{with .Tags}}<p>Tagged {{join ", " .}}</p>{{end}}
 ```
 
-Bir şablon yalnızca kendi fragment'inin verisini görür. Bir ebeveynin verisi
-çocukta erişilebilir değildir ve global bir site nesnesi yoktur: sitenin adı gibi
-her şablonun ihtiyaç duyduğu bir şey, bir handler'ın döndürdüğü veri ya da sizin
-kaydettiğiniz bir fonksiyondur.
+Bir template yalnızca kendi fragment'inin verisini görür. Parent'ın verisine
+child'dan erişilemez ve global bir site nesnesi yoktur. Sitenin adı gibi her
+template'in ihtiyaç duyduğu bir şey, ya bir handler'ın döndürdüğü veridir ya da
+sizin register ettiğiniz bir fonksiyondur.
 
 ## Slot'lar
 
-`{{slot "name"}}`, fragment'in bu adlı slot'unun tuttuklarını sırasıyla render eder
-ve HTML olarak ekler. Çocukların çıktısı ikinci kez kaçışlanmaz; her çocuk, render
-edilirken kendi değerlerini kaçışlamıştır.
+`{{slot "name"}}`, fragment'in o adı taşıyan slot'unda ne varsa sırasıyla render eder
+ve HTML olarak ekler. Child'ların çıktısı ikinci kez escape edilmez. Her child,
+render edilirken kendi değerlerini zaten escape etmiştir.
 
 ```html
 <main>{{slot "content"}}</main>
 <aside>{{slot "sidebar"}}</aside>
 ```
 
-- Hiçbir şey tutmayan bir slot hiçbir şey render etmez.
-- Fragment'in `WithSlot` ile hiç bildirmediği bir ad, fragment'i başarısız kılan bir
-  hatadır — aksi hâlde bir yazım hatası, sayfadan sessizce eksilen bir bölüm olurdu.
-- Şablonun atladığı bir `{{if}}` içindeki slot render edilmez, ancak fragment'lerinin
-  data handler'ları zaten başlatılmıştır; bkz.
-  [Fragment'ler ve slot'lar](/docs/fragments-and-slots#a-slot-the-template-skips).
+- Boş bir slot hiçbir şey render etmez.
+- Fragment'in `WithSlot` ile hiç tanımlamadığı bir ad, fragment'i başarısız kılan bir
+  hatadır. Aksi hâlde bir yazım hatası, page'den sessizce eksilen bir bölüm olurdu.
+- Template'in atladığı bir `{{if}}` içindeki slot render edilmez. Ancak o slot'taki
+  fragment'lerin data handler'ları zaten başlatılmıştır. Ayrıntılar için
+  [Fragment'ler ve slot'lar](/docs/fragments-and-slots#a-slot-the-template-skips)
+  sayfasına bakın.
 
-`slot` fonksiyonu şablonu çalıştıran fragment'e aittir; bu yüzden aynı
+`slot` fonksiyonu, template'i çalıştıran fragment'e aittir. Bu yüzden aynı
 `{{slot "content"}}`, onu yazan her fragment'te farklı bir slot anlamına gelir.
 
-## Yerleşik fonksiyonlar
+## Built-in fonksiyonlar
 
-Bunlar her şablonda, `html/template`'in kendi fonksiyonlarının (`printf`, `len`,
-`index`, `eq` ve diğerleri) yanında kullanılabilir:
+Aşağıdaki fonksiyonlar, `html/template`'in kendi fonksiyonlarıyla (`printf`, `len`,
+`index`, `eq` ve diğerleri) birlikte her template'te kullanılabilir:
 
 | Fonksiyon | Ne yapar |
 | --- | --- |
 | `slot "name"` | Bu fragment'in slot'larından birindeki fragment'leri render eder |
-| `pageURL "name" "param" value …` | Kayıtlı bir sayfanın ya da document'ın, bu render'ın locale'indeki URL'si |
-| `pageURLIn "locale" "name" …` | Aynısı, tam olarak verilen locale'de |
-| `localeURL "locale"` | Bu sayfanın başka bir locale'deki hâli; orada yolu yoksa boş |
-| `asset "/static/app.css"` | Mount edilmiş bir dosyanın içerik adresli URL'si |
-| `stylesheet "/static/app.css"` | Sayfanın `<head>`'i için bir stil dosyası bildirir |
-| `hoist "head"` | Sayfanın bir alanı için yapılan bildirimlerin yerleştiği yer |
-| `csrfToken` | Bir formun sahtecilik token'ını taşıyan gizli input |
-| `safeHTML`, `safeURL` | Bir string'i güvenilir HTML ya da URL olarak işaretler — kaçış kapıları |
-| `dict "key" value …` | `{{template}}`'e birkaç değer geçirmek için bir map kurar |
-| `default fallback value` | `value`; boşsa `fallback`. Yalnızca string'ler: başka bir tip render'ı başarısız kılar |
-| `upper`, `lower`, `title` | Büyük/küçük harf dönüşümü |
+| `pageURL "name" "param" value …` | Register edilmiş bir page'in ya da document'ın, bu render'ın locale'indeki URL'sini verir |
+| `pageURLIn "locale" "name" …` | Aynısını, tam olarak verilen locale'de verir |
+| `localeURL "locale"` | Bu page'in başka bir locale'deki URL'sini verir. Page'in o locale'de bir path'i yoksa boş döner |
+| `asset "/static/app.css"` | Mount edilmiş bir dosyanın content-addressed URL'sini verir |
+| `stylesheet "/static/app.css"` | Page'in `<head>`'i için bir stylesheet tanımlar |
+| `hoist "head"` | Page'in bir alanı için yapılan tanımların yerleşeceği yeri belirler |
+| `csrfToken` | Form'un forgery token'ını taşıyan hidden input'u üretir |
+| `safeHTML`, `safeURL` | Bir string'i güvenilir HTML ya da URL olarak işaretler. Escaping'i atlamanın yoludur |
+| `dict "key" value …` | `{{template}}`'e birden fazla değer geçirmek için bir map oluşturur |
+| `default fallback value` | `value`'yu, boşsa `fallback`'i döner. Yalnızca string'lerle çalışır, başka bir tip render'ı başarısız kılar |
+| `upper`, `lower`, `title` | Büyük/küçük harf dönüşümü yapar |
 | `join sep items` | Bir `[]string`'i birleştirir |
-| `formatTime t layout` | Bir `time.Time`'ı bir Go layout'uyla biçimlendirir |
+| `formatTime t layout` | Bir `time.Time`'ı bir Go layout'uyla formatlar |
 
-Bağlantı fonksiyonları katıdır: bilinmeyen bir sayfa adı ya da eksik bir parametre,
-bozuk bir bağlantı üretmek yerine render'ı başarısız kılar. Her fonksiyonun
-argümanları ve davranışı [Şablon fonksiyonları](/docs/template-functions)
-sayfasındadır.
+Link fonksiyonları katıdır. Bilinmeyen bir page adı ya da eksik bir parametre, bozuk
+bir link üretmek yerine render'ı başarısız kılar. Her fonksiyonun argümanlarını ve
+davranışını [Template fonksiyonları](/docs/template-functions) sayfasında
+bulabilirsiniz.
 
 ## Kendi fonksiyonlarınızı eklemek
 
-`Config.Template.Funcs`, her şablona fonksiyonlar — bir `html/template` `FuncMap`'i
-— ekler:
+`Config.Template.Funcs`, bütün template'lere fonksiyon ekler. Bu alan bir
+`html/template` `FuncMap`'idir:
 
 ```go
 import "html/template"
@@ -240,50 +247,53 @@ app, err := collage.New(&collage.Config{
 <p>{{money .PriceCents}} · {{readingTime .WordCount}}</p>
 ```
 
-- **`New`'dan önce ayarlayın.** `html/template` yalnızca adı şablon ayrıştırılırken
-  bilinen bir fonksiyonu çağırabilir ve ayrıştırma `New`'da olur. Kimsenin
-  kaydetmediği bir adı çağıran şablon `New`'da başarısız olur; amaç da budur:
-  başlangıçta bulduğunuz bir yazım hatasıdır.
-- **Yerleşik bir fonksiyonun adıyla eklenen bir girdi, yerleşik fonksiyonun yerini
-  alır** — render'a bağlı sekiz tanesi hariç: `slot`, `hoist`, `asset`,
-  `stylesheet`, `csrfToken`, `pageURL`, `pageURLIn` ve `localeURL`. Render motoru
-  her render için bunların her birinin kendi sürümünü bağlar; dolayısıyla bunlardan
-  herhangi birini ezmek kabul edilir ama hiçbir etkisi olmaz.
-- **Bir fonksiyon isteği göremez.** Programın tamamı için bir kez kaydedilir.
-  İsteğe, locale'e ya da kullanıcıya bağlı her şey data handler'a aittir; veri
-  zaten oradan gelir.
+- **`New`'dan önce set edin.** `html/template` yalnızca adı template parse edilirken
+  bilinen bir fonksiyonu çağırabilir ve parse işlemi `New`'da yapılır. Register
+  edilmemiş bir adı çağıran template `New`'da hata verir. Amaç da tam olarak budur:
+  yazım hatasını uygulama açılırken yakalarsınız.
+- **Built-in bir fonksiyonun adıyla eklenen bir entry, o built-in'in yerini alır.**
+  Render'a bağlı olan sekiz fonksiyon bunun dışındadır: `slot`, `hoist`, `asset`,
+  `stylesheet`, `csrfToken`, `pageURL`, `pageURLIn` ve `localeURL`. Render engine
+  her render için bunların kendi versiyonlarını bağlar. Bu yüzden bunlardan birini
+  override etmek kabul edilir, ama hiçbir etkisi olmaz.
+- **Bir fonksiyon request'i göremez.** Fonksiyon, bütün program için bir kez register
+  edilir. Request'e, locale'e ya da kullanıcıya bağlı olan her şey data handler'da
+  olmalıdır. Veri zaten oradan gelir.
 
-Bir plugin de `Configure` hook'undan fonksiyon ekleyebilir — bkz.
-[Plugin yazmak](/docs/writing-plugins). Bir plugin ve `Funcs` aynı adı
-tanımladığında `Funcs` kazanır: ikisini de görebilen uygulamadır.
+Bir plugin de `Configure` hook'undan fonksiyon ekleyebilir. Ayrıntılar için
+[Plugin yazmak](/docs/writing-plugins) sayfasına bakın. Bir plugin ve `Funcs` aynı
+adı tanımlarsa `Funcs` kazanır, çünkü ikisini birden görebilen uygulamadır.
 
-## Kaçışlama
+## Escaping
 
-`html/template` her değeri göründüğü yere göre kaçışlar: HTML metni, bir öznitelik,
-bir URL, satır içi JavaScript ya da CSS. `<script>alert(1)</script>` başlıklı bir
-yazı metin olarak yazdırılır ve bir `href` içindeki `javascript:` URL'si zararsız
-bir URL ile değiştirilir. Hiçbir şeyi elle kaçışlamazsınız.
+`html/template` her değeri, göründüğü yere göre escape eder. Bu yer HTML metni, bir
+attribute, bir URL, inline JavaScript ya da CSS olabilir. Başlığı
+`<script>alert(1)</script>` olan bir yazı düz metin olarak basılır. Bir `href`
+içindeki `javascript:` URL'si de zararsız bir URL ile değiştirilir. Hiçbir şeyi elle
+escape etmezsiniz.
 
-Bazen bir değer gerçekten HTML'dir — CMS'inizin temizlediği bir yazı gövdesi, kendi
-kodunuzun ürettiği bir işaretleme. Bunu söylemenin iki yolu var:
+Bazen bir değer gerçekten HTML'dir. Örneğin CMS'inizin sanitize ettiği bir yazı
+gövdesi ya da kendi kodunuzun ürettiği markup böyledir. Bunu belirtmenin iki yolu
+vardır:
 
-- Yukarıdaki `Body` gibi, view'ınızda alana `template.HTML` tipini verin. Karar
-  tiptir; Go'da, gözden geçirilebileceği yerde verilir.
-- Şablonda `safeHTML`'i (URL için `safeURL`'i) kullanın.
+- View'ınızda alana `template.HTML` tipini verin, yukarıdaki `Body` gibi. Bu durumda
+  kararı tip taşır. Karar Go'da verilir ve orada review edilebilir.
+- Template'te `safeHTML` (URL için `safeURL`) kullanın.
 
-İkisi de o değer için kaçışlamayı kapatır. **Bunları yalnızca sizin ürettiğiniz ya
-da temizlediğiniz içerikte kullanın**, bir kullanıcının yazdığı hiçbir şeyde asla;
-kaçışlanmamış bir kullanıcı değeri bir siteler arası betik çalıştırma (XSS)
+İkisi de o değer için escaping'i kapatır. **Bunları yalnızca kendi ürettiğiniz ya da
+sanitize ettiğiniz içerikte kullanın.** Kullanıcının yazdığı hiçbir şeyde
+kullanmayın. Escape edilmemiş bir kullanıcı değeri bir cross-site scripting (XSS)
 açığıdır.
 
-İki yerleşik fonksiyon, olduğu gibi eklenen HTML üretir:
+İki built-in, olduğu gibi eklenen HTML üretir:
 
-- Çocukları kendi değerlerini kaçışlamış olan `{{slot}}`.
-- Fragment'lerin sayfa için bildirdiklerini yazan `{{hoist}}`. `rc.HoistTitle`,
-  `rc.HoistMeta` ve benzeri yardımcılar kendilerine verileni kaçışlar; alttaki
-  `rc.Hoist` ise işaretlemeyi tam olarak yazıldığı gibi ekler, dolayısıyla orada
-  kaçışlama sizin sorumluluğunuzdadır. Bkz. [Head ve SEO](/docs/head-and-seo).
+- `{{slot}}`. Child'ları kendi değerlerini zaten escape etmiştir.
+- `{{hoist}}`. Fragment'lerin page için tanımladıklarını yazar. `rc.HoistTitle`,
+  `rc.HoistMeta` ve benzeri helper'lar kendilerine verilen değeri escape eder. Bunların
+  altındaki `rc.Hoist` ise markup'ı tam yazıldığı gibi ekler, yani orada escaping
+  sizin sorumluluğunuzdadır. Ayrıntılar için [Head ve SEO](/docs/head-and-seo)
+  sayfasına bakın.
 
-`pageURL` ve kardeşleri bir yola yerleştirdikleri parametre değerlerini kaçışlar ve
-bir tarayıcının yolda bir üst adım olarak çözümleyeceği `.` ya da `..` değerini
-reddeder.
+`pageURL` ve benzerleri, path'e yerleştirdikleri parametre değerlerini escape eder.
+Ayrıca `.` ya da `..` değerini reddeder, çünkü tarayıcı bunları path'te bir üst
+seviyeye çıkmak olarak yorumlar.

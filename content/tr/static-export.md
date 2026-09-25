@@ -1,17 +1,18 @@
 ---
-description: Siteyi collage export ile statik dosyalara render edin — neler yazılır, neler neden atlanır, dinamik yollar ve statik barındırma hizmetinde yayımlama.
+description: Siteyi collage export ile static dosyalara render edin: nelerin yazıldığı, nelerin neden atlandığı, dinamik path'ler ve bir static host'ta yayımlama.
+reference: NewBuilder, BuildOptions, BuildReport, PrintBuildReport, PathProvider, PathInstance, SkipRecord, ErrNotStatic
 ---
 
-# Statik dışa aktarma
+# Static export
 
-Sayfaları gelen isteğe göre değişmeyen bir sitenin sunucuya hiç ihtiyacı yoktur.
-`collage export`, dosya olabilecek her sayfayı `dist/` içine render eder, statik
-dosyalarınızı yanlarına kopyalar ve sitenin kendi `404.html`'ini yazar. Dizini
-herhangi bir statik barındırma hizmetine koyun.
+Page'leri request'e bağlı olmayan bir sitenin sunucuya hiç ihtiyacı yoktur.
+`collage export`, dosya olabilecek her page'i `dist/` içine render eder, static
+dosyalarınızı yanlarına kopyalar ve sitenin kendi `404.html` dosyasını yazar. Bu
+dizini herhangi bir static host'a koyabilirsiniz.
 
-Siteyi sunan programın ta kendisidir; aynı şablonlar, data handler'lar ve plugin'ler
-üzerinden render eder. İkinci bir build yoktur, sunucuyla uyumlu tutulması gereken
-bir şey de yoktur. Okuduğunuz sayfalar bu yolla üretildi.
+Siteyi sunan program da budur. Aynı template'ler, data handler'lar ve plugin'lerle
+render eder. İkinci bir build yoktur, sunucuyla senkron tutmanız gereken bir şey de
+yoktur. Şu an okuduğunuz sayfalar da bu yolla üretildi.
 
 ```sh
 collage export          # -> dist/
@@ -21,7 +22,7 @@ collage serve           # look at dist/ the way a static host would serve it
 
 ## Nasıl çalışır
 
-`collage export` uygulamanızı yüklemez — yükleyemez de, çünkü uygulamanız sizin
+`collage export` uygulamanızı yüklemez. Yükleyemez de, çünkü uygulamanız sizin
 kodunuzdur. Bunun yerine programınızı özel bir modda çalıştırır:
 
 ```sh
@@ -30,12 +31,12 @@ go run . -collage-build -out dist        # plus -clean when you passed it
 
 | Flag | Varsayılan | Anlamı |
 | --- | --- | --- |
-| `-out dir` | `dist` | Dosyaların yazılacağı yer. |
-| `-clean` | kapalı | Önce dizinin mevcut içeriğini kaldırır. |
+| `-out dir` | `dist` | Dosyaların yazılacağı dizin. |
+| `-clean` | kapalı | Önce dizinin mevcut içeriğini siler. |
 
-İskeleti oluşturulan `main.go` bu sözleşmeye uyar: `-collage-build` verildiğinde
-uygulamayı her zamanki gibi kurar ve onu sunmak yerine collage'ın builder'ına
-verir, ardından ne olduğunu yazdırır. Bu fonksiyonun collage-docs sürümü şudur:
+Scaffold edilen `main.go` bu sözleşmeye uyar. `-collage-build` ile çalıştığında
+uygulamayı her zamanki gibi kurar, ama onu sunmak yerine collage'ın builder'ına
+verir ve ne olduğunu ekrana yazar. Bu fonksiyonun collage-docs'taki hâli şöyledir:
 
 ```go
 func staticBuild(app *collage.App, outDir string, clean bool) error {
@@ -60,118 +61,121 @@ func staticBuild(app *collage.App, outDir string, clean bool) error {
 }
 ```
 
-`Build`, bir hata döndürdüğünde bile bir rapor döndürür: hata veren bir sayfa
-diğerlerini durdurmaz ve her hata `report.Errors` içindedir. Dönen hata bunların
-hepsinin birleşimidir ve `main` onunla sıfırdan farklı bir kodla çıkar; böylece bir
-sayfa yazılamadığında CI işi başarısız olur. Atlanan sayfalar ve uyarılar build'i
-başarısız kılmaz.
+`Build`, hata döndürdüğünde bile bir rapor döndürür. Hata veren bir page diğerlerini
+durdurmaz ve bütün hatalar `report.Errors` içinde yer alır. Dönen hata, bunların
+hepsinin birleşimidir. `main` bu durumda sıfırdan farklı bir kodla çıkar, böylece
+bir page yazılamadığında CI job'ı da başarısız olur. Atlanan page'ler ve uyarılar
+build'i başarısız kılmaz.
 
 `main.go`'yu yeniden yazarsanız `-collage-build`, `-out` ve `-clean` flag'lerini
-koruyun; yoksa `collage export` işe yarar bir şey yapmaz olur.
+koruyun. Aksi hâlde `collage export` işe yarar hiçbir şey yapmaz.
 
 ## Neler yazılır
 
 | Ne | Nereye |
 | --- | --- |
-| `Static()` ya da `Incremental(ttl)` bir sayfa | `dist/<path>/index.html`; `/` için `dist/index.html` |
-| Aynı sayfa, varsayılan olmayan bir locale'de | Locale'in önekinin altına: `dist/tr/<path>/index.html` |
-| `Static()` ya da `Incremental(ttl)` bir document | Birebir kendi yoluna: `/sitemap.xml` için `dist/sitemap.xml` |
-| Aynı document, varsayılan olmayan bir locale'de | Locale'in önekinin altına: `dist/tr/sitemap.xml` |
-| `AtRoot` ile kurulan bir document | Her yapılandırmada öneksiz yoluna: `dist/robots.txt` |
-| [`PrefixDefault`](/docs/links-and-locales#the-url-decides-the-locale) ile varsayılan locale'deki bir sayfa ya da document | Onların da önekinin altına, `dist/en/<path>/index.html` ve `dist/en/sitemap.xml`; `dist/index.html` ise okuyucuyu `/en/`'e gönderir |
-| Bulunamadı sayfası | `dist/404.html` ve diğer her locale için `dist/<locale>/404.html` |
-| Mount edilmiş her statik dosya sistemi | Kendi önekinin altına: `/static/app.css` için `dist/static/app.css` |
+| `Static()` ya da `Incremental(ttl)` bir page | `dist/<path>/index.html`; `/` için `dist/index.html` |
+| Aynı page'in varsayılan olmayan bir locale'deki hâli | Locale'in prefix'i altına: `dist/tr/<path>/index.html` |
+| `Static()` ya da `Incremental(ttl)` bir document | Birebir kendi path'ine: `/sitemap.xml` için `dist/sitemap.xml` |
+| Aynı document'ın varsayılan olmayan bir locale'deki hâli | Locale'in prefix'i altına: `dist/tr/sitemap.xml` |
+| `AtRoot` ile kurulan bir document | Her config'de prefix'siz path'ine: `dist/robots.txt` |
+| [`PrefixDefault`](/docs/links-and-locales#the-url-decides-the-locale) açıkken varsayılan locale'deki bir page ya da document | Bunlar da prefix'in altına yazılır: `dist/en/<path>/index.html` ve `dist/en/sitemap.xml`. `dist/index.html` ise okuyucuyu `/en/`'e yönlendirir |
+| Not-found page | `dist/404.html`, ayrıca diğer her locale için `dist/<locale>/404.html` |
+| Mount edilen her static dosya sistemi | Kendi prefix'i altına: `/static/app.css` için `dist/static/app.css` |
 
-Bir sayfa, içinde `index.html` olan bir dizin olur; her statik barındırma hizmeti
-`/about` istendiğinde bunu arar. Bir [document](/docs/documents) ise tam olarak kendi
-yoluna yazılır, çünkü `/robots.txt` isteyen bir tarayıcı botu bir dosya almalıdır.
+Bir page, içinde `index.html` olan bir dizine dönüşür. Çünkü her static host,
+`/about` istendiğinde bu dosyayı arar. Bir [document](/docs/documents) ise tam olarak
+kendi path'ine yazılır, çünkü `/robots.txt` isteyen bir crawler'ın bir dosya alması
+gerekir.
 
-**Bulunamadı sayfası** `app.RegisterNotFoundPage`'den gelir ve render stratejisine
-bakılmaz — neredeyse her zaman `Dynamic()`'tir, çünkü önbelleğe almaya asla değmez;
-yine de dışa aktarmada yeri vardır. Barındırma hizmetleri iç içe bir `tr/404.html`
-arayıp aramamakta farklılaşır, bu yüzden ikisi de yazılır. Bulunamadı sayfası olmayan
-bir site dosya almaz ve bilinmeyen bir URL, barındırma hizmeti ne gösterirse onu
-gösterir.
+**Not-found page**, `app.RegisterNotFoundPage` ile register edilen page'dir ve render
+stratejisine bakılmaz. Bu page neredeyse her zaman `Dynamic()`'tir, çünkü
+cache'lemeye hiç değmez. Yine de export'a dahil edilmesi gerekir. Host'lar iç içe bir
+`tr/404.html` dosyasını arayıp aramama konusunda farklı davranır, bu yüzden ikisi de
+yazılır. Not-found page'i olmayan bir site için bu dosya yazılmaz. Bilinmeyen bir
+URL'de ne gösterileceğine de host karar verir.
 
-**Mount edilmiş asset'ler** hem özgün adlarıyla hem de `{{asset}}`'in bağlandığı
-içerik adresli adlarla (`app.3a3663df.css`) kopyalanır; böylece iki tür bağlantı da
-çalışır. Production'da bir CDN'den sunulan ya da çoğaltılamayacak kadar büyük bir
-mount bunun dışında kalmayı seçebilir:
+**Mount edilen asset'ler** hem orijinal adlarıyla hem de `{{asset}}`'in link verdiği
+content-addressed adlarla (`app.3a3663df.css`) kopyalanır. Böylece iki tür link de
+çalışır. Production'da bir CDN'den sunulan ya da kopyalanamayacak kadar büyük bir
+mount bu kopyalamadan çıkabilir:
 
 ```go
 app.Mount("/media/", mediaFS, collage.WithoutBuildCopy())
 ```
 
-Bkz. [Statik asset'ler](/docs/assets).
+Ayrıntılar için [Static asset'ler](/docs/assets) sayfasına bakın.
 
 ## Neler atlanır
 
-Bazı sayfalar dosya olamaz. Build onları dışarıda bırakır ve her birini raporda,
-nedeniyle birlikte adlandırır:
+Bazı page'ler dosya olamaz. Build bunları dışarıda bırakır ve her birini nedeniyle
+birlikte raporda listeler:
 
-- **`Dynamic()` sayfalar ve document'lar.** İstek başına render edilmek için
-  vardırlar.
-- **Form içeren sayfalar.** Render'ı `{{csrfToken}}` içeren bir sayfa atlanır: bir
-  formun gönderileceği bir sunucuya ihtiyacı vardır ve sahtecilik token'ı tek bir
-  okuyucuya aittir. Sayfa bilerek `Static()` olabilir — önbelleğe alınmış ve
-  gönderildiği action tarafından geçersiz kılınan — ve dışa aktarılmak yerine
-  sunulur. İskeletteki `/features` sayfası böyledir.
-- **Path provider'ı olmayan bir `{param}` pattern'i.** `/blog/{slug}`, bir şey
-  hangi slug'ların var olduğunu söyleyene kadar yazılamaz. Aşağıya bakın.
-- **Tek bir dosyaya düşen iki document.** Bir yolu iki kez döndüren bir
-  `DocumentPathProvider`, iki görevi tek bir dosyaya çözer; ilki yazılır, gerisi
-  `collage.ErrDuplicateOutputPath` ile atlanır. İki locale'deki tek bir pattern bu
-  durum değildir — her locale kendi önekinin altına yazılır. Bkz.
+- **`Dynamic()` page'ler ve document'lar.** Bunlar zaten her request'te render
+  edilmek için vardır.
+- **Form içeren page'ler.** Render'ı `{{csrfToken}}` içeren bir page atlanır. Bir
+  form'un post edeceği bir sunucuya ihtiyacı vardır ve forgery token tek bir
+  okuyucuya aittir. Page bilerek `Static()` yapılmış olabilir, yani cache'lenir ve
+  post ettiği action tarafından invalidate edilir. Bu durumda da export edilmez,
+  sunucudan sunulur. Scaffold'daki `/features` page'i buna bir örnektir.
+- **Path provider'ı olmayan bir `{param}` pattern'i.** Hangi slug'ların var olduğunu
+  bir şey söylemeden `/blog/{slug}` yazılamaz. Aşağıya bakın.
+- **Aynı dosyaya düşen iki document.** Aynı path'i iki kez döndüren bir
+  `DocumentPathProvider`, iki görevi tek bir dosyaya bağlar. İlki yazılır, geri
+  kalanlar `collage.ErrDuplicateOutputPath` ile atlanır. İki locale'deki tek bir
+  pattern bu duruma girmez, çünkü her locale kendi prefix'i altına yazılır. Bkz.
   [Document'lar](/docs/documents#documents-in-a-static-export).
 
-Yol olmadan kaydedilmiş hata sayfaları hiç listelenmez: URL değildirler.
+Path olmadan register edilen error page'ler hiç listelenmez, çünkü bunlar birer URL
+değildir.
 
-Sayfa olmadıkları için dışa aktarılmayan ve raporlanmayanlar:
-[action'lar](/docs/forms-and-actions), `app.Handle` ile mount edilen handler'lar
-ve middleware. Dışa aktarma istek olmadan render eder; bu yüzden hiçbir middleware
-çalışmaz ve `collage.Vary` hiç çağrılmaz — her sayfa, hiçbir tercihi olmayan bir
-isteğin alacağı sürümüyle yazılır.
+Bazı şeyler page olmadığı için ne export edilir ne de raporda görünür:
+[action'lar](/docs/forms-and-actions), `app.Handle` ile mount edilen handler'lar ve
+middleware'ler. Export request olmadan render eder. Bu yüzden hiçbir middleware
+çalışmaz ve `collage.Vary` hiç çağrılmaz. Her page, hiçbir tercihi olmayan bir
+request'in alacağı hâliyle yazılır.
 
-## Neler için uyarılır
+## Neler için uyarı verilir
 
-`WithCacheParams` ile hangi query parametrelerini okuduğunu bildiren bir sayfa, her
-biri için farklı render edilir. Bir dosyanın query string'i yoktur: statik
-barındırma hizmeti `/blog?page=2`'ye `/blog` dosyasıyla yanıt verir. Sayfa query
-olmadan yazılır ve sayfalanmış bir arşivin çalışıyormuş gibi görünmesine izin
-vermek yerine rapor bunu söyler. `WithCacheParams` içeren bir document — sayfalanmış
-bir feed — için de aynı şekilde uyarılır (v0.10.0'dan itibaren; öncesinde yalnızca
-sayfalar için uyarılıyordu).
+`WithCacheParams` ile hangi query parametrelerini okuduğunu bildiren bir page, her
+parametre değeri için farklı render edilir. Oysa bir dosyanın query string'i yoktur.
+Static host, `/blog?page=2` isteğine `/blog` dosyasıyla cevap verir. Page query
+olmadan yazılır ve rapor bunu açıkça belirtir. Böylece sayfalanmış bir arşiv
+çalışıyormuş gibi görünmez. `WithCacheParams` kullanan bir document için de, örneğin
+sayfalanmış bir feed için, aynı şekilde uyarı verilir. Bu v0.10.0'dan beri böyledir;
+öncesinde yalnızca page'ler için uyarı veriliyordu.
 
-Sayfalamanın dışa aktarmada çalışması gerekiyorsa sayfa numarasını yola koyun —
-`/blog/page/{n}` — ve sayfaları bir path provider ile listeleyin.
+Sayfalamanın export'ta da çalışması gerekiyorsa sayfa numarasını path'e koyun,
+örneğin `/blog/page/{n}`. Ardından bu page'leri bir path provider ile listeleyin.
 
 ## Neler başarısız olur
 
-Bunlar hatadır: sayfa yazılmaz, build bunu raporlar ve sıfırdan farklı bir kodla
-çıkar.
+Aşağıdakiler hatadır. Page yazılmaz, build bunu raporlar ve sıfırdan farklı bir
+kodla çıkar.
 
-- **Kusurlu bir render.** Bir fragment'in hata verdiği bir sayfa, fragment'i
-  adlandıran `collage.ErrDegradedRender` ile reddedilir. Hata veren fragment'i olan
-  sunulmuş bir sayfa gösterilir ama asla önbelleğe alınmaz; bir dosyanın ise
-  toparlanabileceği bir TTL'i yoktur, bu yüzden hatayı bir sonraki dışa aktarmaya
-  kadar taşırdı. Eksik bir kenar çubuğu olan bir sayfa hiç sayfa olmamasından iyiyse
-  `BuildOptions.AllowDegraded`'ı ayarlayın.
-- **Boş bir render**, `collage.ErrEmptyRender`, ve boş bir document,
-  `collage.ErrEmptyDocumentBody`. Sıfır baytlık bir `index.html` asla yazılmaz.
-- **Bir sayfadaki panic**, `collage.ErrBuildPanic`. Yakalanır ve o sayfanın hanesine
-  kaydedilir; build'in geri kalanı devam eder.
-- **Form içeren bir bulunamadı sayfası**, `collage.ErrUnresolvedToken`, çünkü statik
-  barındırma hizmetinin o sayfaya bir dosya olarak ihtiyacı vardır.
-- **Tek bir çıktı yoluna düşen iki sayfa**, `collage.ErrOutputPathCollision` —
-  yalnızca sondaki eğik çizgiyle ayrılan iki pattern ya da bir yolu iki kez döndüren
-  bir path provider. Bu bulunduğunda hiçbir sayfa render edilmez; document'lar,
-  `404.html` sayfaları ve mount edilmiş asset'ler yine yazılır ve build yine başarısız
-  olur.
+- **Degraded bir render.** Bir fragment'i hata veren page,
+  `collage.ErrDegradedRender` ile reddedilir ve hata o fragment'in adını içerir.
+  Sunucudan sunulan bir page'de fragment hata verirse page gösterilir ama hiçbir
+  zaman cache'lenmez. Bir dosyanın ise kendini toparlayacağı bir TTL'i yoktur, yani
+  o hatayı bir sonraki export'a kadar taşır. Sidebar'ı eksik bir page, hiç page
+  olmamasından iyiyse `BuildOptions.AllowDegraded` ayarını açın.
+- **Boş bir render** (`collage.ErrEmptyRender`) ve boş bir document
+  (`collage.ErrEmptyDocumentBody`). Sıfır byte'lık bir `index.html` hiçbir zaman
+  yazılmaz.
+- **Bir page'de oluşan panic** (`collage.ErrBuildPanic`). Panic recover edilir ve o
+  page'e ait hata olarak kaydedilir. Build'in geri kalanı devam eder.
+- **Form içeren bir not-found page** (`collage.ErrUnresolvedToken`). Bunun nedeni,
+  static host'un bu page'e bir dosya olarak ihtiyaç duymasıdır.
+- **Aynı output path'e düşen iki page** (`collage.ErrOutputPathCollision`). Bu,
+  yalnızca sondaki slash ile ayrılan iki pattern ya da aynı path'i iki kez döndüren
+  bir path provider olabilir. Bu durum tespit edildiğinde hiçbir page render edilmez.
+  Document'lar, `404.html` page'leri ve mount edilen asset'ler yine yazılır, ama build
+  yine de başarısız olur.
 
-## Dinamik yollar: `PathProvider`
+## Dinamik path'ler: `PathProvider`
 
-`/blog/{slug}`'daki bir sayfa, birçok URL'si olan tek bir sayfadır. Builder bunları
-bir `collage.PathProvider`'a sorar:
+`/blog/{slug}` adresindeki bir page, birçok URL'si olan tek bir page'dir. Builder bu
+URL'leri bir `collage.PathProvider`'dan ister:
 
 ```go
 type PathProvider interface {
@@ -179,9 +183,9 @@ type PathProvider interface {
 }
 ```
 
-Her dinamik sayfa ve locale için bir kez çağrılır; somut yolları ve her birinin
-yakaladığı parametreleri döndürür. Bu belgeler, `/docs/{slug}` üzerindeki tek bir
-sayfadır, `doc`; provider belgelerin her sayfasını listeler:
+Her dinamik page ve locale için bir kez çağrılır. Somut path'leri ve her birinin
+yakaladığı parametreleri döndürür. Bu dokümantasyon, `/docs/{slug}` adresindeki tek
+bir page'dir: `doc`. Provider, dokümantasyonun bütün sayfalarını listeler:
 
 ```go
 // docPaths tells the static build which /docs/{slug} pages exist: every page of
@@ -200,55 +204,55 @@ func (d docPaths) Paths(_ context.Context, page *collage.Page, _ string) ([]coll
 }
 ```
 
-- **Sayfayı kontrol edin.** Tek bir provider her dinamik sayfaya yanıt verir.
-  Tanımadığınız bir sayfa için `nil` döndürmek onun için hiçbir şey yazmaz; bu bir
-  hata değildir.
-- **`Params`, data handler'ların gördüğüdür.** Router'ın `Path`'ten yakaladığının
-  üzerine bindirilir; böylece `rc.Param("slug")` canlı bir isteğin alacağı değere
-  sahip olur.
-- **`Path` locale öneki olmadan verilir.** Pattern'in yolunu, `/blog/hello`'yu
-  döndürün; builder varsayılan olmayan bir locale'i kendi dizininin altına yazar.
-- **Bir hata döndürmek** onu o sayfa ve locale'in hanesine kaydeder ve devam eder.
+- **Page'i kontrol edin.** Bütün dinamik page'lere tek bir provider cevap verir.
+  Tanımadığınız bir page için `nil` döndürürseniz o page için hiçbir şey yazılmaz.
+  Bu bir hata sayılmaz.
+- **Data handler'lar `Params`'ı görür.** `Params`, router'ın `Path`'ten yakaladığı
+  değerlerin üzerine yazılır. Böylece `rc.Param("slug")`, canlı bir request'teki
+  değerin aynısını döner.
+- **`Path` locale prefix'i içermez.** Pattern'in path'ini, yani `/blog/hello`'yu
+  döndürün. Varsayılan olmayan bir locale'i builder kendi dizini altına yazar.
+- **Hata döndürürseniz** hata o page ve locale için kaydedilir ve build devam eder.
 
-`{param}` içeren document'ların kendi interface'i vardır,
-`BuildOptions.DocumentPathProvider`; [Document'lar](/docs/documents) sayfasında
-anlatılır.
+`{param}` içeren document'ların kendi interface'i vardır:
+`BuildOptions.DocumentPathProvider`. Bu interface [Document'lar](/docs/documents)
+sayfasında anlatılır.
 
-Bir provider'ın döndürdüğü her yol, kendi dosyası yazılmadan önce kontrol edilir:
-çıktı dizininin dışına çözülecek bir yol — `/../../etc` —
-`collage.ErrPathEscapesOutDir` ile reddedilir; dizinin dışına çıkan bir symlink
-üzerinden yazma da öyle. Ret yalnızca o yolu başarısız kılar, etrafındaki build'i
-değil: diğer sayfalar yine render edilip yazılır ve hata raporda yer alır.
+Bir provider'ın döndürdüğü her path, dosyası yazılmadan önce kontrol edilir. Output
+dizininin dışına çıkan bir path (`/../../etc`) `collage.ErrPathEscapesOutDir` ile
+reddedilir. Dizinün dışına götüren bir symlink üzerinden yazma da aynı şekilde
+reddedilir. Bu ret yalnızca o path'i başarısız kılar, build'in geri kalanını
+etkilemez. Diğer page'ler yine render edilip yazılır ve hata raporda yer alır.
 
 ## Build seçenekleri
 
 | Alan | Anlamı |
 | --- | --- |
-| `OutDir` | Nereye yazılacağı. Zorunlu. |
-| `Clean` | Önce `OutDir`'in içeriğini (dizinin kendisini değil) kaldırır. |
-| `Locales` | Yalnızca bu locale'leri derler. Boşsa bir sayfanın bildirdiği her locale derlenir. |
-| `Concurrency` | Aynı anda kaç sayfanın render edilip yazılacağı. `0` ya da `1` birer birer demektir. Rapor her iki durumda da aynı sıradadır. |
-| `PathProvider` | `{param}` içeren sayfalar için somut yollar. |
-| `DocumentPathProvider` | `{param}` içeren document'lar için somut yollar. |
-| `AllowDegraded` | Render'ında hata veren bir fragment olan sayfaları yazar. |
+| `OutDir` | Dosyaların yazılacağı yer. Zorunludur. |
+| `Clean` | Önce `OutDir`'in içeriğini siler (dizinin kendisini değil). |
+| `Locales` | Yalnızca bu locale'leri build eder. Boş bırakılırsa page'lerin tanımladığı bütün locale'ler build edilir. |
+| `Concurrency` | Aynı anda kaç page'in render edilip yazılacağı. `0` ya da `1` verilirse page'ler tek tek işlenir. Rapor her iki durumda da aynı sıradadır. |
+| `PathProvider` | `{param}` içeren page'ler için somut path'ler. |
+| `DocumentPathProvider` | `{param}` içeren document'lar için somut path'ler. |
+| `AllowDegraded` | Render sırasında bir fragment'i hata veren page'leri de yazar. |
 
-Builder, dosya sisteminin köküne çözülen bir `OutDir`'i reddeder ve bir deponun
-kökü olan bir `OutDir`'i `Clean` etmeyi reddeder (`collage.ErrDangerousOutDir`) —
-aksi hâlde `-clean` ile `-out .` projenizi silerdi.
+Builder, dosya sisteminin köküne çıkan bir `OutDir`'i reddeder. Bir repository'nin
+kökü olan bir `OutDir`'i `Clean` etmeyi de reddeder (`collage.ErrDangerousOutDir`).
+Aksi hâlde `-out .` ile `-clean` birlikte verildiğinde projeniz silinirdi.
 
-### Dışa aktarmada plugin'ler
+### Export'ta plugin'ler
 
-Dışa aktarma, sunucunun render ettiği durumda render eder. Önce her plugin'in `Init`'i
-çalışır, böylece plugin aynı yapılandırmayı okur; `OnBeforeRender`, `OnAfterRender`
-ve `OnDocumentRendered` her sayfa ve document için tetiklenir, dolayısıyla bir
-minifier ya da structured data plugin'i sunulan bir sayfaya ne yapıyorsa dosyaya da
-onu yapar. `OnPageResolved` tetiklenmez, çünkü dışa aktarma bir istek değildir. Bkz.
+Export, sunucuyla aynı durumda render eder. Önce her plugin'in `Init`'i çalışır,
+böylece plugin'ler aynı config'i okur. `OnBeforeRender`, `OnAfterRender` ve
+`OnDocumentRendered` her page ve document için tetiklenir. Yani bir minifier ya da
+structured data plugin'i sunulan bir page'e ne yapıyorsa dosyaya da onu yapar.
+`OnPageResolved` ise tetiklenmez, çünkü export bir request değildir. Bkz.
 [Plugin kullanmak](/docs/plugins).
 
 ## Raporu okumak
 
-`collage.PrintBuildReport` build'in ne yaptığını yazdırır. `collage new`'un iskeletini
-oluşturduğu proje için şöyle görünür:
+`collage.PrintBuildReport`, build'in ne yaptığını yazdırır. `collage new` ile scaffold
+edilen projede çıktı şöyle görünür:
 
 ```sh
 ✓ 8 files written
@@ -269,64 +273,66 @@ oluşturduğu proje için şöyle görünür:
 8 written · 3 skipped · 0 failed · 2.5ms
 ```
 
-Yazılan dosyalar ondan sonra özetlenir, çünkü üç yüz dosya yazan bir build atladığı
-tek sayfayı gömmemelidir. Atlananlar, uyarılar ve hatalar asla kısaltılmaz. Son
-satırda bütün sayılar vardır ve aralarındaki en kötüsüne göre renklendirilir.
-v0.10.0'dan itibaren atlananlar route olarak, sayfalar ve document'lar birlikte
-sayılır — `3 pages skipped` değil, `3 skipped`.
+Yazılan dosyalar on taneyi geçince özetlenir. Üç yüz dosya yazan bir build, atladığı
+tek page'i bu listenin altına gömmemelidir. Atlananlar, uyarılar ve hatalar hiçbir
+zaman kısaltılmaz. Son satırda bütün sayılar yer alır ve satır, aralarındaki en kötü
+duruma göre renklendirilir. v0.10.0'dan beri atlananlar route olarak sayılır, yani
+page'ler ve document'lar birlikte sayılır. Bu yüzden çıktıda `3 pages skipped` değil,
+`3 skipped` yazar.
 
-Rapora göre kodda işlem yapmak için `report.Skipped`, `report.Warnings` ve
-`report.Errors`'u kendiniz okuyun. Her atlama, route'un adını (`Page`), `Locale`'ini,
-insanlar için bir `Reason`'ı ve v0.10.0'dan itibaren `errors.Is` ile eşleştirilecek
-bir `Err`'i içeren bir `collage.SkipRecord`'dur — bkz.
+Raporu kodda kullanmak için `report.Skipped`, `report.Warnings` ve `report.Errors`
+alanlarını kendiniz okuyun. Her atlama bir `collage.SkipRecord`'dur. Bu kayıtta
+route'un adı (`Page`), `Locale`'i ve okuyan kişi için bir `Reason` bulunur.
+v0.10.0'dan beri `errors.Is` ile eşleştirebileceğiniz bir `Err` de bulunur. Bkz.
 [Hatalar](/docs/errors#static-builds).
-[Test](/docs/testing#testing-the-export) bunu bir teste dönüştürür.
+[Test yazmak](/docs/testing#testing-the-export) sayfası bunu bir teste dönüştürür.
 
-Renk ve `✓ ▲ ✗` işaretleri yalnızca bir terminalde görünür, `NO_COLOR` ayarlıyken de
-görünmez. Bir CI logunda işaretler düz ASCII'dir (`+ ! x`).
+Renkler ve `✓ ▲ ✗` işaretleri yalnızca terminalde görünür. `NO_COLOR` tanımlıysa
+terminalde de görünmez. CI log'larında bu işaretler düz ASCII olarak yazılır
+(`+ ! x`).
 
 ## Göz atmak: `collage serve`
 
-`dist/index.html`'i bir tarayıcıda açmak işe yaramaz: bir `file://` sayfasının kökü
-yoktur, bu yüzden her mutlak bağlantı ve stil dosyası bozuk olur. `collage serve`
-dışa aktarılan siteyi bir statik barındırma hizmetinin sunduğu gibi sunar:
+`dist/index.html`'i tarayıcıda doğrudan açmak işe yaramaz. Bir `file://` sayfasının
+kökü yoktur, bu yüzden bütün mutlak link'ler ve stylesheet'ler kırılır.
+`collage serve`, export çıktısını bir static host'un sunduğu şekilde sunar:
 
 ```sh
 collage serve                  # http://localhost:4000
 collage serve -dir public -port 8000
 ```
 
-- `/about` isteğine `about/index.html` ile yanıt verilir.
-- `index.html` içermeyen bir dizin 404'tür — dizin listelemesi yoktur.
-- Bilinmeyen bir yol, 404 durumuyla `404.html`'i alır.
-- Hiçbir şey önbelleğe alınmaz; yeniden dışa aktarıp sayfayı yenilemek yeni çıktıyı
-  gösterir.
+- `/about` isteğine `about/index.html` ile cevap verilir.
+- `index.html` içermeyen bir dizin 404 döner. Dizin listelemesi yapılmaz.
+- Bilinmeyen bir path, 404 status'uyla `404.html` döner.
+- Hiçbir şey cache'lenmez. Yeniden export alıp sayfayı yenilediğinizde yeni çıktıyı
+  görürsünüz.
 
-Flag'leri `-dir` (varsayılan `dist`), `-host` (varsayılan `localhost`) ve `-port`
-(varsayılan `4000` — 3000 değil, böylece karşılaştırırken `collage dev`'in yanında
-çalışabilir). Dosya sunar; projenizi çalıştırmaz.
+Flag'leri `-dir` (varsayılan `dist`), `-host` (varsayılan `localhost`) ve `-port`'tur.
+`-port`'un varsayılanı `4000`'dir, 3000 değildir. Böylece ikisini karşılaştırırken
+`collage dev` ile yan yana çalışabilir. `collage serve` yalnızca dosya sunar,
+projenizi çalıştırmaz.
 
-## Barındırma
+## Hosting
 
-Çıktı, mutlak bağlantılara sahip düz dosyalardır; dolayısıyla herhangi bir statik
-barındırma hizmeti onu sunar. Hangisinde olursa olsun kontrol edilecek üç şey var:
+Çıktı, mutlak link'ler içeren düz dosyalardan oluşur. Bu yüzden herhangi bir static
+host onu sunabilir. Hangi host'u kullanırsanız kullanın üç şeyi kontrol edin:
 
-- **Site, alan adının kökünde olmalıdır.** Bağlantılar ve asset URL'leri `/` ile
-  başlar ve collage'ın bir base-path ayarı yoktur; dolayısıyla bir alt yol altında
-  yayımlanan bir site — `user.github.io/project/` adresindeki bir GitHub proje sayfası
-  gibi — bozuk bağlantılara sahip olur. Özel bir alan adı ya da siteye kendi alan
-  adını veren bir barındırma hizmeti kullanın.
-- **`404.html` köktedir.** Çoğu barındırma hizmeti onu hiçbir yapılandırma
-  gerekmeden bu adla bulur.
-- **[`TrailingSlash`](/docs/configuration#trailingslash) açıktır.** Bir sayfa
-  `<path>/index.html` olarak yazılır; barındırma hizmeti onu `/about/` adresinde
-  sunar ve `/about`'u oraya yönlendirir. Ayar açıkken collage'ın kurduğu her
-  bağlantı, oraya giden bir yönlendirme değil, doğrudan hizmetin yanıt verdiği
-  adres olur.
+- **Site, domain'in kökünde olmalıdır.** Link'ler ve asset URL'leri `/` ile başlar ve
+  collage'ın bir base path ayarı yoktur. Bu yüzden bir alt path altında yayımlanan
+  bir sitenin link'leri kırılır. `user.github.io/project/` adresindeki bir GitHub
+  project page'i buna örnektir. Custom bir domain kullanın ya da siteye kendi
+  domain'ini veren bir host seçin.
+- **`404.html` köktedir.** Çoğu host bu dosyayı hiçbir config gerekmeden bu adla
+  bulur.
+- **[`TrailingSlash`](/docs/configuration#trailingslash) açık olmalıdır.** Bir page
+  `<path>/index.html` olarak yazılır. Host onu `/about/` adresinde sunar ve
+  `/about`'u oraya redirect eder. Bu ayar açıkken collage'ın ürettiği her link
+  doğrudan host'un cevap verdiği adres olur, oraya giden bir redirect olmaz.
 
 ### GitHub Pages
 
-Bu site, testleri çalıştıran, dışa aktaran ve `dist/`'i yükleyen bir workflow ile
+Bu site, testleri çalıştıran, export alan ve `dist/`'i yükleyen bir workflow ile
 yayımlanır:
 
 ```yaml
@@ -367,26 +373,27 @@ jobs:
         uses: actions/deploy-pages@v4
 ```
 
-Dışa aktarma adımı programı `collage export` üzerinden değil doğrudan çalıştırır;
-böylece runner'da collage CLI'ının kurulu olması gerekmez. Deponun Pages kaynağını
-GitHub Actions olarak ayarlayın ve `user.github.io` deponuz değilse ona özel bir alan
-adı verin.
+Export adımı programı `collage export` üzerinden değil, doğrudan çalıştırır. Böylece
+runner'a collage CLI'ı kurmanız gerekmez. Repository'nin Pages kaynağını GitHub
+Actions olarak ayarlayın. `user.github.io` repository'niz değilse ona custom bir
+domain de verin.
 
 ### Cloudflare Pages
 
-CI'da aynı şekilde dışa aktarın ve dizini Wrangler ile yükleyin:
+CI'da export'u aynı şekilde alın ve dizini Wrangler ile yükleyin:
 
 ```sh
 go run . -collage-build -out dist -clean
 npx wrangler pages deploy dist --project-name mysite
 ```
 
-Cloudflare Pages, kökte bir `404.html` varsa bilinmeyen yollar için onu sunar;
-sitenin bir bulunamadı sayfası olduğunda dışa aktarma bu dosyayı her zaman yazar.
+Kökte bir `404.html` varsa Cloudflare Pages bilinmeyen path'ler için onu sunar.
+Sitenin bir not-found page'i varsa export bu dosyayı her zaman yazar.
 
 ### Diğerleri
 
-Netlify, CloudFront arkasında S3, bir nginx dizini — her birinin ihtiyacı yalnızca
-`dist/`'in içeriği ve, zaten yapmıyorsa, hata sayfası olarak yapılandırılmış
-`404.html`'dir. Site formlara, önizlemelere ya da istek başına sayfalara ihtiyaç
-duyduğunda ise bir sunucuya ihtiyaç duyar: bkz. [Yayına alma](/docs/deployment).
+Netlify, CloudFront arkasındaki S3 ya da bir nginx dizini fark etmez. Hepsinin
+ihtiyacı yalnızca `dist/`'in içeriğidir. Host bunu kendiliğinden yapmıyorsa
+`404.html`'i error page olarak ayarlamanız da gerekir. Site form'lara, preview'lara
+ya da her request'te render edilen page'lere ihtiyaç duyuyorsa bir sunucuya ihtiyacı
+vardır. Bkz. [Deployment](/docs/deployment).

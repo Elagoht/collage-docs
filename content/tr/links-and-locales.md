@@ -1,14 +1,14 @@
 ---
-description: Bir siteyi birkaç dilde sunmak ve sayfalara adlarıyla bağlantı vererek bağlantıların onları her locale'de izlemesini sağlamak.
+description: Bir siteyi birkaç dilde sunmak ve page'lere adlarıyla link vermek; böylece link'ler page'i her locale'de takip eder.
+reference: LocaleConfig, PageBuilder.WithPath, Vary, ErrNoPathInLocale, ErrUnknownRoute
 ---
 
-# Bağlantılar ve locale'ler
+# Link'ler ve locale'ler
 
-Bir collage sitesi her sayfayı birkaç dilde, her birini kendi URL'sinde sunabilir.
-collage locale'leri yönlendirir (route eder); çeviri yapmaz. Bir kelimenin Türkçede
-ne olması gerektiği içeriğinizde, o içerik zaten nerede duruyorsa orada yer alır — collage'ın
-payına düşen, hangi URL'nin hangi dile ait olduğunu bilmek ve bunu bilen bağlantılar
-kurmaktır.
+Bir collage sitesi her page'i birkaç dilde, her dili kendi URL'sinde sunabilir.
+collage locale'leri route eder, çeviri yapmaz. Bir kelimenin Türkçe karşılığı
+içeriğinizde durur ve içeriğiniz zaten nerede tutuluyorsa orada kalır. collage'ın
+işi, hangi URL'nin hangi dile ait olduğunu bilmek ve bunu bilen link'ler üretmektir.
 
 ## Locale'leri yapılandırmak
 
@@ -22,12 +22,12 @@ app, err := collage.New(&collage.Config{
 })
 ```
 
-`Default`, locale öneki taşımayan bir URL'nin locale'idir ve varsayılan değeri
-`"en"`'dir. `Supported` sitenin sunduğu her locale'i listeler ve `Default`'u
-içermelidir (aksi hâlde `collage.ErrLocaleDefaultNotSupported`); boş bırakılırsa
-yalnızca `Default`'tan oluşur.
+`Default`, locale prefix'i olmayan bir URL'nin locale'idir ve varsayılan değeri
+`"en"`'dir. `Supported`, sitenin sunduğu bütün locale'leri listeler ve `Default`'u
+içermek zorundadır (içermezse `collage.ErrLocaleDefaultNotSupported` döner). Boş
+bırakılırsa yalnızca `Default`'tan oluşur.
 
-Ardından bir sayfa, var olduğu her locale'deki yolunu bildirir:
+Ardından her page, bulunduğu her locale için kendi path'ini tanımlar:
 
 ```go
 collage.NewPage("about").
@@ -38,46 +38,48 @@ collage.NewPage("about").
 	Build()
 ```
 
-Yollar buradaki gibi farklı olabilir ya da her locale'de aynı pattern olabilir.
-Yalnızca bir locale'de yolu olan bir sayfa yalnızca o locale'de vardır.
+Path'ler buradaki gibi farklı olabilir ya da her locale'de aynı pattern olabilir.
+Yalnızca tek bir locale'de path'i olan bir page yalnızca o locale'de vardır.
 
 ## Locale'i URL belirler
 
-Locale öneki olmayan bir yol `Default` locale'dedir. İlk segment'i desteklenen bir
-locale'i adlandıran bir yol o locale'dedir ve yol eşleştirilmeden önce önek
-kaldırılır:
+Locale prefix'i olmayan bir path `Default` locale'e aittir. İlk segment'i desteklenen
+bir locale'in adı olan bir path o locale'e aittir ve path eşleştirilmeden önce bu
+prefix çıkarılır:
 
 | URL | Locale | Eşleştirildiği yer |
 | --- | --- | --- |
-| `/about` | `en` | `en` yollarındaki `/about` |
-| `/tr/hakkinda` | `tr` | `tr` yollarındaki `/hakkinda` |
-| `/tr/about` | `tr` | `tr` yollarındaki `/about` — bulunamaz, 404 |
-| `/fr/about` | `en` | `/fr/about` — `fr` desteklenmiyor, bu yüzden sıradan bir segment |
-| `/en/about` | — | `/about`'a yönlendirilir |
-| `/TR/hakkinda` | — | `/tr/hakkinda`'ya yönlendirilir |
+| `/about` | `en` | `en` path'leri içinde `/about` |
+| `/tr/hakkinda` | `tr` | `tr` path'leri içinde `/hakkinda` |
+| `/tr/about` | `tr` | `tr` path'leri içinde `/about`; bulunamaz, 404 döner |
+| `/fr/about` | `en` | `/fr/about`; `fr` desteklenmediği için sıradan bir segment'tir |
+| `/en/about` | — | `/about`'a redirect edilir |
+| `/TR/hakkinda` | — | `/tr/hakkinda`'ya redirect edilir |
 
-Her sayfanın locale başına tek bir URL'si vardır; bu yüzden bir önekin diğer
-yazımları kalıcı olarak o URL'ye yönlendirilir: varsayılan locale'in, kendi
-URL'lerinde bulunmayan öneki ve desteklenen bir locale'in farklı büyük/küçük harfle
-yazılışı. Yönlendirme `GET` ya da `HEAD` için `301`, diğer her şey için `308`'dir;
-böylece yanlış yazılışa gönderilen bir form `GET`'e dönüştürülmek yerine yeniden
-gönderilir ve query string de beraberinde gider. Bu yönlendirme olmasaydı
-`/en/about`, bir arama motoru için `/about`'un ikinci bir kopyası, önbellekte de
-ikinci bir girdi olurdu.
+Her page'in locale başına tek bir URL'si vardır. Bu yüzden bir prefix'in diğer
+yazılışları kalıcı olarak o URL'ye redirect edilir. Bu yazılışlar iki tanedir:
+varsayılan locale'in kendi prefix'i (varsayılan locale'in URL'leri bu prefix'i
+taşımaz) ve desteklenen bir locale'in farklı büyük/küçük harfle yazılışı. Redirect, `GET` ve
+`HEAD` için `301`, diğer bütün method'lar için `308`'dir. Böylece yanlış yazılışa
+post edilen bir form `GET`'e dönüşmez, yeniden post edilir. Query string de redirect
+ile birlikte taşınır. Bu redirect olmasaydı `/en/about`, arama motoru için
+`/about`'un ikinci bir kopyası, cache'te de ikinci bir kayıt olurdu.
 
-Varsayılan dil de dahil her dilin bir önek altında olmasını isteyen bir site
-`PrefixDefault: true` ayarlar (v0.14.0'dan itibaren). O zaman `/tr/hakkinda`'nın
-yanındaki sayfa `/en/about` olur ve öneksiz bir URL hiçbir dile ait değildir: önek
-olmadan istenen bir sayfa — `/about` ya da kök — varsayılan locale'in adresine,
-`/en/about`'a ve `/en`'e, kalıcı olarak yönlendirilir; adla kurulan her bağlantı da
-öneki taşır. Document'ler de aynı şekilde önek alır, `/tr/sitemap.xml`'in yanında
-`/en/sitemap.xml`; yalnızca sitenin kendi dosyaları,
-[`AtRoot`](/docs/documents#example-robotstxt) ile kurulanlar, bunun dışındadır:
-`/robots.txt` kökte ve yalnızca oradadır (v0.14.1'den itibaren). Dışa aktarma,
-varsayılan locale'i `en/` altına, köke de okuyucuyu `/en/`'e gönderen bir sayfa
-yazar.
+Varsayılan locale dahil bütün dilleri bir prefix altında sunmak isteyen bir site
+`PrefixDefault: true` ayarını kullanır (v0.14.0'dan beri). Bu durumda `/en/about`,
+`/tr/hakkinda`'nın yanında duran page olur. Prefix'siz bir URL ise hiçbir dile ait
+değildir. Prefix olmadan istenen bir page, yani `/about` ya da kök, kalıcı olarak
+varsayılan locale'deki adresine, yani sırasıyla `/en/about`'a ve `/en`'e redirect
+edilir.
+Adla üretilen her link de prefix'i taşır. Document'lar da aynı şekilde prefix alır ve
+`/en/sitemap.xml`, `/tr/sitemap.xml`'in yanında durur. Tek istisna, sitenin
+[`AtRoot`](/docs/documents#example-robotstxt) ile oluşturulan kendi dosyalarıdır:
+`/robots.txt` kökte durur, başka hiçbir yerde durmaz (v0.14.1'den beri). Export,
+varsayılan locale'i `en/` altına yazar ve köke de okuyucuyu `/en/`'e gönderen bir page
+koyar.
 
-Bir fragment sonucu `rc.Locale` olarak okur ve doğru içeriği çekmek için kullanır:
+Bir fragment bu sonucu `rc.Locale` olarak okur ve doğru içeriği çekmek için
+kullanır:
 
 ```go
 func aboutData(ctx context.Context, rc *collage.RenderContext) (aboutView, []string, error) {
@@ -89,29 +91,32 @@ func aboutData(ctx context.Context, rc *collage.RenderContext) (aboutView, []str
 }
 ```
 
-`DisablePathLocale: true` önekleri tamamen kapatır ve her isteği `Default` locale'de
-bırakır — tek dilli bir site ya da dili kendi başına
-[belirleyen](#negotiating-a-language-yourself) bir site için.
+`DisablePathLocale: true` prefix'leri tamamen kapatır ve bütün request'leri `Default`
+locale'de bırakır. Bu ayar, tek dilli bir site ya da dili kendisi
+[belirleyen](#negotiating-a-language-yourself) bir site içindir.
 
 ### Neden yalnızca URL
 
-collage asla `Accept-Language` header'ından ya da bir çerezden locale seçmez.
+collage locale'i hiçbir zaman `Accept-Language` header'ından ya da bir cookie'den
+seçmez.
 
-İçeriği kimin sorduğuna bağlı olan bir URL, birden çok içeriği olan tek bir URL'dir
-ve URL saklayan her şey onu yanlış anlar: bir önbellek ilk okuyucunun dilini herkese
-sunar, bir arama motoru bir sürümü dizine ekler ve diğerini hiç görmez, birinin
-paylaştığı bir bağlantı da onun göndermediği bir dilde açılır. Daha az belirgin bir
-şekilde de bozulur — `/about`'a giden bir bağlantıyı izleyen Türkçe bir tarayıcı,
-`/about`'un bulunmadığı Türkçe yollar arasında aranır ve bir 404 alır.
+İçeriği isteği yapan kişiye göre değişen bir URL, aslında birden fazla içeriği olan
+tek bir URL'dir. URL saklayan her şey de bu durumda yanlış çalışır. Cache ilk
+okuyucunun dilini herkese sunar. Arama motoru bir sürümü index'ler, diğerini hiç
+görmez. Birinin paylaştığı bir link, onun göndermediği bir dilde açılır. Daha az göze
+çarpan bir bozulma da vardır. Türkçe bir tarayıcı `/about`'a giden bir link'i takip
+ettiğinde bu path Türkçe path'ler arasında aranır. `/about` orada olmadığı için
+okuyucu 404 alır.
 
-Locale URL'de olduğunda her URL, her okuyucu ve her önbellek için tek bir anlama
-gelir. Okuyucunun tercihlerini kullanmak isterseniz bunu yine de bilinçli olarak
-yapabilirsiniz — [aşağıya](#negotiating-a-language-yourself) bakın.
+Locale URL'de olduğunda her URL, her okuyucu ve her cache için tek bir anlama gelir.
+Okuyucunun tercihlerini kullanmak isterseniz bunu yine de yapabilirsiniz; yeter ki
+bilerek yapın. Nasıl yapılacağını [aşağıda](#negotiating-a-language-yourself)
+bulabilirsiniz.
 
-## Adla bağlantılar
+## Adla link'ler
 
-Yol olarak yazılmış bir bağlantı, yol değiştiğinde sessizce bozulur ve hangi
-locale'de olduğunu bilemez. Sayfanın kaydedildiği adla bağlantı verin:
+Path olarak yazılmış bir link, path değiştiğinde sessizce bozulur. Hangi locale'de
+olduğunu da bilemez. Bunun yerine page'in register edildiği adla link verin:
 
 ```html
 <a href="{{pageURL "about"}}">About</a>
@@ -119,40 +124,41 @@ locale'de olduğunu bilemez. Sayfanın kaydedildiği adla bağlantı verin:
 <link rel="alternate" type="application/rss+xml" href="{{pageURL "feed"}}">
 ```
 
-`pageURL` önce sayfanın adını, ardından yol parametrelerini ad–değer çiftleri olarak
-alır. Sayfaların yanı sıra [document](/docs/documents)'lar için de çalışır.
+`pageURL` önce page'in adını, ardından path parametrelerini ad–değer çiftleri hâlinde
+alır. Page'lerin yanı sıra [document'lar](/docs/documents) için de çalışır.
 
-- **Render'ın locale'ini izler.** `/tr/hakkinda` üzerinde `{{pageURL "about"}}`
-  `/tr/hakkinda`'dır; `/about` üzerinde `/about`'tur. Önek sizin için eklenir.
-- **Varsayılan locale'e geri düşer.** Geçerli locale'de yolu olmayan bir sayfa için
-  varsayılan locale'deki yola bağlantı verilir; böylece yalnızca İngilizcede var olan
-  bir sayfaya bağlantı veren Türkçe bir sayfa yine de render edilir.
+- **Render'ın locale'ini takip eder.** `/tr/hakkinda` üzerinde `{{pageURL "about"}}`
+  sonucu `/tr/hakkinda`'dır, `/about` üzerinde ise `/about`'tur. Prefix sizin
+  yerinize eklenir.
+- **Varsayılan locale'e fallback yapar.** Geçerli locale'de path'i olmayan bir page'e
+  link, varsayılan locale'deki path'i üzerinden verilir. Böylece yalnızca İngilizcede
+  var olan bir page'e link veren Türkçe bir page yine de render edilir.
 - **Katıdır.** Bilinmeyen bir ad, eksik ya da boş bir parametre veya pattern'de
-  karşılığı olan placeholder bulunmayan bir parametre render'ı başarısız kılar.
-  Kurulamayan bir bağlantı, okuyucu için bir 404 değil, geliştirmede bulunacak bir
-  hatadır.
-- **Değerler escape edilir**; `.` ya da `..` değeri reddedilir.
-- **Değerler dizedir.** Bir sayıyı `printf`'ten geçirin:
+  placeholder'ı olmayan bir parametre render'ı başarısız kılar. Üretilemeyen bir
+  link, okuyucuya gösterilecek bir 404 değil, development'ta yakalanması
+  gereken bir bug'dır.
+- **Değerler escape edilir.** Değeri `.` ya da `..` olan bir parametre reddedilir.
+- **Değerler string'dir.** Bir sayıyı `printf` üzerinden geçirin:
   `{{pageURL "user" "id" (printf "%d" .ID)}}`.
-- **[`TrailingSlash`](/docs/configuration#trailingslash) açıkken `/` ile biter** —
-  bir document'in değil, bir sayfanın bağlantısı: `/about/`, `/tr/`, ama `/feed.xml`.
+- **[`TrailingSlash`](/docs/configuration#trailingslash) açıkken `/` ile biter.** Bu,
+  document link'leri için değil, page link'leri için geçerlidir: `/about/`, `/tr/`,
+  ama `/feed.xml`.
 
-### Belirli bir locale'de bağlantı
+### Belirli bir locale'de link
 
-`pageURLIn` önce locale'i alır ve tam olarak o locale'e bağlantı verir — geri düşme
-yoktur:
+`pageURLIn` önce locale'i alır ve tam olarak o locale'e link verir. Fallback yapmaz:
 
 ```html
 <a href="{{pageURLIn "tr" "about"}}" hreflang="tr">Hakkımızda</a>
 ```
 
-O locale'de yolu olmayan bir sayfa render'ı başarısız kılar; sitenin desteklemediği
-bir locale de öyle.
+O locale'de path'i olmayan bir page render'ı başarısız kılar. Sitenin desteklemediği
+bir locale de aynı sonucu verir.
 
-### Dil değiştirici
+### Dil seçici
 
-`localeURL`, render edilmekte olan sayfanın, aynı yol parametreleriyle, başka bir
-locale'deki hâlidir. Sayfanın o locale'de yolu yoksa boştur; bu yüzden `with`, sayfanın
+`localeURL`, render edilen page'in aynı path parametreleriyle başka bir locale'deki
+URL'sidir. Page'in o locale'de path'i yoksa boş döner. Böylece `with`, page'in
 çevrilmediği bir dili atlar:
 
 ```html
@@ -162,28 +168,29 @@ locale'deki hâlidir. Sayfanın o locale'de yolu yoksa boştur; bu yüzden `with
 </nav>
 ```
 
-Onu layout'a koyun; her sayfa yalnızca var olanı sunan bir dil değiştiriciye sahip
-olur. Hiç desteklenmeyen bir locale ise yine hatadır — bu çevrilmemiş bir sayfa
-değil, şablondaki bir yazım hatasıdır.
+Bunu layout'a koyun; her page yalnızca var olan dilleri sunan bir dil seçiciye
+kavuşur. Hiç desteklenmeyen bir locale ise yine hata verir. Bu durum çevrilmemiş bir
+page değil, template'teki bir yazım hatasıdır.
 
-Yol parametreleri olduğu gibi aktarılır. Her iki locale'de `/blog/{slug}` yolunda
-olan bir sayfa `/blog/hello`'dan `/tr/blog/hello`'ya geçer; Türkçe yazılarınızın
-Türkçe slug'ları varsa değiştirici bunu bilemez ve o bağlantıyı içeriğinizden
-kendiniz kurarsınız.
+Path parametreleri olduğu gibi taşınır. İki locale'de de `/blog/{slug}` path'inde
+bulunan bir page, `/blog/hello`'dan `/tr/blog/hello`'ya geçer. Türkçe yazılarınızın
+slug'ları da Türkçeyse dil seçici bunu bilemez. O link'i içeriğinizden kendiniz
+üretirsiniz.
 
 ### Arama motorlarına çevirileri bildirmek
 
-Dil değiştirici okuyucular içindir. Arama motorları bir sayfanın çevirilerini, head'indeki
-`<link rel="alternate" hreflang="…">` öğelerinden öğrenir; bunları her dil için bir
-tane olmak üzere `rc.HoistAlternate(hreflang, href)` (v0.10.0'dan itibaren) bildirir.
-Bunu, sayfanın var olduğu her locale için `app.URL` ile birlikte kullanın —
+Dil seçici okuyucular içindir. Arama motorları bir page'in çevirilerini, head'indeki
+`<link rel="alternate" hreflang="…">` element'lerinden öğrenir. Bu element'leri
+`rc.HoistAlternate(hreflang, href)` (v0.10.0'dan beri) tanımlar, her dil için bir
+tane. Bunu, page'in bulunduğu her locale için `app.URL` ile birlikte kullanın.
 [Head ve SEO](/docs/head-and-seo#canonical-and-alternate-links) sayfasında bunu her
-sayfa için yapan bir layout var.
+page için yapan bir layout var.
 
-### Go'dan bağlantılar
+### Go'dan link'ler
 
-Go'da — adı verilen bir sayfaya yönlendiren bir action, her sayfayı listeleyen bir
-sitemap, bir sayfanın head'indeki alternatifler — `app.URL` kullanın:
+Go kodunda `app.URL` kullanın. Adıyla belirtilen bir page'e redirect eden bir action,
+bütün page'leri listeleyen bir sitemap ve bir page'in head'indeki alternate link'ler
+bu duruma örnektir:
 
 ```go
 target, err := app.URL("blog-post", "tr", map[string]string{"slug": post.Slug})
@@ -197,23 +204,25 @@ return collage.SeeOther(target), nil
 func (a *App) URL(name, locale string, params map[string]string) (string, error)
 ```
 
-Boş bir locale varsayılan locale demektir. `pageURLIn` kadar katıdır: bilinmeyen bir
-ad `collage.ErrUnknownRoute`, route'un yolu olmadığı bir locale
-`collage.ErrNoPathInLocale`, pattern'i tam olarak doldurmayan parametreler
-`collage.ErrRouteParams`, hiçbir URL'nin taşıyamayacağı bir locale — desteklenmeyen
-ya da `DisablePathLocale` açıkken varsayılan dışındaki herhangi biri — ise
-`collage.ErrLocaleUnreachable` hatasıdır. Sonuç, önek dahil bir yoldur; mutlak bir
-URL gerektiğinde sitenizin origin'ini ekleyin.
+Boş bir locale, varsayılan locale anlamına gelir. `app.URL`, `pageURLIn` kadar katıdır.
+Bilinmeyen bir ad `collage.ErrUnknownRoute` döner. Route'un path'i olmayan bir locale
+`collage.ErrNoPathInLocale` döner. Pattern'i tam olarak doldurmayan parametreler
+`collage.ErrRouteParams` döner. Hiçbir URL'nin taşıyamayacağı bir locale ise
+`collage.ErrLocaleUnreachable` döner. Desteklenmeyen bir locale ya da
+`DisablePathLocale` açıkken varsayılan dışındaki herhangi bir locale bu gruptadır.
+Sonuç, prefix dahil bir path'tir. Mutlak bir URL gerektiğinde başına sitenizin
+origin'ini ekleyin.
 
 ## Dili kendiniz belirlemek
 
-Okuyucunun tarayıcısına göre dil seçmek siteniz hakkında bir karardır; bu yüzden bu
-karar sizindir ve [middleware](/docs/middleware-and-apis)'de verilir. Bunu yapmanın
-iki dürüst yolu var.
+Okuyucunun tarayıcısına göre dil seçmek, siteniz hakkında bir karardır. Bu yüzden bu
+kararı siz verirsiniz ve bunu [middleware](/docs/middleware-and-apis) içinde
+yaparsınız. Bunun iki dürüst yolu vardır.
 
-Varsayılan locale'in ana sayfasına Türkçe bir tarayıcıyla ya da size ait bir dil
-çereziyle gelen okuyucuyu `/tr`'ye **yönlendirin**. Her URL yine tek bir anlama
-gelir; yalnızca yeni bir okuyucunun nereden başlayacağını seçmiş olursunuz.
+**Redirect edin.** Varsayılan locale'in ana sayfasına Türkçe bir tarayıcıyla ya da kendi
+tanımladığınız bir dil cookie'siyle gelen okuyucuyu `/tr`'ye gönderin. Her URL yine
+tek bir anlama gelir. Yalnızca yeni bir okuyucunun nereden başlayacağını seçmiş
+olursunuz.
 
 ```go
 app.Use(func(next http.Handler) http.Handler {
@@ -227,9 +236,9 @@ app.Use(func(next http.Handler) http.Handler {
 })
 ```
 
-**Tek bir URL'yi okuyucunun dilinde render edin.** Kararı middleware'de verin,
-istek context'i üzerinden data handler'lara iletin ve önbelleğin dil başına bir kopya
-tutması için bunu collage'a `collage.Vary` ile bildirin:
+**Tek bir URL'yi okuyucunun dilinde render edin.** Kararı middleware'de verin ve
+request context'i üzerinden data handler'lara iletin. collage'a da `collage.Vary` ile
+haber verin; böylece cache her dil için ayrı bir kopya tutar:
 
 ```go
 type langKey struct{}
@@ -253,15 +262,16 @@ func pageData(ctx context.Context, rc *collage.RenderContext) (view, []string, e
 }
 ```
 
-`Vary`, çözümlediğiniz değeri — tarayıcının header'ının tamamını değil, `"tr"`'yi —
-sayfanın önbellek anahtarına, header adını da yanıtın `Vary` header'ına koyar;
-böylece bir CDN de sürümleri birbirinden ayrı tutar. Middleware'den çağrılmalıdır.
-v0.11.0'dan itibaren `Vary`, routing başladığında her route'ta — önbelleğe alınsın ya
-da alınmasın — kapanır; bu yüzden bir data handler'dan ya da routing'den sonraki
-herhangi bir yerden yapılan çağrı hiçbir şeyi değiştirmez ve `collage.ErrVaryTooLate`
-döner. Bu, [tek URL, tek içerik](#why-only-the-url) ilkesinin faydalarından vazgeçen
-yoldur; bu yüzden onu bilerek seçin — genellikle `DisablePathLocale` ile birlikte.
+`Vary`, çözümlediğiniz değeri page'in cache key'ine ekler. Bu değer tarayıcının
+gönderdiği header'ın tamamı değil, `"tr"`'dir. Header'ın adını da response'un `Vary`
+header'ına yazar. Böylece bir CDN de sürümleri birbirinden ayrı tutar. `Vary`
+middleware'den çağrılmalıdır. v0.11.0'dan beri `Vary`, routing başladığında kapanır
+ve bu, cache'lenen ya da cache'lenmeyen her route için geçerlidir. Bu yüzden bir data
+handler'dan ya da routing'den sonraki herhangi bir yerden yapılan çağrı hiçbir şeyi
+değiştirmez ve `collage.ErrVaryTooLate` döner. Bu yol,
+[tek URL, tek içerik](#why-only-the-url) yaklaşımının faydalarından vazgeçer. O
+yüzden onu bilerek seçin; genellikle `DisablePathLocale` ile birlikte kullanılır.
 
-Bir [statik dışa aktarma](/docs/static-export) istek olmadan render eder, dolayısıyla
-onun için hiçbir middleware çalışmaz: dışa aktarılmış bir sitenin locale'leri
-yalnızca URL'lerinde olabilir.
+[Static export](/docs/static-export) request olmadan render eder, bu yüzden onun için
+hiçbir middleware çalışmaz. Export edilen bir sitede locale'ler yalnızca URL'lerde
+yer alabilir.
