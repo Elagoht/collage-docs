@@ -1,6 +1,6 @@
 ---
 description: collage'ın render edilmiş page'leri ve onları oluşturan veriyi nasıl cache'lediği, neyi atacağını nasıl bildiği.
-reference: CacheConfig, Cached, Once, TaggedCache, SkipCache, Vary, PageBuilder.Static, PageBuilder.Incremental, PageBuilder.Dynamic
+reference: CacheConfig, Cached, Once, TaggedCache, SkipCache, Vary, PageBuilder.Static, PageBuilder.Incremental, PageBuilder.Dynamic, StrategyAuto
 ---
 
 # Caching
@@ -38,7 +38,7 @@ Her page, çıktısının nasıl yeniden kullanılabileceğini builder'ındaki t
 
 | Builder çağrısı | Ne olur | Gönderilen `Cache-Control` |
 | --- | --- | --- |
-| `Dynamic()` (varsayılan) | Her request'te render edilir, hiç saklanmaz | `no-store` |
+| `Dynamic()` | Her request'te render edilir, hiç saklanmaz | `no-store` |
 | `Static()` | Bir kez render edilir, bir şey onu invalidate edene kadar sunulur | `public, max-age=0, must-revalidate` |
 | `Incremental(ttl)` | Render'dan sonra `ttl` geçene kadar cache'ten sunulur | `public, max-age=<saniye cinsinden ttl>` |
 
@@ -59,10 +59,6 @@ page := collage.NewPage("blog-post").
 	Build()
 ```
 
-Varsayılanın `Dynamic()` olmasının nedeni, hiçbir zaman yanlış sonuç vermeyen tek
-strateji olmasıdır. Üzerinde düşünmeyi unuttuğunuz bir page yalnızca yavaş olur,
-stale olmaz.
-
 `Static()` için pratikte bir sona erme süresi yoktur ve `DefaultTTL` ona uygulanmaz.
 Page yalnızca tag'lerinden biri invalidate edildiğinde ya da cache yer açmak için
 onu çıkardığında yeniden render edilir. Yalnızca birisi yayımladığında değişen
@@ -80,11 +76,43 @@ aynı üç çağrıyı kullanır. Page'lerle aynı şekilde saklanır, key'lenir
 invalidate edilir. v0.12.0'dan beri de aynı şekilde
 [birleştirilir](#concurrent-misses-render-once).
 
+### Hiçbirini tanımlamayan bir page
+
+Bu üç çağrıdan hiçbirini yapmayan bir page'in stratejisi register edilirken
+belirlenir. O ana kadar stratejisi `collage.StrategyAuto`'dur, sonrasında diğer
+üçünden biri olur.
+
+- Render ettiği herhangi bir şey her render'da veri çekiyorsa **dynamic** olur. Bu,
+  bir data handler (`WithDataHandler`, `collage.Load` ve `collage.Effect` dahil) ya
+  da bir slot resolver'dır. Layout'unda, content'inde, bunların slot'larına
+  bağlanan herhangi bir şeyde, fallback'lerinde ya da `WithFragmentPath` ile
+  açılan bir fragment'te olması fark etmez.
+- Aksi hâlde **static** olur. Yalnızca template'leri ve sabit değerleri
+  (`WithData(v)`, `WithTitle(s)`) render eden bir page her okuyucu için aynı
+  render edilir. Bu yüzden böyle page'lerden oluşan bir site, her birine
+  `Static()` yazmadan cache'lenir ve [export edilir](/docs/static-export).
+
+Handler'ın dynamic anlamına gelmesinin nedeni şudur: handler request'i, bir
+cookie'yi ya da saati okuyabilir ve fonksiyonun dışından bunu yapıp yapmadığı
+anlaşılamaz. Tahmin yanlış çıktığında bunun bedeli bir render olur, bir
+okuyucuya başkasının page'inin sunulması asla olmaz. Üzerinde düşünmeyi
+unuttuğunuz bir page yalnızca yavaş olur, stale olmaz. Bir handler'ın çıktısı
+herkes için aynıysa (dosyadan okunan bir yazı gibi), page'i `Static()` ya da
+`Incremental(ttl)` çağrısını kendisi yapar.
+
+Tanımlanmış bir strateji hiçbir yönde sorgulanmaz. v0.16.0'a kadar hiçbir şey
+tanımlamayan bir page dynamic'ti. Buna güvenen ve onu dynamic yapacak bir
+handler'ı olmayan bir page artık `Dynamic()` çağrısını yapmalıdır.
+
+Bir [document](/docs/documents#a-fixed-body) da aynı şekilde belirlenir:
+handler'ı varsa dynamic, sabit bir body'si varsa static olur.
+
 ## Ne, ne zaman cache'lenir
 
 Bir response, page cache'e yalnızca şu koşulların hepsi sağlandığında girer:
 
-- cache açıktır ve page `Static()` ya da `Incremental(ttl)` olarak tanımlanmıştır;
+- cache açıktır ve page'in stratejisi, ister tanımlanmış ister belirlenmiş olsun,
+  static ya da incremental'dır;
 - request bir `GET`'tir. Bir `HEAD` cache'ten *sunulabilir*, ama cache'i hiçbir
   zaman doldurmaz, çünkü saklanacak bir body üretmemiştir;
 - her fragment başarıyla render edilmiştir.
@@ -328,7 +356,7 @@ collage buna izin vermez. Bir key için gelen ilk request render eder. Bu sırad
 diğer request'ler onu bekler ve aynı byte'larla sunulur. Yapılandırmanız gereken
 bir şey yoktur.
 
-- **Yalnızca cache'lenen route'lar birleştirilir.** `Dynamic()` bir page'in cache
+- **Yalnızca cache'lenen route'lar birleştirilir.** Dynamic bir page'in cache
   key'i yoktur. Bu yüzden iki request, page'in istediği gibi iki render demektir.
   Cache'lenen bir [document](/docs/documents) v0.12.0'dan beri bir page gibi
   birleştirilir. Böylece birçok client'ın yokladığı ve expire olan bir feed,
@@ -368,7 +396,7 @@ static export, yazarı otuz kez çeker.
 `collage.Cached` yazarı saklar:
 
 ```go
-func authorCard(ctx context.Context, rc *collage.RenderContext) (Author, []string, error) {
+func authorCard(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
 	id := rc.Param("author")
 	author, err := collage.Cached(rc, "author:"+id, time.Hour, []string{"author:" + id},
 		func(ctx context.Context) (Author, error) {

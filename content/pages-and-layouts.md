@@ -1,6 +1,6 @@
 ---
 description: What a page is, how its layout and content fit together, the paths that reach it, how it is cached, what it shows when it fails, and what registration does to it.
-reference: NewPage, PageBuilder, Page, RenderPage, DefaultContentSlot
+reference: NewPage, PageBuilder, Page, RenderPage, DefaultContentSlot, StrategyAuto
 ---
 
 # Pages and layouts
@@ -55,13 +55,13 @@ cause.
 ## Layout and content
 
 Most pages on a site share their outside — the `<head>`, the header, the footer —
-and differ inside. The outside is the **layout**, a fragment with a slot named
-`content`. The inside is the **content fragment**, the one the page exists to
-show.
+and differ inside. The outside is the **layout**, a fragment whose template calls
+a slot named `content`. The inside is the **content fragment**, the one the page
+exists to show.
 
 ```go
 layout := collage.NewFragment("layout", "layouts/default.html").
-	WithSlot(collage.DefaultContentSlot, true, false). // "content": required, one fragment
+	WithTitle("My site").
 	Build()
 ```
 
@@ -78,10 +78,19 @@ layout := collage.NewFragment("layout", "layouts/default.html").
 </html>
 ```
 
+The layout declares no slot. The `{{slot "content"}}` in its template is the
+declaration, and so is any other slot it calls — see
+[Fragments and slots](/docs/fragments-and-slots#slots). `WithTitle` gives every page
+that uses it a `<title>` until something inside names a better one.
+
 `WithLayout(layout)` and `WithContent(post)` name the two, and **registration puts
-the content into the layout's `content` slot**. You do not bind it yourself. Leave
-the layout's `content` slot empty: registration fills it, and a slot that holds
-one fragment refuses a second (`ErrSlotOccupied`).
+the content into the layout's `content` slot**
+(`collage.DefaultContentSlot`). You do not bind it yourself, and a layout whose
+template never calls `{{slot "content"}}` is refused at registration with
+`ErrUnknownSlot`, because the content would have nowhere to render.
+`WithSlot(collage.DefaultContentSlot, true, false)` on the layout is still
+accepted, for a layout that should refuse any fragment bound into `content` besides
+the page's own (`ErrSlotOccupied`).
 
 A page must have content — `ErrMissingContent` otherwise. The layout is optional:
 a page without one renders its content fragment as the whole response, which is
@@ -162,12 +171,21 @@ Every page has one of three strategies, which decide whether its output is cache
 
 | Method | Strategy | Behaviour |
 | --- | --- | --- |
-| `Dynamic()` | `StrategyDynamic` | Rendered on every request, never cached. **The default** |
+| `Dynamic()` | `StrategyDynamic` | Rendered on every request, never cached |
 | `Static()` | `StrategyStatic` | Rendered once, served from cache until its tags are invalidated |
 | `Incremental(ttl)` | `StrategyIncremental` | Served from cache, rendered again once `ttl` has passed |
 
-`Incremental` needs a positive TTL (`ErrMissingTTL`). `Static` and `Incremental`
-pages are also the ones `collage export` can write to files; a `Dynamic` page is
+A page that calls none of the three is `StrategyAuto` until it is registered, and
+registration resolves it: **dynamic** if anything it renders has a data handler or
+a slot resolver, **static** otherwise. A page of templates and fixed values —
+`WithData`, `WithTitle` — renders the same for everyone, so it is cached without
+saying so. A handler may read the request, a cookie or the clock, and nothing
+outside it can tell, so a page with one renders per request until it says
+`Static()` or `Incremental(ttl)`. [Caching](/docs/caching#a-page-that-declares-none)
+has the whole rule.
+
+`Incremental` needs a positive TTL (`ErrMissingTTL`). Static and incremental
+pages are also the ones `collage export` can write to files; a dynamic page is
 [skipped](/docs/static-export#what-is-skipped), because it exists to render per
 request.
 
@@ -279,8 +297,11 @@ In order, it:
    fragment reachable from itself;
 5. checks that every fragment's template was loaded (`ErrTemplateNotFound`) —
    including the fragments opened with `WithFragmentPath`, which since v0.11.0 are
-   checked like the rest of the tree, and the page's own not-found and error pages;
-6. adds the page's paths, redirects, actions and fragment paths to the router.
+   checked like the rest of the tree, and the page's own not-found and error pages
+   — and that every slot something is bound into is one its template calls
+   (`ErrUnknownSlot`, naming the slot and the calls the template does make);
+6. resolves the strategy of a page that declared none, from the whole tree;
+7. adds the page's paths, redirects, actions and fragment paths to the router.
 
 Treat any error as fatal. A registration that fails halfway is not rolled back — a
 path accepted in one locale stays in the router when the next is refused — because

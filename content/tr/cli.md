@@ -77,9 +77,11 @@ yazdığı dosyalar, dizindeki aynı adlı dosyaların yerine geçer.
 **Her projede** şunlar bulunur: `go.mod`; config'i, static mount'u,
 [aşağıda](#the-contract-with-maingo) anlatılan CLI sözleşmesini ve
 [plugin komutlarının](#plugin-commands) dispatch'ini içeren bir `main.go`; bütün
-route'ları register eden bir `routes.go`; sitenin başlığını `rc.HoistTitle` ile
-tanımlayan bir layout (böylece bir page'in kendi başlığı bu başlığın yerine
-geçer); bir ana sayfa, `static/`, bir `.gitignore` ve bir README.
+route'ları register eden bir `routes.go`; sitenin adını `WithTitle` ile veren ve
+hiç slot tanımlamayan bir layout (böylece bir page'in kendi başlığı sitenin
+başlığının yerine geçer); template'ine proje adını `WithData` ile veren bir ana
+sayfa (içinde hiçbir şey veri çekmediği için `Static()` demeden static'tir);
+`static/`, bir `.gitignore` ve bir README.
 
 **Demo projesi** varsayılan projedir. Buna canlı demolardan oluşan bir page ekler:
 JSON dönen bir action, kendi page'ine post eden bir form, kendi URL'si olan bir
@@ -90,7 +92,7 @@ ve bir `.env.example`'ı da ekler.
 
 **`--template minimal`** bir projenin olabileceği en yalın hâldir. İçinde tek bir
 page'i saran layout vardır. Bu page `<h1>Hello from {{.Name}}</h1>` satırından
-ibarettir; `{{.Name}}`, template'e `collage.Data` ile verilen proje adıdır.
+ibarettir; `{{.Name}}`, template'e `WithData` ile verilen proje adıdır.
 Bunun yanında arka plan ve metin rengini dark mode dahil ayarlayan bir stylesheet
 bulunur. Başka hiçbir şey yoktur: test yoktur, not-found page'i de yoktur. Siz bir
 not-found page'i register edene kadar collage bilinmeyen adreslere kendi sade 404'üyle
@@ -118,15 +120,21 @@ Hiçbir flag ya da argüman almaz. Durdurmak için Ctrl-C'ye basın. Interrupt
 sinyali programa da ulaşır ve program production'da nasıl kapanıyorsa öyle
 kapanır.
 
-Scaffold edilen `main.go`, `COLLAGE_DEV=1` ayarlı olduğunda development modunu
-açar. Development modu template'leri ve static dosyaları her request'te diskten
-okur. Bu yüzden onları düzenlediğinizde rebuild gerekmez ve rebuild yapılmaz;
-bunun yerine tarayıcınızdaki page kendini yeniler. Programınızın diskten kendisi
-okuduğu içerik de (örneğin Markdown), dizini
+Tarayıcı programla değil, `collage dev` ile konuşur. `collage dev`, programınızın
+okuyacağı şekilde `HOST` ve `PORT` üzerinde dinler (varsayılan olarak
+`localhost:3000`). Her request'i programa iletir. Programı ise `HOST` ve `PORT`'u
+kendine ait bir loopback adresine ayarlayarak başlatır. Cevap verecek bir
+program olmadığında [hataları tarayıcıda gösterebilmesi](#errors-in-the-browser)
+bu sayede mümkündür.
+
+Scaffold edilen `main.go`, `COLLAGE_DEV=1` ayarlı olduğunda development modunu açar
+ve kendisine verilen `HOST` ve `PORT` üzerinde dinler. Development modu template'leri
+ve static dosyaları her request'te diskten okur. Bu yüzden onları düzenlediğinizde
+rebuild gerekmez ve rebuild yapılmaz; bunun yerine tarayıcınızdaki page kendini
+yeniler. Programınızın diskten kendisi okuduğu içerik de (örneğin Markdown), dizini
 [`Config.DevWatch`](/docs/configuration#devwatch) içinde belirtildiğinde page'i
 yeniler (v0.10.0'dan beri). Development modunun başka neleri değiştirdiğini
-[Template'ler](/docs/templates#reloading-in-development) sayfasında
-bulabilirsiniz.
+[Template'ler](/docs/templates#reloading-in-development) sayfasında bulabilirsiniz.
 
 ### Rebuild'i ne tetikler
 
@@ -155,8 +163,27 @@ Rebuild şöyle ilerler:
 - **Derlenmeyen bir değişiklikte son sağlam build çalışmaya devam eder.**
   Derleyicinin hatası ekranda görünür.
 - **Kendiliğinden çıkan bir program** döngü içinde yeniden başlatılmaz. Örneğin
-  açılışta panic olabilir ya da port zaten kullanımda olabilir. Program bir sonraki
-  değişiklikte yeniden başlatılır.
+  açılışta panic olabilir ya da bir page'in template'i eksik olabilir. Program bir
+  sonraki değişiklikte yeniden başlatılır.
+
+### Tarayıcıdaki hatalar
+
+v0.15.0'dan beri çalışmayan bir program, reddedilen bir bağlantı değil, bir
+page'dir:
+
+- **Program çıktığında** (register sırasında bulunamayan bir template, açılışta bir
+  panic) **ya da ilk build başarısız olduğunda** her page, programın ya da
+  derleyicinin yazdıklarını gösteren bir 503'tür. Açık olan bir page yenilenerek
+  bu page'e geçer. Bir değişiklik programı geri getirdiğinde de yeniden yenilenir.
+- **Program başlarken yapılan bir request onu bekler.** Program henüz dinlemediği
+  için başarısız olmaz.
+- **Kendisine söylenen yerde hiç dinlemeyen bir program**, yani `HOST` ve `PORT`'u
+  yok sayan bir `main.go`, 10 saniye sonra, kendisine verilen adresle birlikte
+  page'de belirtilir.
+
+Program çalışırken başarısız olan bir render'da ise programın kendi development error
+page'i görünür. Bu page hatanın sebebiyle başlar. Bkz.
+[Hatalar](/docs/errors#rendering).
 
 ### Ortam dosyaları
 
@@ -187,7 +214,10 @@ export COLLAGE_CSRF_KEY="0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b
   atlamak, yazdığınız bir ayarın programa hiç ulaşmaması demek olurdu.
 - **Shell'de zaten ayarlı olan bir değişken dosyadakine göre önceliklidir.** Bu
   yüzden `PORT=4000 collage dev` yine çalışır.
-- Dosyada ne yazarsa yazsın `COLLAGE_DEV=1` her zaman ayarlanır.
+- Dosyada ne yazarsa yazsın `COLLAGE_DEV=1` her zaman ayarlanır. Programın
+  dinleyeceği `HOST` ve `PORT` da her zaman ayarlanır. Dosyadaki `HOST` ve `PORT`,
+  `collage dev`'in kendisinin dinlediği yerdir ve `collage dev` başlarken bir kez
+  okunur.
 - Dosyanın olmaması hata değildir. Bir dosya okunduğunda adı stderr'e yazdırılır.
 - Dosya her yeniden başlatmada tekrar okunur. Dosya izlendiği için onu
   düzenlediğinizde program yeni değerlerle yeniden başlar.
@@ -289,6 +319,10 @@ go run . -collage-build -out <dir>          # plus -clean when you passed it
 Programın çıktısı, yani build raporu, yeniden biçimlendirilmeden olduğu gibi
 aktarılır. Positional argümanlar kullanım hatasıdır.
 
+Strateji tanımlamayan bir page, render ettiği hiçbir şeyin data handler'ı yoksa
+export edilir. Handler'ı olan bir page ise `Static()` ya da `Incremental(ttl)`
+belirtiyorsa export edilir. Path'inde `{param}` olan bir page, `WithStaticParams`'ın
+listelediği her değer için bir kez export edilir; `WithStaticParams` yoksa atlanır.
 Neyin export edildiği, neyin hangi nedenle atlandığı ve çıktı dizini için yapılan
 güvenlik kontrolleri [Static export](/docs/static-export) sayfasında anlatılır.
 Form'ları ya da her request'te üretilen page'leri olan bir site için ihtiyacınız
@@ -361,7 +395,7 @@ plugin'leriniz duyar:
 
 | Komut | Çalıştırdığı | `main.go`'nuzun yapması gereken |
 | --- | --- | --- |
-| `collage dev` | önce `go build`, sonra `COLLAGE_DEV=1` ile binary | `COLLAGE_DEV` `1` olduğunda development modunu açmak |
+| `collage dev` | önce `go build`, sonra binary; `COLLAGE_DEV=1` ve dinlenecek `HOST` ile `PORT` ayarlı olarak | `COLLAGE_DEV` `1` olduğunda development modunu açmak ve `HOST` ile `PORT` üzerinde dinlemek |
 | `collage export` | `go run . -collage-build -out <dir> [-clean]` | `-collage-build`, `-out` ve `-clean` flag'lerini parse etmek; `-collage-build` verildiğinde sunmak yerine `<dir>` dizinine render etmek |
 
 `collage build`'in `main.go`'dan hiçbir beklentisi yoktur. Derleme, `go build`'in

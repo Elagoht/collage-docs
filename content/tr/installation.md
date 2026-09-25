@@ -55,9 +55,10 @@ Next steps:
   collage dev
 ```
 
-`go mod tidy` framework'ü indirir. Scaffold edilen `go.mod` yalnızca modülün adını
-ve Go sürümünü içerir. Bu yüzden projenin hangi collage sürümüyle build edildiğini
-kaydeden şey ilk `tidy` çalıştırmasıdır.
+Minimal bir projede (aşağıda) `.env.example` yoktur, bu yüzden onun adımlarında `cp`
+satırı yer almaz. `go mod tidy` framework'ü indirir. Scaffold edilen `go.mod`
+yalnızca modülün adını ve Go sürümünü içerir. Bu yüzden projenin hangi collage
+sürümüyle build edildiğini kaydeden şey ilk `tidy` çalıştırmasıdır.
 
 Birkaç flag, projenin nereye ve nasıl yazılacağını değiştirir. Flag'leri tek ya da
 çift tireyle yazabilirsiniz. Proje adından önce de gelebilirler, sonra da:
@@ -121,15 +122,15 @@ birlikte `actions/`, `documents/`, `store/` ve `fragments/demo/` dizinleri.
 
 Bu dosyalardan birkaçını değiştirmeden önce bazı şeyleri bilmekte fayda var.
 
-**`main.go` CLI ile bir sözleşmeye uyar.** `collage dev` programı environment'ında
-`COLLAGE_DEV=1` ile çalıştırır. `collage export` ise programı
-`-collage-build -out <dir>` ile çalıştırır. Scaffold edilen `main.go` ikisini de
-okur. Değişken development mode'u açar. Flag ise siteyi serve etmek yerine
-dosyalara render eder. Flag'lerden sonra gelen bir kelime, yani
-`go run . <command>`, bir [plugin'in komutunu](/docs/plugins) çalıştırır.
-`main.go`'yu yeniden yazarsanız bunların hepsinin çalışmaya devam etmesini
-sağlayın. Aksi hâlde bu komutlar işe yarar hiçbir şey yapmaz. Ayrıntılar
-[CLI referansında](/docs/cli) yer alır.
+**`main.go` CLI ile bir sözleşmeye uyar.** `collage dev` programı, environment'ında
+`COLLAGE_DEV=1` ve dinleyeceği `HOST` ile `PORT` tanımlı olarak çalıştırır.
+`collage export` ise programı `-collage-build -out <dir>` ile çalıştırır. Scaffold
+edilen `main.go` bunların hepsine uyar. Değişken development mode'u açar, sunucu
+kendisine söylenen adreste dinler, flag ise siteyi serve etmek yerine dosyalara
+render eder. Flag'lerden sonra gelen bir kelime, yani `go run . <command>`, bir
+[plugin'in komutunu](/docs/plugins) çalıştırır. `main.go`'yu yeniden yazarsanız
+bunların hepsinin çalışmaya devam etmesini sağlayın. Aksi hâlde bu komutlar işe yarar
+hiçbir şey yapmaz. Ayrıntılar [CLI referansında](/docs/cli) yer alır.
 
 **`newApp`, `main`'den ayrıdır.** `newApp` bütün uygulamayı kurar: config'i,
 `routes.go`'daki route'ları ve `/static/` mount'unu. Sonra bir sunucu başlatmadan
@@ -177,6 +178,9 @@ okur, ikisini birden okumaz. Kurallar kısadır:
 - Shell'inizde zaten tanımlı bir değişken önceliklidir. Bu yüzden
   `PORT=4000 collage dev` beklendiği gibi çalışır. Dosyada ne yazarsa yazsın
   `COLLAGE_DEV=1` her zaman tanımlanır.
+- `HOST` ve `PORT`, `collage dev`'in kendisinin dinlediği adrestir ve başlarken bir
+  kez okunur. Programa ise loopback bir adreste kendine ait bir `HOST` ve `PORT`
+  verilir. Ayrıntılar için [aşağıya](#run-it) bakın.
 - Dosya `KEY=value` satırlarından, `#` ile başlayan yorumlardan ve boş satırlardan
   oluşur. Satır başında `export ` öneki ve değerin etrafında tırnak kullanabilirsiniz.
 - Hatalı bir satır atlanmaz, dosya adı ve satır numarasıyla birlikte raporlanır.
@@ -210,8 +214,11 @@ openssl rand -hex 32
 collage dev
 ```
 
-Site [http://localhost:3000](http://localhost:3000) adresinde açılır. Program
-çalışırken üç şey olur.
+Site [http://localhost:3000](http://localhost:3000) adresinde açılır. Bu adres
+`collage dev`'in kendisidir: `HOST` ve `PORT`'u programınızın okuyacağı şekilde
+okuyup orada dinler. Her request'i, loopback bir adreste çalıştırdığı programa
+iletir. Program başlarken gelen bir request, programı bekler. `collage dev`
+çalışırken dört şey olur.
 
 ### Go değişikliklerinde yeniden build alınır
 
@@ -228,7 +235,7 @@ Art arda yapılan kayıtlar tek bir rebuild tetikler. Gizli dizinler, `bin`, `di
 `node_modules`, `testdata` ve `vendor` hiçbir zaman izlenmez. Böylece çalışan
 programın yazdığı hiçbir dosya kendi rebuild'ini tetikleyemez. Kendiliğinden
 kapanan bir program da döngü halinde yeniden başlatılmaz. Başlangıçta oluşan bir
-panic ya da zaten kullanımda olan bir port buna örnektir. Program bir sonraki
+panic ya da template'i eksik olan bir page buna örnektir. Program bir sonraki
 değişikliğinizde yeniden başlar.
 
 ### Template'ler ve static dosyalar diskten okunur
@@ -255,10 +262,19 @@ gönderirdi.
 Development'ta hata veren bir fragment sessizce ortadan kaybolmaz. Page, üzerinde
 bir panel ile serve edilir. Bu panel fragment'in adını ve hatasını gösterir,
 template hatalarında dosya ve satırı da belirtir. Hatayı bir fallback kapatmış olsa
-bile panel yine görünür. Page'in tamamı hata verdiğinde, built-in error page hatanın
-başladığı fragment'i söyler ve bir panic'in stack'i dahil bütün error zincirini
-gösterir. Kendi yazdığınız bir error page'in üstünde de aynı panel çıkar ve hangi
-page'in yerine gösterildiğini belirtir.
+bile panel yine görünür. Page'in tamamı hata verdiğinde, built-in error page önce
+nedeni gösterir: başarısız olan çağrının template'ini, satırını, sütununu ve
+çağrının ne döndüğünü. Ardından hatanın başladığı fragment'i söyler ve bir
+panic'in stack'i dahil bütün error zincirini gösterir. Kendi yazdığınız bir error
+page'in üstünde de aynı panel çıkar ve hangi page'in yerine gösterildiğini
+belirtir.
+
+Cevap verecek bir program olmadığında (program başlarken kapandıysa ya da ilk
+build derlenmediyse) page, reddedilen bir bağlantı yerine programın ya da
+derleyicinin yazdırdıklarını gösteren bir 503 olur. Açık olan bir page yenilenerek
+bu page'e geçer ve bir değişiklik programı geri getirdiğinde yeniden yenilenir.
+Başladıktan 10 saniye sonra hâlâ kendisine verilen adreste dinlemeyen bir program
+da bu page'de, kendisine verilen adresle birlikte belirtilir.
 
 Bunların hiçbiri development dışında yoktur. Production'daki bir error page tek bir
 genel cümle gösterir. Çünkü hata mesajları hostname'ler, dosya yolları ve

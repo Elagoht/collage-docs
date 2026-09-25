@@ -1,6 +1,6 @@
 ---
 description: Every built-in template function — slot, hoist, asset, stylesheet, csrfToken, the URL functions and the string helpers — with its signature, an example and its edge cases.
-reference: TemplateConfig, DefaultContentSlot
+reference: TemplateConfig, DefaultContentSlot, ErrUnknownSlot, FragmentBuilder.WithTitle
 ---
 
 # Template functions
@@ -65,10 +65,14 @@ fragments can each have a slot called `"sidebar"` without meeting.
 </article>
 ```
 
-- A slot the fragment never declared with `WithSlot` is an error
-  (`ErrUnknownSlot`), naming the slots it does have. Rendering nothing would turn a
-  typo into a section that is silently missing.
-- A slot declared but empty renders nothing — unless it was declared required. A
+- Calling `slot` is what declares the slot: the fragment's Go code needs no
+  `WithSlot` for it, and one the template calls with nothing bound renders nothing.
+  The check faces the other way: a fragment bound into a slot this template never
+  calls fails registration with `ErrUnknownSlot`, naming the slot and the slots the
+  template does call. Otherwise a typo on either side of the binding would be a
+  section that is silently missing. A slot named by anything but a literal,
+  `{{slot .Which}}`, turns the check off for that fragment.
+- An empty slot renders nothing — unless `WithSlot` made it required. A
   required slot with nothing bound and no resolver is refused when the page is
   registered, with `ErrRequiredSlotUnfilled`, so it never reaches a render. A
   required slot filled by a resolver is checked at render time instead: a resolver
@@ -87,8 +91,8 @@ all start together, before the parent renders. See
 ```
 
 Marks where content hoisted to `area` lands. Fragments declare that content from
-anywhere in the tree — usually from a data handler — and `hoist` decides where it
-goes:
+anywhere in the tree — usually from a data handler, or with `WithTitle` for a
+title fixed when the program starts — and `hoist` decides where it goes:
 
 ```html
 <head>

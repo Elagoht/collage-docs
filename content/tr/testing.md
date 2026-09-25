@@ -297,9 +297,9 @@ func TestEveryDocRenders(t *testing.T) {
 }
 ```
 
-Page'leri bir CMS'ten gelen bir sitede aynı test,
-[path provider'ınızın](/docs/static-export#dynamic-paths-pathprovider) döndürdüğü
-listeyi dolaşabilir.
+Page'leri bir CMS'ten gelen bir sitede aynı test, page'lerinizin
+[`WithStaticParams`](/docs/static-export#dynamic-paths-withstaticparams)'ının
+listelediği değerleri dolaşabilir.
 
 ## Export'u test etmek
 
@@ -333,9 +333,9 @@ func TestExport(t *testing.T) {
 ```
 
 Bu test, `collage export`'un çalıştırdığı `staticBuild` fonksiyonunun aynısını
-çağırır. Böylece test page'lerin yanında path provider'ı ve builder seçeneklerini de
-kapsar. `staticBuild` build'in hatasını döner. Degraded bir page, boş bir render ya
-da bir panic bu hata yüzünden testi başarısız kılar.
+çağırır. Böylece test page'lerin yanında `WithStaticParams`'ı ve builder
+seçeneklerini de kapsar. `staticBuild` build'in hatasını döner. Degraded bir page,
+boş bir render ya da bir panic bu hata yüzünden testi başarısız kılar.
 
 Atlanan page'leri ve uyarıları da kontrol etmek için builder'ı doğrudan çağırın ve raporu
 okuyun:
@@ -354,7 +354,7 @@ for _, skip := range report.Skipped {
 		t.Errorf("home was skipped: %s", skip.Reason)
 	}
 	if errors.Is(skip.Err, collage.ErrDynamicPathUnresolved) {
-		t.Errorf("%s has a {param} the path provider does not cover", skip.Page)
+		t.Errorf("%s has a {param} and no WithStaticParams", skip.Page)
 	}
 }
 if len(report.Warnings) > 0 {

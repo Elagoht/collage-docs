@@ -234,8 +234,11 @@ artırın.
 `collage new` ile scaffold edilen proje, `/healthz` isteğine `status` alanı `ok` olan
 küçük bir JSON body ile cevap verir. Bu bir page değil, bir
 [document](/docs/documents)'tır. Bu yüzden hiçbir template kullanmaz ve bir template
-bozuldu diye başarısız olmaya başlamaz. `Dynamic()` olduğu için her check gerçekten
-process'e ulaşır.
+bozuldu diye başarısız olmaya başlamaz. Dynamic'tir, bu yüzden her check gerçekten
+process'e ulaşır. Handler'ın ürettiği bir document aksini söylemedikçe zaten
+dynamic'tir, scaffold ise bunu `Dynamic()` ile ayrıca açıkça belirtir. Cache'ten
+sunulan bir health check, `ok` artık doğru olmaktan çıktıktan çok sonra da `ok`
+cevabını verirdi.
 
 Platformunuzun liveness check'ini bu adrese yönlendirin. Bu check size process'in
 ayakta olduğunu ve request'lere cevap verdiğini söyler. Veritabanınıza
@@ -257,7 +260,10 @@ Cache: collage.CacheConfig{
 },
 ```
 
-Render edilmiş page'ler restart'tan sağ çıkar. Böylece aynı build'i yeniden deploy
+Bu cache her static ve incremental page'i tutar. Strateji tanımlamayan bir page
+de, render ettiği hiçbir şeyin data handler'ı yoksa static'tir; bkz.
+[Caching](/docs/caching#a-page-that-declares-none). Render edilmiş page'ler
+restart'tan sağ çıkar. Böylece aynı build'i yeniden deploy
 ettiğinizde site boş bir cache'e baştan render edilmez. Yeni bir build'in ne
 bulacağı, neyin değiştiğine bağlıdır:
 

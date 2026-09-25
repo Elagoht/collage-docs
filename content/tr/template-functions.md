@@ -1,6 +1,6 @@
 ---
 description: Built-in template fonksiyonlarının tamamını imzaları, örnekleri ve sınır durumlarıyla anlatır. Bunlar slot, hoist, asset, stylesheet, csrfToken, URL fonksiyonları ve string yardımcılarıdır.
-reference: TemplateConfig, DefaultContentSlot
+reference: TemplateConfig, DefaultContentSlot, ErrUnknownSlot, FragmentBuilder.WithTitle
 ---
 
 # Template fonksiyonları
@@ -70,11 +70,16 @@ bir slot'a sahip olabilir ve bu slot'lar birbirine karışmaz.
 </article>
 ```
 
-- Fragment'in `WithSlot` ile hiç tanımlamadığı bir slot hatadır
-  (`ErrUnknownSlot`). Hata, fragment'in sahip olduğu slot'ları da listeler. Hiçbir
-  şey render etmek, bir yazım hatasını sessizce eksik kalan bir bölüme çevirirdi.
-- Tanımlanmış ama boş olan bir slot hiçbir şey render etmez. Slot required olarak
-  tanımlandıysa durum farklıdır. Hiçbir şey bağlanmamış ve resolver'ı olmayan
+- Slot'u tanımlayan, `slot`'un çağrılmasıdır. Fragment'in Go kodunda bunun için
+  `WithSlot` gerekmez. Template'in çağırdığı ama hiçbir şey bağlanmamış bir slot
+  hiçbir şey render etmez. Kontrol ters yöndedir: bu template'in hiç çağırmadığı
+  bir slot'a bağlanmış bir fragment, register sırasında `ErrUnknownSlot` ile
+  başarısız olur. Hata, slot'u ve template'in gerçekten çağırdığı slot'ları söyler.
+  Aksi hâlde bağlamanın iki tarafından birindeki bir yazım hatası, sessizce eksik
+  kalan bir bölüm olurdu. Literal dışında bir şeyle adlandırılan bir slot
+  (`{{slot .Which}}`), o fragment için kontrolü kapatır.
+- Boş bir slot hiçbir şey render etmez. `WithSlot` onu required yaptıysa durum
+  farklıdır. Hiçbir şey bağlanmamış ve resolver'ı olmayan
   required bir slot, page register edilirken `ErrRequiredSlotUnfilled` ile reddedilir.
   Böylece hiçbir zaman bir render'a ulaşmaz. Resolver'ın doldurduğu required bir slot
   ise render sırasında kontrol edilir: hiç fragment dönmeyen bir resolver render'ı
@@ -93,7 +98,8 @@ parent render edilmeden önce aynı anda başlar. Ayrıntılar için
 ```
 
 `area`'ya hoist edilen içeriğin nereye yerleşeceğini işaretler. Fragment'ler bu
-içeriği ağacın herhangi bir yerinden, genellikle bir data handler'dan tanımlar.
+içeriği ağacın herhangi bir yerinden tanımlar: genellikle bir data handler'dan,
+program başlarken belli olan bir title için ise `WithTitle` ile.
 İçeriğin nereye gideceğine ise `hoist` karar verir:
 
 ```html

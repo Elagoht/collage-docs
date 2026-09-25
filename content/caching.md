@@ -1,6 +1,6 @@
 ---
 description: How collage caches rendered pages and the data they are made from, and how it knows what to throw away.
-reference: CacheConfig, Cached, Once, TaggedCache, SkipCache, Vary, PageBuilder.Static, PageBuilder.Incremental, PageBuilder.Dynamic
+reference: CacheConfig, Cached, Once, TaggedCache, SkipCache, Vary, PageBuilder.Static, PageBuilder.Incremental, PageBuilder.Dynamic, StrategyAuto
 ---
 
 # Caching
@@ -36,7 +36,7 @@ Each page says how its output may be reused, with one call on its builder:
 
 | Builder call | What happens | `Cache-Control` sent |
 | --- | --- | --- |
-| `Dynamic()` (the default) | Rendered on every request, never stored | `no-store` |
+| `Dynamic()` | Rendered on every request, never stored | `no-store` |
 | `Static()` | Rendered once, served until something invalidates it | `public, max-age=0, must-revalidate` |
 | `Incremental(ttl)` | Served from the cache until `ttl` has passed since the render | `public, max-age=<ttl in seconds>` |
 
@@ -55,9 +55,6 @@ page := collage.NewPage("blog-post").
 	Build()
 ```
 
-`Dynamic()` is the default because it is the one that can never be wrong: a page
-you forgot to think about is slow, not stale.
-
 `Static()` has no practical expiry, and `DefaultTTL` does not apply to it. It
 renders again only when one of its tags is invalidated, or when the cache evicts
 it to make room. That is the right strategy for content that changes when someone
@@ -73,11 +70,40 @@ error (`collage.ErrMissingTTL`), and a negative one is too
 the same three calls and are stored, keyed, invalidated and — since v0.12.0 —
 [coalesced](#concurrent-misses-render-once) the same way.
 
+### A page that declares none
+
+A page that calls none of the three is resolved when it is registered. Before
+that its strategy is `collage.StrategyAuto`; after, it is one of the other three.
+
+- **Dynamic** if anything it renders fetches per render: a data handler
+  (`WithDataHandler`, including `collage.Load` and `collage.Effect`) or a slot
+  resolver, in its layout, its content, anything bound into their slots, their
+  fallbacks, or a fragment opened with `WithFragmentPath`.
+- **Static** otherwise. A page rendering templates and fixed values —
+  `WithData(v)`, `WithTitle(s)` — renders the same for every reader, so a site of
+  such pages is cached and [exported](/docs/static-export) without a `Static()` on
+  each one.
+
+A handler means dynamic because it may read the request, a cookie, the clock, and
+nothing outside the function can tell whether it does. When the guess is wrong
+it costs a render, never a reader served somebody else's page: a page you forgot
+to think about is slow, not stale. When a handler's output is the same for
+everyone — a post read from a file — its page says `Static()` or
+`Incremental(ttl)` itself.
+
+A declared strategy is never second-guessed, in either direction. Until v0.16.0 a
+page that declared nothing was dynamic; one that relied on that, with no handler to
+make it so, now says `Dynamic()`.
+
+A [document](/docs/documents#a-fixed-body) resolves the same way: dynamic with a
+handler, static with a fixed body.
+
 ## What is cached, and when
 
 A response enters the page cache only when all of these are true:
 
-- the cache is enabled and the page is `Static()` or `Incremental(ttl)`;
+- the cache is enabled and the page is static or incremental, declared or
+  resolved;
 - the request is a `GET`. A `HEAD` can be *served* from the cache, but it never
   fills it — it produced no body to store;
 - every fragment rendered successfully.
@@ -311,7 +337,7 @@ collage does not let that happen. The first request for a key renders, and the
 others that arrive meanwhile wait for it and are served the same bytes. There is
 nothing to configure.
 
-- **Only cached routes coalesce.** A `Dynamic()` page has no cache key, so two
+- **Only cached routes coalesce.** A dynamic page has no cache key, so two
   requests are two renders, as the page asked. A cached [document](/docs/documents)
   coalesces like a page since v0.12.0: an expiring feed that many clients poll runs
   its handler once.
@@ -347,7 +373,7 @@ the author thirty times.
 `collage.Cached` stores the author:
 
 ```go
-func authorCard(ctx context.Context, rc *collage.RenderContext) (Author, []string, error) {
+func authorCard(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
 	id := rc.Param("author")
 	author, err := collage.Cached(rc, "author:"+id, time.Hour, []string{"author:" + id},
 		func(ctx context.Context) (Author, error) {

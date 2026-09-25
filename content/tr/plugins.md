@@ -225,21 +225,17 @@ page'in ne hakkında olduğunu bilemez. Bunu page'in kendisi, makaleyi çeken da
 handler'dan bildirir:
 
 ```go
-type articleView struct {
-	Article Article
-}
-
-func loadArticle(ctx context.Context, rc *collage.RenderContext) (articleView, []string, error) {
+func loadArticle(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
 	article, err := client.Article(ctx, rc.Param("slug"))
 	if err != nil {
-		return articleView{}, nil, err
+		return nil, nil, err
 	}
 	jsonld.Emit(rc, jsonld.Article{
 		Headline:      article.Title,
 		DatePublished: article.PublishedAt,
 		AuthorName:    article.Author,
 	})
-	return articleView{Article: article}, []string{"article:" + article.Slug}, nil
+	return article, []string{"article:" + article.Slug}, nil
 }
 ```
 

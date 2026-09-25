@@ -1,6 +1,6 @@
 ---
 description: Where templates live, how they are loaded and embedded, how they reload in development, slots, built-in and custom functions, and escaping.
-reference: TemplateConfig, Config
+reference: TemplateConfig, Config, ErrUnknownSlot
 ---
 
 # Templates
@@ -64,6 +64,8 @@ Each kind of mistake is caught at the earliest point it can be:
   fails `New` with the file named.
 - **A fragment naming a template that was not loaded** fails `RegisterPage` with
   `ErrTemplateNotFound`, naming the page, the fragment and the path.
+- **A fragment bound into a slot its template never calls** fails `RegisterPage`
+  with `ErrUnknownSlot` — see [Slots](#slots) below.
 - **A template that fails while executing** — a field the data does not have, a
   function returning an error — fails its fragment, and the fragment's
   [failure policy](/docs/fragments-and-slots#when-a-fragment-fails) applies.
@@ -135,13 +137,15 @@ Two other things make an edit show up at once:
 
 Since the whole set is reparsed, a syntax error in any one template fails every
 render until it is fixed — in development, where you will see it straight away,
-with the file and line in the error.
+with the file and line in the error. The checks registration makes are not made
+again for a template edited after startup: its failure shows on the development
+error page instead, template, line and cause first.
 
 ## What a template receives
 
-`.` is exactly what the fragment's data handler returned — with
-`collage.DataHandler`, `collage.Load` or `collage.Data`, a value of your own type. A fragment without a data handler,
-or one adapted with `collage.Effect`, renders with no data.
+`.` is exactly what the fragment's data handler returned, or the value its
+`WithData` gave it. A fragment with neither, or whose handler is adapted with
+`collage.Effect`, renders with no data. See [Data handlers](/docs/data-handlers).
 
 ```go
 type postView struct {
@@ -159,7 +163,7 @@ type postView struct {
 
 A template sees its own fragment's data only. A parent's data is not in scope in a
 child, and there is no global site object: something every template needs, like
-the site's name, is data a handler returns or a function you register.
+the site's name, is data its fragment is given or a function you register.
 
 ## Slots
 
@@ -172,9 +176,16 @@ child escaped its own values when it rendered.
 <aside>{{slot "sidebar"}}</aside>
 ```
 
-- A slot that holds nothing renders nothing.
-- A name the fragment never declared with `WithSlot` is an error that fails the
-  fragment — a typo would otherwise be a section silently missing from the page.
+- Calling a slot is what declares it; the fragment's Go code needs no `WithSlot`
+  for it. `WithSlot` only makes a slot required, or limits it to one fragment.
+- A slot that holds nothing renders nothing, whether or not anything was ever
+  bound to it.
+- A fragment bound into a slot its template never calls fails registration with
+  `ErrUnknownSlot`, naming the slot and the slots the template does call: a typo on
+  either side of the binding would otherwise be a section silently missing from
+  the page. Calls in a template it includes or a block it defines count. A
+  template that names a slot by anything but a literal, `{{slot .Which}}`, may
+  call any of them, so its fragment is not checked.
 - A slot inside `{{if}}` that the template skips is not rendered, though its
   fragments' data handlers were already started; see
   [Fragments and slots](/docs/fragments-and-slots#a-slot-the-template-skips).

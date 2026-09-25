@@ -1,6 +1,6 @@
 ---
-description: How a fragment fetches its data — the typed handler contract, dependency tags, 404s, concurrency, the render context, sharing data, and timeouts.
-reference: DataHandler, Data, Load, RenderContext, Get, Once, Effect, ErrNotFound, PanicError
+description: How a fragment fetches its data — the handler contract, fixed data, typed loaders, dependency tags, 404s, concurrency, the render context, sharing data, and timeouts.
+reference: DataHandlerFunc, FragmentBuilder.WithData, FragmentBuilder.WithTitle, DataHandler, Load, RenderContext, Get, Once, Effect, ErrNotFound, ErrConflictingData, PanicError
 ---
 
 # Data handlers
@@ -12,39 +12,49 @@ that talks to the outside world — a database, a CMS, an API — happens in dat
 handlers, and nowhere else.
 
 ```go
-func loadPost(ctx context.Context, rc *collage.RenderContext) (Post, []string, error) {
-	post, err := store.Post(ctx, rc.Param("slug"))
-	if err != nil {
-		return Post{}, nil, err
-	}
-	return post, []string{"post:" + post.Slug}, nil
-}
-
 content := collage.NewFragment("post", "pages/post.html").
-	WithDataHandler(collage.DataHandler(loadPost)).
+	WithDataHandler(func(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
+		post, err := store.Post(ctx, rc.Param("slug"))
+		if err != nil {
+			return nil, nil, err
+		}
+		return post, []string{"post:" + post.Slug}, nil
+	}).
 	Required().
 	Build()
 ```
 
 ## The contract
 
-Write a handler against your own type, and adapt it with `collage.DataHandler`:
+A handler is a function of `WithDataHandler`'s own shape, `collage.DataHandlerFunc`:
 
 ```go
-func(ctx context.Context, rc *collage.RenderContext) (T, []string, error)
+func(ctx context.Context, rc *collage.RenderContext) (any, []string, error)
 ```
 
-`collage.DataHandler` is generic over `T`, so one adapter serves every view type
-and the value your handler returns is exactly what the template receives as `.`.
-Nothing in your code needs an untyped value or a type assertion. (It is a function
-rather than a method on the builder because Go methods cannot take type
-parameters.)
+Write it inline, as above, or name it and hand it over:
+
+```go
+func loadPost(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
+	// ...
+}
+
+content := collage.NewFragment("post", "pages/post.html").
+	WithDataHandler(loadPost).
+	Build()
+```
+
+The data is `any` because its one reader, the template, is untyped anyway. A
+`{{.Titel}}` fails when the page renders whatever the handler's return type says,
+so a concrete type would check nothing the template does not. Where a concrete type
+does pay — a loader that is also called from a test or another handler — see
+[below](#loaders-with-a-type-of-their-own).
 
 The three results each have a job.
 
-- **The data** — whatever the template renders. A struct written for the template,
-  a "view", is usually clearer than handing a template a database row. Each
-  fragment gets its own; a child does not see its parent's.
+- **The data** — whatever the template renders, as `.`. A struct written for the
+  template, a "view", is usually clearer than handing a template a database row.
+  Each fragment gets its own; a child does not see its parent's.
 - **The tags** — the pieces of content this data was built from, such as
   `"post:hello-world"` or `"author:ada"`. They are collected from every fragment on
   the page, together with the page's own `WithDependency` tags, and stored with the
@@ -57,17 +67,18 @@ The three results each have a job.
 Tags are kept even when the handler returns an error. A handler that worked out
 what it depends on and then failed has still said what would invalidate the page.
 
-On an error, `collage.DataHandler` drops the data rather than passing it on. That
-matters for pointer types: a nil `*Post` returned alongside an error would
-otherwise reach the template as a non-nil value holding a nil pointer.
+A handler also decides how a page that declares no strategy is served. Such a page
+is dynamic when anything it renders has a data handler, and static otherwise: a
+handler may read the request, a cookie, the clock, and nothing outside the function
+can tell whether it does. A handler whose output is the same for every reader — a
+post read from a file — belongs on a page that says `Static()` or
+`Incremental(ttl)` itself. See
+[Caching](/docs/caching#a-page-that-declares-none).
 
-### Shorter adapters: Data and Load
+### Fixed data: WithData
 
-Not every fragment needs all three results. Two adapters cover the ones that
-report no tags.
-
-`collage.Data` takes the value itself, for data that is fixed when the program
-starts — a list of links, a heading, a site name. There is no function to write:
+Data that is fixed when the program starts — a list of links, a heading, a site
+name — needs no handler. `WithData(v)` hands the template `v` on every render:
 
 ```go
 type homeView struct {
@@ -75,12 +86,41 @@ type homeView struct {
 }
 
 content := collage.NewFragment("home-content", "pages/home.html").
-	WithDataHandler(collage.Data(homeView{Links: links})).
+	WithData(homeView{Links: links}).
 	Build()
 ```
 
-`collage.Load` takes a handler that returns the data and an error, without the
-tags:
+Nothing in it fetches per render, so unlike a handler it leaves a page that
+declares no strategy static. A fragment with both `WithData` and `WithDataHandler`
+is refused at registration with `collage.ErrConflictingData`.
+
+### Loaders with a type of their own
+
+A loader that is also called where its concrete type matters — a test that checks
+the post it returns, a sitemap's handler that lists every post — is easier to use
+returning a `Post` than an `any` to assert. Write that one against its own type and
+adapt it with `collage.DataHandler`, which is generic over the return type:
+
+```go
+func loadPost(ctx context.Context, rc *collage.RenderContext) (Post, []string, error) {
+	post, err := store.Post(ctx, rc.Param("slug"))
+	if err != nil {
+		return Post{}, nil, err
+	}
+	return post, []string{"post:" + post.Slug}, nil
+}
+
+content := collage.NewFragment("post", "pages/post.html").
+	WithDataHandler(collage.DataHandler(loadPost)).
+	Build()
+```
+
+The value it returns is still exactly what the template receives as `.`. It is a
+function rather than a form of `WithDataHandler` because Go methods cannot take
+type parameters.
+
+`collage.Load` is the same for a loader that reports no tags, one that returns the
+data and an error:
 
 ```go
 func loadClock(_ context.Context, rc *collage.RenderContext) (clockView, error) {
@@ -92,19 +132,19 @@ content := collage.NewFragment("clock", "fragments/clock.html").
 	Build()
 ```
 
-Both are generic like `collage.DataHandler`, so the template still receives your
-own type, and `collage.Load` drops the data on an error the same way. Which one to
-reach for:
+Both drop the data when the loader returns an error. Which form to reach for:
 
-| The data | Adapter |
+| The data | Write |
 | --- | --- |
-| Is the same on every render | `collage.Data(v)` |
-| Is fetched, and the page is not cached or the data never changes | `collage.Load(fn)` |
-| Is fetched, and a cached page must be dropped when it changes | `collage.DataHandler(fn)` |
+| Is the same on every render | `WithData(v)` |
+| Is fetched | A handler, `func(ctx, rc) (any, []string, error)` |
+| Is fetched by a loader called elsewhere too | `collage.DataHandler(fn)` |
+| Is fetched by such a loader, with no tags to report | `collage.Load(fn)` |
 
-Moving from one to the next is a change of signature, not a rewrite: when a page
-starts being cached, a `Load` handler gains its tags and becomes a `DataHandler`
-one.
+Leave out the tags only where the page is not cached or the data never changes: a
+cached page whose data changes wants its tags, so that they invalidate it. And
+moving from `WithData` to a handler changes more than the fragment — a page that
+declares no strategy goes from static to dynamic with it.
 
 ### Not found is not an error
 
@@ -113,14 +153,14 @@ get a different answer for each: a 404 for the first, a 500 for the second. Say
 which by wrapping `collage.ErrNotFound`:
 
 ```go
-func loadPost(ctx context.Context, rc *collage.RenderContext) (Post, []string, error) {
+func loadPost(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
 	slug := rc.Param("slug")
 	post, err := store.Post(ctx, slug)
 	if errors.Is(err, sql.ErrNoRows) {
-		return Post{}, nil, fmt.Errorf("blog: no post %q: %w", slug, collage.ErrNotFound)
+		return nil, nil, fmt.Errorf("blog: no post %q: %w", slug, collage.ErrNotFound)
 	}
 	if err != nil {
-		return Post{}, nil, fmt.Errorf("blog: load post %q: %w", slug, err)
+		return nil, nil, fmt.Errorf("blog: load post %q: %w", slug, err)
 	}
 	return post, []string{"post:" + slug}, nil
 }
@@ -215,7 +255,7 @@ rc.Set("post", post)
 // in a child's handler, which starts after the parent's has returned
 post, ok := collage.Get[Post](rc, "post")
 if !ok {
-	return moreView{}, nil, errors.New("more-by-author: no post in shared data")
+	return nil, nil, errors.New("more-by-author: no post in shared data")
 }
 ```
 
@@ -237,13 +277,13 @@ For siblings — or any fragments that might each need the same fetch — use
 result to every fragment that asks:
 
 ```go
-func loadAuthorCard(ctx context.Context, rc *collage.RenderContext) (Author, []string, error) {
+func loadAuthorCard(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
 	slug := rc.Param("slug")
 	post, err := collage.Once(rc, "post:"+slug, func(ctx context.Context) (Post, error) {
 		return store.Post(ctx, slug)
 	})
 	if err != nil {
-		return Author{}, nil, err
+		return nil, nil, err
 	}
 	return post.Author, []string{"post:" + slug, "author:" + post.Author.ID}, nil
 }
@@ -299,8 +339,12 @@ seo := collage.NewFragment("post-seo", "fragments/empty.html").
 
 The fragment's template receives no data, and the handler reports no tags. When
 what it declares comes from content that changes and the page is cached, that
-content's tags still have to reach the page: return them from a
-`collage.DataHandler` instead, or add them with `WithDependency` on the page.
+content's tags still have to reach the page: return them from an ordinary handler
+instead, or add them with `WithDependency` on the page.
+
+A title known when the program starts — the site's name, on its layout — needs no
+handler at all. `WithTitle(s)` on the fragment declares it, and leaves a page that
+declares no strategy static; see [Head and SEO](/docs/head-and-seo).
 
 ## Timeouts and the context
 
@@ -318,20 +362,20 @@ page waits for it.
 Honouring it is one habit: pass `ctx` to everything that can wait.
 
 ```go
-func loadWeather(ctx context.Context, rc *collage.RenderContext) (Weather, []string, error) {
+func loadWeather(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, weatherURL(rc.Locale), nil)
 	if err != nil {
-		return Weather{}, nil, err
+		return nil, nil, err
 	}
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return Weather{}, nil, err // context.DeadlineExceeded when the timeout passed
+		return nil, nil, err // context.DeadlineExceeded when the timeout passed
 	}
 	defer res.Body.Close()
 
 	var weather Weather
 	if err := json.NewDecoder(res.Body).Decode(&weather); err != nil {
-		return Weather{}, nil, err
+		return nil, nil, err
 	}
 	return weather, nil, nil
 }

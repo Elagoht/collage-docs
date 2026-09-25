@@ -1,6 +1,6 @@
 ---
 description: collage'ın export ettiği bütün error değerleri, nereden geldiklerine göre gruplanmış hâlde; her birinin ne anlama geldiği ve ne yapmanız gerektiğiyle birlikte.
-reference: PanicError
+reference: PanicError, ErrUnknownSlot, ErrConflictingData, ErrNoDocumentHandler, ErrRouteParams
 ---
 
 # Hatalar
@@ -19,7 +19,9 @@ Bunların çoğu **uygulama açılırken** bildirilir. `New` config'i doğrular 
 template'leri parse eder. Register işlemi her page'i doğrular. Uygulama başlarken de
 ancak kümenin tamamına bakınca görülebilecek sorunlar kontrol edilir. Böylece sitenin
 bir araya getirilişindeki bir hata, onu ilk bulan okuyucuda patlayan bir page olarak
-değil, hiç başlamayan bir program olarak ortaya çıkar.
+değil, hiç başlamayan bir program olarak ortaya çıkar. `collage dev` altında bu ret,
+programın yazdıklarını gösteren bir 503 page'i olarak tarayıcıda görünür. Bkz.
+[CLI](/docs/cli#collage-dev).
 
 Aşağıdaki tablolar her hatanın nereden geldiğine göre gruplanmıştır. Mesaj,
 sentinel'in wrap işlemi ayrıntı eklemeden önce taşıdığı metindir.
@@ -69,8 +71,8 @@ Bkz. [Plugin yazmak](/docs/writing-plugins).
 ## Fragment'ler ve page'ler
 
 Bu hataları iki yer bildirir. Birkaçını builder'lar zincir çalışırken kaydeder:
-`WithSlot`, `WithSlotResolver` ve `WithSlotFragment` `ErrDuplicateSlot`,
-`ErrUnknownSlot` ve `ErrSlotResolved`'u kaydeder (`WithSlotFragment` ayrıca `Bind`'ın
+`WithSlot`, `WithSlotResolver` ve `WithSlotFragment` `ErrDuplicateSlot` ve
+`ErrSlotResolved`'u kaydeder (`WithSlotFragment` ayrıca `Bind`'ın
 `ErrNilFragment` ve `ErrSlotOccupied` hatalarını da kaydeder). `WithTimeout`
 `ErrInvalidTimeout`'u, bir page'in `Build`'i `ErrMissingContent`'i, bir document'ın
 `Build`'i de `ErrNoDocumentHandler`'ı kaydeder. Bunları `BuildErr()` ile
@@ -82,7 +84,8 @@ page'in kendisine ya da ağacındaki herhangi bir fragment'e ait olabilir. Red,
 ya da olmasın geçerlidir.
 
 Geri kalanları, page register edilirken validation bulur. `RegisterPage` ağaçtaki
-her fragment'i kontrol eder: isimlerini, template'lerini, slot'larını, timeout'larını,
+her fragment'i kontrol eder: isimlerini, template'lerini, slot'larını (her bağlamayı
+template'in çağırdığı slot'larla karşılaştırarak), verilerini, timeout'larını,
 TTL'lerini, path'lerini ve error page'lerini. İlk hatayı döner. `WithFragmentPath`
 ile açılan bir fragment de bu açıdan page'in bir parçası sayılır (v0.11.0'dan beri).
 Onun template'i, builder hataları ve validation'ı da diğerleri gibi register sırasında
@@ -95,13 +98,14 @@ reddedilir.
 | `ErrEmptyTemplatePath` | `collage: empty template path` | Bir fragment hiçbir template belirtmez. |
 | `ErrNilFragment` | `collage: nil fragment` | Fragment gereken bir yerde `nil` bir fragment kullanılmıştır. Bu bir slot'a bağlanmış ya da bir slot resolver tarafından döndürülmüş olabilir. |
 | `ErrDuplicateSlot` | `collage: slot already declared` | `WithSlot` aynı isimle iki kez çağrılmıştır. |
-| `ErrUnknownSlot` | `collage: unknown slot` | Bir fragment, fragment'in hiç tanımlamadığı bir slot'a bağlanmıştır ya da bir template böyle bir slot için `{{slot}}` çağırmıştır. |
+| `ErrUnknownSlot` | `collage: unknown slot` | Bir fragment, template'inin hiç çağırmadığı bir slot'a bağlanmıştır; bağlamanın iki tarafından birinde yazım hatası vardır. Mesaj, slot'u ve template'in gerçekten çağırdığı slot'ları adlarıyla belirtir. Template'in çağırdığı ama hiçbir şeyin doldurmadığı bir slot hata değildir: boş render edilir. |
 | `ErrInvalidSlotDefinition` | `collage: invalid slot definition` | Bir slot'un ismi boştur ya da map key'i slot'un kendi ismiyle eşleşmez. |
 | `ErrSlotOccupied` | `collage: slot already occupied` | Zaten bir fragment taşıyan bir slot'a ikinci bir fragment bağlanmıştır. Ya da bir resolver o slot için birden fazla fragment dönmüştür. |
 | `ErrSlotResolved` | `collage: slot is filled by a resolver` | Aynı slot'a hem bir resolver hem de bağlanmış fragment'ler verilmiştir. |
 | `ErrRequiredSlotUnfilled` | `collage: required slot has no fill` | Required olarak tanımlanmış bir slot'a hiçbir şey bağlanmamıştır. |
 | `ErrFragmentCycle` | `collage: fragment cycle detected` | Bir fragment'e kendisinden ulaşılabilir. |
 | `ErrMissingContent` | `collage: missing content` | Bir page'in content fragment'i yoktur. |
+| `ErrConflictingData` | `collage: fixed data and a handler are both set` | Bir fragment hem `WithData` hem `WithDataHandler` ayarlamıştır. |
 | `ErrInvalidTimeout` | `collage: invalid timeout` | Bir fragment'in timeout'u negatiftir. |
 | `ErrMissingTTL` | `collage: missing cache ttl for incremental strategy` | `Incremental`'a sıfır bir TTL verilmiştir. |
 | `ErrInvalidTTL` | `collage: invalid cache ttl` | Bir page'in TTL'i negatiftir. |
@@ -136,7 +140,8 @@ Bu hataları `RegisterPage`, `RegisterNotFoundPage`, `RegisterErrorPage` ve
 | --- | --- | --- |
 | `ErrNilDocument` | `collage: nil document` | `nil` bir document register edilmiştir. |
 | `ErrEmptyContentType` | `collage: empty content type` | Bir document hiçbir content type tanımlamaz. Content type zorunludur ve asla tahmin edilmez. |
-| `ErrNoDocumentHandler` | `collage: document has no handler` | Bir document'ın handler'ı yoktur. Page'in aksine, geri düşebileceği bir template'i yoktur. |
+| `ErrNoDocumentHandler` | `collage: document has no handler or body` | Bir document'ın ne handler'ı ne de sabit bir body'si (`WithBody`) vardır. Page'in aksine, geri düşebileceği bir template'i yoktur. |
+| `ErrConflictingData` | bkz. [Fragment'ler ve page'ler](#fragments-and-pages) | Bir document'ta hem `WithHandler` hem `WithBody` vardır. |
 | `ErrDuplicateDocument` | `collage: duplicate document name` | İki document aynı ismi taşır. |
 | `ErrDocumentNotFound` | `collage: no document at path` | `RenderDocumentPath` path'te hiçbir document bulamamıştır. O path'te bir page ya da redirect olması da buna dahildir. |
 | `ErrEmptyDocumentBody` | `collage: document handler produced an empty body` | Bir handler başarılı olmuş ama boş bir body dönmüştür. Serve edilirken bu bir 500'dür ve build bu document'ı yazmaz. Gerçekten "boş" demek isteyen bir handler tek bir newline dönebilir. |
@@ -188,6 +193,11 @@ if errors.As(err, &panicked) {
 
 Bir hatanın nasıl 404'e, 500'e, fallback'e ya da hiçbir şeye dönüştüğünü görmek için
 [Data handler'lar](/docs/data-handlers) sayfasına bakın.
+
+Development'ta built-in 500 page'i hatanın sebebiyle başlar. Template kaynaklı bir
+hatada, başarısız olan çağrının template'ini, satırını, sütununu ve ne döndüğünü
+gösterir. Hatanın yukarı çıkarken geçtiği template zinciri bunun altında
+yer alır. Production page'i değişmemiştir ve sebep hakkında hiçbir şey söylemez.
 
 ## Link'ler ve URL'ler
 
@@ -286,15 +296,16 @@ kaydedilirler. Bkz. [Static export](/docs/static-export).
 | `ErrNilRenderer` | `collage: nil renderer` | `NewBuilder` | App `nil`'dir. |
 | `ErrInvalidOutDir` | `collage: invalid output directory` | `NewBuilder` | `BuildOptions.OutDir` boştur. |
 | `ErrDangerousOutDir` | `collage: refusing to use a dangerous output directory` | `Build` | `OutDir` bir filesystem root'una çözülür. `Clean` açıksa bir repository root'una çözülmesi de bu hatayı verir. |
-| `ErrOutputPathCollision` | `collage: two builds target one output path` | `Build` | İki page aynı dosyaya yazılacaktır. Sebep yalnızca sondaki slash'le ayrılan pattern'ler ya da bir path'i iki kez dönen bir path provider olabilir. Hiçbir page render edilmeden önce bildirilir ve ardından hiçbir page render edilmez. Document'lar, `404.html` ve asset'ler yine de yazılır. |
+| `ErrOutputPathCollision` | `collage: two builds target one output path` | `Build` | İki page aynı dosyaya yazılacaktır. Sebep yalnızca sondaki slash'le ayrılan pattern'ler ya da aynı değerleri iki kez listeleyen bir `WithStaticParams` olabilir. Hiçbir page render edilmeden önce bildirilir ve ardından hiçbir page render edilmez. Document'lar, `404.html` ve asset'ler yine de yazılır. |
 | `ErrPathEscapesOutDir` | `collage: resolved path escapes the output directory` | report error | Bir output path'i ya da ona giden yoldaki bir symlink `OutDir`'in dışına çıkar. Bu, o dosya yazılmadan önce kontrol edilir; yalnızca o path başarısız olur. |
-| `ErrDynamicPathUnresolved` | `collage: dynamic path pattern requires a path provider` | skip | Bir page'in ya da document'ın path'inde bir `{param}` vardır ve path provider yoktur. |
-| `ErrNotStatic` | `collage: a Dynamic() route cannot be built statically` | skip | Bir page ya da document `Dynamic()`'tir, dolayısıyla export edilecek bir şey yoktur. |
-| `ErrDuplicateOutputPath` | `collage: two build tasks write the same output path` | skip | İki document görevi aynı dosyaya çözülür; bir `DocumentPathProvider` aynı path'i iki kez dönmüştür. İlki build edilir, diğerleri atlanır. |
+| `ErrDynamicPathUnresolved` | `collage: a path pattern with a {param} needs WithStaticParams to be built` | skip | Bir page'in ya da document'ın path'inde bir `{param}` vardır ve `WithStaticParams` yoktur. |
+| `ErrRouteParams` | bkz. [Link'ler ve URL'ler](#links-and-urls) | report error | `WithStaticParams`'ın döndüğü bir map pattern'i tam olarak doldurmaz: bir isim eksiktir ya da pattern'de olmayan bir isim vardır. Yalnızca o dosya başarısız olur, geri kalanlar build edilir. |
+| `ErrNotStatic` | `collage: a Dynamic() route cannot be built statically` | skip | Bir page ya da document dynamic'tir: ya `Dynamic()` olarak tanımlanmıştır ya da strateji tanımlamayıp data handler'ı olan bir şey render eder. Dolayısıyla export edilecek bir şey yoktur. |
+| `ErrDuplicateOutputPath` | `collage: two build tasks write the same output path` | skip | İki document görevi aynı dosyaya çözülür; `WithStaticParams` aynı değerleri iki kez listelemiştir. İlki build edilir, diğerleri atlanır. |
 | `ErrDegradedRender` | `collage: refusing to write a degraded render` | report error | Bir page başarısız olan bir fragment'le render edilmiştir ve `AllowDegraded` kapalıdır. Hiçbir dosya yazılmaz. |
 | `ErrEmptyRender` | `collage: page rendered no markup` | report error | Bir page hiç markup render etmemiştir. `AllowDegraded` açık olsa bile reddedilir. Yukarıda serve için anlatılanla aynı sentinel'dir. |
 | `ErrUnresolvedToken` | `collage: refusing to write a page whose forgery token was never resolved` | report error, skip | Not-found page bir `{{csrfToken}}` taşıyorsa bu bir report error'dır. Token taşıyan diğer page'ler ise atlanır, çünkü onlar bir sunucuya ihtiyaç duyar. |
-| `ErrBuildPanic` | `collage: panic while building a page` | report error | Bir page'in render edilmesi ya da yazılması panic etmiştir. Build bunu recover etmiş ve diğerleriyle devam etmiştir. |
+| `ErrBuildPanic` | `collage: panic while building a page` | report error | Bir page'in render edilmesi ya da yazılması ya da bir `WithStaticParams` fonksiyonu panic etmiştir. İkincisi o route'un o locale'ini başarısız kılar. Build bunu recover etmiş ve diğerleriyle devam etmiştir. |
 | `ErrEmptyDocumentBody` | bkz. [Document'lar](#documents) | report error | Bir document boş bir body üretmiştir. |
 
 Report error'lar `BuildReport.Errors` içindedir. Bu, `errors.Is` ile eşleşen

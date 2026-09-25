@@ -292,8 +292,9 @@ func TestEveryDocRenders(t *testing.T) {
 }
 ```
 
-For a site whose pages come from a CMS, the same test can walk the list your
-[path provider](/docs/static-export#dynamic-paths-pathprovider) returns.
+For a site whose pages come from a CMS, the same test can walk the values your
+pages' [`WithStaticParams`](/docs/static-export#dynamic-paths-withstaticparams)
+functions list.
 
 ## Testing the export
 
@@ -325,8 +326,8 @@ func TestExport(t *testing.T) {
 }
 ```
 
-It calls the same `staticBuild` that `collage export` runs, so the test covers the
-path provider and the builder options as well as the pages. `staticBuild` returns
+It calls the same `staticBuild` that `collage export` runs, so the test covers
+`WithStaticParams` and the builder options as well as the pages. `staticBuild` returns
 the build's error, which fails the test for a degraded page, an empty render or a
 panic.
 
@@ -347,7 +348,7 @@ for _, skip := range report.Skipped {
 		t.Errorf("home was skipped: %s", skip.Reason)
 	}
 	if errors.Is(skip.Err, collage.ErrDynamicPathUnresolved) {
-		t.Errorf("%s has a {param} the path provider does not cover", skip.Page)
+		t.Errorf("%s has a {param} and no WithStaticParams", skip.Page)
 	}
 }
 if len(report.Warnings) > 0 {

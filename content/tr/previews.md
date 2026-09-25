@@ -232,7 +232,7 @@ for _, action := range []*collage.Action{preview.Start(app), preview.Exit()} {
 Bir data handler, request bir preview ise taslakları ister:
 
 ```go
-func postData(ctx context.Context, rc *collage.RenderContext) (postView, []string, error) {
+func postData(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
 	slug := rc.Param("slug")
 	tags := []string{"post:" + slug}
 
@@ -241,10 +241,10 @@ func postData(ctx context.Context, rc *collage.RenderContext) (postView, []strin
 			return cmsClient.Post(ctx, slug, cms.Options{Drafts: preview.Drafts(ctx)})
 		})
 	if errors.Is(err, cms.ErrNotFound) {
-		return postView{}, tags, fmt.Errorf("post %q: %w", slug, collage.ErrNotFound)
+		return nil, tags, fmt.Errorf("post %q: %w", slug, collage.ErrNotFound)
 	}
 	if err != nil {
-		return postView{}, tags, err
+		return nil, tags, err
 	}
 	return postView{Post: post, Preview: preview.Drafts(ctx)}, tags, nil
 }
@@ -263,10 +263,11 @@ Banner hiçbir okuyucunun karşısına çıkamaz.
 
 **Bir CDN yine de önce cevap verebilir.** `SkipCache` collage'ın cache'lerini kontrol
 eder ve preview response'unu `no-store` olarak işaretler. Ancak CDN'in kendi
-cache'inden cevapladığı bir request sunucunuza hiç ulaşmaz. `Static()` page'ler
-`max-age=0, must-revalidate` ile gönderilir, bu yüzden CDN her seferinde sunucuya
-sorar. Bir `Incremental(ttl)` page ise TTL'i boyunca CDN'den sunulabilir. CDN'i,
-preview cookie'sini taşıyan request'lerde kendi cache'ini atlayacak şekilde
+cache'inden cevapladığı bir request sunucunuza hiç ulaşmaz. Static page'ler (ya
+`Static()` olarak tanımlanmış ya da strateji tanımlamayıp hiçbir şey çekmeyen
+page'ler) `max-age=0, must-revalidate` ile gönderilir, bu yüzden CDN her seferinde
+sunucuya sorar. Bir `Incremental(ttl)` page ise TTL'i boyunca CDN'den sunulabilir.
+CDN'i, preview cookie'sini taşıyan request'lerde kendi cache'ini atlayacak şekilde
 yapılandırın.
 
 **CMS'in içinde preview.** CMS preview'ı kendi domain'indeki bir `<iframe>` içinde

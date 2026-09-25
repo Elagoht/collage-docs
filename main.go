@@ -239,14 +239,9 @@ func envInt(key string, fallback int) int {
 // through collage's own builder, and prints what was written, skipped and
 // failed.
 func staticBuild(app *collage.App, outDir string, clean bool) error {
-	loaded, err := loadContent(content.FS)
-	if err != nil {
-		return err
-	}
 	builder, err := collage.NewBuilder(app, collage.BuildOptions{
-		OutDir:       outDir,
-		Clean:        clean,
-		PathProvider: docPaths{loaded},
+		OutDir: outDir,
+		Clean:  clean,
 	})
 	if err != nil {
 		return err
@@ -257,22 +252,4 @@ func staticBuild(app *collage.App, outDir string, clean bool) error {
 	collage.PrintBuildReport(os.Stdout, report, buildErr)
 
 	return buildErr
-}
-
-// docPaths tells the static build which /docs/{slug} pages exist in each
-// language: every page of the documentation in the original, every page
-// translated so far in a translation, and nothing else. The paths are without the
-// locale's prefix; the build adds it.
-type docPaths struct{ set *site.Set }
-
-func (d docPaths) Paths(_ context.Context, page *collage.Page, locale string) ([]collage.PathInstance, error) {
-	loaded := d.set.Site(locale)
-	if page.Name != "doc" || loaded == nil {
-		return nil, nil
-	}
-	var paths []collage.PathInstance
-	for _, p := range loaded.Pages() {
-		paths = append(paths, collage.PathInstance{Path: p.Path(), Params: map[string]string{"slug": p.Slug}})
-	}
-	return paths, nil
 }

@@ -1,6 +1,6 @@
 ---
 description: Page nedir, layout'u ve içeriği nasıl bir araya gelir, ona hangi path'ler ulaşır, nasıl cache'lenir, başarısız olduğunda ne gösterir ve register edilmek onu nasıl değiştirir.
-reference: NewPage, PageBuilder, Page, RenderPage, DefaultContentSlot
+reference: NewPage, PageBuilder, Page, RenderPage, DefaultContentSlot, StrategyAuto
 ---
 
 # Page'ler ve layout'lar
@@ -57,13 +57,13 @@ yerde görmek istersiniz.
 ## Layout ve içerik
 
 Bir sitedeki page'lerin çoğu dış kısmı ortak kullanır: `<head>`, header ve footer.
-Farklı olan iç kısımdır. Dış kısım **layout**'tur. Layout, `content` adında bir
-slot'u olan bir fragment'tir. İç kısım ise **content fragment**'tir. Page, bu
-fragment'i göstermek için vardır.
+Farklı olan iç kısımdır. Dış kısım **layout**'tur. Layout, template'i `content`
+adında bir slot'u çağıran bir fragment'tir. İç kısım ise **content fragment**'tir.
+Page, bu fragment'i göstermek için vardır.
 
 ```go
 layout := collage.NewFragment("layout", "layouts/default.html").
-	WithSlot(collage.DefaultContentSlot, true, false). // "content": required, one fragment
+	WithTitle("My site").
 	Build()
 ```
 
@@ -80,10 +80,20 @@ layout := collage.NewFragment("layout", "layouts/default.html").
 </html>
 ```
 
+Layout hiçbir slot tanımlamaz. Template'indeki `{{slot "content"}}` çağrısı
+tanımın kendisidir. Çağırdığı diğer slot'lar için de durum aynıdır; bkz.
+[Fragment'ler ve slot'lar](/docs/fragments-and-slots#slots). `WithTitle`, layout'u
+kullanan her page'e, içerideki bir şey daha iyisini belirtene kadar bir `<title>`
+verir.
+
 `WithLayout(layout)` ve `WithContent(post)` bu ikisini belirtir. **İçeriği
-layout'un `content` slot'una register işlemi yerleştirir.** Bu bağlamayı kendiniz
-yapmazsınız. Layout'un `content` slot'unu boş bırakın. Onu register işlemi doldurur
-ve tek fragment alan bir slot ikinci bir fragment'i reddeder (`ErrSlotOccupied`).
+layout'un `content` slot'una (`collage.DefaultContentSlot`) register işlemi
+yerleştirir.** Bu bağlamayı kendiniz yapmazsınız. Template'i hiç
+`{{slot "content"}}` çağırmayan bir layout ise register sırasında `ErrUnknownSlot`
+ile reddedilir, çünkü içeriğin render edileceği bir yer yoktur. Layout'ta
+`WithSlot(collage.DefaultContentSlot, true, false)` hâlâ kabul edilir. Bu,
+`content`'e page'in kendi içeriği dışında bağlanan her fragment'i reddetmesi
+gereken bir layout içindir (`ErrSlotOccupied`).
 
 Her page'in bir içeriği olmalıdır, yoksa `ErrMissingContent` alırsınız. Layout ise
 isteğe bağlıdır. Layout'u olmayan bir page, content fragment'ini response'un
@@ -173,13 +183,23 @@ cache'lenmeyeceğini belirler:
 
 | Metot | Strateji | Davranış |
 | --- | --- | --- |
-| `Dynamic()` | `StrategyDynamic` | Her request'te render edilir, hiçbir zaman cache'lenmez. **Varsayılan budur** |
+| `Dynamic()` | `StrategyDynamic` | Her request'te render edilir, hiçbir zaman cache'lenmez |
 | `Static()` | `StrategyStatic` | Bir kez render edilir, tag'leri invalidate edilene kadar cache'ten sunulur |
 | `Incremental(ttl)` | `StrategyIncremental` | Cache'ten sunulur, `ttl` dolduktan sonra yeniden render edilir |
 
+Bu üç çağrıdan hiçbirini yapmayan bir page, register edilene kadar
+`StrategyAuto`'dur. Register işlemi stratejiyi belirler: render ettiği herhangi bir
+şeyin data handler'ı ya da slot resolver'ı varsa **dynamic**, yoksa **static**
+olur. Template'lerden ve sabit değerlerden (`WithData`, `WithTitle`) oluşan bir page
+herkes için aynı render edilir, bu yüzden söylemeye gerek kalmadan cache'lenir.
+Handler ise request'i, bir cookie'yi ya da saati okuyabilir ve dışarıdan bu
+anlaşılamaz. Bu yüzden handler'ı olan bir page, `Static()` ya da
+`Incremental(ttl)` diyene kadar her request'te render edilir. Kuralın tamamı
+[Caching](/docs/caching#a-page-that-declares-none) sayfasındadır.
+
 `Incremental` pozitif bir TTL ister (`ErrMissingTTL`). `collage export`'un dosyaya
-yazabildiği page'ler de `Static` ve `Incremental` page'lerdir. `Dynamic` bir page
-her request'te render edilmek için vardır, bu yüzden
+yazabildiği page'ler de static ve incremental page'lerdir. Dynamic bir page her
+request'te render edilmek için vardır, bu yüzden
 [atlanır](/docs/static-export#what-is-skipped).
 
 Cache yalnızca uygulama onu açtığında devreye girer (`Config.Cache.Enabled`,
@@ -299,8 +319,11 @@ fragment ise buradan görülemez. O fragment ilk render edildiğinde kontrol edi
 5. her fragment'in template'inin yüklendiğini kontrol eder (`ErrTemplateNotFound`).
    `WithFragmentPath` ile açılan fragment'ler de buna dahildir; bunlar v0.11.0'dan
    beri ağacın geri kalanı gibi kontrol edilir. Page'in kendi not-found ve error
-   page'leri de kontrol edilir;
-6. page'in path'lerini, redirect'lerini, action'larını ve fragment path'lerini
+   page'leri de kontrol edilir. Ayrıca bir şey bağlanan her slot'un, template'in
+   çağırdığı bir slot olduğunu kontrol eder (`ErrUnknownSlot`; hata slot'u ve
+   template'in yaptığı çağrıları belirtir);
+6. strateji tanımlamamış bir page'in stratejisini bütün ağaca bakarak belirler;
+7. page'in path'lerini, redirect'lerini, action'larını ve fragment path'lerini
    router'a ekler.
 
 Her hatayı fatal kabul edin. Yarıda başarısız olan bir register işlemi geri

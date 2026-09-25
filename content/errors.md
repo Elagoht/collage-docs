@@ -1,6 +1,6 @@
 ---
 description: Every exported error value in collage, grouped by where it comes from, with what it means and what to do about it.
-reference: PanicError
+reference: PanicError, ErrUnknownSlot, ErrConflictingData, ErrNoDocumentHandler, ErrRouteParams
 ---
 
 # Errors
@@ -19,7 +19,9 @@ Most of them are reported **at startup**: `New` validates the configuration and
 parses every template, registration validates every page, and starting the
 application checks what only the whole set can reveal. A mistake in how the site is
 put together is a program that refuses to start, not a page that fails for the
-first reader who finds it.
+first reader who finds it. Under `collage dev` that refusal is shown in the
+browser, as a 503 page with what the program printed — see
+[CLI](/docs/cli#collage-dev).
 
 The tables below are grouped by where each error comes from. The message is the
 text the sentinel carries before any wrapping adds detail.
@@ -69,19 +71,20 @@ See [Writing a plugin](/docs/writing-plugins).
 ## Fragments and pages
 
 Two places report these. A few are recorded by the builders as the chain runs —
-`ErrDuplicateSlot`, `ErrUnknownSlot` and `ErrSlotResolved` from `WithSlot`,
-`WithSlotResolver` and `WithSlotFragment` (which also records `Bind`'s
-`ErrNilFragment` and `ErrSlotOccupied`), `ErrInvalidTimeout` from `WithTimeout`,
-`ErrMissingContent` from a page's `Build`, and `ErrNoDocumentHandler` from a
-document's — and you can read them with `BuildErr()`. What a builder recorded stays
+`ErrDuplicateSlot` and `ErrSlotResolved` from `WithSlot`, `WithSlotResolver` and
+`WithSlotFragment` (which also records `Bind`'s `ErrNilFragment` and
+`ErrSlotOccupied`), `ErrInvalidTimeout` from `WithTimeout`, `ErrMissingContent`
+from a page's `Build`, and `ErrNoDocumentHandler` from a document's — and you can
+read them with `BuildErr()`. What a builder recorded stays
 on the value it built, and `RegisterPage` and `RegisterDocument` refuse a value
 carrying any — a page's own, or those of any fragment in its tree — wrapped as
 `collage: page %q was built with errors: %w` (`collage: document %q was built with
 errors: %w` for a document), whether or not `BuildErr()` was called.
 
 The rest are found by validation when the page is registered: `RegisterPage` checks
-every fragment in the tree, its names, templates, slots, timeouts, TTLs, paths and
-error pages, and returns the first failure. A fragment opened with
+every fragment in the tree, its names, templates, slots — each binding against the
+slots its template calls — data, timeouts, TTLs, paths and error pages, and returns
+the first failure. A fragment opened with
 `WithFragmentPath` is part of the page for this (since v0.11.0): its template, its
 builder's mistakes and its validation are checked at registration like the rest. Either way a malformed page is refused
 before it serves anything.
@@ -92,13 +95,14 @@ before it serves anything.
 | `ErrEmptyTemplatePath` | `collage: empty template path` | A fragment names no template. |
 | `ErrNilFragment` | `collage: nil fragment` | A `nil` fragment was used where one is required — bound to a slot, or returned by a slot resolver. |
 | `ErrDuplicateSlot` | `collage: slot already declared` | `WithSlot` was called twice with one name. |
-| `ErrUnknownSlot` | `collage: unknown slot` | A fragment was bound to, or a template called `{{slot}}` for, a slot the fragment never declared. |
+| `ErrUnknownSlot` | `collage: unknown slot` | A fragment is bound into a slot its template never calls — a typo on either side of the binding. The message names the slot and the slots the template does call. A slot the template calls and nothing fills is not an error: it renders empty. |
 | `ErrInvalidSlotDefinition` | `collage: invalid slot definition` | A slot has an empty name, or a map key that does not match its own name. |
 | `ErrSlotOccupied` | `collage: slot already occupied` | A second fragment was bound to a slot that holds one — or a resolver returned several for it. |
 | `ErrSlotResolved` | `collage: slot is filled by a resolver` | One slot was given both a resolver and bound fragments. |
 | `ErrRequiredSlotUnfilled` | `collage: required slot has no fill` | A slot declared required has nothing bound to it. |
 | `ErrFragmentCycle` | `collage: fragment cycle detected` | A fragment is reachable from itself. |
 | `ErrMissingContent` | `collage: missing content` | A page has no content fragment. |
+| `ErrConflictingData` | `collage: fixed data and a handler are both set` | A fragment sets both `WithData` and `WithDataHandler`. |
 | `ErrInvalidTimeout` | `collage: invalid timeout` | A fragment's timeout is negative. |
 | `ErrMissingTTL` | `collage: missing cache ttl for incremental strategy` | `Incremental` was given a zero TTL. |
 | `ErrInvalidTTL` | `collage: invalid cache ttl` | A page's TTL is negative. |
@@ -133,7 +137,8 @@ Returned by `RegisterPage`, `RegisterNotFoundPage`, `RegisterErrorPage` and
 | --- | --- | --- |
 | `ErrNilDocument` | `collage: nil document` | A `nil` document was registered. |
 | `ErrEmptyContentType` | `collage: empty content type` | A document declares no content type. It is required and never guessed. |
-| `ErrNoDocumentHandler` | `collage: document has no handler` | A document has no handler. Unlike a page, it has no template to fall back on. |
+| `ErrNoDocumentHandler` | `collage: document has no handler or body` | A document has neither a handler nor a fixed body (`WithBody`). Unlike a page, it has no template to fall back on. |
+| `ErrConflictingData` | see [Fragments and pages](#fragments-and-pages) | A document has both `WithHandler` and `WithBody`. |
 | `ErrDuplicateDocument` | `collage: duplicate document name` | Two documents share a name. |
 | `ErrDocumentNotFound` | `collage: no document at path` | `RenderDocumentPath` found no document at the path — including when a page or a redirect is there. |
 | `ErrEmptyDocumentBody` | `collage: document handler produced an empty body` | A handler succeeded with an empty body: a 500 when served, and not written by a build. A handler that really means "empty" can return a single newline. |
@@ -184,6 +189,11 @@ if errors.As(err, &panicked) {
 
 See [Data handlers](/docs/data-handlers) for how a failure becomes a 404, a 500, a
 fallback or nothing.
+
+In development, the built-in 500 page leads with the cause: for a template, the
+template, line and column of the call that failed and what it returned, above the
+chain of templates the error passed through on its way up. The production page is
+unchanged, and says nothing about the cause.
 
 ## Links and URLs
 
@@ -281,15 +291,16 @@ Returned by `collage.NewBuilder` and `Builder.Build`, or recorded in the
 | `ErrNilRenderer` | `collage: nil renderer` | `NewBuilder` | The app is `nil`. |
 | `ErrInvalidOutDir` | `collage: invalid output directory` | `NewBuilder` | `BuildOptions.OutDir` is empty. |
 | `ErrDangerousOutDir` | `collage: refusing to use a dangerous output directory` | `Build` | `OutDir` resolves to a filesystem root — or, with `Clean`, to a repository root. |
-| `ErrOutputPathCollision` | `collage: two builds target one output path` | `Build` | Two pages would be written to one file — patterns differing only by a trailing slash, or a path provider returning a path twice. Reported before any page renders, and then no page is: documents, `404.html` and assets are still written. |
+| `ErrOutputPathCollision` | `collage: two builds target one output path` | `Build` | Two pages would be written to one file — patterns differing only by a trailing slash, or `WithStaticParams` listing the same values twice. Reported before any page renders, and then no page is: documents, `404.html` and assets are still written. |
 | `ErrPathEscapesOutDir` | `collage: resolved path escapes the output directory` | report error | An output path, or a symlink on the way to it, leads outside `OutDir`. Checked before that one file is written; only that path fails. |
-| `ErrDynamicPathUnresolved` | `collage: dynamic path pattern requires a path provider` | skip | A page's or document's path has a `{param}` and there is no path provider. |
-| `ErrNotStatic` | `collage: a Dynamic() route cannot be built statically` | skip | A page or document is `Dynamic()`, so there is nothing to export. |
-| `ErrDuplicateOutputPath` | `collage: two build tasks write the same output path` | skip | Two document tasks resolve to one file — a `DocumentPathProvider` returning one path twice. The first is built, the rest skipped. |
+| `ErrDynamicPathUnresolved` | `collage: a path pattern with a {param} needs WithStaticParams to be built` | skip | A page's or document's path has a `{param}` and no `WithStaticParams`. |
+| `ErrRouteParams` | see [Links and URLs](#links-and-urls) | report error | A map `WithStaticParams` returned does not fill the pattern exactly — a name missing, or one the pattern does not have. Only that file fails; the rest are built. |
+| `ErrNotStatic` | `collage: a Dynamic() route cannot be built statically` | skip | A page or document is dynamic — declared `Dynamic()`, or declaring no strategy and rendering a data handler — so there is nothing to export. |
+| `ErrDuplicateOutputPath` | `collage: two build tasks write the same output path` | skip | Two document tasks resolve to one file — `WithStaticParams` listing the same values twice. The first is built, the rest skipped. |
 | `ErrDegradedRender` | `collage: refusing to write a degraded render` | report error | A page rendered with a failed fragment and `AllowDegraded` is off. No file is written. |
 | `ErrEmptyRender` | `collage: page rendered no markup` | report error | A page rendered no markup at all. Refused even with `AllowDegraded`. One sentinel with serving's, above. |
 | `ErrUnresolvedToken` | `collage: refusing to write a page whose forgery token was never resolved` | report error, skip | The not-found page carries a `{{csrfToken}}`: a report error. Any other page with one is skipped instead: it needs a server. |
-| `ErrBuildPanic` | `collage: panic while building a page` | report error | Rendering or writing one page panicked; the build recovered and went on with the rest. |
+| `ErrBuildPanic` | `collage: panic while building a page` | report error | Rendering or writing one page panicked, or a `WithStaticParams` function did, which fails that route's locale; the build recovered and went on with the rest. |
 | `ErrEmptyDocumentBody` | see [Documents](#documents) | report error | A document produced an empty body. |
 
 Report errors are in `BuildReport.Errors`, a slice of errors that match with

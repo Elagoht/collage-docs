@@ -1,6 +1,6 @@
 ---
 description: Render the site to static files with collage export — what is written, what is skipped and why, dynamic paths, and publishing to a static host.
-reference: NewBuilder, BuildOptions, BuildReport, PrintBuildReport, PathProvider, PathInstance, SkipRecord, ErrNotStatic
+reference: NewBuilder, BuildOptions, BuildReport, PrintBuildReport, StaticParamsFunc, SkipRecord, ErrNotStatic, ErrDynamicPathUnresolved, ErrRouteParams
 ---
 
 # Static export
@@ -36,18 +36,15 @@ go run . -collage-build -out dist        # plus -clean when you passed it
 
 The scaffolded `main.go` honours that contract: on `-collage-build` it builds the
 application as usual and, instead of serving it, hands it to collage's builder and
-prints what happened. This is the collage-docs version of that function:
+prints what happened. This is the collage-docs version of that function; which
+pages exist is not its business, because each page says that
+[itself](#dynamic-paths-withstaticparams):
 
 ```go
 func staticBuild(app *collage.App, outDir string, clean bool) error {
-	loaded, err := site.Load(content.FS)
-	if err != nil {
-		return err
-	}
 	builder, err := collage.NewBuilder(app, collage.BuildOptions{
-		OutDir:       outDir,
-		Clean:        clean,
-		PathProvider: docPaths{loaded},
+		OutDir: outDir,
+		Clean:  clean,
 	})
 	if err != nil {
 		return err
@@ -73,9 +70,9 @@ If you rewrite `main.go`, keep the `-collage-build`, `-out` and `-clean` flags, 
 
 | What | Where |
 | --- | --- |
-| A `Static()` or `Incremental(ttl)` page | `dist/<path>/index.html`; `/` is `dist/index.html` |
+| A static or incremental page: `Static()`, `Incremental(ttl)`, or [no strategy and no data handler](/docs/caching#a-page-that-declares-none) | `dist/<path>/index.html`; `/` is `dist/index.html` |
 | The same page in a non-default locale | Under the locale's prefix: `dist/tr/<path>/index.html` |
-| A `Static()` or `Incremental(ttl)` document | Its literal path: `/sitemap.xml` is `dist/sitemap.xml` |
+| A static or incremental document: `Static()`, `Incremental(ttl)`, or no strategy and a [fixed body](/docs/documents#a-fixed-body) | Its literal path: `/sitemap.xml` is `dist/sitemap.xml` |
 | The same document in a non-default locale | Under the locale's prefix: `dist/tr/sitemap.xml` |
 | A document built with `AtRoot` | Its bare path, in every configuration: `dist/robots.txt` |
 | A default-locale page or document, with [`PrefixDefault`](/docs/links-and-locales#the-url-decides-the-locale) | Under its prefix too, `dist/en/<path>/index.html` and `dist/en/sitemap.xml`, and `dist/index.html` sends the reader to `/en/` |
@@ -108,16 +105,20 @@ See [Static assets](/docs/assets).
 Some pages cannot be files. The build leaves them out and names each one in the
 report, with the reason:
 
-- **`Dynamic()` pages and documents.** They exist to render per request.
+- **Dynamic pages and documents.** They exist to render per request: those
+  declared `Dynamic()`, and those that declare no strategy and fetch — a page
+  rendering a data handler or a slot resolver, a document with a handler. A page
+  whose handler returns the same for every reader says `Static()` to be exported.
 - **Pages with a form.** A page whose render contains `{{csrfToken}}` is skipped:
   a form needs a server to post to, and a forgery token belongs to one reader. The
   page may be `Static()` on purpose — cached, and invalidated by the action it posts
   to — and it is served rather than exported. The scaffold's `/features` page is
   one.
-- **A `{param}` pattern with no path provider.** `/blog/{slug}` cannot be written
-  until something says which slugs exist. See below.
-- **Two documents on one file.** A `DocumentPathProvider` that returns one path
-  twice resolves two tasks to one file; the first is written and the rest are
+- **A `{param}` pattern with no `WithStaticParams`.** `/blog/{slug}` cannot be
+  written until something says which slugs exist, and it is skipped with
+  `collage.ErrDynamicPathUnresolved`. See below.
+- **Two documents on one file.** A document whose `WithStaticParams` lists one set
+  of values twice resolves two tasks to one file; the first is written and the rest are
   skipped with `collage.ErrDuplicateOutputPath`. One pattern in two locales is not
   this — each locale is written under its own prefix. See
   [Documents](/docs/documents#documents-in-a-static-export).
@@ -139,7 +140,7 @@ A document with `WithCacheParams` — a paginated feed — is warned about the s
 (since v0.10.0; before, only pages were).
 
 If pagination has to work in an export, put the page number in the path —
-`/blog/page/{n}` — and list the pages with a path provider.
+`/blog/page/{n}` — and list the pages with `WithStaticParams`.
 
 ## What fails
 
@@ -157,54 +158,70 @@ These are errors: the page is not written, the build reports it and exits non-ze
 - **A not-found page with a form**, `collage.ErrUnresolvedToken`, because a static
   host needs that one as a file.
 - **Two pages on one output path**, `collage.ErrOutputPathCollision` — two patterns
-  that differ only in a trailing slash, or a path provider that returns a path
-  twice. No page is rendered when this is found; the documents, the `404.html`
+  that differ only in a trailing slash, or `WithStaticParams` listing one set of
+  values twice. No page is rendered when this is found; the documents, the `404.html`
   pages and the mounted assets are still written, and the build still fails.
 
-## Dynamic paths: `PathProvider`
+## Dynamic paths: `WithStaticParams`
 
-A page at `/blog/{slug}` is one page with many URLs. The builder asks a
-`collage.PathProvider` for them:
-
-```go
-type PathProvider interface {
-	Paths(ctx context.Context, page *collage.Page, locale string) ([]collage.PathInstance, error)
-}
-```
-
-It is called once per dynamic page and locale, and returns the concrete paths and
-the parameters each one captures. These docs are one page, `doc`, at
-`/docs/{slug}`; the provider lists every page of the documentation:
+A page at `/blog/{slug}` is one page with many URLs. The page lists them itself,
+with `WithStaticParams` — one map of placeholder values per file:
 
 ```go
-// docPaths tells the static build which /docs/{slug} pages exist: every page of
-// the documentation, and nothing else.
-type docPaths struct{ site *site.Site }
+WithStaticParams(fn collage.StaticParamsFunc)
 
-func (d docPaths) Paths(_ context.Context, page *collage.Page, _ string) ([]collage.PathInstance, error) {
-	if page.Name != "doc" {
-		return nil, nil
-	}
-	var paths []collage.PathInstance
-	for _, p := range d.site.Pages() {
-		paths = append(paths, collage.PathInstance{Path: p.URL(), Params: map[string]string{"slug": p.Slug}})
-	}
-	return paths, nil
-}
+type StaticParamsFunc func(ctx context.Context, locale string) ([]map[string]string, error)
 ```
 
-- **Check the page.** One provider answers for every dynamic page. Returning `nil`
-  for a page you do not know writes nothing for it; that is not an error.
-- **`Params` is what the data handlers see.** It is laid over what the router
-  captured from `Path`, so `rc.Param("slug")` has the value a live request would have.
-- **`Path` is without the locale prefix.** Return the pattern's path, `/blog/hello`;
-  the builder writes a non-default locale under its own directory.
-- **Returning an error** records it against that page and locale and carries on.
+It is called once for each locale the page has a path in. These docs are one page,
+`doc`, at `/docs/{slug}` in every language, and it lists every page of the
+documentation in the original and every page translated so far in a translation:
 
-Documents with a `{param}` have their own interface, `BuildOptions.DocumentPathProvider`,
-described in [Documents](/docs/documents).
+```go
+builder := collage.NewPage("doc").
+	WithLayout(layouts.Layout(app, docs)).
+	WithContent(content).
+	Static().
+	WithStaticParams(func(_ context.Context, locale string) ([]map[string]string, error) {
+		set, err := docs()
+		if err != nil {
+			return nil, err
+		}
+		loaded := set.Site(locale)
+		if loaded == nil {
+			return nil, nil
+		}
+		params := make([]map[string]string, 0, len(loaded.Pages()))
+		for _, page := range loaded.Pages() {
+			params = append(params, map[string]string{"slug": page.Slug})
+		}
+		return params, nil
+	})
+```
 
-Every path a provider returns is checked before its own file is written: a path
+- **The build makes the path.** Each map fills the locale's pattern the way a
+  link [built by name](/docs/links-and-locales#links-by-name) would, and the file
+  is written under the locale's prefix: `dist/docs/caching/index.html`,
+  `dist/tr/docs/caching/index.html`. A value that needs escaping in a URL is
+  written at its decoded path — `héllo`, not `h%C3%A9llo` — which is where a static
+  host looks a request for it up.
+- **The values are what the data handlers see.** `rc.Param("slug")` has the value
+  a live request to that path would have.
+- **The map must fill the pattern exactly.** A name missing, or one the pattern does
+  not have, fails that one file with `collage.ErrRouteParams`; the rest are built.
+- **An error, or a panic, fails that page's locale** and is named in the report —
+  a panic as `collage.ErrBuildPanic`. Returning no maps writes nothing, and is not
+  an error.
+- **Only a build calls it.** A running server answers every value the pattern
+  matches, listed or not.
+- **The page must still be cacheable.** A page with a data handler is dynamic
+  unless it says otherwise, so one that is to be exported says `Static()` or
+  `Incremental(ttl)` — as `doc` does above.
+
+Documents take the same `WithStaticParams`: a feed at `/feeds/{category}/rss.xml`
+lists its categories. See [Documents](/docs/documents#documents-in-a-static-export).
+
+Every path `WithStaticParams` produces is checked before its own file is written: a path
 that would resolve outside the output directory — `/../../etc` — is refused with
 `collage.ErrPathEscapesOutDir`, and so is a write through a symlink that leads out
 of it. The refusal fails that one path, not the build around it: the other pages
@@ -218,8 +235,6 @@ are still rendered and written, and the error is in the report.
 | `Clean` | Remove `OutDir`'s contents (not the directory itself) first. |
 | `Locales` | Build only these locales. Empty builds every locale a page declares. |
 | `Concurrency` | How many pages render and write at once. `0` or `1` is one at a time. The report is in the same order either way. |
-| `PathProvider` | Concrete paths for pages with a `{param}`. |
-| `DocumentPathProvider` | Concrete paths for documents with a `{param}`. |
 | `AllowDegraded` | Write pages whose render had a failed fragment. |
 
 The builder refuses an `OutDir` that resolves to the root of the file system, and

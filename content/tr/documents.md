@@ -1,14 +1,15 @@
 ---
 description: Sitemap'ler, feed'ler, robots.txt ve JSON gibi HTML yerine byte dönen route'lar, page'ler gibi cache'lenir ve invalidate edilir.
-reference: DocumentBuilder.AtRoot, NewDocument, DocumentBuilder, Document, DocumentResult, DocumentPathProvider, PathInstance
+reference: DocumentBuilder.AtRoot, DocumentBuilder.WithBody, DocumentBuilder.WithStaticParams, NewDocument, DocumentBuilder, Document, DocumentResult, StaticParamsFunc, ErrConflictingData
 ---
 
 # Document'lar: sitemap'ler, feed'ler, robots.txt
 
 Bir sitenin sunduğu her şey page değildir. Crawler `/sitemap.xml` ve `/robots.txt`
 ister, feed okuyucu `/feed.xml` ister, load balancer `/healthz` ister. collage'da
-bunların her biri bir **document**'tir. Document, handler'ı byte ve bir content type
-dönen bir route'tur. Template'i, layout'u ve fragment'i yoktur.
+bunların her biri bir **document**'tir. Document, byte'lar ve bir content type ile
+cevap veren bir route'tur. Bu byte'lar ya bir handler tarafından üretilir ya da
+program başlarken sabitlenir. Template'i, layout'u ve fragment'i yoktur.
 
 Bunun dışındaki her şeyi document page ile paylaşır. Aynı router'da yaşar. Bu yüzden
 bir page ile çakışan bir path, ikisinden ikincisi register edilirken
@@ -19,11 +20,8 @@ düşer.
 
 ```go
 robots := collage.NewDocument("robots", "text/plain; charset=utf-8").
-	WithPath("en", "/robots.txt").
-	WithHandler(func(context.Context, *collage.RenderContext) ([]byte, []string, error) {
-		return []byte("User-agent: *\nAllow: /\n"), nil, nil
-	}).
-	Static().
+	AtRoot("/robots.txt").
+	WithBody([]byte("User-agent: *\nAllow: /\n")).
 	Build()
 
 if err := app.RegisterDocument(robots); err != nil {
@@ -49,24 +47,43 @@ Bu yüzden document hiçbir şey render etmez. Body'yi formatı bilen bir encode
 | `collage.NewDocument(name, contentType)` | Builder'ı başlatır. İki argüman da zorunludur. |
 | `AtRoot(pattern)` | Document'a bütün locale'lerin dışından ulaşan URL pattern'i. Locale config'i ne olursa olsun prefix almaz. Sitenin kendi dosyaları içindir: `/robots.txt`, `/llms.txt`. v0.14.1'den beri vardır. |
 | `WithPath(locale, pattern)` | Document'a `locale` içinde ulaşan URL pattern'i. `{param}` segment'leri page'lerdeki gibi çalışır. Placeholder bütün bir segment olmalıdır: `/feeds/{category}/rss.xml` yazılabilir, ama `/feeds/{category}.xml` register sırasında `collage.ErrInvalidPattern` ile reddedilir (v0.11.0'dan beri). |
-| `WithHandler(fn)` | Body'yi üreten fonksiyon. Zorunludur, çünkü document'ın fallback olarak kullanabileceği bir template'i yoktur. |
-| `Dynamic()` | Handler'ı her request'te çalıştırır. **Varsayılan budur.** |
+| `WithHandler(fn)` | Body'yi üreten fonksiyon. |
+| `WithBody(b)` | Handler yerine, program başlarken sabitlenen bir body. Document'ın fallback olarak kullanabileceği bir template'i olmadığı için ikisinden biri gerekir, ikisi birden olamaz. v0.16.0'dan beri vardır. |
+| `Dynamic()` | Handler'ı her request'te çalıştırır. Handler'ı olan ve strateji tanımlamayan bir document'ın stratejisi budur. |
 | `Static()` | Handler'ı bir kez çalıştırır, bir tag invalidate edene kadar cache'ten sunar. |
 | `Incremental(ttl)` | Cache'ten sunar, `ttl` dolduktan sonra handler'ı yeniden çalıştırır. |
 | `WithCacheParams(names...)` | Page'lerde olduğu gibi, hangi query parametrelerinin cache key'ine girdiğini belirler. |
+| `WithStaticParams(fn)` | Static build'in bir `{param}` pattern'i için hangi placeholder değerlerini yazacağı; bkz. [aşağıdaki bölüm](#documents-in-a-static-export). v0.16.0'dan beri vardır. |
 | `WithDependency(tags...)` | Bu document'ın her response'unun taşıdığı tag'ler. |
 | `WithRedirect(from, to, status)` / `WithPermanentRedirect(from, to)` | Buraya redirect eden eski path'ler. |
 | `Build()` / `BuildErr()` | Document'ı ve zincirin topladığı hataları verir. |
 
-Varsayılana dikkat edin. Strateji vermeyi unuttuğunuz bir page yine de bir page'dir.
-Strateji vermeyi unuttuğunuz bir document ise handler'ını her request'te çalıştırır
-ve static export'ta atlanır. Sitemap'ler, feed'ler ve `robots.txt` neredeyse her
-zaman `Static()` ya da `Incremental(ttl)` ister.
-
-Handler set edilmemişse `Build`, `collage.ErrNoDocumentHandler` hatasını kaydeder.
-Builder'ın kaydettiği hatalar document'ın üzerinde kalır. `BuildErr`'i çağırsanız da
+Ne handler ne de body set edilmişse `Build`, `collage.ErrNoDocumentHandler`
+hatasını kaydeder. İkisi birden set edilmiş bir document'ı ise `RegisterDocument`
+`collage.ErrConflictingData` ile reddeder. Builder'ın kaydettiği hatalar
+document'ın üzerinde kalır. `BuildErr`'i çağırsanız da
 çağırmasanız da `RegisterDocument` bu document'ı adını belirterek reddeder. Bu yüzden
 hatayı kendiniz kontrol etmeniz isteğe bağlıdır.
+
+### Sabit bir body
+
+Strateji tanımlamayan bir document'ın stratejisi, bir
+[page'inki](/docs/caching#a-page-that-declares-none) gibi register edilirken
+belirlenir: sabit bir body'si varsa static, handler'ı varsa dynamic olur. Program
+başlarken sabitlenen bir body her request için aynıdır. Bu yüzden yukarıdaki
+`robots.txt`, `Static()` yazılmadan cache'lenir ve export edilir.
+
+Sitemap ya da feed bir handler tarafından üretilir. Bu yüzden aksini söyleyene
+kadar dynamic'tir. Aşağıdaki örneklerin hâlâ `Static()` ya da `Incremental(ttl)`
+demesinin nedeni budur. Framework bir handler'ın içini göremez. Yazılarınızdan
+kurulan bir sitemap ile process'in durumunu bildiren bir health check, dışarıdan
+bakıldığında byte dönen aynı türden birer fonksiyondur. İkisini de static
+saymak health check'i cache'lerdi. Cache'ten sunulan bir health check ise `ok`
+artık doğru olmaktan çıktıktan çok sonra da `ok` cevabını verir. İkisini de
+dynamic saymanın bedeli ise siz ne olduğunu söyleyene kadar sitemap'in her
+request'te render edilmesidir. Sonuç daha yavaş bir sitemap'tir, yanlış bir cevap
+değil. Handler'ı olan ve strateji vermeyi unuttuğunuz bir document, her request'te
+çalışır ve static export'ta atlanır.
 
 ### Content type
 
@@ -321,6 +338,11 @@ func RobotsDocument(app *collage.App) *collage.Document {
 hiçbir yerde aramaz. Bu yüzden `AtRoot` ile build edilir. Varsayılan locale'i `/en/`
 altında sunulan bir sitede bile tek adresi `/robots.txt`'dir.
 
+Bu document'ın `WithBody` değil bir handler'a ihtiyacı vardır, çünkü sitemap'in
+URL'sini içerir. `app.URL` ise ancak sitemap register edildikten sonra, yani
+document build edilirken değil handler çalışırken cevap verir. Handler'ı olduğu için
+`Static()` demedikçe dynamic'tir.
+
 `app.URL` page'ler için olduğu gibi document'lar için de çalışır. Bu yüzden
 `robots.txt` sitemap'i adıyla bulur. Aynı adı taşıyan bir page ile bir document'a o
 adla link verilemez, çünkü `app.URL` hangisini kastettiğinizi tahmin etmeyi reddeder.
@@ -373,64 +395,47 @@ yazılır, çünkü `/sitemap.xml` isteyen bir crawler'a dizin dönmemelidir. Va
 dışındaki bir locale'in document'ı, sunulduğu yere, yani o locale'in prefix'i altına
 yazılır: `dist/tr/sitemap.xml`.
 
-- `Static()` ve `Incremental(ttl)` document'ları yazılır. `Dynamic()` olanlar atlanır
-  ve raporda adlarıyla listelenir. Scaffold'daki `/healthz`'in `dist/` içinde hiç
-  görünmemesinin nedeni budur.
+- Static ve incremental document'lar yazılır: `Static()` ya da `Incremental(ttl)`
+  olarak tanımlananlar ve sabit body'si olup strateji tanımlamayanlar. Dynamic
+  olanlar (`Dynamic()` olarak tanımlananlar ya da handler'ı olup strateji
+  tanımlamayanlar) atlanır ve raporda adlarıyla listelenir. Scaffold'daki
+  `/healthz`'in `dist/` içinde hiç görünmemesinin nedeni budur.
 - Boş body `collage.ErrEmptyDocumentBody` ile reddedilir ve hiçbir dosya yazılmaz.
-- `{param}` içeren bir pattern'in somut path'lerini listelemek için
-  `BuildOptions.DocumentPathProvider` gerekir. Provider yoksa document
-  `collage.ErrDynamicPathUnresolved` ile atlanır.
+- `{param}` içeren bir pattern'in değerlerini listelemek için `WithStaticParams`
+  gerekir. Yoksa document `collage.ErrDynamicPathUnresolved` ile atlanır.
 - `WithCacheParams` kullanan bir document (örneğin sayfalanmış bir feed) query string
   olmadan yazılır, çünkü bir dosyanın query string'i olamaz. Rapor, page'lerde olduğu
   gibi bu durum için de uyarı verir.
-- Aynı dosyaya çıkan iki path (örneğin aynı path'i iki kez dönen bir provider) bir kez
-  build edilir. Diğerleri `collage.ErrDuplicateOutputPath` ile atlanır.
+- Aynı dosyaya çıkan iki görev (aynı değerleri iki kez listeleyen bir
+  `WithStaticParams`) bir kez build edilir. Diğerleri
+  `collage.ErrDuplicateOutputPath` ile atlanır.
 
-`DocumentPathProvider`, `PathProvider`'ın document'lar için olan karşılığıdır. Ayrı
-bir interface olduğu için page'ler için yazılmış bir provider'ı değiştirmeniz
-gerekmez:
-
-```go
-// categoryFeeds expands "/feeds/{category}/rss.xml" into one path per category.
-type categoryFeeds struct{ categories []string }
-
-func (p categoryFeeds) Paths(_ context.Context, doc *collage.Document, locale string) ([]collage.PathInstance, error) {
-	if doc.Name != "category-feed" {
-		return nil, nil
-	}
-	var paths []collage.PathInstance
-	for _, category := range p.categories {
-		paths = append(paths, collage.PathInstance{
-			Path:   "/feeds/" + category + "/rss.xml",
-			Params: map[string]string{"category": category},
-		})
-	}
-	return paths, nil
-}
-```
-
-Genişlettiği document, placeholder bütün bir segment olacak şekilde register edilir.
-Export edilen dosyayı `feeds/go/rss.xml` yapan, placeholder'dan sonra gelen sabit
-`rss.xml` kısmıdır:
+`WithStaticParams` bir
+[page'de](/docs/static-export#dynamic-paths-withstaticparams) olduğu gibi çalışır.
+Document'ın path'i olan her locale'de, her dosya için bir placeholder map'i verilir.
+Placeholder bütün bir segment'tir. Export edilen dosyayı `feeds/go/rss.xml` yapan,
+placeholder'dan sonra gelen sabit `rss.xml` kısmıdır:
 
 ```go
 collage.NewDocument("category-feed", "application/rss+xml").
 	WithPath("en", "/feeds/{category}/rss.xml").
 	WithHandler(categoryFeedHandler).
 	Static().
+	WithStaticParams(func(ctx context.Context, locale string) ([]map[string]string, error) {
+		params := make([]map[string]string, 0, len(categories))
+		for _, category := range categories {
+			params = append(params, map[string]string{"category": category})
+		}
+		return params, nil
+	}).
 	Build()
 ```
 
-```go
-builder, err := collage.NewBuilder(app, collage.BuildOptions{
-	OutDir:               outDir,
-	PathProvider:         postPaths{store},
-	DocumentPathProvider: categoryFeeds{categories},
-})
-```
-
-`Params`, handler'ın `rc.Param` ile okuduğu değerlerdir. Canlı bir request'in
-yakalayacağı değerlerle aynıdır.
+Build her path'i pattern'den kurar. Handler da değerleri `rc.Param` ile okur. Bu
+değerler, canlı bir request'in yakalayacağı değerlerle aynıdır. Pattern'i tam olarak
+doldurmayan bir map, yalnızca o dosyayı `collage.ErrRouteParams` ile başarısız
+kılar. Document'ın handler'ı olduğundan, yazılabilmesi için `Static()` demesi
+gerekir.
 
 ## Document'ların yapmadıkları
 

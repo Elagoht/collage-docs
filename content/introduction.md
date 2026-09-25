@@ -1,6 +1,6 @@
 ---
 description: What collage is, the idea it is built on, and when it is the right tool.
-reference: NewPage, NewFragment, DataHandler
+reference: NewPage, NewFragment
 ---
 
 # Introduction
@@ -26,12 +26,11 @@ a layout fragment with a content fragment in it, and a URL.
 
 ```go
 author := collage.NewFragment("author", "fragments/author.html").
-	WithDataHandler(collage.DataHandler(loadAuthor)).
+	WithDataHandler(loadAuthor).
 	Build()
 
 post := collage.NewFragment("post", "pages/post.html").
-	WithDataHandler(collage.DataHandler(loadPost)).
-	WithSlot("author", true, false).
+	WithDataHandler(loadPost).
 	WithSlotFragment("author", author).
 	Build()
 
@@ -60,7 +59,8 @@ Three things follow from building pages this way.
 ## What you get
 
 - Pages cached per URL, with three strategies: rendered once and kept until you
-  invalidate it, re-rendered after a TTL, or never cached.
+  invalidate it, re-rendered after a TTL, or never cached. A page that fetches
+  nothing is rendered once without being told to.
 - Data cached across pages, so with the cache on, thirty posts by one author fetch the author once.
 - Forms that post to their own page, with request-forgery protection built in —
   and a cached page can still carry one.
@@ -74,8 +74,10 @@ Three things follow from building pages this way.
   you are reading were produced by it.
 - A development server that rebuilds on every Go change and reloads the browser on
   every template change. A page that fails to render shows its error in the
-  browser; Go that fails to compile shows it in the terminal, and the last good
-  build keeps serving.
+  browser, template, line and cause first. Go that fails to compile shows it in the
+  terminal while the last good build keeps serving, and a program that cannot
+  start at all shows what it printed in the browser rather than a refused
+  connection.
 
 ## When it is the right tool
 

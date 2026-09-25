@@ -1,14 +1,15 @@
 ---
 description: Routes that answer with bytes instead of HTML — sitemaps, feeds, robots.txt, JSON — cached and invalidated like pages.
-reference: DocumentBuilder.AtRoot, NewDocument, DocumentBuilder, Document, DocumentResult, DocumentPathProvider, PathInstance
+reference: DocumentBuilder.AtRoot, DocumentBuilder.WithBody, DocumentBuilder.WithStaticParams, NewDocument, DocumentBuilder, Document, DocumentResult, StaticParamsFunc, ErrConflictingData
 ---
 
 # Documents: sitemaps, feeds, robots.txt
 
 Not everything a site serves is a page. A crawler wants `/sitemap.xml` and
 `/robots.txt`, a feed reader wants `/feed.xml`, a load balancer wants `/healthz`.
-In collage each of these is a **document**: a route whose handler returns bytes and
-a content type, with no template, no layout and no fragments.
+In collage each of these is a **document**: a route that answers with bytes and a
+content type — produced by a handler, or fixed when the program starts — with no
+template, no layout and no fragments.
 
 A document shares everything else with a page. It lives in the same router, so a
 path that collides with a page is refused when the second of the two is registered,
@@ -18,11 +19,8 @@ carries dependency tags, and is dropped by the same `app.InvalidateTags` call.
 
 ```go
 robots := collage.NewDocument("robots", "text/plain; charset=utf-8").
-	WithPath("en", "/robots.txt").
-	WithHandler(func(context.Context, *collage.RenderContext) ([]byte, []string, error) {
-		return []byte("User-agent: *\nAllow: /\n"), nil, nil
-	}).
-	Static().
+	AtRoot("/robots.txt").
+	WithBody([]byte("User-agent: *\nAllow: /\n")).
 	Build()
 
 if err := app.RegisterDocument(robots); err != nil {
@@ -48,23 +46,40 @@ want a template. The framework serves what you return, byte for byte.
 | `collage.NewDocument(name, contentType)` | Starts the builder. Both are required. |
 | `AtRoot(pattern)` | The URL pattern that reaches the document outside every locale: no prefix, whatever the locale configuration. For the site's own files — `/robots.txt`, `/llms.txt`. Since v0.14.1. |
 | `WithPath(locale, pattern)` | The URL pattern that reaches the document in `locale`. `{param}` segments work as they do for pages. A placeholder is a whole segment: `/feeds/{category}/rss.xml`, not `/feeds/{category}.xml`, which is refused at registration with `collage.ErrInvalidPattern` (since v0.11.0). |
-| `WithHandler(fn)` | The function that produces the body. Required: a document has no template to fall back on. |
-| `Dynamic()` | Run the handler on every request. **The default.** |
+| `WithHandler(fn)` | The function that produces the body. |
+| `WithBody(b)` | A body fixed when the program starts, in place of a handler. A document has no template to fall back on, so it needs one of the two, and not both. Since v0.16.0. |
+| `Dynamic()` | Run the handler on every request. What a document with a handler and no strategy resolves to. |
 | `Static()` | Run once, serve from cache until a tag invalidates it. |
 | `Incremental(ttl)` | Serve from cache, run again once `ttl` has passed. |
 | `WithCacheParams(names...)` | Which query parameters take part in the cache key, as for a page. |
+| `WithStaticParams(fn)` | The placeholder values a static build writes a `{param}` pattern for; see [below](#documents-in-a-static-export). Since v0.16.0. |
 | `WithDependency(tags...)` | Tags every response from this document carries. |
 | `WithRedirect(from, to, status)` / `WithPermanentRedirect(from, to)` | Old paths that redirect here. |
 | `Build()` / `BuildErr()` | The document, and the errors the chain collected. |
 
-Note the default. A page you forget to give a strategy is still a page; a document
-you forget to give one runs its handler on every request and is skipped by a static
-export. Sitemaps, feeds and `robots.txt` almost always want `Static()` or
-`Incremental(ttl)`.
+`Build` records `collage.ErrNoDocumentHandler` when neither a handler nor a body
+was set, and `RegisterDocument` refuses a document with both as
+`collage.ErrConflictingData`. What the builder recorded stays on the document, and
+`RegisterDocument` refuses it by name whether or not you called `BuildErr`, so
+checking it yourself is optional.
 
-`Build` records `collage.ErrNoDocumentHandler` when no handler was set. What the
-builder recorded stays on the document, and `RegisterDocument` refuses it by name
-whether or not you called `BuildErr`, so checking it yourself is optional.
+### A fixed body
+
+A document that declares no strategy is resolved when it is registered, as a
+[page](/docs/caching#a-page-that-declares-none) is: static with a fixed body,
+dynamic with a handler. A body fixed when the program starts is the same for every
+request, so the `robots.txt` above is cached and exported without a `Static()`.
+
+A sitemap or a feed is produced by a handler, so it is dynamic until it says
+otherwise — which is why the examples below still say `Static()` or
+`Incremental(ttl)`. The framework cannot see inside a handler: a sitemap built from
+your posts and a health check reporting the process's state are, from outside, the
+same function returning bytes. Guessing static for both would cache the health
+check, and a health check served from a cache answers `ok` long after it stopped
+being true. Guessing dynamic costs the sitemap a render per request until you say
+what it is — a slower sitemap, not a wrong answer. A document with a handler that
+you forget to give a strategy runs on every request and is skipped by a static
+export.
 
 ### The content type
 
@@ -313,6 +328,10 @@ func RobotsDocument(app *collage.App) *collage.Document {
 the root and nowhere else, so it is built with `AtRoot`: its one address is
 `/robots.txt`, even on a site whose default locale is served under `/en/`.
 
+This one needs a handler, not `WithBody`, because it names the sitemap's URL, and
+`app.URL` answers only once the sitemap is registered — when the handler runs, not
+when the document is built. With a handler it is dynamic unless it says `Static()`.
+
 `app.URL` works for documents as well as pages, so `robots.txt` finds the sitemap by
 its name. A page and a document that share a name cannot be linked to by that name
 — `app.URL` refuses to guess which one you meant — so give documents names of their
@@ -364,62 +383,47 @@ a crawler asking for `/sitemap.xml` must not receive a directory. A document in 
 locale other than the default is written under that locale's prefix, where it is
 served: `dist/tr/sitemap.xml`.
 
-- `Static()` and `Incremental(ttl)` documents are written. `Dynamic()` ones are
-  skipped and named in the report, which is why the scaffold's `/healthz` never
-  appears in `dist/`.
+- Static and incremental documents are written: those declared `Static()` or
+  `Incremental(ttl)`, and those with a fixed body and no strategy. Dynamic ones —
+  declared `Dynamic()`, or with a handler and no strategy — are skipped and named
+  in the report, which is why the scaffold's `/healthz` never appears in `dist/`.
 - An empty body is refused with `collage.ErrEmptyDocumentBody`, and no file is
   written.
-- A pattern with a `{param}` needs a `BuildOptions.DocumentPathProvider` to list
-  its concrete paths, or it is skipped with `collage.ErrDynamicPathUnresolved`.
+- A pattern with a `{param}` needs `WithStaticParams` to list its values, or it
+  is skipped with `collage.ErrDynamicPathUnresolved`.
 - A document with `WithCacheParams` — a paginated feed — is written without a
   query string, since a file cannot have one, and the report warns about it, as it
   does for a page.
-- Two paths that resolve to one file — a provider returning a path twice — are
-  built once; the rest are skipped with `collage.ErrDuplicateOutputPath`.
+- Two tasks that resolve to one file — `WithStaticParams` listing one set of values
+  twice — are built once; the rest are skipped with
+  `collage.ErrDuplicateOutputPath`.
 
-`DocumentPathProvider` is `PathProvider`'s counterpart for documents — a separate
-interface, so a provider written for pages does not have to change:
-
-```go
-// categoryFeeds expands "/feeds/{category}/rss.xml" into one path per category.
-type categoryFeeds struct{ categories []string }
-
-func (p categoryFeeds) Paths(_ context.Context, doc *collage.Document, locale string) ([]collage.PathInstance, error) {
-	if doc.Name != "category-feed" {
-		return nil, nil
-	}
-	var paths []collage.PathInstance
-	for _, category := range p.categories {
-		paths = append(paths, collage.PathInstance{
-			Path:   "/feeds/" + category + "/rss.xml",
-			Params: map[string]string{"category": category},
-		})
-	}
-	return paths, nil
-}
-```
-
-The document it expands is registered with the placeholder as a whole segment — the
-literal `rss.xml` after it is what makes the exported file `feeds/go/rss.xml`:
+`WithStaticParams` works as it does for a
+[page](/docs/static-export#dynamic-paths-withstaticparams): one map of placeholder
+values per file, per locale the document has a path in. The placeholder is a whole
+segment — the literal `rss.xml` after it is what makes the exported file
+`feeds/go/rss.xml`:
 
 ```go
 collage.NewDocument("category-feed", "application/rss+xml").
 	WithPath("en", "/feeds/{category}/rss.xml").
 	WithHandler(categoryFeedHandler).
 	Static().
+	WithStaticParams(func(ctx context.Context, locale string) ([]map[string]string, error) {
+		params := make([]map[string]string, 0, len(categories))
+		for _, category := range categories {
+			params = append(params, map[string]string{"category": category})
+		}
+		return params, nil
+	}).
 	Build()
 ```
 
-```go
-builder, err := collage.NewBuilder(app, collage.BuildOptions{
-	OutDir:               outDir,
-	PathProvider:         postPaths{store},
-	DocumentPathProvider: categoryFeeds{categories},
-})
-```
-
-`Params` is what the handler reads through `rc.Param`, the same as a live request
-would have captured.
+The build makes each path from the pattern, and the handler reads the values
+through `rc.Param`, the same as a live request would have captured. A map that
+does not fill the pattern exactly fails that one file with
+`collage.ErrRouteParams`. The document has a handler, so it says `Static()` to be
+written at all.
 
 ## What documents do not do
 

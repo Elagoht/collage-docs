@@ -53,9 +53,10 @@ Development modunu açar. Bu modda template'ler her render'dan önce diskten yen
 yüklenir ve page'ler tarayıcıda kendilerini yeniler. Başarısız fragment'ler page'in
 üzerinde gösterilir, page cache'ten hiç okunmaz ve disk cache'in yerini memory alır.
 `DevWatch`'ta adı geçen dizinler izlenir. Built-in error page de hatanın hangi
-fragment'te başladığını söyler ve hata zincirinin tamamını gösterir. **Production'da
-kapalı olmalıdır.** Bu tanı bilgileri dosya yollarını, host adlarını ve hata
-mesajlarında ne varsa hepsini içerir.
+fragment'te başladığını söyler, hatanın sebebiyle başlar (template kaynaklı bir
+hatada başarısız olan çağrının dosyası, satırı ve sütunu; v0.15.0'dan beri) ve hata
+zincirinin tamamını gösterir. **Production'da kapalı olmalıdır.** Bu tanı bilgileri
+dosya yollarını, host adlarını ve hata mesajlarında ne varsa hepsini içerir.
 
 Geçerli değeri `cfg.IsDevMode()` verir. Bu değer `DevMode || Template.DevMode`'dur.
 Scaffold edilmiş bir proje bu alanı `COLLAGE_DEV=1`'e göre ayarlar. `collage dev` bu
@@ -137,12 +138,16 @@ action ise hangi yazıma post edildiyse o adreste cevap verir.
 | `MaxBodyBytes` | `int64` | 4 MiB | Action kendi sınırını koymadığında action'ın request body'sine uygulanan sınır. |
 
 `Host`'un varsayılanı `localhost`'tur ve bu adrese makinenin dışından erişilemez.
-Container içinde bu alanı `0.0.0.0` yapın. `MaxBodyBytes`'ı `ApplyDefaults`
-doldurmaz. Sıfır, request geldiğinde uygulanan yerleşik 4 MiB (`4 << 20` byte)
-demektir. Negatif bir değer ise sınır olmadığı anlamına gelir. Sınırsız bir body,
-boyutunu anonim bir çağıranın belirlediği bir bellek kullanımıdır. Bu yüzden bunu
-bilerek seçin. Bir action kendi sınırını `WithMaxBodyBytes` ile koyabilir. Ayrıntılar
-için [Form'lar ve action'lar](/docs/forms-and-actions) sayfasına bakın.
+Container içinde bu alanı `0.0.0.0` yapın. Scaffold edilen bir proje `Host` ve
+`Port`'u `HOST` ve `PORT` ortam değişkenlerinden doldurur. `collage dev` altında bu
+değişkenler, `collage dev`'in seçtiği bir loopback adresidir; sizin adresinizde ise
+`collage dev`'in kendisi dinler. Bu yüzden onları ortamdan okumaya devam edin. Bkz.
+[CLI](/docs/cli#collage-dev). `MaxBodyBytes`'ı `ApplyDefaults` doldurmaz. Sıfır,
+request geldiğinde uygulanan yerleşik 4 MiB (`4 << 20` byte) demektir. Negatif bir
+değer ise sınır olmadığı anlamına gelir. Sınırsız bir body, boyutunu anonim bir
+çağıranın belirlediği bir bellek kullanımıdır. Bu yüzden bunu bilerek seçin. Bir
+action kendi sınırını `WithMaxBodyBytes` ile koyabilir. Ayrıntılar için [Form'lar ve
+action'lar](/docs/forms-and-actions) sayfasına bakın.
 
 ## SecurityConfig
 

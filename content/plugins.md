@@ -208,21 +208,17 @@ set — and nothing else, because the plugin cannot know what a page is about. T
 page says so from the data handler that fetched the article:
 
 ```go
-type articleView struct {
-	Article Article
-}
-
-func loadArticle(ctx context.Context, rc *collage.RenderContext) (articleView, []string, error) {
+func loadArticle(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
 	article, err := client.Article(ctx, rc.Param("slug"))
 	if err != nil {
-		return articleView{}, nil, err
+		return nil, nil, err
 	}
 	jsonld.Emit(rc, jsonld.Article{
 		Headline:      article.Title,
 		DatePublished: article.PublishedAt,
 		AuthorName:    article.Author,
 	})
-	return articleView{Article: article}, []string{"article:" + article.Slug}, nil
+	return article, []string{"article:" + article.Slug}, nil
 }
 ```
 

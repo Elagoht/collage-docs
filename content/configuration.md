@@ -52,9 +52,10 @@ Turns on development mode: templates reloaded from disk before every render, pag
 that reload themselves in the browser, failed fragments shown on the page, the
 page cache never read from, a disk cache replaced by memory, directories named in
 `DevWatch` watched, and the built-in error page naming the fragment where a
-failure started and showing the full error chain. **It must be off in
-production** — those diagnostics carry paths, hostnames and whatever else error
-messages contain.
+failure started, leading with the cause — for a template, the file, line and
+column of the call that failed (since v0.15.0) — and showing the full error chain.
+**It must be off in production** — those diagnostics carry paths, hostnames and
+whatever else error messages contain.
 
 The effective value is `cfg.IsDevMode()`, which is `DevMode || Template.DevMode`.
 A scaffolded project sets it from `COLLAGE_DEV=1`, which `collage dev` sets for you.
@@ -129,7 +130,10 @@ spelling it was posted to.
 | `MaxBodyBytes` | `int64` | 4 MiB | Bound on an action's request body when the action sets none. |
 
 `Host` defaults to `localhost`, which is unreachable from outside the machine — in
-a container, set it to `0.0.0.0`. `MaxBodyBytes` is not filled in by
+a container, set it to `0.0.0.0`. A scaffolded project fills `Host` and `Port` from
+the `HOST` and `PORT` environment variables. Under `collage dev` those are a
+loopback address `collage dev` chose, and it listens on yours itself, so keep
+reading them from the environment; see [CLI](/docs/cli#collage-dev). `MaxBodyBytes` is not filled in by
 `ApplyDefaults`: zero means the built-in 4 MiB (`4 << 20` bytes), applied when a
 request arrives, and a negative value means unbounded. An unbounded body is memory
 an anonymous caller chooses the size of, so choose that deliberately. An action can

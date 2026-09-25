@@ -24,7 +24,9 @@ type docView struct {
 // /tr/docs/{slug}. A page not translated yet is a 404 in the translation.
 //
 // Static: a page's content changes when the site is rebuilt and at no other time,
-// so it is rendered once per build and, served, once per process.
+// so it is rendered once per build and, served, once per process. A build writes
+// every page of the documentation in the original and every page translated so
+// far in a translation, and nothing else.
 func DocPage(app *collage.App, docs func() (*site.Set, error)) *collage.Page {
 	content := collage.NewFragment("doc-content", "pages/doc.html").
 		WithDataHandler(collage.Load(func(_ context.Context, rc *collage.RenderContext) (docView, error) {
@@ -55,7 +57,22 @@ func DocPage(app *collage.App, docs func() (*site.Set, error)) *collage.Page {
 	builder := collage.NewPage("doc").
 		WithLayout(layouts.Layout(app, docs)).
 		WithContent(content).
-		Static()
+		Static().
+		WithStaticParams(func(_ context.Context, locale string) ([]map[string]string, error) {
+			set, err := docs()
+			if err != nil {
+				return nil, err
+			}
+			loaded := set.Site(locale)
+			if loaded == nil {
+				return nil, nil
+			}
+			params := make([]map[string]string, 0, len(loaded.Pages()))
+			for _, page := range loaded.Pages() {
+				params = append(params, map[string]string{"slug": page.Slug})
+			}
+			return params, nil
+		})
 	for _, locale := range site.Locales() {
 		builder = builder.WithPath(locale, "/docs/{slug}")
 	}

@@ -75,8 +75,10 @@ replace files of the same name.
 **Every project** gets `go.mod`, a `main.go` holding the configuration, the static
 mount, the CLI contract described [below](#the-contract-with-maingo) and the
 dispatch of [plugin commands](#plugin-commands), a `routes.go` registering every
-route, a layout that declares the site's title with `rc.HoistTitle` (so a page's
-own title replaces it), a home page, `static/`, a `.gitignore` and a README.
+route, a layout that names the site with `WithTitle` and declares no slots (so a
+page's own title replaces the site's), a home page that hands its template the
+project's name with `WithData` — static without saying `Static()`, because nothing
+in it fetches — `static/`, a `.gitignore` and a README.
 
 **The demo project**, the default, adds a page of live demos — an action answering
 JSON, a form posting to its own page, a fragment with its own URL, a JSON
@@ -86,7 +88,7 @@ document — split into `pages/`, `fragments/`, `actions/`, `documents/` and
 
 **`--template minimal`** is the least a project can be: the layout around one
 page, `<h1>Hello from {{.Name}}</h1>` — the project's name, handed to the
-template with `collage.Data` — and a stylesheet that sets the background and text
+template with `WithData` — and a stylesheet that sets the background and text
 colour, dark mode included. Nothing else — no tests, and no not-found page:
 collage answers an unknown address with its own plain 404 until you register one.
 
@@ -111,7 +113,15 @@ and rebuilds and restarts it whenever its Go code changes. It takes no flags and
 no arguments. Press Ctrl-C to stop; the program receives the interrupt too and
 shuts down the way it would in production.
 
-The scaffolded `main.go` turns on development mode when `COLLAGE_DEV=1` is set.
+The browser talks to `collage dev`, not to the program: `collage dev` listens on
+`HOST` and `PORT` as your program would read them (`localhost:3000` by default),
+and passes each request on to the program, which it starts with `HOST` and `PORT`
+set to a loopback address of its own. That is how it can
+[show errors in the browser](#errors-in-the-browser) when there is no program to
+answer.
+
+The scaffolded `main.go` turns on development mode when `COLLAGE_DEV=1` is set,
+and listens on the `HOST` and `PORT` it is given.
 Development mode reads templates and static files from disk on every request, so
 editing those needs no rebuild and none happens — the page in your browser reloads
 itself instead. Content your program reads from disk itself, such as Markdown,
@@ -145,8 +155,25 @@ How a rebuild goes:
   not exited within 10 seconds — and the new one started.
 - **A change that does not compile leaves the last good build serving**, with the
   compiler's error on screen.
-- **A program that exits by itself** — a panic at startup, a port already in use —
-  is not restarted in a loop. The next change starts it again.
+- **A program that exits by itself** — a panic at startup, a page whose template
+  is missing — is not restarted in a loop. The next change starts it again.
+
+### Errors in the browser
+
+Since v0.15.0, a program that is not running is a page, not a refused connection:
+
+- **When the program exits** — a template not found at registration, a panic at
+  startup — **or the first build fails**, every page is a 503 showing what the
+  program or the compiler printed. A page already open reloads onto it, and
+  reloads again once a change brings the program back.
+- **A request made while the program starts waits for it**, rather than failing
+  because the program is not listening yet.
+- **A program that never listens where it was told** — a `main.go` that ignores
+  `HOST` and `PORT` — is named on the page after 10 seconds, with the address it
+  was given.
+
+A render that fails once the program is running is the program's own development
+error page, which leads with the cause — see [Errors](/docs/errors#rendering).
 
 ### Environment files
 
@@ -175,7 +202,9 @@ export COLLAGE_CSRF_KEY="0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b
   skipped line would be a setting you wrote and the program never saw.
 - **A variable already set in the shell wins** over the file, so
   `PORT=4000 collage dev` still works.
-- `COLLAGE_DEV=1` is always set, whatever the file says.
+- `COLLAGE_DEV=1` is always set, whatever the file says, and so are the `HOST` and
+  `PORT` the program is to listen on. The file's `HOST` and `PORT` are where
+  `collage dev` itself listens, read once when it starts.
 - No file is not an error. When a file is read, its name is printed on stderr.
 - The file is read again on every restart, and it is watched, so editing it
   restarts the program with the new values.
@@ -271,9 +300,13 @@ go run . -collage-build -out <dir>          # plus -clean when you passed it
 The program's output — the build report — is streamed straight through, not
 reformatted. Positional arguments are a usage error.
 
-What gets exported, what is skipped and why, and the safety checks on the output
-directory are in [Static export](/docs/static-export). For a site with forms or
-per-request pages, `collage build` is the one you want.
+A page that declares no strategy is exported when nothing it renders has a data
+handler; one with a handler is exported when it says `Static()` or
+`Incremental(ttl)`. A page whose path has a `{param}` is exported once per value
+its `WithStaticParams` lists, and skipped without one. What gets exported, what is
+skipped and why, and the safety checks on the output directory are in
+[Static export](/docs/static-export). For a site with forms or per-request pages,
+`collage build` is the one you want.
 
 ## collage serve
 
@@ -340,7 +373,7 @@ needs but your plugins do:
 
 | Command | Runs | Your `main.go` must |
 | --- | --- | --- |
-| `collage dev` | `go build`, then the binary, with `COLLAGE_DEV=1` | turn on development mode when `COLLAGE_DEV` is `1` |
+| `collage dev` | `go build`, then the binary, with `COLLAGE_DEV=1` and the `HOST` and `PORT` to listen on | turn on development mode when `COLLAGE_DEV` is `1`, and listen on `HOST` and `PORT` |
 | `collage export` | `go run . -collage-build -out <dir> [-clean]` | parse `-collage-build`, `-out` and `-clean`, and on `-collage-build` render to `<dir>` instead of serving |
 
 `collage build` needs nothing from `main.go`: compiling is something `go build`

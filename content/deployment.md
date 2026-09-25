@@ -219,8 +219,10 @@ If you raise `ShutdownTimeout`, raise your platform's grace period with it.
 
 The project `collage new` scaffolds answers `/healthz` with a small JSON body whose
 `status` is `ok`. It is a [document](/docs/documents), not a page, so it involves no
-template and cannot start failing because one did. It is `Dynamic()`, so every
-check really reaches the process.
+template and cannot start failing because one did. It is dynamic — a document
+produced by a handler is, unless it says otherwise, and the scaffold says
+`Dynamic()` explicitly — so every check really reaches the process. A health check
+served from a cache would answer `ok` long after it stopped being true.
 
 Point your platform's liveness check at it. It tells you the process is up and
 serving. A readiness check that should also fail when your database is unreachable
@@ -241,8 +243,11 @@ Cache: collage.CacheConfig{
 },
 ```
 
-Rendered pages survive a restart, so a redeploy of the same build does not re-render
-the site into a cold cache. What a new build finds depends on what changed:
+It holds every static and incremental page, and a page that declares no strategy
+is static when nothing it renders has a data handler — see
+[Caching](/docs/caching#a-page-that-declares-none). Rendered pages survive a
+restart, so a redeploy of the same build does not re-render the site into a cold
+cache. What a new build finds depends on what changed:
 
 - **The cache is namespaced by a hash of the binary.** A new build reads a different
   directory, `.cache/<hash>`, so it never serves pages the previous build rendered.

@@ -82,10 +82,10 @@ Bir fragment bu sonucu `rc.Locale` olarak okur ve doğru içeriği çekmek için
 kullanır:
 
 ```go
-func aboutData(ctx context.Context, rc *collage.RenderContext) (aboutView, []string, error) {
+func aboutData(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
 	text, err := cms.Page(ctx, "about", rc.Locale)
 	if err != nil {
-		return aboutView{}, nil, err
+		return nil, nil, err
 	}
 	return aboutView{Body: text}, []string{"page:about:" + rc.Locale}, nil
 }
@@ -256,7 +256,7 @@ app.Use(func(next http.Handler) http.Handler {
 ```
 
 ```go
-func pageData(ctx context.Context, rc *collage.RenderContext) (view, []string, error) {
+func pageData(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
 	lang, _ := ctx.Value(langKey{}).(string)
 	// ...
 }

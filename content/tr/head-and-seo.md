@@ -1,6 +1,6 @@
 ---
 description: Title'ları, meta tag'leri, stylesheet'leri ve structured data'yı onları bilen fragment tanımlar, layout yerleştirir.
-reference: RenderContext, Effect, ErrNoPathInLocale
+reference: RenderContext, FragmentBuilder.WithTitle, Effect, ErrNoPathInLocale
 ---
 
 # Head ve SEO
@@ -40,16 +40,34 @@ tek geçişte yapılır ve konumu yine layout belirler.
 Marker yoksa tanımlar hiçbir yere yerleşmez. Bir title ya da bir plugin'in
 çıktısı eksikse ilk kontrol etmeniz gereken şey budur.
 
-## Data handler'dan tanımlamak
+## Handler olmadan bir title
 
-`RenderContext` üzerindeki helper'lar neredeyse her page'in ihtiyacını karşılar.
-Bunları bir data handler'dan çağırın:
+Program başlarken bilinen bir title, örneğin layout'taki site adı ya da "Hakkında"
+page'inin adı, hiç kod gerektirmez. `WithTitle` onu fragment üzerinde tanımlar:
 
 ```go
-func loadPost(ctx context.Context, rc *collage.RenderContext) (postView, []string, error) {
+layout := collage.NewFragment("layout", "layouts/default.html").
+	WithTitle("The Wire").
+	Build()
+```
+
+Bu, `rc.HoistTitle`'ın yaptığı tanımın aynısıdır. Bu yüzden
+[aşağıdaki](#keys-and-the-innermost-wins) kurallara uyar: en içteki kazanır ve aynı
+fragment'in data handler'ının hoist ettiği bir title onun yerine geçer. Handler'ın
+aksine, strateji tanımlamayan bir page'i static bırakır. Bkz.
+[Caching](/docs/caching#a-page-that-declares-none).
+
+## Data handler'dan tanımlamak
+
+Geri kalan her şey, yani içerikten gelen bir title, bir description ya da bir
+stylesheet, `RenderContext` üzerindeki helper'larla tanımlanır. Bunları bir data
+handler'dan çağırın:
+
+```go
+func loadPost(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
 	post, err := store.Post(ctx, rc.Param("slug"))
 	if err != nil {
-		return postView{}, nil, err
+		return nil, nil, err
 	}
 
 	rc.HoistTitle(post.Title + " — The Wire")
@@ -58,10 +76,10 @@ func loadPost(ctx context.Context, rc *collage.RenderContext) (postView, []strin
 	rc.HoistProperty("og:image", post.CoverURL)
 	rc.HoistLink("canonical", siteOrigin+"/blog/"+post.Slug)
 	if err := rc.HoistStylesheet("/static/post.css"); err != nil {
-		return postView{}, nil, err
+		return nil, nil, err
 	}
 
-	return postView{Post: post}, []string{"post:" + post.Slug}, nil
+	return post, []string{"post:" + post.Slug}, nil
 }
 ```
 
@@ -114,12 +132,11 @@ override etsin:
 
 ```go
 layout := collage.NewFragment("layout", "layouts/default.html").
+	WithTitle("The Wire").
 	WithDataHandler(collage.Effect(func(_ context.Context, rc *collage.RenderContext) error {
-		rc.HoistTitle("The Wire")
 		rc.HoistMeta("description", "News about the sea, and the people who live beside it.")
 		return nil
 	})).
-	WithSlot("content", true, false).
 	Build()
 ```
 
@@ -127,8 +144,13 @@ Bu layout'un içindeki bir post kendi title'ını ve description'ını tanımlar
 Page'de görünenler de bunlar olur. Hiçbir şey tanımlamayan bir page layout'unkileri
 korur. Layout'un template'ine ayrıca elle bir `<title>` yazmayın. Yazarsanız o title,
 hoist edilen title'ın yanında durur. İki title'ı olan bir page'de tarayıcı bunlardan
-birini yok sayar. `collage new`'un oluşturduğu layout da sitenin adını bu şekilde
-tanımlar. Böylece bir page'in `rc.HoistTitle` çağrısı onun yerine geçer.
+birini yok sayar. `collage new`'un oluşturduğu layout da sitenin adını `WithTitle`
+ile verir. Böylece bir page'in kendi title'ı onun yerine geçer.
+
+Layout'taki bir handler her page'deki bir handler demektir. Bu yüzden yukarıdaki
+description, strateji tanımlamayan her page'i dynamic yapar. Page'lerinin
+cache'lenmesini isteyen bir site, page'lerinde `Static()` ya da `Incremental(ttl)`
+belirtir ya da layout'ta yalnızca `WithTitle` bırakır.
 
 Sürpriz olmasınlar diye üç ayrıntıyı belirtelim:
 
@@ -210,7 +232,6 @@ func Layout(app *collage.App) *collage.Fragment {
 			}
 			return nil
 		})).
-		WithSlot("content", true, false).
 		Build()
 }
 ```
@@ -218,7 +239,8 @@ func Layout(app *collage.App) *collage.Fragment {
 Bazı page'lerin çevirisi farklı bir slug kullanır ve bunu yalnızca o page'in içeriği
 bilir. Böyle bir page, o dil için kendi `rc.HoistAlternate` çağrısını yapar. Daha
 içte olduğu için de layout'un tanımının yerine geçer. Handler'ı olmayan bir
-layout için template'teki karşılığı
+layout için (böyle bir layout, strateji tanımlamayan page'leri static bırakır)
+template'teki karşılığı
 [`localeURL`](/docs/links-and-locales#a-language-switcher) fonksiyonudur. Page'in var
 olmadığı bir dil için boş döner:
 
@@ -235,10 +257,10 @@ yazar. Bunu elle oluşturulmuş JSON'dan değil, tipli değerlerden yapar:
 ```go
 import "github.com/Elagoht/collage-jsonld"
 
-func loadPost(ctx context.Context, rc *collage.RenderContext) (postView, []string, error) {
+func loadPost(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
 	post, err := store.Post(ctx, rc.Param("slug"))
 	if err != nil {
-		return postView{}, nil, err
+		return nil, nil, err
 	}
 	jsonld.Emit(rc, jsonld.BlogPosting{
 		Headline:      post.Title,
@@ -246,7 +268,7 @@ func loadPost(ctx context.Context, rc *collage.RenderContext) (postView, []strin
 		DatePublished: post.PublishedAt,
 		AuthorName:    post.Author,
 	})
-	return postView{Post: post}, []string{"post:" + post.Slug}, nil
+	return post, []string{"post:" + post.Slug}, nil
 }
 ```
 

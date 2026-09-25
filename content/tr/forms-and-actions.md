@@ -157,7 +157,7 @@ type contactView struct {
 
 func ContactPage() *collage.Page {
 	form := collage.NewFragment("contact-form", "pages/contact.html").
-		WithDataHandler(collage.DataHandler(contactData)).
+		WithDataHandler(contactData).
 		Build()
 
 	var page *collage.Page
@@ -182,7 +182,7 @@ func ContactPage() *collage.Page {
 	return page
 }
 
-func contactData(_ context.Context, rc *collage.RenderContext) (contactView, []string, error) {
+func contactData(_ context.Context, rc *collage.RenderContext) (any, []string, error) {
 	// Set by the action when this render is its answer; empty on an ordinary GET.
 	view, _ := collage.Get[contactView](rc, "contact:form")
 	return view, nil, nil

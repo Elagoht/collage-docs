@@ -62,7 +62,7 @@ app.Use(func(next http.Handler) http.Handler {
 ```
 
 ```go
-func accountData(ctx context.Context, rc *collage.RenderContext) (accountView, []string, error) {
+func accountData(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
 	user, ok := ctx.Value(userKey{}).(User)
 	if !ok {
 		return accountView{}, nil, nil // signed out: the fragment renders its signed-out state
@@ -73,8 +73,9 @@ func accountData(ctx context.Context, rc *collage.RenderContext) (accountView, [
 
 Cache'e dikkat edin. Kullanıcıya göre farklı render edilen bir page URL'ye göre
 cache'lenmemelidir. Aksi hâlde ilk okuyucunun gördüğü versiyon herkese gösterilir.
-Böyle bir page'i `Dynamic()` yapın ya da neye göre değiştiğini aşağıda anlatılan
-`collage.Vary` ile cache'e bildirin.
+Böyle bir page'i dynamic bırakın, yani ona `Static()` ya da `Incremental(ttl)`
+vermeyin (data handler'ı olan ve strateji tanımlamayan bir page zaten dynamic'tir).
+Ya da neye göre değiştiğini aşağıda anlatılan `collage.Vary` ile cache'e bildirin.
 
 Static export request olmadan render eder, bu yüzden export sırasında hiçbir
 middleware çalışmaz. Context'ten değer okuyan bir data handler, bu değer olmadığında

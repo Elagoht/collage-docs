@@ -59,7 +59,7 @@ app.Use(func(next http.Handler) http.Handler {
 ```
 
 ```go
-func accountData(ctx context.Context, rc *collage.RenderContext) (accountView, []string, error) {
+func accountData(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
 	user, ok := ctx.Value(userKey{}).(User)
 	if !ok {
 		return accountView{}, nil, nil // signed out: the fragment renders its signed-out state
@@ -69,8 +69,10 @@ func accountData(ctx context.Context, rc *collage.RenderContext) (accountView, [
 ```
 
 Mind the cache. A page that renders differently per user must not be cached by URL,
-or the first reader's version is everyone's: make it `Dynamic()`, or tell the cache
-what it varies on with `collage.Vary` below.
+or the first reader's version is everyone's: keep it dynamic — as a page with a
+data handler and no declared strategy already is — rather than giving it `Static()`
+or `Incremental(ttl)`, or tell the cache what it varies on with `collage.Vary`
+below.
 
 A static export renders without a request, so no middleware runs during one. A data
 handler reading a context value must cope with its absence — which it has to anyway,

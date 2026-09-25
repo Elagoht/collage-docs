@@ -1,6 +1,6 @@
 ---
 description: collage nedir, hangi fikre dayanır ve ne zaman doğru araçtır.
-reference: NewPage, NewFragment, DataHandler
+reference: NewPage, NewFragment
 ---
 
 # Giriş
@@ -30,12 +30,11 @@ fragment'i bulunan bir layout fragment'i ve bir URL'dir.
 
 ```go
 author := collage.NewFragment("author", "fragments/author.html").
-	WithDataHandler(collage.DataHandler(loadAuthor)).
+	WithDataHandler(loadAuthor).
 	Build()
 
 post := collage.NewFragment("post", "pages/post.html").
-	WithDataHandler(collage.DataHandler(loadPost)).
-	WithSlot("author", true, false).
+	WithDataHandler(loadPost).
 	WithSlotFragment("author", author).
 	Build()
 
@@ -65,7 +64,8 @@ Page'leri bu şekilde kurmanın üç sonucu vardır.
 
 - URL başına cache'lenen page'ler ve üç strateji. Page bir kez render edilip siz
   invalidate edene kadar tutulabilir, bir TTL sonunda yeniden render edilebilir ya da
-  hiç cache'lenmeyebilir.
+  hiç cache'lenmeyebilir. Hiçbir veri çekmeyen bir page, söylenmesine gerek
+  kalmadan bir kez render edilir.
 - Page'ler arasında paylaşılan data cache. Cache açıkken aynı yazarın otuz yazısı,
   yazarın verisini yalnızca bir kez çeker.
 - Kendi page'ine post edilen form'lar ve bunlara yerleşik request forgery koruması.
@@ -79,9 +79,10 @@ Page'leri bu şekilde kurmanın üç sonucu vardır.
 - Siteyi herhangi bir static hosting'e uygun dosyalara dönüştüren bir static export.
   Şu an okuduğunuz sayfalar da onunla üretildi.
 - Her Go değişikliğinde yeniden build alan ve her template değişikliğinde tarayıcıyı
-  yenileyen bir dev server. Render edilemeyen bir page, hatasını tarayıcıda gösterir.
-  Derlenemeyen Go kodu ise hatasını terminalde gösterir ve son sağlam build sunulmaya
-  devam eder.
+  yenileyen bir dev server. Render edilemeyen bir page, hatasını tarayıcıda gösterir;
+  önce template'i, satırı ve nedeni verir. Derlenemeyen Go kodu hatasını terminalde
+  gösterir ve bu sırada son sağlam build sunulmaya devam eder. Hiç başlayamayan bir
+  program ise reddedilen bir bağlantı yerine yazdırdıklarını tarayıcıda gösterir.
 
 ## Ne zaman doğru araçtır
 

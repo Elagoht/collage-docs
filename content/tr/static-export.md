@@ -1,6 +1,6 @@
 ---
 description: Siteyi collage export ile static dosyalara render edin: nelerin yazıldığı, nelerin neden atlandığı, dinamik path'ler ve bir static host'ta yayımlama.
-reference: NewBuilder, BuildOptions, BuildReport, PrintBuildReport, PathProvider, PathInstance, SkipRecord, ErrNotStatic
+reference: NewBuilder, BuildOptions, BuildReport, PrintBuildReport, StaticParamsFunc, SkipRecord, ErrNotStatic, ErrDynamicPathUnresolved, ErrRouteParams
 ---
 
 # Static export
@@ -36,18 +36,15 @@ go run . -collage-build -out dist        # plus -clean when you passed it
 
 Scaffold edilen `main.go` bu sözleşmeye uyar. `-collage-build` ile çalıştığında
 uygulamayı her zamanki gibi kurar, ama onu sunmak yerine collage'ın builder'ına
-verir ve ne olduğunu ekrana yazar. Bu fonksiyonun collage-docs'taki hâli şöyledir:
+verir ve ne olduğunu ekrana yazar. Bu fonksiyonun collage-docs'taki hâli aşağıdadır.
+Hangi page'lerin var olduğu onu ilgilendirmez, çünkü bunu her page
+[kendisi söyler](#dynamic-paths-withstaticparams):
 
 ```go
 func staticBuild(app *collage.App, outDir string, clean bool) error {
-	loaded, err := site.Load(content.FS)
-	if err != nil {
-		return err
-	}
 	builder, err := collage.NewBuilder(app, collage.BuildOptions{
-		OutDir:       outDir,
-		Clean:        clean,
-		PathProvider: docPaths{loaded},
+		OutDir: outDir,
+		Clean:  clean,
 	})
 	if err != nil {
 		return err
@@ -74,9 +71,9 @@ koruyun. Aksi hâlde `collage export` işe yarar hiçbir şey yapmaz.
 
 | Ne | Nereye |
 | --- | --- |
-| `Static()` ya da `Incremental(ttl)` bir page | `dist/<path>/index.html`; `/` için `dist/index.html` |
+| Static ya da incremental bir page: `Static()`, `Incremental(ttl)` ya da [stratejisi ve data handler'ı olmayan](/docs/caching#a-page-that-declares-none) bir page | `dist/<path>/index.html`; `/` için `dist/index.html` |
 | Aynı page'in varsayılan olmayan bir locale'deki hâli | Locale'in prefix'i altına: `dist/tr/<path>/index.html` |
-| `Static()` ya da `Incremental(ttl)` bir document | Birebir kendi path'ine: `/sitemap.xml` için `dist/sitemap.xml` |
+| Static ya da incremental bir document: `Static()`, `Incremental(ttl)` ya da stratejisi olmayan ve [sabit bir body'si](/docs/documents#a-fixed-body) olan bir document | Birebir kendi path'ine: `/sitemap.xml` için `dist/sitemap.xml` |
 | Aynı document'ın varsayılan olmayan bir locale'deki hâli | Locale'in prefix'i altına: `dist/tr/sitemap.xml` |
 | `AtRoot` ile kurulan bir document | Her config'de prefix'siz path'ine: `dist/robots.txt` |
 | [`PrefixDefault`](/docs/links-and-locales#the-url-decides-the-locale) açıkken varsayılan locale'deki bir page ya da document | Bunlar da prefix'in altına yazılır: `dist/en/<path>/index.html` ve `dist/en/sitemap.xml`. `dist/index.html` ise okuyucuyu `/en/`'e yönlendirir |
@@ -111,17 +108,21 @@ Ayrıntılar için [Static asset'ler](/docs/assets) sayfasına bakın.
 Bazı page'ler dosya olamaz. Build bunları dışarıda bırakır ve her birini nedeniyle
 birlikte raporda listeler:
 
-- **`Dynamic()` page'ler ve document'lar.** Bunlar zaten her request'te render
-  edilmek için vardır.
+- **Dynamic page'ler ve document'lar.** Bunlar zaten her request'te render
+  edilmek için vardır. `Dynamic()` olarak tanımlananlar da, strateji tanımlamayıp
+  veri çekenler de bu gruptadır: data handler ya da slot resolver render eden bir
+  page, handler'ı olan bir document. Handler'ı her okuyucuya aynı şeyi dönen bir
+  page, export edilebilmesi için `Static()` çağrısını yapmalıdır.
 - **Form içeren page'ler.** Render'ı `{{csrfToken}}` içeren bir page atlanır. Bir
   form'un post edeceği bir sunucuya ihtiyacı vardır ve forgery token tek bir
   okuyucuya aittir. Page bilerek `Static()` yapılmış olabilir, yani cache'lenir ve
   post ettiği action tarafından invalidate edilir. Bu durumda da export edilmez,
   sunucudan sunulur. Scaffold'daki `/features` page'i buna bir örnektir.
-- **Path provider'ı olmayan bir `{param}` pattern'i.** Hangi slug'ların var olduğunu
-  bir şey söylemeden `/blog/{slug}` yazılamaz. Aşağıya bakın.
-- **Aynı dosyaya düşen iki document.** Aynı path'i iki kez döndüren bir
-  `DocumentPathProvider`, iki görevi tek bir dosyaya bağlar. İlki yazılır, geri
+- **`WithStaticParams`'ı olmayan bir `{param}` pattern'i.** Hangi slug'ların var
+  olduğunu bir şey söylemeden `/blog/{slug}` yazılamaz ve
+  `collage.ErrDynamicPathUnresolved` ile atlanır. Aşağıya bakın.
+- **Aynı dosyaya düşen iki document.** `WithStaticParams`'ı aynı değerleri iki kez
+  listeleyen bir document, iki görevi tek bir dosyaya bağlar. İlki yazılır, geri
   kalanlar `collage.ErrDuplicateOutputPath` ile atlanır. İki locale'deki tek bir
   pattern bu duruma girmez, çünkü her locale kendi prefix'i altına yazılır. Bkz.
   [Document'lar](/docs/documents#documents-in-a-static-export).
@@ -146,7 +147,7 @@ sayfalanmış bir feed için, aynı şekilde uyarı verilir. Bu v0.10.0'dan beri
 öncesinde yalnızca page'ler için uyarı veriliyordu.
 
 Sayfalamanın export'ta da çalışması gerekiyorsa sayfa numarasını path'e koyun,
-örneğin `/blog/page/{n}`. Ardından bu page'leri bir path provider ile listeleyin.
+örneğin `/blog/page/{n}`. Ardından bu page'leri `WithStaticParams` ile listeleyin.
 
 ## Neler başarısız olur
 
@@ -167,60 +168,77 @@ kodla çıkar.
 - **Form içeren bir not-found page** (`collage.ErrUnresolvedToken`). Bunun nedeni,
   static host'un bu page'e bir dosya olarak ihtiyaç duymasıdır.
 - **Aynı output path'e düşen iki page** (`collage.ErrOutputPathCollision`). Bu,
-  yalnızca sondaki slash ile ayrılan iki pattern ya da aynı path'i iki kez döndüren
-  bir path provider olabilir. Bu durum tespit edildiğinde hiçbir page render edilmez.
-  Document'lar, `404.html` page'leri ve mount edilen asset'ler yine yazılır, ama build
-  yine de başarısız olur.
+  yalnızca sondaki slash ile ayrılan iki pattern ya da aynı değerleri iki kez
+  listeleyen bir `WithStaticParams` olabilir. Bu durum tespit edildiğinde hiçbir
+  page render edilmez. Document'lar, `404.html` page'leri ve mount edilen asset'ler
+  yine yazılır, ama build yine de başarısız olur.
 
-## Dinamik path'ler: `PathProvider`
+## Dinamik path'ler: `WithStaticParams`
 
-`/blog/{slug}` adresindeki bir page, birçok URL'si olan tek bir page'dir. Builder bu
-URL'leri bir `collage.PathProvider`'dan ister:
-
-```go
-type PathProvider interface {
-	Paths(ctx context.Context, page *collage.Page, locale string) ([]collage.PathInstance, error)
-}
-```
-
-Her dinamik page ve locale için bir kez çağrılır. Somut path'leri ve her birinin
-yakaladığı parametreleri döndürür. Bu dokümantasyon, `/docs/{slug}` adresindeki tek
-bir page'dir: `doc`. Provider, dokümantasyonun bütün sayfalarını listeler:
+`/blog/{slug}` adresindeki bir page, birçok URL'si olan tek bir page'dir. Page bu
+URL'leri `WithStaticParams` ile kendisi listeler. Verdiğiniz fonksiyon, her dosya
+için placeholder değerlerinden oluşan bir map döner:
 
 ```go
-// docPaths tells the static build which /docs/{slug} pages exist: every page of
-// the documentation, and nothing else.
-type docPaths struct{ site *site.Site }
+WithStaticParams(fn collage.StaticParamsFunc)
 
-func (d docPaths) Paths(_ context.Context, page *collage.Page, _ string) ([]collage.PathInstance, error) {
-	if page.Name != "doc" {
-		return nil, nil
-	}
-	var paths []collage.PathInstance
-	for _, p := range d.site.Pages() {
-		paths = append(paths, collage.PathInstance{Path: p.URL(), Params: map[string]string{"slug": p.Slug}})
-	}
-	return paths, nil
-}
+type StaticParamsFunc func(ctx context.Context, locale string) ([]map[string]string, error)
 ```
 
-- **Page'i kontrol edin.** Bütün dinamik page'lere tek bir provider cevap verir.
-  Tanımadığınız bir page için `nil` döndürürseniz o page için hiçbir şey yazılmaz.
-  Bu bir hata sayılmaz.
-- **Data handler'lar `Params`'ı görür.** `Params`, router'ın `Path`'ten yakaladığı
-  değerlerin üzerine yazılır. Böylece `rc.Param("slug")`, canlı bir request'teki
-  değerin aynısını döner.
-- **`Path` locale prefix'i içermez.** Pattern'in path'ini, yani `/blog/hello`'yu
-  döndürün. Varsayılan olmayan bir locale'i builder kendi dizini altına yazar.
-- **Hata döndürürseniz** hata o page ve locale için kaydedilir ve build devam eder.
+Page'in path'i olan her locale için bir kez çağrılır. Bu dokümantasyon, her dilde
+`/docs/{slug}` adresindeki tek bir page'dir: `doc`. Bu page, orijinalde
+dokümantasyonun bütün sayfalarını, bir çeviride ise o ana kadar çevrilmiş her
+sayfayı listeler:
 
-`{param}` içeren document'ların kendi interface'i vardır:
-`BuildOptions.DocumentPathProvider`. Bu interface [Document'lar](/docs/documents)
-sayfasında anlatılır.
+```go
+builder := collage.NewPage("doc").
+	WithLayout(layouts.Layout(app, docs)).
+	WithContent(content).
+	Static().
+	WithStaticParams(func(_ context.Context, locale string) ([]map[string]string, error) {
+		set, err := docs()
+		if err != nil {
+			return nil, err
+		}
+		loaded := set.Site(locale)
+		if loaded == nil {
+			return nil, nil
+		}
+		params := make([]map[string]string, 0, len(loaded.Pages()))
+		for _, page := range loaded.Pages() {
+			params = append(params, map[string]string{"slug": page.Slug})
+		}
+		return params, nil
+	})
+```
 
-Bir provider'ın döndürdüğü her path, dosyası yazılmadan önce kontrol edilir. Output
-dizininin dışına çıkan bir path (`/../../etc`) `collage.ErrPathEscapesOutDir` ile
-reddedilir. Dizinün dışına götüren bir symlink üzerinden yazma da aynı şekilde
+- **Path'i build yapar.** Her map, locale'in pattern'ini
+  [adıyla kurulan](/docs/links-and-locales#links-by-name) bir link'in yapacağı gibi
+  doldurur. Dosya da locale'in prefix'i altına yazılır:
+  `dist/docs/caching/index.html`, `dist/tr/docs/caching/index.html`. URL'de escape
+  edilmesi gereken bir değer decode edilmiş path'ine yazılır (`h%C3%A9llo` değil,
+  `héllo`). Static host, o değer için gelen bir request'i orada arar.
+- **Data handler'lar bu değerleri görür.** `rc.Param("slug")`, o path'e gelen canlı
+  bir request'teki değerin aynısını döner.
+- **Map pattern'i tam olarak doldurmalıdır.** Eksik bir ad ya da pattern'de olmayan
+  bir ad, yalnızca o dosyayı `collage.ErrRouteParams` ile başarısız kılar. Geri
+  kalanlar build edilir.
+- **Bir hata ya da panic, o page'in o locale'ini başarısız kılar** ve raporda
+  adıyla yer alır. Panic `collage.ErrBuildPanic` olarak raporlanır. Hiç map
+  dönülmezse hiçbir şey yazılmaz. Bu bir hata sayılmaz.
+- **Onu yalnızca build çağırır.** Çalışan bir sunucu, listelenmiş olsun olmasın,
+  pattern'in eşleştiği her değere cevap verir.
+- **Page yine de cache'lenebilir olmalıdır.** Data handler'ı olan bir page, aksini
+  söylemedikçe dynamic'tir. Bu yüzden export edilecek bir page, yukarıdaki `doc`
+  gibi `Static()` ya da `Incremental(ttl)` çağrısını yapar.
+
+Document'lar da aynı `WithStaticParams`'ı kullanır: `/feeds/{category}/rss.xml`
+adresindeki bir feed kendi kategorilerini listeler. Bkz.
+[Document'lar](/docs/documents#documents-in-a-static-export).
+
+`WithStaticParams`'ın ürettiği her path, dosyası yazılmadan önce kontrol edilir.
+Output dizininin dışına çıkan bir path (`/../../etc`) `collage.ErrPathEscapesOutDir`
+ile reddedilir. Dizinin dışına götüren bir symlink üzerinden yazma da aynı şekilde
 reddedilir. Bu ret yalnızca o path'i başarısız kılar, build'in geri kalanını
 etkilemez. Diğer page'ler yine render edilip yazılır ve hata raporda yer alır.
 
@@ -232,8 +250,6 @@ etkilemez. Diğer page'ler yine render edilip yazılır ve hata raporda yer alı
 | `Clean` | Önce `OutDir`'in içeriğini siler (dizinin kendisini değil). |
 | `Locales` | Yalnızca bu locale'leri build eder. Boş bırakılırsa page'lerin tanımladığı bütün locale'ler build edilir. |
 | `Concurrency` | Aynı anda kaç page'in render edilip yazılacağı. `0` ya da `1` verilirse page'ler tek tek işlenir. Rapor her iki durumda da aynı sıradadır. |
-| `PathProvider` | `{param}` içeren page'ler için somut path'ler. |
-| `DocumentPathProvider` | `{param}` içeren document'lar için somut path'ler. |
 | `AllowDegraded` | Render sırasında bir fragment'i hata veren page'leri de yazar. |
 
 Builder, dosya sisteminin köküne çıkan bir `OutDir`'i reddeder. Bir repository'nin

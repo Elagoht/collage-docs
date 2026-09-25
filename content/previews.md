@@ -225,7 +225,7 @@ for _, action := range []*collage.Action{preview.Start(app), preview.Exit()} {
 A data handler asks for drafts when the request is a preview:
 
 ```go
-func postData(ctx context.Context, rc *collage.RenderContext) (postView, []string, error) {
+func postData(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
 	slug := rc.Param("slug")
 	tags := []string{"post:" + slug}
 
@@ -234,10 +234,10 @@ func postData(ctx context.Context, rc *collage.RenderContext) (postView, []strin
 			return cmsClient.Post(ctx, slug, cms.Options{Drafts: preview.Drafts(ctx)})
 		})
 	if errors.Is(err, cms.ErrNotFound) {
-		return postView{}, tags, fmt.Errorf("post %q: %w", slug, collage.ErrNotFound)
+		return nil, tags, fmt.Errorf("post %q: %w", slug, collage.ErrNotFound)
 	}
 	if err != nil {
-		return postView{}, tags, err
+		return nil, tags, err
 	}
 	return postView{Post: post, Preview: preview.Drafts(ctx)}, tags, nil
 }
@@ -255,8 +255,9 @@ banner cannot end up in front of a reader.
 
 **A CDN can still answer first.** `SkipCache` controls collage's caches and marks
 the preview response `no-store`, but a request the CDN answers from its own cache
-never reaches your server. `Static()` pages are sent with `max-age=0,
-must-revalidate`, so a CDN checks back every time; an `Incremental(ttl)` page may be
+never reaches your server. Static pages — declared `Static()`, or declaring no
+strategy and fetching nothing — are sent with `max-age=0, must-revalidate`, so a
+CDN checks back every time; an `Incremental(ttl)` page may be
 served from the CDN for up to its TTL. Configure the CDN to bypass its cache for
 requests carrying the preview cookie.
 

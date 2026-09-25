@@ -53,6 +53,7 @@ Next steps:
   collage dev
 ```
 
+A minimal project (below) has no `.env.example`, so its steps leave out the `cp`.
 `go mod tidy` fetches the framework. The scaffolded `go.mod` names only the module
 and the Go version, so the first tidy is what records which collage release the
 project is built against.
@@ -117,9 +118,10 @@ scripts.
 A few things in it are worth knowing before you change them.
 
 **`main.go` keeps a contract with the CLI.** `collage dev` runs the program with
-`COLLAGE_DEV=1` in its environment, and `collage export` runs it with
-`-collage-build -out <dir>`. The scaffolded `main.go` reads both: the variable
-turns on development mode, and the flag renders the site to files instead of
+`COLLAGE_DEV=1`, and the `HOST` and `PORT` to listen on, in its environment, and
+`collage export` runs it with `-collage-build -out <dir>`. The scaffolded
+`main.go` honours all of it: the variable turns on development mode, the server
+listens where it is told, and the flag renders the site to files instead of
 serving it. A word after the flags — `go run . <command>` — runs a
 [plugin's command](/docs/plugins). If you rewrite `main.go`, keep all of it
 working, or those commands stop doing anything useful.
@@ -167,6 +169,9 @@ file, never both. The rules are short:
 
 - A variable already set in your shell wins, so `PORT=4000 collage dev` works.
   `COLLAGE_DEV=1` is always set, whatever the file says.
+- `HOST` and `PORT` are where `collage dev` itself listens, read once when it
+  starts. The program is given a `HOST` and `PORT` of its own, on a loopback
+  address — see [below](#run-it).
 - The file holds `KEY=value` lines, `#` comments and blank lines. An `export `
   prefix and quotes around a value are allowed.
 - A malformed line is reported with the file name and line number, rather than
@@ -197,8 +202,11 @@ openssl rand -hex 32
 collage dev
 ```
 
-The site is at [http://localhost:3000](http://localhost:3000). Three things happen
-while it runs.
+The site is at [http://localhost:3000](http://localhost:3000). That address is
+`collage dev` itself: it listens on `HOST` and `PORT` as your program would read
+them, and passes each request on to the program, which it runs on a loopback
+address of its own. A request made while the program is starting waits for it.
+Four things happen while it runs.
 
 ### Go changes are rebuilt
 
@@ -214,8 +222,8 @@ typo never leaves you with nothing at `localhost:3000`.
 A burst of saves is one rebuild. Hidden directories, `bin`, `dist`,
 `node_modules`, `testdata` and `vendor` are never watched, so nothing the running
 program writes can set off a rebuild of itself. And a program that exits by itself
-— a panic at startup, a port already in use — is not restarted in a loop; your
-next change starts it again.
+— a panic at startup, a page whose template is missing — is not restarted in a
+loop; your next change starts it again.
 
 ### Templates and static files are read from disk
 
@@ -239,9 +247,18 @@ to the answer to a form submission, which reloading would submit again.
 A fragment that fails in development does not quietly vanish. The page is served
 with a panel over it naming the fragment and its error — for a template, with the
 file and line — even when a fallback covered for it. When the whole page fails,
-the built-in error page names the fragment where the failure started and shows
-the full error chain, including a panic's stack — and an error page of your own
-gets the same panel on top, saying what it is standing in for.
+the built-in error page leads with the cause — the template, line and column of
+the call that failed, and what it returned — then names the fragment where the
+failure started and shows the full error chain, including a panic's stack. An
+error page of your own gets the same panel on top, saying what it is standing in
+for.
+
+When there is no program to answer — it exited at startup, or the first build did
+not compile — the page is a 503 showing what the program or the compiler printed,
+instead of a refused connection. A page already open reloads onto it, and reloads
+again once a change brings the program back. A program still not listening on the
+address it was given 10 seconds after it started is named on that page, with the
+address it was given.
 
 None of that exists outside development. A production error page says one generic
 sentence, because error messages carry hostnames, file paths and credentials, and

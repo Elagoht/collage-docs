@@ -1,6 +1,6 @@
 ---
-description: A hands-on tutorial — build a recipe page with a layout, a typed data handler and a template, then add a second fragment in a slot.
-reference: New, NewPage, NewFragment, Data, DataHandler, Load, ErrNotFound
+description: A hands-on tutorial — build a recipe page with a layout, a data handler and a template, then add a second fragment in a slot of the layout.
+reference: New, NewPage, NewFragment, FragmentBuilder.WithData, FragmentBuilder.WithTitle, DataHandler, Load, ErrNotFound, ErrUnknownSlot
 ---
 
 # Your first page
@@ -8,8 +8,8 @@ reference: New, NewPage, NewFragment, Data, DataHandler, Load, ErrNotFound
 This tutorial builds a small recipe site in a fresh project: a page at
 `/recipes/{slug}` that loads a recipe and renders it inside the site's layout,
 and then a second fragment — a list of other recipes — placed in a slot of the
-first. It takes about fifteen minutes, and every piece of it is one you will use
-on every page you write.
+layout, so that every page shows it. It takes about fifteen minutes, and every
+piece of it is one you will use on every page you write.
 
 You need Go and the `collage` CLI; see [Installation](/docs/installation).
 
@@ -34,11 +34,7 @@ files. The fragment, in `fragments/layouts/main.go`:
 ```go
 func Layout() *collage.Fragment {
 	return collage.NewFragment("layout", "layouts/default.html").
-		WithDataHandler(collage.Effect(func(_ context.Context, rc *collage.RenderContext) error {
-			rc.HoistTitle("cookbook")
-			return nil
-		})).
-		WithSlot("content", true, false).
+		WithTitle("cookbook").
 		Build()
 }
 ```
@@ -60,15 +56,16 @@ And its template, `templates/layouts/default.html`:
 </html>
 ```
 
-`WithSlot("content", true, false)` declares a slot named `content` that is
-required and holds one fragment. `{{slot "content"}}` is where it renders. You
-never fill this slot yourself: when a page is registered, collage puts the page's
-content fragment into it. That is what makes one layout shareable by every page.
+`{{slot "content"}}` is a slot named `content`, and where it renders. The Go side
+declares nothing: a template calling a slot is all the declaring it needs. You
+never fill this slot yourself either: when a page is registered, collage puts the
+page's content fragment into it. That is what makes one layout shareable by every
+page.
 
-There is no `<title>` in the template. The layout's handler declares one with
-`rc.HoistTitle`, and `{{hoist "head"}}` is where it lands. A page that declares its
-own title replaces the site's rather than adding a second one — the recipe page
-will, in a moment. See [Head and SEO](/docs/head-and-seo#keys-and-the-innermost-wins).
+There is no `<title>` in the template. The layout declares one with `WithTitle`,
+and `{{hoist "head"}}` is where it lands. A page that declares its own title
+replaces the site's rather than adding a second one — the recipe page will, in a
+moment. See [Head and SEO](/docs/head-and-seo#keys-and-the-innermost-wins).
 
 ## Look at the home page
 
@@ -82,29 +79,36 @@ type homeView struct {
 
 func HomePage() *collage.Page {
 	content := collage.NewFragment("home-content", "pages/home.html").
-		WithDataHandler(collage.Data(homeView{Name: "cookbook"})).
+		WithData(homeView{Name: "cookbook"}).
 		Build()
 
+	// No Static() needed: nothing here fetches per render, so the page is static.
 	return collage.NewPage("home").
 		WithLayout(layouts.Layout()).
 		WithContent(content).
 		WithPath("en", "/").
-		Static().
 		Build()
 }
 ```
 
-`collage.Data` hands the template the same value on every render, and in
+`WithData` hands the template the same value on every render, and in
 `templates/pages/home.html` that value is `.`:
 
 ```html
 <h1>Hello from {{.Name}}</h1>
 ```
 
-Add a field to `homeView`, set it in `collage.Data(...)` and use it in the
-template, and the page shows it. That is all a fixed piece of data — a list of
-links, a heading — needs. A recipe is not fixed: it depends on the URL, and it
-comes from somewhere. That takes a function.
+Add a field to `homeView`, set it in `WithData(...)` and use it in the template,
+and the page shows it. That is all a fixed piece of data — a list of links, a
+heading — needs.
+
+The page declares no strategy, and it is static all the same, as the comment says:
+a page that declares none is static when nothing it renders fetches per render.
+Fixed data and a fixed title fetch nothing, so the home page is rendered once and
+kept while the cache is on, and `collage export` writes it to a file.
+
+A recipe is not fixed: it depends on the URL, and it comes from somewhere. That
+takes a function.
 
 ## Where the content comes from
 
@@ -187,7 +191,7 @@ import (
 // RecipePage is one recipe, at /recipes/{slug}.
 func RecipePage() *collage.Page {
 	content := collage.NewFragment("recipe-content", "pages/recipe.html").
-		WithDataHandler(collage.DataHandler(loadRecipe)).
+		WithDataHandler(loadRecipe).
 		Required().
 		Build()
 
@@ -199,10 +203,10 @@ func RecipePage() *collage.Page {
 }
 
 // loadRecipe is the content fragment's data handler.
-func loadRecipe(ctx context.Context, rc *collage.RenderContext) (recipes.Recipe, []string, error) {
+func loadRecipe(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
 	recipe, err := recipes.Get(ctx, rc.Param("slug"))
 	if err != nil {
-		return recipes.Recipe{}, nil, err
+		return nil, nil, err
 	}
 	rc.HoistTitle(recipe.Title + " — cookbook")
 	return recipe, []string{"recipe:" + recipe.Slug}, nil
@@ -213,14 +217,16 @@ Take it a line at a time.
 
 - **`NewFragment("recipe-content", "pages/recipe.html")`** names the fragment and
   its template. The template path is relative to `templates/`, extension included.
-- **`collage.DataHandler(loadRecipe)`** adapts a handler written against your own
-  type. `loadRecipe` returns a `recipes.Recipe`, so the template receives one, and
-  nothing in your code has to deal in untyped values.
+- **`WithDataHandler(loadRecipe)`** gives the fragment its data handler: a function
+  of exactly the shape `WithDataHandler` takes, no adapter in between.
 - **The handler returns three things**: the data, the dependency tags it was built
-  from, and an error. The tag `recipe:pancakes` says "this page shows the pancakes
-  recipe", which is what lets a cached copy be thrown away when that recipe
-  changes. A handler with no tags to report can drop them with `collage.Load`
-  — see [Data handlers](/docs/data-handlers#shorter-adapters-data-and-load).
+  from, and an error. The data is the `recipes.Recipe`, returned as `any`, and it
+  is what the template receives as `.`. The tag `recipe:pancakes` says "this page
+  shows the pancakes recipe", which is what lets a cached copy be thrown away when
+  that recipe changes. A loader you also call from elsewhere — a test, another
+  page — can return its own type instead, through `collage.DataHandler`, or
+  `collage.Load` when it has no tags; see
+  [Data handlers](/docs/data-handlers#loaders-with-a-type-of-their-own).
 - **`rc.Param("slug")`** is the `{slug}` the URL matched.
 - **`rc.HoistTitle`** gives the page its own `<title>`. The content fragment sits
   inside the layout, and the innermost declaration wins, so it replaces the
@@ -231,8 +237,11 @@ Take it a line at a time.
   refer to it, so it should not change when the URL does.
 - **`WithPath("en", "/recipes/{slug}")`** is the URL, in the site's default locale.
 
-A page with no strategy method is `Dynamic()`: rendered on every request, never
-cached. That is the right default while you are building it. Once it works,
+This page declares no strategy either, but unlike the home page it has a data
+handler, so it is dynamic: rendered on every request, never cached. collage cannot
+see inside `loadRecipe` to tell whether it reads the request or the clock, so it
+does not guess that its output is the same for everyone. That is the right place
+to be while you are building it. Once it works,
 `Incremental(10 * time.Minute)` or `Static()` would cache it — see
 [Caching](/docs/caching).
 
@@ -297,13 +306,18 @@ names `recipe-content` as the fragment where the failure started and prints the
 whole error chain, down to `pages/recipe.html:2:8` and the field it could not
 find. Put it back.
 
+That is also why the handler returns `any` rather than a `recipes.Recipe`. The
+template is what reads the data, and it reads it untyped: a concrete return type
+would not have caught `{{.Name}}` either.
+
 ## Add a second fragment in a slot
 
-A page is rarely one piece. Add a list of other recipes, as its own fragment with
-its own data. Create `pages/more.go`:
+A page is rarely one piece. Add a list of recipes, as its own fragment with its own
+data. Every page should show it, so it belongs to the layout rather than to the
+recipe page. Create `fragments/layouts/more.go`, next to the layout:
 
 ```go
-package pages
+package layouts
 
 import (
 	"context"
@@ -318,17 +332,17 @@ type moreView struct {
 	Recipes []recipes.Recipe
 }
 
-// MoreRecipes lists every recipe but the one on the page.
+// MoreRecipes lists every recipe but the one on the page, if the page shows one.
 func MoreRecipes() *collage.Fragment {
 	return collage.NewFragment("more-recipes", "fragments/more-recipes.html").
-		WithDataHandler(collage.DataHandler(loadMore)).
+		WithDataHandler(loadMore).
 		Build()
 }
 
-func loadMore(ctx context.Context, rc *collage.RenderContext) (moreView, []string, error) {
+func loadMore(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
 	list, err := recipes.List(ctx)
 	if err != nil {
-		return moreView{}, nil, err
+		return nil, nil, err
 	}
 	var view moreView
 	for _, recipe := range list {
@@ -339,6 +353,10 @@ func loadMore(ctx context.Context, rc *collage.RenderContext) (moreView, []strin
 	return view, []string{"recipes"}, nil
 }
 ```
+
+`rc.Param("slug")` works here too: parameters belong to the request, not to the
+fragment that declared the path. On the home page there is no `{slug}`, it is
+empty, and the list is every recipe.
 
 Its template, `templates/fragments/more-recipes.html`:
 
@@ -357,42 +375,61 @@ Its template, `templates/fragments/more-recipes.html`:
 from its path, so it follows the page if `/recipes/{slug}` ever becomes
 `/r/{slug}`. See [Links and locales](/docs/links-and-locales).
 
-Now give the recipe fragment a slot and put the list in it. In `pages/recipe.go`:
+Now put the list in a second slot of the layout. In `fragments/layouts/main.go`:
 
 ```go
-content := collage.NewFragment("recipe-content", "pages/recipe.html").
-	WithDataHandler(collage.DataHandler(loadRecipe)).
-	WithSlot("more", false, false).
-	WithSlotFragment("more", MoreRecipes()).
-	Required().
-	Build()
+func Layout() *collage.Fragment {
+	return collage.NewFragment("layout", "layouts/default.html").
+		WithTitle("cookbook").
+		WithSlotFragment("more", MoreRecipes()).
+		Build()
+}
 ```
 
-And render the slot where it belongs, in `templates/pages/recipe.html`, before
-`</main>`:
+And render the slot where it belongs, in `templates/layouts/default.html`, after
+the content:
 
 ```html
+<body>
+  {{slot "content"}}
   {{slot "more"}}
+</body>
 ```
 
-Save both. The recipe page now has a list of the other two recipes, each linking to
-its own page.
+`content` is the one slot registration fills. Any other slot of the layout you fill
+yourself, once, and every page that uses the layout gets it. As with `content`,
+nothing declares `more`: the template's `{{slot "more"}}` does. Registration checks
+the binding against it, so a typo on either side — `WithSlotFragment("mroe", ...)`
+— stops the program with `ErrUnknownSlot`, naming the slot and the ones the
+template does call. Save the files. The recipe page now has a list of the other two recipes, each linking to its own page, and the
+home page lists all three.
 
-Three things are true of this page that were not written down anywhere.
+Three things are true of these pages that were not written down anywhere.
 
-- **The list is optional.** `WithSlot("more", false, false)` declared the slot not
+- **The list is optional.** A slot is optional unless `WithSlot` says it is
   required, and `MoreRecipes` is not `Required()`. If `loadMore` fails, the page is
   served without the list — and, in development, with a panel saying which fragment
   failed and why. A broken sidebar is a missing sidebar, not a 500.
-- **The page's tags are both fragments' tags.** The page now depends on
-  `recipe:pancakes` and on `recipes`. Once it is cached, invalidating `recipes`
-  drops every recipe page — which is what adding a recipe should do — and
-  invalidating `recipe:pancakes` drops only this one.
-- **The two handlers did not wait on each other more than they had to.** A child's
-  handler starts once its parent's has returned; siblings in the slots of one
-  fragment start together. Give the recipe fragment a second slot with a slow
-  fragment in it and the page waits for the slowest of them, not for their sum.
-  See [Data handlers](/docs/data-handlers#when-handlers-run).
+- **A page's tags are all its fragments' tags.** The recipe page now depends on
+  `recipe:pancakes` and on `recipes`, and the home page on `recipes`. Once they are
+  cached, invalidating `recipes` drops every page that shows the list — which is
+  what adding a recipe should do — and invalidating `recipe:pancakes` drops only
+  the pancakes page.
+- **The two handlers did not wait on each other.** A child's handler starts once
+  its parent's has returned; siblings in the slots of one fragment start together.
+  `content` and `more` are both slots of the layout, so `loadRecipe` and `loadMore`
+  run at the same time, and the page waits for the slower of them, not for their
+  sum. See [Data handlers](/docs/data-handlers#when-handlers-run).
+
+And one thing changed that you did not touch: the home page is dynamic now. It
+declares no strategy, and it was static because nothing in it fetched. The layout
+is part of every page, and its list has a data handler, so every page that uses it
+renders per request until it says `Static()` or `Incremental(ttl)`. See
+[Caching](/docs/caching#a-page-that-declares-none).
+
+A fragment that only one page needs belongs in that page's content fragment
+instead: bind it into the content fragment, and give its template the `{{slot}}`. Where
+a fragment is declared is where it shows up.
 
 ## Test it
 
@@ -450,5 +487,5 @@ go test ./...
   slots filled from content.
 - [Data handlers](/docs/data-handlers) — the handler contract, sharing data between
   fragments, and timeouts.
-- [Caching](/docs/caching) — turning this page from `Dynamic()` into one that is
+- [Caching](/docs/caching) — turning this page from a dynamic one into one that is
   rendered once and thrown away when a recipe changes.

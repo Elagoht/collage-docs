@@ -1,6 +1,6 @@
 ---
 description: Titles, meta tags, stylesheets and structured data declared by the fragment that knows them, placed by the layout.
-reference: RenderContext, Effect, ErrNoPathInLocale
+reference: RenderContext, FragmentBuilder.WithTitle, Effect, ErrNoPathInLocale
 ---
 
 # Head and SEO
@@ -40,16 +40,33 @@ layout still decides the position.
 Without the marker, declarations go nowhere. That is the first thing to check when
 a title or a plugin's output is missing.
 
-## Declaring from a data handler
+## A title without a handler
 
-The helpers on `RenderContext` cover what nearly every page needs. Call them from
-a data handler:
+A title known when the program starts — the site's name on its layout, the name of
+an about page — needs no code. `WithTitle` declares it on the fragment:
 
 ```go
-func loadPost(ctx context.Context, rc *collage.RenderContext) (postView, []string, error) {
+layout := collage.NewFragment("layout", "layouts/default.html").
+	WithTitle("The Wire").
+	Build()
+```
+
+It is the same declaration `rc.HoistTitle` makes, so it follows the same rules
+[below](#keys-and-the-innermost-wins): the innermost one wins, and a title the same
+fragment's data handler hoists replaces it. Unlike a handler, it leaves a page that
+declares no strategy static — see [Caching](/docs/caching#a-page-that-declares-none).
+
+## Declaring from a data handler
+
+Everything else — a title that comes from the content, a description, a
+stylesheet — is declared by the helpers on `RenderContext`. Call them from a data
+handler:
+
+```go
+func loadPost(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
 	post, err := store.Post(ctx, rc.Param("slug"))
 	if err != nil {
-		return postView{}, nil, err
+		return nil, nil, err
 	}
 
 	rc.HoistTitle(post.Title + " — The Wire")
@@ -58,10 +75,10 @@ func loadPost(ctx context.Context, rc *collage.RenderContext) (postView, []strin
 	rc.HoistProperty("og:image", post.CoverURL)
 	rc.HoistLink("canonical", siteOrigin+"/blog/"+post.Slug)
 	if err := rc.HoistStylesheet("/static/post.css"); err != nil {
-		return postView{}, nil, err
+		return nil, nil, err
 	}
 
-	return postView{Post: post}, []string{"post:" + post.Slug}, nil
+	return post, []string{"post:" + post.Slug}, nil
 }
 ```
 
@@ -109,12 +126,11 @@ any page override them:
 
 ```go
 layout := collage.NewFragment("layout", "layouts/default.html").
+	WithTitle("The Wire").
 	WithDataHandler(collage.Effect(func(_ context.Context, rc *collage.RenderContext) error {
-		rc.HoistTitle("The Wire")
 		rc.HoistMeta("description", "News about the sea, and the people who live beside it.")
 		return nil
 	})).
-	WithSlot("content", true, false).
 	Build()
 ```
 
@@ -122,8 +138,13 @@ A post nested inside that layout declares its own title and description, and tho
 are the ones on the page. A page that declares nothing keeps the layout's. Do not
 also write a literal `<title>` in the layout's template — it would sit beside the
 hoisted one, and a page with two titles has one a browser ignores. The layout
-`collage new` scaffolds declares the site's name this way, so a page's
-`rc.HoistTitle` replaces it.
+`collage new` scaffolds names the site with `WithTitle`, so a page's own title
+replaces it.
+
+A handler on the layout is a handler on every page, so the description above makes
+every page that declares no strategy dynamic. A site that wants them cached says
+`Static()` or `Incremental(ttl)` on its pages, or leaves the layout with
+`WithTitle` alone.
 
 Three details, so they are not a surprise:
 
@@ -201,14 +222,14 @@ func Layout(app *collage.App) *collage.Fragment {
 			}
 			return nil
 		})).
-		WithSlot("content", true, false).
 		Build()
 }
 ```
 
 A page whose translation has a different slug — which only its content knows —
 declares its own `rc.HoistAlternate` for that language, and, being inner, it
-replaces the layout's. The template equivalent, for a layout without a handler, is
+replaces the layout's. The template equivalent, for a layout without a handler —
+which leaves pages that declare no strategy static — is
 [`localeURL`](/docs/links-and-locales#a-language-switcher), which is empty for a
 language the page does not exist in:
 
@@ -225,10 +246,10 @@ rather than hand-built JSON:
 ```go
 import "github.com/Elagoht/collage-jsonld"
 
-func loadPost(ctx context.Context, rc *collage.RenderContext) (postView, []string, error) {
+func loadPost(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
 	post, err := store.Post(ctx, rc.Param("slug"))
 	if err != nil {
-		return postView{}, nil, err
+		return nil, nil, err
 	}
 	jsonld.Emit(rc, jsonld.BlogPosting{
 		Headline:      post.Title,
@@ -236,7 +257,7 @@ func loadPost(ctx context.Context, rc *collage.RenderContext) (postView, []strin
 		DatePublished: post.PublishedAt,
 		AuthorName:    post.Author,
 	})
-	return postView{Post: post}, []string{"post:" + post.Slug}, nil
+	return post, []string{"post:" + post.Slug}, nil
 }
 ```
 

@@ -1,6 +1,6 @@
 ---
 description: Template'lerin nerede durduğu, nasıl yüklenip binary'ye embed edildiği, development'ta nasıl yeniden yüklendiği; slot'lar, built-in ve kendi fonksiyonlarınız, escaping.
-reference: TemplateConfig, Config
+reference: TemplateConfig, Config, ErrUnknownSlot
 ---
 
 # Template'ler
@@ -65,6 +65,9 @@ set'e toplar. Her hata türü, yakalanabileceği en erken noktada yakalanır:
   template olduğunda `New` hata döner ve hatada dosyanın adı yer alır.
 - **Yüklenmemiş bir template'i gösteren bir fragment** olduğunda `RegisterPage`,
   `ErrTemplateNotFound` ile hata döner. Hata page'i, fragment'i ve yolu belirtir.
+- **Template'inin hiç çağırmadığı bir slot'a bağlanmış bir fragment** olduğunda
+  `RegisterPage`, `ErrUnknownSlot` ile hata döner. Ayrıntılar aşağıda,
+  [Slot'lar](#slots) bölümündedir.
 - **Çalışırken hata veren bir template**, örneğin veride olmayan bir alana erişen ya
   da hata dönen bir fonksiyonu çağıran bir template, kendi fragment'ini başarısız
   kılar.
@@ -142,14 +145,17 @@ Bir değişikliğin hemen görünmesini iki şey daha sağlar:
 
 Bütün set yeniden parse edildiği için herhangi bir template'teki bir syntax hatası,
 düzeltilene kadar bütün render'ları başarısız kılar. Bu development'ta olur. Hatayı orada
-hemen, dosya ve satır numarasıyla birlikte görürsünüz.
+hemen, dosya ve satır numarasıyla birlikte görürsünüz. Register sırasında yapılan
+kontroller, açılıştan sonra düzenlenen bir template için yeniden yapılmaz. Böyle
+bir template'in hatası bunun yerine development error page'inde görünür; önce
+template, satır ve neden gelir.
 
 ## Bir template ne alır
 
-`.`, tam olarak fragment'in data handler'ının döndürdüğü değerdir.
-`collage.DataHandler`, `collage.Load` ya da `collage.Data` kullandığınızda bu, kendi
-tanımladığınız bir tipte bir değerdir. Data handler'ı olmayan ya da
-`collage.Effect` ile uyarlanmış bir fragment, veri olmadan render edilir.
+`.`, tam olarak fragment'in data handler'ının döndürdüğü değerdir ya da
+fragment'e `WithData` ile verilen değerdir. İkisi de olmayan ya da handler'ı
+`collage.Effect` ile uyarlanmış bir fragment, veri olmadan render edilir. Bkz.
+[Data handler'lar](/docs/data-handlers).
 
 ```go
 type postView struct {
@@ -167,8 +173,8 @@ type postView struct {
 
 Bir template yalnızca kendi fragment'inin verisini görür. Parent'ın verisine
 child'dan erişilemez ve global bir site nesnesi yoktur. Sitenin adı gibi her
-template'in ihtiyaç duyduğu bir şey, ya bir handler'ın döndürdüğü veridir ya da
-sizin register ettiğiniz bir fonksiyondur.
+template'in ihtiyaç duyduğu bir şey, ya fragment'ine verilen veridir ya da sizin
+register ettiğiniz bir fonksiyondur.
 
 ## Slot'lar
 
@@ -181,9 +187,19 @@ render edilirken kendi değerlerini zaten escape etmiştir.
 <aside>{{slot "sidebar"}}</aside>
 ```
 
-- Boş bir slot hiçbir şey render etmez.
-- Fragment'in `WithSlot` ile hiç tanımlamadığı bir ad, fragment'i başarısız kılan bir
-  hatadır. Aksi hâlde bir yazım hatası, page'den sessizce eksilen bir bölüm olurdu.
+- Bir slot'u tanımlayan, onun çağrılmasıdır. Fragment'in Go kodunda bunun için
+  `WithSlot` gerekmez. `WithSlot` yalnızca bir slot'u zorunlu kılar ya da onu tek
+  bir fragment'le sınırlar.
+- Boş bir slot hiçbir şey render etmez. Ona daha önce bir şey bağlanmış olup
+  olmaması bunu değiştirmez.
+- Template'inin hiç çağırmadığı bir slot'a bağlanmış bir fragment, register
+  sırasında `ErrUnknownSlot` ile başarısız olur. Hata, slot'u ve template'in
+  gerçekten çağırdığı slot'ları söyler. Aksi hâlde bağlamanın iki tarafından
+  birindeki bir yazım hatası, page'den sessizce eksilen bir bölüm olurdu.
+  Template'in include ettiği bir template'teki ya da tanımladığı bir block'taki
+  çağrılar da sayılır. Bir slot'u literal dışında bir şeyle (`{{slot .Which}}`)
+  adlandıran bir template bunlardan herhangi birini çağırabilir. Bu yüzden onun
+  fragment'i kontrol edilmez.
 - Template'in atladığı bir `{{if}}` içindeki slot render edilmez. Ancak o slot'taki
   fragment'lerin data handler'ları zaten başlatılmıştır. Ayrıntılar için
   [Fragment'ler ve slot'lar](/docs/fragments-and-slots#a-slot-the-template-skips)

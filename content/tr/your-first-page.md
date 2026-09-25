@@ -1,6 +1,6 @@
 ---
-description: Uygulamalı bir rehber. Bir layout, tipli bir data handler ve bir template ile bir tarif page'i kurarsınız, ardından bir slot'a ikinci bir fragment eklersiniz.
-reference: New, NewPage, NewFragment, Data, DataHandler, Load, ErrNotFound
+description: Uygulamalı bir rehber. Bir layout, bir data handler ve bir template ile bir tarif page'i kurarsınız, ardından layout'un bir slot'una ikinci bir fragment eklersiniz.
+reference: New, NewPage, NewFragment, FragmentBuilder.WithData, FragmentBuilder.WithTitle, DataHandler, Load, ErrNotFound, ErrUnknownSlot
 ---
 
 # İlk page'iniz
@@ -8,9 +8,9 @@ reference: New, NewPage, NewFragment, Data, DataHandler, Load, ErrNotFound
 Bu rehberde sıfırdan açılmış bir projede küçük bir tarif sitesi kurarsınız. Önce
 `/recipes/{slug}` adresinde bir tarifi yükleyen ve onu sitenin layout'u içinde
 render eden bir page yazarsınız. Ardından ikinci bir fragment eklersiniz: diğer
-tariflerin listesi. Bu fragment, ilk fragment'in bir slot'una yerleşir. Rehber
-yaklaşık on beş dakika sürer. İçindeki her parçayı, yazacağınız her page'de
-yeniden kullanacaksınız.
+tariflerin listesi. Bu fragment layout'un bir slot'una yerleşir, böylece her
+page'de görünür. Rehber yaklaşık on beş dakika sürer. İçindeki her parçayı,
+yazacağınız her page'de yeniden kullanacaksınız.
 
 Go ve `collage` CLI kurulu olmalı; bkz. [Kurulum](/docs/installation).
 
@@ -36,11 +36,7 @@ dosyadan oluşur. Fragment'i `fragments/layouts/main.go` dosyasındadır:
 ```go
 func Layout() *collage.Fragment {
 	return collage.NewFragment("layout", "layouts/default.html").
-		WithDataHandler(collage.Effect(func(_ context.Context, rc *collage.RenderContext) error {
-			rc.HoistTitle("cookbook")
-			return nil
-		})).
-		WithSlot("content", true, false).
+		WithTitle("cookbook").
 		Build()
 }
 ```
@@ -62,15 +58,15 @@ Template'i ise `templates/layouts/default.html` dosyasındadır:
 </html>
 ```
 
-`WithSlot("content", true, false)`, `content` adında bir slot tanımlar. Bu slot
-zorunludur ve tek bir fragment alır. `{{slot "content"}}` ise slot'un render
-edildiği yerdir. Bu slot'u hiçbir zaman kendiniz doldurmazsınız. Bir page register
-edildiğinde collage, page'in content fragment'ini bu slot'a yerleştirir. Tek bir
-layout'un bütün page'ler tarafından paylaşılabilmesi bu sayede olur.
+`{{slot "content"}}`, `content` adında bir slot'tur ve render edildiği yerdir. Go
+tarafında hiçbir şey tanımlanmaz: bir slot için template'in onu çağırması yeterlidir.
+Bu slot'u hiçbir zaman kendiniz de doldurmazsınız. Bir page register edildiğinde
+collage, page'in content fragment'ini bu slot'a yerleştirir. Tek bir layout'un
+bütün page'ler tarafından paylaşılabilmesi bu sayede olur.
 
-Template'te `<title>` yok. Başlığı layout'un handler'ı `rc.HoistTitle` ile
-tanımlar; `{{hoist "head"}}` de başlığın yerleştiği yerdir. Kendi başlığını
-tanımlayan bir page ikinci bir başlık eklemez, sitenin başlığının yerini alır.
+Template'te `<title>` yok. Başlığı layout `WithTitle` ile tanımlar.
+`{{hoist "head"}}` de başlığın yerleştiği yerdir. Kendi başlığını tanımlayan bir
+page ikinci bir başlık eklemez, sitenin başlığının yerini alır.
 Birazdan tarif page'i de bunu yapacak. Bkz.
 [Head ve SEO](/docs/head-and-seo#keys-and-the-innermost-wins).
 
@@ -87,29 +83,37 @@ type homeView struct {
 
 func HomePage() *collage.Page {
 	content := collage.NewFragment("home-content", "pages/home.html").
-		WithDataHandler(collage.Data(homeView{Name: "cookbook"})).
+		WithData(homeView{Name: "cookbook"}).
 		Build()
 
+	// No Static() needed: nothing here fetches per render, so the page is static.
 	return collage.NewPage("home").
 		WithLayout(layouts.Layout()).
 		WithContent(content).
 		WithPath("en", "/").
-		Static().
 		Build()
 }
 ```
 
-`collage.Data`, template'e her render'da aynı değeri verir. `templates/pages/home.html`
+`WithData`, template'e her render'da aynı değeri verir. `templates/pages/home.html`
 içinde bu değer `.` olarak kullanılır:
 
 ```html
 <h1>Hello from {{.Name}}</h1>
 ```
 
-`homeView`'a bir alan ekleyin, değerini `collage.Data(...)` içinde verin ve
-template'te kullanın; page bu alanı gösterir. Sabit bir veri için, örneğin bir link
-listesi ya da bir başlık için, gereken tek şey budur. Tarif ise sabit değildir. URL'ye
-bağlıdır ve bir yerden gelir. Bunun için bir fonksiyon gerekir.
+`homeView`'a bir alan ekleyin, değerini `WithData(...)` içinde verin ve template'te
+kullanın; page bu alanı gösterir. Sabit bir veri için, örneğin bir link listesi ya
+da bir başlık için, gereken tek şey budur.
+
+Page hiçbir strateji tanımlamaz, yine de yorumda yazdığı gibi static'tir. Strateji
+tanımlamayan bir page, render ettiği hiçbir şey render başına veri çekmiyorsa
+static olur. Sabit veri ve sabit bir title hiçbir şey çekmez. Bu yüzden home page
+bir kez render edilir, cache açıkken saklanır ve `collage export` onu bir dosyaya
+yazar.
+
+Tarif ise sabit değildir. URL'ye bağlıdır ve bir yerden gelir. Bunun için bir
+fonksiyon gerekir.
 
 ## İçerik nereden geliyor
 
@@ -193,7 +197,7 @@ import (
 // RecipePage is one recipe, at /recipes/{slug}.
 func RecipePage() *collage.Page {
 	content := collage.NewFragment("recipe-content", "pages/recipe.html").
-		WithDataHandler(collage.DataHandler(loadRecipe)).
+		WithDataHandler(loadRecipe).
 		Required().
 		Build()
 
@@ -205,10 +209,10 @@ func RecipePage() *collage.Page {
 }
 
 // loadRecipe is the content fragment's data handler.
-func loadRecipe(ctx context.Context, rc *collage.RenderContext) (recipes.Recipe, []string, error) {
+func loadRecipe(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
 	recipe, err := recipes.Get(ctx, rc.Param("slug"))
 	if err != nil {
-		return recipes.Recipe{}, nil, err
+		return nil, nil, err
 	}
 	rc.HoistTitle(recipe.Title + " — cookbook")
 	return recipe, []string{"recipe:" + recipe.Slug}, nil
@@ -219,15 +223,16 @@ Kodu satır satır inceleyelim.
 
 - **`NewFragment("recipe-content", "pages/recipe.html")`** fragment'e ve template'ine
   isim verir. Template yolu `templates/` dizinine göredir ve uzantıyı da içerir.
-- **`collage.DataHandler(loadRecipe)`**, kendi tipinize göre yazılmış bir handler'ı
-  uyarlar. `loadRecipe` bir `recipes.Recipe` döndürdüğü için template de bir
-  `recipes.Recipe` alır. Böylece kodunuzun hiçbir yerinde tipsiz değerlerle
-  uğraşmanız gerekmez.
+- **`WithDataHandler(loadRecipe)`** fragment'e data handler'ını verir. Bu,
+  `WithDataHandler`'ın beklediği biçimde bir fonksiyondur, arada adapter yoktur.
 - **Handler üç şey döndürür**: veri, verinin oluşturulduğu dependency tag'leri ve bir
-  hata. `recipe:pancakes` tag'i "bu page pancakes tarifini gösteriyor" anlamına
-  gelir. O tarif değiştiğinde cache'teki kopyanın atılabilmesini sağlayan budur.
-  Bildirecek tag'i olmayan bir handler, `collage.Load` ile tag döndürmekten
-  kurtulabilir; bkz. [Data handler'lar](/docs/data-handlers#shorter-adapters-data-and-load).
+  hata. Veri, `any` olarak dönen `recipes.Recipe` değeridir ve template onu `.`
+  olarak alır. `recipe:pancakes` tag'i "bu page pancakes tarifini gösteriyor"
+  anlamına gelir. O tarif değiştiğinde cache'teki kopyanın atılabilmesini sağlayan
+  budur. Başka yerlerden de (bir test'ten, başka bir page'den) çağırdığınız bir
+  loader ise `collage.DataHandler` ile kendi tipini dönebilir. Tag'i yoksa
+  `collage.Load` kullanılır; bkz.
+  [Data handler'lar](/docs/data-handlers#loaders-with-a-type-of-their-own).
 - **`rc.Param("slug")`**, URL'de eşleşen `{slug}` değeridir.
 - **`rc.HoistTitle`** page'e kendi `<title>`'ını verir. Content fragment'i layout'un
   içinde yer alır ve en içteki tanım kazanır. Bu yüzden bu başlık, layout'un
@@ -239,10 +244,12 @@ Kodu satır satır inceleyelim.
   bu isimle başvurur. Bu yüzden isim, URL değiştiğinde değişmemelidir.
 - **`WithPath("en", "/recipes/{slug}")`**, sitenin varsayılan locale'indeki URL'dir.
 
-Strateji metodu çağrılmamış bir page `Dynamic()` olur: her request'te render edilir
-ve hiç cache'lenmez. Page'i geliştirirken doğru varsayılan budur. Page çalışır hâle
-geldiğinde `Incremental(10 * time.Minute)` ya da `Static()` onu cache'ler; bkz.
-[Caching](/docs/caching).
+Bu page de strateji tanımlamaz, ama home page'in aksine bir data handler'ı vardır. Bu
+yüzden dynamic'tir: her request'te render edilir ve hiç cache'lenmez. collage,
+`loadRecipe`'nin request'i ya da saati okuyup okumadığını anlamak için içine bakamaz.
+Bu yüzden çıktısının herkes için aynı olduğunu varsaymaz. Page'i geliştirirken olması
+gereken de budur. Page çalışır hâle geldiğinde `Incremental(10 * time.Minute)` ya da
+`Static()` onu cache'ler; bkz. [Caching](/docs/caching).
 
 ## Template
 
@@ -310,13 +317,19 @@ döner. Development'ta error page, hatanın başladığı fragment olarak
 `recipe-content`'i gösterir. Ayrıca hata zincirinin tamamını, `pages/recipe.html:2:8`
 konumuna ve bulunamayan alana kadar yazdırır. Sonra değişikliği geri alın.
 
+Handler'ın `recipes.Recipe` yerine `any` dönmesinin nedeni de budur. Veriyi okuyan
+template'tir ve onu tipsiz okur: somut bir dönüş tipi de `{{.Name}}` hatasını
+yakalamazdı.
+
 ## Bir slot'a ikinci bir fragment ekleyin
 
-Bir page nadiren tek parçadan oluşur. Diğer tariflerin listesini, kendi verisi olan
-ayrı bir fragment olarak ekleyin. `pages/more.go` dosyasını oluşturun:
+Bir page nadiren tek parçadan oluşur. Tariflerin listesini, kendi verisi olan ayrı
+bir fragment olarak ekleyin. Bu liste her page'de görünmeli, bu yüzden tarif
+page'ine değil layout'a aittir. Layout'un yanına `fragments/layouts/more.go`
+dosyasını oluşturun:
 
 ```go
-package pages
+package layouts
 
 import (
 	"context"
@@ -331,17 +344,17 @@ type moreView struct {
 	Recipes []recipes.Recipe
 }
 
-// MoreRecipes lists every recipe but the one on the page.
+// MoreRecipes lists every recipe but the one on the page, if the page shows one.
 func MoreRecipes() *collage.Fragment {
 	return collage.NewFragment("more-recipes", "fragments/more-recipes.html").
-		WithDataHandler(collage.DataHandler(loadMore)).
+		WithDataHandler(loadMore).
 		Build()
 }
 
-func loadMore(ctx context.Context, rc *collage.RenderContext) (moreView, []string, error) {
+func loadMore(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
 	list, err := recipes.List(ctx)
 	if err != nil {
-		return moreView{}, nil, err
+		return nil, nil, err
 	}
 	var view moreView
 	for _, recipe := range list {
@@ -352,6 +365,10 @@ func loadMore(ctx context.Context, rc *collage.RenderContext) (moreView, []strin
 	return view, []string{"recipes"}, nil
 }
 ```
+
+`rc.Param("slug")` burada da çalışır: parametreler path'i tanımlayan fragment'e
+değil, request'e aittir. Home page'de `{slug}` yoktur, değer boş gelir ve liste
+bütün tarifleri içerir.
 
 Bu fragment'in template'i `templates/fragments/more-recipes.html` dosyasıdır:
 
@@ -370,46 +387,68 @@ Bu fragment'in template'i `templates/fragments/more-recipes.html` dosyasıdır:
 Böylece `/recipes/{slug}` bir gün `/r/{slug}` olursa link de page'i takip eder. Bkz.
 [Link'ler ve locale'ler](/docs/links-and-locales).
 
-Şimdi tarif fragment'ine bir slot verin ve listeyi bu slot'a yerleştirin.
-`pages/recipe.go` dosyasında:
+Şimdi listeyi layout'un ikinci bir slot'una yerleştirin.
+`fragments/layouts/main.go` dosyasında:
 
 ```go
-content := collage.NewFragment("recipe-content", "pages/recipe.html").
-	WithDataHandler(collage.DataHandler(loadRecipe)).
-	WithSlot("more", false, false).
-	WithSlotFragment("more", MoreRecipes()).
-	Required().
-	Build()
+func Layout() *collage.Fragment {
+	return collage.NewFragment("layout", "layouts/default.html").
+		WithTitle("cookbook").
+		WithSlotFragment("more", MoreRecipes()).
+		Build()
+}
 ```
 
 Ardından slot'u ait olduğu yerde render edin. Bunun için
-`templates/pages/recipe.html` dosyasında, `</main>` satırından önce şunu ekleyin:
+`templates/layouts/default.html` dosyasında, `content` slot'undan sonra şunu
+ekleyin:
 
 ```html
+<body>
+  {{slot "content"}}
   {{slot "more"}}
+</body>
 ```
 
-İki dosyayı da kaydedin. Tarif page'inde artık diğer iki tarifin listesi var ve her
-biri kendi page'ine link veriyor.
+`content`, register işleminin doldurduğu tek slot'tur. Layout'un diğer slot'larını
+siz bir kez doldurursunuz ve layout'u kullanan her page onları alır. `content`'te
+olduğu gibi `more`'u da hiçbir şey tanımlamaz, template'teki `{{slot "more"}}`
+tanımlar. Register işlemi, slot'a yapılan bağlamayı bu çağrıyla karşılaştırır. Bu
+yüzden iki taraftan birindeki bir yazım hatası (`WithSlotFragment("mroe", ...)`)
+programı `ErrUnknownSlot` ile durdurur. Hata, slot'u ve template'in gerçekten
+çağırdığı slot'ları söyler. Dosyaları kaydedin. Tarif page'inde artık diğer
+iki tarifin listesi var ve her biri kendi page'ine link veriyor. Home page ise üç
+tarifin hepsini listeliyor.
 
-Bu page hakkında, hiçbir yerde açıkça yazılmamış üç şey geçerlidir.
+Bu page'ler hakkında, hiçbir yerde açıkça yazılmamış üç şey geçerlidir.
 
-- **Liste isteğe bağlıdır.** `WithSlot("more", false, false)` bu slot'u zorunlu
-  olmayan bir slot olarak tanımladı. `MoreRecipes` de `Required()` değil. `loadMore`
-  başarısız olursa page listesiz sunulur. Development'ta ayrıca hangi
-  fragment'in neden başarısız olduğunu gösteren bir panel görünür. Bozuk bir sidebar,
-  500 hatası değil, yalnızca eksik bir sidebar olur.
-- **Page'in tag'leri, iki fragment'in tag'lerinin birleşimidir.** Page artık hem
-  `recipe:pancakes`'e hem de `recipes`'e bağlıdır. Page cache'lendikten sonra
-  `recipes`'i invalidate etmek bütün tarif page'lerini cache'ten düşürür. Yeni bir
-  tarif eklendiğinde olması gereken de budur. `recipe:pancakes`'i invalidate etmek
-  ise yalnızca bu page'i düşürür.
-- **İki handler birbirini gerektiğinden fazla beklemedi.** Bir fragment'in
-  handler'ı, üst fragment'inin handler'ı döndükten sonra başlar. Aynı fragment'in
-  slot'larındaki kardeş fragment'lerin handler'ları ise birlikte başlar. Tarif
-  fragment'ine, içinde yavaş bir fragment bulunan ikinci bir slot verirseniz page,
-  sürelerin toplamını değil, en yavaş olanı bekler. Bkz.
+- **Liste isteğe bağlıdır.** `WithSlot` zorunlu olduğunu söylemedikçe bir slot
+  isteğe bağlıdır. `MoreRecipes` de `Required()` değil. `loadMore` başarısız olursa
+  page listesiz sunulur. Development'ta ayrıca hangi fragment'in neden başarısız
+  olduğunu gösteren bir panel görünür. Bozuk bir sidebar, 500 hatası değil, yalnızca
+  eksik bir sidebar olur.
+- **Bir page'in tag'leri, bütün fragment'lerinin tag'lerinin birleşimidir.** Tarif
+  page'i artık hem `recipe:pancakes`'e hem de `recipes`'e, home page ise `recipes`'e
+  bağlıdır. Page'ler cache'lendikten sonra `recipes`'i invalidate etmek listeyi
+  gösteren bütün page'leri cache'ten düşürür. Yeni bir tarif eklendiğinde olması
+  gereken de budur. `recipe:pancakes`'i invalidate etmek ise yalnızca pancakes
+  page'ini düşürür.
+- **İki handler birbirini beklemedi.** Bir child'ın handler'ı, parent'ınınki
+  döndükten sonra başlar. Tek bir fragment'in slot'larındaki sibling'ler ise
+  birlikte başlar. `content` ve `more` layout'un
+  iki slot'udur, bu yüzden `loadRecipe` ve `loadMore` aynı anda çalışır ve page,
+  sürelerin toplamını değil, yavaş olanı bekler. Bkz.
   [Data handler'lar](/docs/data-handlers#when-handlers-run).
+
+Siz dokunmadığınız hâlde bir şey de değişti: home page artık dynamic. Strateji
+tanımlamıyor ve içinde hiçbir şey veri çekmediği için static'ti. Layout her page'in
+parçasıdır ve içindeki listenin bir data handler'ı vardır. Bu yüzden layout'u
+kullanan her page, `Static()` ya da `Incremental(ttl)` diyene kadar her request'te
+render edilir. Bkz. [Caching](/docs/caching#a-page-that-declares-none).
+
+Yalnızca tek bir page'in ihtiyaç duyduğu bir fragment ise o page'in content
+fragment'ine aittir: fragment'i content fragment'ine bağlayın, `{{slot}}` çağrısını
+da onun template'ine ekleyin. Bir fragment nerede tanımlanırsa orada görünür.
 
 ## Test edin
 
@@ -467,5 +506,5 @@ go test ./...
   ve içerikten doldurulan slot'lar.
 - [Data handler'lar](/docs/data-handlers) — handler sözleşmesi, fragment'ler arasında
   veri paylaşımı ve timeout'lar.
-- [Caching](/docs/caching) — bu page'i `Dynamic()` olmaktan çıkarıp bir kez render
+- [Caching](/docs/caching) — bu page'i dynamic olmaktan çıkarıp bir kez render
   edilen ve bir tarif değiştiğinde atılan bir page'e dönüştürmek.
