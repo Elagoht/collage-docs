@@ -1,15 +1,15 @@
 ---
-description: A hands-on tutorial — build a recipe page with a layout, a data handler and a template, then add a second fragment in a slot of the layout.
-reference: New, NewPage, NewFragment, FragmentBuilder.WithData, FragmentBuilder.WithTitle, DataHandler, Load, ErrNotFound, ErrUnknownSlot
+description: A hands-on tutorial — build a recipe page with a layout, a data handler and a template, add a second fragment in a slot, and export every recipe to static files.
+reference: New, NewPage, NewFragment, FragmentBuilder.WithData, FragmentBuilder.WithTitle, PageBuilder.WithStaticParams, DataHandler, Load, ErrNotFound, ErrUnknownSlot
 ---
 
 # Your first page
 
 This tutorial builds a small recipe site in a fresh project: a page at
 `/recipes/{slug}` that loads a recipe and renders it inside the site's layout,
-and then a second fragment — a list of other recipes — placed in a slot of the
-layout, so that every page shows it. It takes about fifteen minutes, and every
-piece of it is one you will use on every page you write.
+then a second fragment — a list of the other recipes — in a slot of that page,
+and finally a static export with a file for every recipe. It takes about fifteen
+minutes, and every piece of it is one you will use on every page you write.
 
 You need Go and the `collage` CLI; see [Installation](/docs/installation).
 
@@ -241,9 +241,8 @@ This page declares no strategy either, but unlike the home page it has a data
 handler, so it is dynamic: rendered on every request, never cached. collage cannot
 see inside `loadRecipe` to tell whether it reads the request or the clock, so it
 does not guess that its output is the same for everyone. That is the right place
-to be while you are building it. Once it works,
-`Incremental(10 * time.Minute)` or `Static()` would cache it — see
-[Caching](/docs/caching).
+to be while you are building it; once it works, the page will say so itself —
+see [Export it](#export-it) below.
 
 ## The template
 
@@ -312,12 +311,11 @@ would not have caught `{{.Name}}` either.
 
 ## Add a second fragment in a slot
 
-A page is rarely one piece. Add a list of recipes, as its own fragment with its own
-data. Every page should show it, so it belongs to the layout rather than to the
-recipe page. Create `fragments/layouts/more.go`, next to the layout:
+A page is rarely one piece. Add a list of the other recipes, as its own fragment
+with its own data. Create `pages/more.go`:
 
 ```go
-package layouts
+package pages
 
 import (
 	"context"
@@ -332,7 +330,7 @@ type moreView struct {
 	Recipes []recipes.Recipe
 }
 
-// MoreRecipes lists every recipe but the one on the page, if the page shows one.
+// MoreRecipes lists every recipe but the one on the page.
 func MoreRecipes() *collage.Fragment {
 	return collage.NewFragment("more-recipes", "fragments/more-recipes.html").
 		WithDataHandler(loadMore).
@@ -355,8 +353,7 @@ func loadMore(ctx context.Context, rc *collage.RenderContext) (any, []string, er
 ```
 
 `rc.Param("slug")` works here too: parameters belong to the request, not to the
-fragment that declared the path. On the home page there is no `{slug}`, it is
-empty, and the list is every recipe.
+fragment whose page declared the path.
 
 Its template, `templates/fragments/more-recipes.html`:
 
@@ -375,61 +372,115 @@ Its template, `templates/fragments/more-recipes.html`:
 from its path, so it follows the page if `/recipes/{slug}` ever becomes
 `/r/{slug}`. See [Links and locales](/docs/links-and-locales).
 
-Now put the list in a second slot of the layout. In `fragments/layouts/main.go`:
+The list is about the recipe on the page, so it belongs to the recipe page, not to
+the layout every page shares. Put it in a slot of the recipe fragment. In
+`pages/recipe.go`:
 
 ```go
-func Layout() *collage.Fragment {
-	return collage.NewFragment("layout", "layouts/default.html").
-		WithTitle("cookbook").
-		WithSlotFragment("more", MoreRecipes()).
-		Build()
-}
+content := collage.NewFragment("recipe-content", "pages/recipe.html").
+	WithDataHandler(loadRecipe).
+	WithSlotFragment("more", MoreRecipes()).
+	Required().
+	Build()
 ```
 
-And render the slot where it belongs, in `templates/layouts/default.html`, after
-the content:
+And render the slot where it belongs, in `templates/pages/recipe.html`, before
+`</main>`:
 
 ```html
-<body>
-  {{slot "content"}}
   {{slot "more"}}
-</body>
 ```
 
-`content` is the one slot registration fills. Any other slot of the layout you fill
-yourself, once, and every page that uses the layout gets it. As with `content`,
-nothing declares `more`: the template's `{{slot "more"}}` does. Registration checks
-the binding against it, so a typo on either side — `WithSlotFragment("mroe", ...)`
-— stops the program with `ErrUnknownSlot`, naming the slot and the ones the
-template does call. Save the files. The recipe page now has a list of the other
-two recipes, each linking to its own page, and the home page lists all three.
+Nothing declares the slot: the template's `{{slot "more"}}` does, as the layout's
+`{{slot "content"}}` did. Registration checks the binding against it, so a typo on
+either side — `WithSlotFragment("mroe", ...)` — stops the program with
+`ErrUnknownSlot`, naming the slot and the ones the template does call. Save the
+files. The recipe page now has a list of the other two recipes, each linking to its
+own page.
 
-Three things are true of these pages that were not written down anywhere.
+Three things are true of this page that were not written down anywhere.
 
-- **The list is optional.** A slot is optional unless `WithSlot` says it is
+- **The list is optional.** A slot is optional unless `WithSlot` makes it
   required, and `MoreRecipes` is not `Required()`. If `loadMore` fails, the page is
   served without the list — and, in development, with a panel saying which fragment
   failed and why. A broken sidebar is a missing sidebar, not a 500.
-- **A page's tags are all its fragments' tags.** The recipe page now depends on
-  `recipe:pancakes` and on `recipes`, and the home page on `recipes`. Once they are
-  cached, invalidating `recipes` drops every page that shows the list — which is
-  what adding a recipe should do — and invalidating `recipe:pancakes` drops only
-  the pancakes page.
-- **The two handlers did not wait on each other.** A child's handler starts once
-  its parent's has returned; siblings in the slots of one fragment start together.
-  `content` and `more` are both slots of the layout, so `loadRecipe` and `loadMore`
-  run at the same time, and the page waits for the slower of them, not for their
-  sum. See [Data handlers](/docs/data-handlers#when-handlers-run).
+- **The page's tags are both fragments' tags.** The page now depends on
+  `recipe:pancakes` and on `recipes`. Once it is cached, invalidating `recipes`
+  drops every recipe page — which is what adding a recipe should do — and
+  invalidating `recipe:pancakes` drops only this one.
+- **The two handlers did not wait on each other more than they had to.** A child's
+  handler starts once its parent's has returned; siblings in the slots of one
+  fragment start together. Give the recipe fragment a second slot with a slow
+  fragment in it and the page waits for the slowest of them, not for their sum.
+  See [Data handlers](/docs/data-handlers#when-handlers-run).
 
-And one thing changed that you did not touch: the home page is dynamic now. It
-declares no strategy, and it was static because nothing in it fetched. The layout
-is part of every page, and its list has a data handler, so every page that uses it
-renders per request until it says `Static()` or `Incremental(ttl)`. See
-[Caching](/docs/caching#a-page-that-declares-none).
+## Export it
 
-A fragment that only one page needs belongs in that page's content fragment
-instead: bind it into the content fragment, and give its template the `{{slot}}`.
-Where a fragment is declared is where it shows up.
+The recipes do not change between requests: they change when you edit the map and
+deploy. So the page does not need to render per request, and the whole site can be
+static files. Two lines in `pages/recipe.go` say so:
+
+```go
+	return collage.NewPage("recipe").
+		WithLayout(layouts.Layout()).
+		WithContent(content).
+		WithPath("en", "/recipes/{slug}").
+		Static().
+		WithStaticParams(recipeParams).
+		Build()
+}
+
+// recipeParams lists the recipes a static build writes a page for.
+func recipeParams(ctx context.Context, locale string) ([]map[string]string, error) {
+	list, err := recipes.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	params := make([]map[string]string, 0, len(list))
+	for _, recipe := range list {
+		params = append(params, map[string]string{"slug": recipe.Slug})
+	}
+	return params, nil
+}
+```
+
+- **`Static()`** is what collage could not decide on its own. The page has data
+  handlers, and only you know that what they return is the same for every reader.
+  Served, the page now renders once and is kept until its tags are invalidated.
+- **`WithStaticParams`** answers the question a build cannot answer from the path:
+  which recipes are there? `/recipes/{slug}` is one page with many URLs, and the
+  function returns one map of placeholder values per URL. It is called once per
+  locale the page has a path in; this site has one.
+
+Export:
+
+```sh
+collage export
+```
+
+```
++ 6 files written
+    dist/index.html
+    dist/recipes/flatbread/index.html
+    dist/recipes/omelette/index.html
+    dist/recipes/pancakes/index.html
+    dist/static/app.css
+    dist/static/app.f106e88ebb47f51d.css
+
+6 written · 0 skipped · 0 failed
+```
+
+A file for each recipe, rendered by the same handlers a request would run, with
+the `slug` each one would have carried. The home page is there without a word
+from you: it has no handler, so it was static all along. Without
+`WithStaticParams` the recipe page would be skipped and named in the report — a
+build is not wrong for containing a page it cannot prerender — and without
+`Static()` it would be skipped as dynamic. `collage serve` shows `dist/` as a
+static host would; see [Static export](/docs/static-export).
+
+A recipe that is not in the list is not written, but a running server still
+answers it: `WithStaticParams` is read by the build alone. `/recipes/lasagne`
+remains a 404 either way.
 
 ## Test it
 
@@ -487,5 +538,7 @@ go test ./...
   slots filled from content.
 - [Data handlers](/docs/data-handlers) — the handler contract, sharing data between
   fragments, and timeouts.
-- [Caching](/docs/caching) — turning this page from a dynamic one into one that is
-  rendered once and thrown away when a recipe changes.
+- [Caching](/docs/caching) — how a static page is thrown away when a recipe changes,
+  and when a page should render per request instead.
+- [Static export](/docs/static-export) — everything `collage export` writes, skips
+  and warns about, and hosting the result.

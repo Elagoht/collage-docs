@@ -1,6 +1,6 @@
 ---
-description: Uygulamalı bir rehber. Bir layout, bir data handler ve bir template ile bir tarif page'i kurarsınız, ardından layout'un bir slot'una ikinci bir fragment eklersiniz.
-reference: New, NewPage, NewFragment, FragmentBuilder.WithData, FragmentBuilder.WithTitle, DataHandler, Load, ErrNotFound, ErrUnknownSlot
+description: Uygulamalı bir rehber. Bir layout, bir data handler ve bir template ile bir tarif page'i kurarsınız, bir slot'a ikinci bir fragment eklersiniz ve bütün tarifleri static dosyalara export edersiniz.
+reference: New, NewPage, NewFragment, FragmentBuilder.WithData, FragmentBuilder.WithTitle, PageBuilder.WithStaticParams, DataHandler, Load, ErrNotFound, ErrUnknownSlot
 ---
 
 # İlk page'iniz
@@ -8,9 +8,10 @@ reference: New, NewPage, NewFragment, FragmentBuilder.WithData, FragmentBuilder.
 Bu rehberde sıfırdan açılmış bir projede küçük bir tarif sitesi kurarsınız. Önce
 `/recipes/{slug}` adresinde bir tarifi yükleyen ve onu sitenin layout'u içinde
 render eden bir page yazarsınız. Ardından ikinci bir fragment eklersiniz: diğer
-tariflerin listesi. Bu fragment layout'un bir slot'una yerleşir, böylece her
-page'de görünür. Rehber yaklaşık on beş dakika sürer. İçindeki her parçayı,
-yazacağınız her page'de yeniden kullanacaksınız.
+tariflerin listesi. Bu fragment o page'in bir slot'una yerleşir. Son olarak siteyi,
+her tarif için bir dosya olacak şekilde static olarak export edersiniz. Rehber
+yaklaşık on beş dakika sürer. İçindeki her parçayı, yazacağınız her page'de yeniden
+kullanacaksınız.
 
 Go ve `collage` CLI kurulu olmalı; bkz. [Kurulum](/docs/installation).
 
@@ -248,8 +249,8 @@ Bu page de strateji tanımlamaz, ama home page'in aksine bir data handler'ı var
 yüzden dynamic'tir: her request'te render edilir ve hiç cache'lenmez. collage,
 `loadRecipe`'nin request'i ya da saati okuyup okumadığını anlamak için içine bakamaz.
 Bu yüzden çıktısının herkes için aynı olduğunu varsaymaz. Page'i geliştirirken olması
-gereken de budur. Page çalışır hâle geldiğinde `Incremental(10 * time.Minute)` ya da
-`Static()` onu cache'ler; bkz. [Caching](/docs/caching).
+gereken de budur. Page çalışır hâle geldiğinde bunu kendisi söyleyecek; bkz. aşağıdaki
+[Export edin](#export-it) bölümü.
 
 ## Template
 
@@ -323,13 +324,11 @@ yakalamazdı.
 
 ## Bir slot'a ikinci bir fragment ekleyin
 
-Bir page nadiren tek parçadan oluşur. Tariflerin listesini, kendi verisi olan ayrı
-bir fragment olarak ekleyin. Bu liste her page'de görünmeli, bu yüzden tarif
-page'ine değil layout'a aittir. Layout'un yanına `fragments/layouts/more.go`
-dosyasını oluşturun:
+Bir page nadiren tek parçadan oluşur. Diğer tariflerin listesini, kendi verisi olan
+ayrı bir fragment olarak ekleyin. `pages/more.go` dosyasını oluşturun:
 
 ```go
-package layouts
+package pages
 
 import (
 	"context"
@@ -344,7 +343,7 @@ type moreView struct {
 	Recipes []recipes.Recipe
 }
 
-// MoreRecipes lists every recipe but the one on the page, if the page shows one.
+// MoreRecipes lists every recipe but the one on the page.
 func MoreRecipes() *collage.Fragment {
 	return collage.NewFragment("more-recipes", "fragments/more-recipes.html").
 		WithDataHandler(loadMore).
@@ -366,9 +365,8 @@ func loadMore(ctx context.Context, rc *collage.RenderContext) (any, []string, er
 }
 ```
 
-`rc.Param("slug")` burada da çalışır: parametreler path'i tanımlayan fragment'e
-değil, request'e aittir. Home page'de `{slug}` yoktur, değer boş gelir ve liste
-bütün tarifleri içerir.
+`rc.Param("slug")` burada da çalışır: parametreler, path'i tanımlayan page'in
+fragment'ine değil, request'e aittir.
 
 Bu fragment'in template'i `templates/fragments/more-recipes.html` dosyasıdır:
 
@@ -387,68 +385,119 @@ Bu fragment'in template'i `templates/fragments/more-recipes.html` dosyasıdır:
 Böylece `/recipes/{slug}` bir gün `/r/{slug}` olursa link de page'i takip eder. Bkz.
 [Link'ler ve locale'ler](/docs/links-and-locales).
 
-Şimdi listeyi layout'un ikinci bir slot'una yerleştirin.
-`fragments/layouts/main.go` dosyasında:
+Liste, page'deki tarifle ilgilidir. Bu yüzden her page'in paylaştığı layout'a değil,
+tarif page'ine aittir. Listeyi tarif fragment'inin bir slot'una yerleştirin.
+`pages/recipe.go` dosyasında:
 
 ```go
-func Layout() *collage.Fragment {
-	return collage.NewFragment("layout", "layouts/default.html").
-		WithTitle("cookbook").
-		WithSlotFragment("more", MoreRecipes()).
-		Build()
-}
+content := collage.NewFragment("recipe-content", "pages/recipe.html").
+	WithDataHandler(loadRecipe).
+	WithSlotFragment("more", MoreRecipes()).
+	Required().
+	Build()
 ```
 
 Ardından slot'u ait olduğu yerde render edin. Bunun için
-`templates/layouts/default.html` dosyasında, `content` slot'undan sonra şunu
-ekleyin:
+`templates/pages/recipe.html` dosyasında, `</main>`'den önce şunu ekleyin:
 
 ```html
-<body>
-  {{slot "content"}}
   {{slot "more"}}
-</body>
 ```
 
-`content`, register işleminin doldurduğu tek slot'tur. Layout'un diğer slot'larını
-siz bir kez doldurursunuz ve layout'u kullanan her page onları alır. `content`'te
-olduğu gibi `more`'u da hiçbir şey tanımlamaz, template'teki `{{slot "more"}}`
-tanımlar. Register işlemi, slot'a yapılan bağlamayı bu çağrıyla karşılaştırır. Bu
-yüzden iki taraftan birindeki bir yazım hatası (`WithSlotFragment("mroe", ...)`)
-programı `ErrUnknownSlot` ile durdurur. Hata, slot'u ve template'in gerçekten
-çağırdığı slot'ları söyler. Dosyaları kaydedin. Tarif page'inde artık diğer
-iki tarifin listesi var ve her biri kendi page'ine link veriyor. Home page ise üç
-tarifin hepsini listeliyor.
+Slot'u hiçbir şey tanımlamaz. Layout'taki `{{slot "content"}}` gibi, template'teki
+`{{slot "more"}}` tanımlar. Register işlemi, slot'a yapılan bağlamayı bu çağrıyla
+karşılaştırır. Bu yüzden iki taraftan birindeki bir yazım hatası
+(`WithSlotFragment("mroe", ...)`) programı `ErrUnknownSlot` ile durdurur. Hata,
+slot'u ve template'in gerçekten çağırdığı slot'ları söyler. Dosyaları kaydedin.
+Tarif page'inde artık diğer iki tarifin listesi var ve her biri kendi page'ine link
+veriyor.
 
-Bu page'ler hakkında, hiçbir yerde açıkça yazılmamış üç şey geçerlidir.
+Bu page hakkında, hiçbir yerde açıkça yazılmamış üç şey geçerlidir.
 
-- **Liste isteğe bağlıdır.** `WithSlot` zorunlu olduğunu söylemedikçe bir slot
-  isteğe bağlıdır. `MoreRecipes` de `Required()` değil. `loadMore` başarısız olursa
-  page listesiz sunulur. Development'ta ayrıca hangi fragment'in neden başarısız
-  olduğunu gösteren bir panel görünür. Bozuk bir sidebar, 500 hatası değil, yalnızca
-  eksik bir sidebar olur.
-- **Bir page'in tag'leri, bütün fragment'lerinin tag'lerinin birleşimidir.** Tarif
-  page'i artık hem `recipe:pancakes`'e hem de `recipes`'e, home page ise `recipes`'e
-  bağlıdır. Page'ler cache'lendikten sonra `recipes`'i invalidate etmek listeyi
-  gösteren bütün page'leri cache'ten düşürür. Yeni bir tarif eklendiğinde olması
-  gereken de budur. `recipe:pancakes`'i invalidate etmek ise yalnızca pancakes
-  page'ini düşürür.
-- **İki handler birbirini beklemedi.** Bir child'ın handler'ı, parent'ınınki
-  döndükten sonra başlar. Tek bir fragment'in slot'larındaki sibling'ler ise
-  birlikte başlar. `content` ve `more` layout'un
-  iki slot'udur, bu yüzden `loadRecipe` ve `loadMore` aynı anda çalışır ve page,
-  sürelerin toplamını değil, yavaş olanı bekler. Bkz.
-  [Data handler'lar](/docs/data-handlers#when-handlers-run).
+- **Liste isteğe bağlıdır.** `WithSlot` zorunlu kılmadıkça bir slot isteğe
+  bağlıdır. `MoreRecipes` de `Required()` değil. `loadMore` başarısız olursa page
+  listesiz sunulur. Development'ta ayrıca hangi fragment'in neden başarısız olduğunu
+  gösteren bir panel görünür. Bozuk bir sidebar, 500 hatası değil, yalnızca eksik
+  bir sidebar olur.
+- **Page'in tag'leri, iki fragment'in tag'lerinin birleşimidir.** Page artık hem
+  `recipe:pancakes`'e hem de `recipes`'e bağlıdır. Page cache'lendikten sonra
+  `recipes`'i invalidate etmek bütün tarif page'lerini cache'ten düşürür. Yeni bir
+  tarif eklendiğinde olması gereken de budur. `recipe:pancakes`'i invalidate etmek
+  ise yalnızca bu page'i düşürür.
+- **İki handler birbirini gereğinden fazla beklemedi.** Bir child'ın handler'ı,
+  parent'ınınki döndükten sonra başlar. Tek bir fragment'in slot'larındaki
+  sibling'ler ise birlikte başlar. Tarif fragment'ine içinde yavaş bir fragment olan
+  ikinci bir slot verirseniz page, sürelerin toplamını değil, en yavaş olanı bekler.
+  Bkz. [Data handler'lar](/docs/data-handlers#when-handlers-run).
 
-Siz dokunmadığınız hâlde bir şey de değişti: home page artık dynamic. Strateji
-tanımlamıyor ve içinde hiçbir şey veri çekmediği için static'ti. Layout her page'in
-parçasıdır ve içindeki listenin bir data handler'ı vardır. Bu yüzden layout'u
-kullanan her page, `Static()` ya da `Incremental(ttl)` diyene kadar her request'te
-render edilir. Bkz. [Caching](/docs/caching#a-page-that-declares-none).
+## Export edin
 
-Yalnızca tek bir page'in ihtiyaç duyduğu bir fragment ise o page'in content
-fragment'ine aittir: fragment'i content fragment'ine bağlayın, `{{slot}}` çağrısını
-da onun template'ine ekleyin. Bir fragment nerede tanımlanırsa orada görünür.
+Tarifler request'ten request'e değişmez. Map'i düzenleyip deploy ettiğinizde
+değişirler. Bu yüzden page'in her request'te render edilmesi gerekmez ve bütün site
+static dosyalardan oluşabilir. `pages/recipe.go` dosyasındaki iki satır bunu söyler:
+
+```go
+	return collage.NewPage("recipe").
+		WithLayout(layouts.Layout()).
+		WithContent(content).
+		WithPath("en", "/recipes/{slug}").
+		Static().
+		WithStaticParams(recipeParams).
+		Build()
+}
+
+// recipeParams lists the recipes a static build writes a page for.
+func recipeParams(ctx context.Context, locale string) ([]map[string]string, error) {
+	list, err := recipes.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	params := make([]map[string]string, 0, len(list))
+	for _, recipe := range list {
+		params = append(params, map[string]string{"slug": recipe.Slug})
+	}
+	return params, nil
+}
+```
+
+- **`Static()`**, collage'ın kendi başına karar veremediği şeydir. Page'in data
+  handler'ları vardır ve döndürdüklerinin her okuyucu için aynı olduğunu yalnızca
+  siz bilirsiniz. Sunulduğunda page artık bir kez render edilir ve tag'leri
+  invalidate edilene kadar saklanır.
+- **`WithStaticParams`**, bir build'in path'e bakarak cevaplayamayacağı soruyu
+  cevaplar: hangi tarifler var? `/recipes/{slug}` birçok URL'i olan tek bir page'dir.
+  Fonksiyon her URL için bir placeholder değerleri map'i döndürür. Page'in path'i
+  olan her locale için bir kez çağrılır; bu sitenin tek locale'i var.
+
+Export edin:
+
+```sh
+collage export
+```
+
+```
++ 6 files written
+    dist/index.html
+    dist/recipes/flatbread/index.html
+    dist/recipes/omelette/index.html
+    dist/recipes/pancakes/index.html
+    dist/static/app.css
+    dist/static/app.f106e88ebb47f51d.css
+
+6 written · 0 skipped · 0 failed
+```
+
+Her tarif için bir dosya yazıldı. Her biri, bir request'in çalıştıracağı handler'lar
+tarafından, o request'in taşıyacağı `slug` ile render edildi. Home page de siz bir
+şey söylemeden oradadır: handler'ı yoktur, yani baştan beri static'tir.
+`WithStaticParams` olmasaydı tarif page'i atlanır ve raporda adıyla gösterilirdi.
+Prerender edemediği bir page içerdiği için build hatalı sayılmaz. `Static()`
+olmasaydı da dynamic olduğu için atlanırdı. `collage serve`, `dist/`'i bir static
+host'un göstereceği gibi gösterir; bkz. [Static export](/docs/static-export).
+
+Listede olmayan bir tarif için dosya yazılmaz, ama çalışan bir server ona yine cevap
+verir: `WithStaticParams`'ı yalnızca build okur. `/recipes/lasagne` her iki durumda
+da 404 olarak kalır.
 
 ## Test edin
 
@@ -506,5 +555,7 @@ go test ./...
   ve içerikten doldurulan slot'lar.
 - [Data handler'lar](/docs/data-handlers) — handler sözleşmesi, fragment'ler arasında
   veri paylaşımı ve timeout'lar.
-- [Caching](/docs/caching) — bu page'i dynamic olmaktan çıkarıp bir kez render
-  edilen ve bir tarif değiştiğinde atılan bir page'e dönüştürmek.
+- [Caching](/docs/caching) — static bir page'in bir tarif değiştiğinde nasıl
+  atıldığı ve bir page'in ne zaman her request'te render edilmesi gerektiği.
+- [Static export](/docs/static-export) — `collage export`'un yazdığı, atladığı ve
+  uyardığı her şey ve sonucun host edilmesi.
