@@ -140,7 +140,7 @@ with the file and line in the error.
 ## What a template receives
 
 `.` is exactly what the fragment's data handler returned — with
-`collage.DataHandler`, a value of your own type. A fragment without a data handler,
+`collage.DataHandler`, `collage.Load` or `collage.Data`, a value of your own type. A fragment without a data handler,
 or one adapted with `collage.Effect`, renders with no data.
 
 ```go

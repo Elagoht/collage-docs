@@ -72,6 +72,42 @@ ikinci bir başlık eklemek yerine sitenin başlığının yerini alır — bira
 sayfası da bunu yapacak. Bkz.
 [Head ve SEO](/docs/head-and-seo#keys-and-the-innermost-wins).
 
+## Ana sayfaya bakın
+
+`pages/home.go`'daki ana sayfa, bir şablona veri vermenin en kısa yolunu gösterir:
+
+```go
+// homeView is what templates/pages/home.html renders with, as ".".
+type homeView struct {
+	Name string
+}
+
+func HomePage() *collage.Page {
+	content := collage.NewFragment("home-content", "pages/home.html").
+		WithDataHandler(collage.Data(homeView{Name: "cookbook"})).
+		Build()
+
+	return collage.NewPage("home").
+		WithLayout(layouts.Layout()).
+		WithContent(content).
+		WithPath("en", "/").
+		Static().
+		Build()
+}
+```
+
+`collage.Data` her render'da şablona aynı değeri verir; `templates/pages/home.html`
+içinde bu değer `.`'dır:
+
+```html
+<h1>Hello from {{.Name}}</h1>
+```
+
+`homeView`'a bir alan ekleyin, onu `collage.Data(...)` içinde doldurun ve şablonda
+kullanın; sayfa onu gösterir. Sabit bir veri parçasının — bir bağlantı listesi, bir
+başlık — ihtiyacı olan tek şey budur. Bir tarif ise sabit değildir: URL'ye bağlıdır
+ve bir yerden gelir. Bunun için bir fonksiyon gerekir.
+
 ## İçerik nereden geliyor
 
 Gerçek bir site tarifleri bir veritabanından ya da bir CMS'ten yükler. Burada bir
@@ -185,8 +221,9 @@ Satır satır ele alalım.
   gerekmez.
 - **Handler üç şey döndürür**: veri, verinin kurulduğu bağımlılık etiketleri ve bir
   hata. `recipe:pancakes` etiketi "bu sayfa pancakes tarifini gösteriyor" der; o
-  tarif değiştiğinde önbellekteki kopyanın atılabilmesini sağlayan budur. Bkz.
-  [Data handler'lar](/docs/data-handlers#the-contract).
+  tarif değiştiğinde önbellekteki kopyanın atılabilmesini sağlayan budur.
+  Bildirecek etiketi olmayan bir handler, `collage.Load` ile onları bırakabilir —
+  bkz. [Data handler'lar](/docs/data-handlers#shorter-adapters-data-and-load).
 - **`rc.Param("slug")`**, URL'nin eşleştiği `{slug}`'dır.
 - **`rc.HoistTitle`** sayfaya kendi `<title>`'ını verir. İçerik fragment'i layout'un
   içinde durur ve en içteki bildirim kazanır; dolayısıyla layout'un `cookbook`

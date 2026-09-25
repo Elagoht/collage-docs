@@ -1,6 +1,6 @@
 ---
 description: A hands-on tutorial — build a recipe page with a layout, a typed data handler and a template, then add a second fragment in a slot.
-reference: New, NewPage, NewFragment, DataHandler, ErrNotFound
+reference: New, NewPage, NewFragment, Data, DataHandler, Load, ErrNotFound
 ---
 
 # Your first page
@@ -69,6 +69,42 @@ There is no `<title>` in the template. The layout's handler declares one with
 `rc.HoistTitle`, and `{{hoist "head"}}` is where it lands. A page that declares its
 own title replaces the site's rather than adding a second one — the recipe page
 will, in a moment. See [Head and SEO](/docs/head-and-seo#keys-and-the-innermost-wins).
+
+## Look at the home page
+
+The home page, in `pages/home.go`, shows the shortest way to give a template data:
+
+```go
+// homeView is what templates/pages/home.html renders with, as ".".
+type homeView struct {
+	Name string
+}
+
+func HomePage() *collage.Page {
+	content := collage.NewFragment("home-content", "pages/home.html").
+		WithDataHandler(collage.Data(homeView{Name: "cookbook"})).
+		Build()
+
+	return collage.NewPage("home").
+		WithLayout(layouts.Layout()).
+		WithContent(content).
+		WithPath("en", "/").
+		Static().
+		Build()
+}
+```
+
+`collage.Data` hands the template the same value on every render, and in
+`templates/pages/home.html` that value is `.`:
+
+```html
+<h1>Hello from {{.Name}}</h1>
+```
+
+Add a field to `homeView`, set it in `collage.Data(...)` and use it in the
+template, and the page shows it. That is all a fixed piece of data — a list of
+links, a heading — needs. A recipe is not fixed: it depends on the URL, and it
+comes from somewhere. That takes a function.
 
 ## Where the content comes from
 
@@ -183,7 +219,8 @@ Take it a line at a time.
 - **The handler returns three things**: the data, the dependency tags it was built
   from, and an error. The tag `recipe:pancakes` says "this page shows the pancakes
   recipe", which is what lets a cached copy be thrown away when that recipe
-  changes. See [Data handlers](/docs/data-handlers#the-contract).
+  changes. A handler with no tags to report can drop them with `collage.Load`
+  — see [Data handlers](/docs/data-handlers#shorter-adapters-data-and-load).
 - **`rc.Param("slug")`** is the `{slug}` the URL matched.
 - **`rc.HoistTitle`** gives the page its own `<title>`. The content fragment sits
   inside the layout, and the innermost declaration wins, so it replaces the

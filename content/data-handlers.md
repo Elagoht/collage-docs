@@ -1,6 +1,6 @@
 ---
 description: How a fragment fetches its data — the typed handler contract, dependency tags, 404s, concurrency, the render context, sharing data, and timeouts.
-reference: DataHandler, RenderContext, Get, Once, Effect, ErrNotFound, PanicError
+reference: DataHandler, Data, Load, RenderContext, Get, Once, Effect, ErrNotFound, PanicError
 ---
 
 # Data handlers
@@ -60,6 +60,51 @@ what it depends on and then failed has still said what would invalidate the page
 On an error, `collage.DataHandler` drops the data rather than passing it on. That
 matters for pointer types: a nil `*Post` returned alongside an error would
 otherwise reach the template as a non-nil value holding a nil pointer.
+
+### Shorter adapters: Data and Load
+
+Not every fragment needs all three results. Two adapters cover the ones that
+report no tags.
+
+`collage.Data` takes the value itself, for data that is fixed when the program
+starts — a list of links, a heading, a site name. There is no function to write:
+
+```go
+type homeView struct {
+	Links []link
+}
+
+content := collage.NewFragment("home-content", "pages/home.html").
+	WithDataHandler(collage.Data(homeView{Links: links})).
+	Build()
+```
+
+`collage.Load` takes a handler that returns the data and an error, without the
+tags:
+
+```go
+func loadClock(_ context.Context, rc *collage.RenderContext) (clockView, error) {
+	return clockView{Now: time.Now(), Locale: rc.Locale}, nil
+}
+
+content := collage.NewFragment("clock", "fragments/clock.html").
+	WithDataHandler(collage.Load(loadClock)).
+	Build()
+```
+
+Both are generic like `collage.DataHandler`, so the template still receives your
+own type, and `collage.Load` drops the data on an error the same way. Which one to
+reach for:
+
+| The data | Adapter |
+| --- | --- |
+| Is the same on every render | `collage.Data(v)` |
+| Is fetched, and the page is not cached or the data never changes | `collage.Load(fn)` |
+| Is fetched, and a cached page must be dropped when it changes | `collage.DataHandler(fn)` |
+
+Moving from one to the next is a change of signature, not a rewrite: when a page
+starts being cached, a `Load` handler gains its tags and becomes a `DataHandler`
+one.
 
 ### Not found is not an error
 

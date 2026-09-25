@@ -87,8 +87,9 @@ sayfası, her biri için testler, `plugins-config.json`, bir favicon ve bir
 `.env.example` ekler.
 
 **`--template minimal`** bir projenin olabileceği en az şeydir: tek bir sayfayı,
-`<h1>Hello from collage</h1>`'i saran layout ve karanlık mod dahil arka planı ve
-metin rengini ayarlayan bir stil dosyası. Başka hiçbir şey yok — test yok,
+`<h1>Hello from {{.Name}}</h1>`'i — `collage.Data` ile şablona verilen proje adını —
+saran layout ve karanlık mod dahil arka planı ve metin rengini ayarlayan bir stil
+dosyası. Başka hiçbir şey yok — test yok,
 bulunamadı sayfası da yok: siz bir tane kaydedene kadar collage bilinmeyen bir
 adrese kendi sade 404'üyle yanıt verir.
 

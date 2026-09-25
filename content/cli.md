@@ -85,8 +85,9 @@ document — split into `pages/`, `fragments/`, `actions/`, `documents/` and
 `.env.example`.
 
 **`--template minimal`** is the least a project can be: the layout around one
-page, `<h1>Hello from collage</h1>`, and a stylesheet that sets the background and
-text colour, dark mode included. Nothing else — no tests, and no not-found page:
+page, `<h1>Hello from {{.Name}}</h1>` — the project's name, handed to the
+template with `collage.Data` — and a stylesheet that sets the background and text
+colour, dark mode included. Nothing else — no tests, and no not-found page:
 collage answers an unknown address with its own plain 404 until you register one.
 
 When it is done it prints the next steps — the `cp` line only for the demo

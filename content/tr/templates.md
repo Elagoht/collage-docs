@@ -141,7 +141,8 @@ dosya ve satırla birlikte onu hemen göreceğiniz yerde.
 ## Bir şablon ne alır
 
 `.`, tam olarak fragment'in data handler'ının döndürdüğü şeydir —
-`collage.DataHandler` ile kendi tipinizden bir değer. Data handler'ı olmayan ya da
+`collage.DataHandler`, `collage.Load` ya da `collage.Data` ile kendi tipinizden bir
+değer. Data handler'ı olmayan ya da
 `collage.Effect` ile uyarlanmış bir fragment veri olmadan render edilir.
 
 ```go

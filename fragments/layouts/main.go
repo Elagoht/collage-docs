@@ -31,11 +31,11 @@ type language struct {
 // name, so they follow the page's path.
 func Layout(app *collage.App, docs func() (*site.Set, error)) *collage.Fragment {
 	return collage.NewFragment("layout", "layouts/default.html").
-		WithDataHandler(collage.DataHandler(func(_ context.Context, rc *collage.RenderContext) (layoutView, []string, error) {
+		WithDataHandler(collage.Load(func(_ context.Context, rc *collage.RenderContext) (layoutView, error) {
 			view := layoutView{Lang: rc.Locale, T: ui.For(rc.Locale)}
 			set, err := docs()
 			if err != nil {
-				return layoutView{}, nil, err
+				return layoutView{}, err
 			}
 
 			// The canonical link first, then one alternate per language, the page's
@@ -43,7 +43,7 @@ func Layout(app *collage.App, docs func() (*site.Set, error)) *collage.Fragment 
 			hrefs := make(map[string]string, len(set.Locales()))
 			for _, locale := range set.Locales() {
 				if hrefs[locale], err = pageIn(app, set, rc, locale); err != nil {
-					return layoutView{}, nil, err
+					return layoutView{}, err
 				}
 			}
 			if href := hrefs[rc.Locale]; href != "" {
@@ -64,12 +64,12 @@ func Layout(app *collage.App, docs func() (*site.Set, error)) *collage.Fragment 
 					// Not translated: the language's home page, rather than no
 					// way into the language at all.
 					if href, err = app.URL("home", locale, nil); err != nil {
-						return layoutView{}, nil, err
+						return layoutView{}, err
 					}
 				}
 				view.Languages = append(view.Languages, language{Code: locale, Name: ui.For(locale).Name, URL: href})
 			}
-			return view, nil, nil
+			return view, nil
 		})).
 		WithSlot("content", true, false).
 		Build()

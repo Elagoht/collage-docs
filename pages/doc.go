@@ -27,27 +27,27 @@ type docView struct {
 // so it is rendered once per build and, served, once per process.
 func DocPage(app *collage.App, docs func() (*site.Set, error)) *collage.Page {
 	content := collage.NewFragment("doc-content", "pages/doc.html").
-		WithDataHandler(collage.DataHandler(func(_ context.Context, rc *collage.RenderContext) (docView, []string, error) {
+		WithDataHandler(collage.Load(func(_ context.Context, rc *collage.RenderContext) (docView, error) {
 			set, err := docs()
 			if err != nil {
-				return docView{}, nil, err
+				return docView{}, err
 			}
 			loaded := set.Site(rc.Locale)
 			if loaded == nil {
-				return docView{}, nil, fmt.Errorf("%w: no documentation in %q", collage.ErrNotFound, rc.Locale)
+				return docView{}, fmt.Errorf("%w: no documentation in %q", collage.ErrNotFound, rc.Locale)
 			}
 			page, err := loaded.Page(rc.Param("slug"))
 			if errors.Is(err, site.ErrNoPage) {
-				return docView{}, nil, fmt.Errorf("%w: %w", collage.ErrNotFound, err)
+				return docView{}, fmt.Errorf("%w: %w", collage.ErrNotFound, err)
 			}
 			if err != nil {
-				return docView{}, nil, err
+				return docView{}, err
 			}
 			rc.HoistTitle(page.Title + " — collage")
 			if page.Description != "" {
 				rc.HoistMeta("description", page.Description)
 			}
-			return docView{T: ui.For(rc.Locale), Page: page, Sections: loaded.Sections}, nil, nil
+			return docView{T: ui.For(rc.Locale), Page: page, Sections: loaded.Sections}, nil
 		})).
 		Required().
 		Build()

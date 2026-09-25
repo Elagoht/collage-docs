@@ -61,6 +61,50 @@ Hata durumunda `collage.DataHandler` veriyi aktarmak yerine atar. Bu, pointer
 tipleri için önemlidir: bir hatayla birlikte döndürülen nil bir `*Post`, aksi hâlde
 şablona nil bir pointer tutan, nil olmayan bir değer olarak ulaşırdı.
 
+### Daha kısa uyarlayıcılar: Data ve Load
+
+Her fragment'in üç sonuca da ihtiyacı yoktur. Etiket bildirmeyenler için iki
+uyarlayıcı vardır.
+
+`collage.Data` değerin kendisini alır; program başlarken sabitlenen veriler için
+— bir bağlantı listesi, bir başlık, bir site adı. Yazılacak bir fonksiyon yoktur:
+
+```go
+type homeView struct {
+	Links []link
+}
+
+content := collage.NewFragment("home-content", "pages/home.html").
+	WithDataHandler(collage.Data(homeView{Links: links})).
+	Build()
+```
+
+`collage.Load` ise etiketler olmadan, veriyi ve bir hatayı döndüren bir handler
+alır:
+
+```go
+func loadClock(_ context.Context, rc *collage.RenderContext) (clockView, error) {
+	return clockView{Now: time.Now(), Locale: rc.Locale}, nil
+}
+
+content := collage.NewFragment("clock", "fragments/clock.html").
+	WithDataHandler(collage.Load(loadClock)).
+	Build()
+```
+
+İkisi de `collage.DataHandler` gibi generic'tir; şablon yine kendi tipinizi alır
+ve `collage.Load` hata durumunda veriyi aynı şekilde atar. Hangisini seçmeli:
+
+| Veri | Uyarlayıcı |
+| --- | --- |
+| Her render'da aynı | `collage.Data(v)` |
+| Çekiliyor; sayfa önbelleğe alınmıyor ya da veri hiç değişmiyor | `collage.Load(fn)` |
+| Çekiliyor; değiştiğinde önbellekteki sayfa düşürülmeli | `collage.DataHandler(fn)` |
+
+Birinden diğerine geçmek yeniden yazmak değil, bir imza değişikliğidir: bir sayfa
+önbelleğe alınmaya başladığında `Load` handler'ı etiketlerini kazanır ve bir
+`DataHandler` handler'ı olur.
+
 ### Bulunamadı bir hata değildir
 
 Eksik bir kayıt ile bozuk bir veritabanı farklı hatalardır ve okuyucunun her biri

@@ -101,12 +101,12 @@ mysite/
 ├── .gitignore
 ├── README.md
 ├── pages/
-│   └── home.go                 the home page: layout, content, path
+│   └── home.go                 the home page: layout, content, path, and its data
 ├── fragments/
 │   └── layouts/main.go         the layout fragment every page shares, and the site's title
 ├── templates/
 │   ├── layouts/default.html    the layout's HTML, with {{slot "content"}}
-│   └── pages/home.html         <h1>Hello from collage</h1>
+│   └── pages/home.html         <h1>Hello from {{.Name}}</h1>
 └── static/
     └── app.css                 the background and text colour, light and dark
 ```
