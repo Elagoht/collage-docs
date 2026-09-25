@@ -76,8 +76,11 @@ bir page, render ettiği herhangi bir şeyin data handler'ı varsa dynamic, yoks
 static olur. Çünkü bir handler request'i, bir cookie'yi ya da saati okuyabilir ve
 fonksiyonun dışındaki hiçbir şey bunu yapıp yapmadığını bilemez. Çıktısı her
 okuyucu için aynı olan bir handler'ı (dosyadan okunan bir yazı gibi),
-`Static()` ya da `Incremental(ttl)`'yi kendisi belirten bir page'e koyun. Ayrıntılar
-için [Caching](/docs/caching#a-page-that-declares-none) sayfasına bakın.
+`Static()` ya da `Incremental(ttl)`'yi kendisi belirten bir page'e koyun. Yalnızca
+path'in parametrelerini ve locale'i okuyan bir handler bunu bunun yerine kendi
+fragment'inde `Static()` ile söyleyebilir. O zaman o fragment'i kullanan her page
+static kalır. Ayrıntılar için [Caching](/docs/caching#a-page-that-declares-none)
+sayfasına bakın.
 
 ### Sabit veri: WithData
 

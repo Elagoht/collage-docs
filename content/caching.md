@@ -1,6 +1,6 @@
 ---
 description: How collage caches rendered pages and the data they are made from, and how it knows what to throw away.
-reference: CacheConfig, Cached, Once, TaggedCache, SkipCache, Vary, PageBuilder.Static, PageBuilder.Incremental, PageBuilder.Dynamic, StrategyAuto
+reference: CacheConfig, Cached, Once, TaggedCache, SkipCache, Vary, PageBuilder.Static, PageBuilder.Incremental, PageBuilder.Dynamic, FragmentBuilder.Static, StrategyAuto
 ---
 
 # Caching
@@ -91,7 +91,31 @@ to think about is slow, not stale. When a handler's output is the same for
 everyone — a post read from a file — its page says `Static()` or
 `Incremental(ttl)` itself.
 
-A declared strategy is never second-guessed, in either direction. Until v0.16.0 a
+What differs from page to page is not what makes a page dynamic. The path and its
+parameters are part of the cache key, and each URL is its own file in an export:
+`/recipes/pancakes` and `/recipes/omelette` are kept apart already. What makes a
+page dynamic is output that differs between two requests to *one* URL — a user
+from a cookie, the time. A fragment whose handler reads only the path's parameters
+and the locale can say so itself, with `Static()` on the fragment, and then it does
+not make a page dynamic. Since v0.17.0.
+
+```go
+more := collage.NewFragment("more-recipes", "fragments/more-recipes.html").
+	WithDataHandler(loadMore). // every recipe but rc.Param("slug")
+	Static().
+	Build()
+```
+
+It is for a fragment many pages share — a list of recent posts, navigation built
+from content — so that each page using it need not repeat the promise. It is the
+same promise `Static()` makes for a page, and a handler that breaks it serves one
+reader's render to the next. It covers the fragment's own handler and nothing
+else: another fragment's handler still makes the page dynamic; so does a slot
+resolver, even on a static fragment, since the fragments it returns are not known
+until a render asks for them.
+
+A page's declared strategy is never second-guessed, in either direction: a page
+that says `Dynamic()` stays dynamic whatever its fragments say. Until v0.16.0 a
 page that declared nothing was dynamic; one that relied on that, with no handler to
 make it so, now says `Dynamic()`.
 

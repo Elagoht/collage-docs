@@ -72,7 +72,9 @@ is dynamic when anything it renders has a data handler, and static otherwise: a
 handler may read the request, a cookie, the clock, and nothing outside the function
 can tell whether it does. A handler whose output is the same for every reader — a
 post read from a file — belongs on a page that says `Static()` or
-`Incremental(ttl)` itself. See
+`Incremental(ttl)` itself. A handler that reads only the path's parameters and the
+locale can say it on its fragment instead, with `Static()`, and then it leaves
+every page using that fragment static. See
 [Caching](/docs/caching#a-page-that-declares-none).
 
 ### Fixed data: WithData

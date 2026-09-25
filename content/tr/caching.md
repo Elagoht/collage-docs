@@ -1,6 +1,6 @@
 ---
 description: collage'ın render edilmiş page'leri ve onları oluşturan veriyi nasıl cache'lediği, neyi atacağını nasıl bildiği.
-reference: CacheConfig, Cached, Once, TaggedCache, SkipCache, Vary, PageBuilder.Static, PageBuilder.Incremental, PageBuilder.Dynamic, StrategyAuto
+reference: CacheConfig, Cached, Once, TaggedCache, SkipCache, Vary, PageBuilder.Static, PageBuilder.Incremental, PageBuilder.Dynamic, FragmentBuilder.Static, StrategyAuto
 ---
 
 # Caching
@@ -100,7 +100,32 @@ unuttuğunuz bir page yalnızca yavaş olur, stale olmaz. Bir handler'ın çıkt
 herkes için aynıysa (dosyadan okunan bir yazı gibi), page'i `Static()` ya da
 `Incremental(ttl)` çağrısını kendisi yapar.
 
-Tanımlanmış bir strateji hiçbir yönde sorgulanmaz. v0.16.0'a kadar hiçbir şey
+Bir page'i dynamic yapan şey, page'den page'e farklı olmak değildir. Path ve
+parametreleri cache key'in parçasıdır ve export'ta her URL kendi dosyasıdır:
+`/recipes/pancakes` ile `/recipes/omelette` zaten ayrı tutulur. Bir page'i dynamic
+yapan şey, *aynı* URL'e gelen iki request arasında değişen çıktıdır: cookie'den
+okunan bir kullanıcı ya da saat gibi. Handler'ı yalnızca path'in parametrelerini ve
+locale'i okuyan bir fragment bunu kendisi söyleyebilir. Fragment'e `Static()`
+yazıldığında, o fragment page'i dynamic yapmaz. v0.17.0'dan beri.
+
+```go
+more := collage.NewFragment("more-recipes", "fragments/more-recipes.html").
+	WithDataHandler(loadMore). // every recipe but rc.Param("slug")
+	Static().
+	Build()
+```
+
+Bu, birçok page'in paylaştığı bir fragment içindir: son yazıların listesi ya da
+içerikten oluşturulan bir navigasyon gibi. Böylece onu kullanan her page'in aynı
+sözü tekrarlaması gerekmez. Bu söz, `Static()`'in bir page için verdiği sözün
+aynısıdır ve onu bozan bir handler bir okuyucunun render'ını bir sonrakine sunar.
+Yalnızca fragment'in kendi handler'ını kapsar. Başka bir fragment'in handler'ı
+page'i yine dynamic yapar. Static bir fragment'te olsa bile bir slot resolver da
+aynı şeyi yapar, çünkü döndüreceği fragment'ler bir render onları isteyene kadar
+bilinmez.
+
+Bir page'in tanımlanmış stratejisi hiçbir yönde sorgulanmaz: `Dynamic()` diyen bir
+page, fragment'leri ne derse desin dynamic kalır. v0.16.0'a kadar hiçbir şey
 tanımlamayan bir page dynamic'ti. Buna güvenen ve onu dynamic yapacak bir
 handler'ı olmayan bir page artık `Dynamic()` çağrısını yapmalıdır.
 

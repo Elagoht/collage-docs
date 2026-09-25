@@ -1,6 +1,6 @@
 ---
 description: Fragments, the slots they expose, what happens when one fails, and slots filled from content at render time.
-reference: NewFragment, FragmentBuilder, Fragment, FragmentBuilder.WithFallback, FragmentBuilder.WithSlot, FragmentBuilder.WithData, SlotResolverFunc, ErrUnknownSlot
+reference: NewFragment, FragmentBuilder, Fragment, FragmentBuilder.WithFallback, FragmentBuilder.WithSlot, FragmentBuilder.WithData, FragmentBuilder.Static, SlotResolverFunc, ErrUnknownSlot
 ---
 
 # Fragments and slots
@@ -47,6 +47,7 @@ Everything else is optional:
 | `Required()` | This fragment's failure fails the page |
 | `WithFallback(f)` | What renders when this fragment fails |
 | `WithTimeout(d)` | How long its data handler may take |
+| `Static()` | Its data handler returns the same for every request to one URL, so it does not make a page dynamic. Since v0.17.0 |
 
 Like the page builder, the fragment builder records mistakes rather than stopping
 the chain, and `BuildErr()` returns them. What it recorded stays on the fragment it
@@ -61,7 +62,9 @@ value `WithData(v)` hands it on every render. That is right for markup that neve
 changes — a footer, a static notice, a list of links — and for a layout whose only
 job is to arrange slots. It also keeps the page cacheable: a page that declares no
 strategy is static unless something it renders has a data handler or a slot
-resolver — see [Caching](/docs/caching#a-page-that-declares-none). Setting both
+resolver — see [Caching](/docs/caching#a-page-that-declares-none). A fragment
+whose handler reads only the path's parameters and the locale says `Static()`,
+and its handler no longer counts. Setting both
 `WithData` and `WithDataHandler` is `ErrConflictingData` at registration.
 
 ## Slots
