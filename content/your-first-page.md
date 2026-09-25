@@ -401,8 +401,8 @@ yourself, once, and every page that uses the layout gets it. As with `content`,
 nothing declares `more`: the template's `{{slot "more"}}` does. Registration checks
 the binding against it, so a typo on either side — `WithSlotFragment("mroe", ...)`
 — stops the program with `ErrUnknownSlot`, naming the slot and the ones the
-template does call. Save the files. The recipe page now has a list of the other two recipes, each linking to its own page, and the
-home page lists all three.
+template does call. Save the files. The recipe page now has a list of the other
+two recipes, each linking to its own page, and the home page lists all three.
 
 Three things are true of these pages that were not written down anywhere.
 
@@ -428,8 +428,8 @@ renders per request until it says `Static()` or `Incremental(ttl)`. See
 [Caching](/docs/caching#a-page-that-declares-none).
 
 A fragment that only one page needs belongs in that page's content fragment
-instead: bind it into the content fragment, and give its template the `{{slot}}`. Where
-a fragment is declared is where it shows up.
+instead: bind it into the content fragment, and give its template the `{{slot}}`.
+Where a fragment is declared is where it shows up.
 
 ## Test it
 
