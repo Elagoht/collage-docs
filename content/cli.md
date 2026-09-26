@@ -1,6 +1,6 @@
 ---
-description: Every command of the collage CLI — new, dev, build, export, serve, version and help — with its flags and exactly what it runs.
-reference: DispatchCommands, Command, ErrUnknownCommand
+description: Every command of the collage CLI — new, dev, build, export, serve, inspect, version and help — with its flags and exactly what it runs.
+reference: DispatchCommands, Command, ErrUnknownCommand, InspectCommand, Inspection
 ---
 
 # The collage CLI
@@ -13,7 +13,7 @@ go install github.com/Elagoht/collage/cmd/collage@latest
 ```
 
 It never links your application into itself — it cannot, because your application
-is your code. `dev`, `build` and `export` run the `go` tool in the current
+is your code. `dev`, `build`, `export` and `inspect` run the `go` tool in the current
 directory, exactly as you would by hand, and the rest of this page says precisely
 what each one runs.
 
@@ -30,6 +30,7 @@ collage <command> [flags]
 | `build` | Compile the current directory's project into the binary you deploy |
 | `export` | Render the current directory's project to static files |
 | `serve` | Serve a static export the way a static host would |
+| `inspect` | Print what the current directory's project is made of, as JSON |
 | `version` | Print the collage CLI version |
 | `help` | Show help for a command, or list every command |
 
@@ -341,6 +342,35 @@ A directory that does not exist, or holds no files, is an error that tells you t
 run `collage export` first. A path that exists but is not a directory is an error
 too, saying just that.
 
+## collage inspect
+
+```sh
+collage inspect
+```
+
+Prints what the current directory's project is made of, as JSON (since v0.27.0):
+every page with its patterns and parameters, every fragment with its template and
+slots, the documents, the actions, the template functions, the plugins, the locales,
+and the files the mounts serve. It takes no flags; positional arguments are a usage
+error. It runs:
+
+```sh
+go run . collage-inspect
+```
+
+`collage-inspect` is `collage.InspectCommand`, a command `DispatchCommands` answers
+itself rather than handing it to a plugin: it prints `App.Inspect()` — a
+`collage.Inspection` — as indented JSON. The name is prefixed so that no plugin's
+command is taken. The scaffolded `main.go` hands the word after its flags to
+`DispatchCommands` (see [Plugin commands](#plugin-commands)), so a scaffolded
+project on collage v0.27.0 or later needs nothing more. A program that does not
+dispatch its arguments that way has nothing to answer with.
+
+It is what an editor's completion reads: the Collage Snippets & Highlighter
+extension for VS Code ([Editor support](/docs/installation#editor-support)) offers
+page names in `{{pageURL "…"}}`, slots in `{{slot "…"}}` and files in
+`{{asset "…"}}` from it.
+
 ## collage version
 
 ```sh
@@ -367,14 +397,15 @@ prints that command's usage; an unknown name prints
 
 ## The contract with main.go
 
-`dev` and `export` depend on two things your `main.go` does, and the scaffolded one
-does both — along with a third, running plugin commands, that no `collage` command
-needs but your plugins do:
+`dev`, `export` and `inspect` depend on three things your `main.go` does, and the
+scaffolded one does all three. The third, handing the words after its flags to
+`collage.DispatchCommands`, is also what runs your plugins' commands:
 
 | Command | Runs | Your `main.go` must |
 | --- | --- | --- |
 | `collage dev` | `go build`, then the binary, with `COLLAGE_DEV=1` and the `HOST` and `PORT` to listen on | turn on development mode when `COLLAGE_DEV` is `1`, and listen on `HOST` and `PORT` |
 | `collage export` | `go run . -collage-build -out <dir> [-clean]` | parse `-collage-build`, `-out` and `-clean`, and on `-collage-build` render to `<dir>` instead of serving |
+| `collage inspect` | `go run . collage-inspect` | pass the words after its flags to `collage.DispatchCommands` |
 
 `collage build` needs nothing from `main.go`: compiling is something `go build`
 does without being told anything.
@@ -419,8 +450,8 @@ func main() {
 ```
 
 If you rewrite `main.go`, keep all of it working, or `collage dev`,
-`collage export` and your plugins' commands stop doing anything useful in your
-project.
+`collage export`, `collage inspect` and your plugins' commands stop doing anything
+useful in your project.
 
 ## Plugin commands
 
@@ -457,7 +488,9 @@ go run . pages
 The exit code follows the CLI's: `0` for success; `1` for a startup failure, a
 command that ran and failed, or a command with no `Run`; `2` for a nil app, no
 arguments, or a word no plugin registered (`ErrUnknownCommand`). An
-unclaimed word is a usage error rather than a server started by accident. A
+unclaimed word is a usage error rather than a server started by accident. One word
+no plugin registers is answered all the same: `collage-inspect`, which
+[`collage inspect`](#collage-inspect) runs. A
 program that would rather serve when no command matches can check
 `errors.Is(err, collage.ErrUnknownCommand)` and carry on instead of exiting.
 `app.Commands()` lists what the plugins registered, if you want to print your own

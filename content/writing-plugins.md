@@ -767,6 +767,56 @@ Document every key, its type and its default in your README. Offering a
 `NewWith(Config)` constructor alongside `New()` lets an application configure you
 in Go as well.
 
+## Editor support: collage.json
+
+Since v0.27.0 a plugin can describe itself to editors in a `collage.json` at its
+module's root. The file ships in the module like any other, and an editor extension
+finds it through the project's module graph — `go list -m -json all` — so a plugin
+the project depends on is described whether it is published or not. The extension
+offers what the file lists: the template functions with their signatures and
+documentation, the attributes, the snippets, and the schema of the plugin's section
+of `plugins-config.json`.
+
+```json
+{
+  "$schema": "https://raw.githubusercontent.com/Elagoht/collage-snippets-highlighter/main/schemas/collage-plugin-manifest.schema.json",
+  "name": "you/greeting",
+  "description": "Greets the reader by name.",
+  "templateFunctions": [
+    {
+      "name": "greet",
+      "signature": "greet name",
+      "insert": "greet ${1:.Name}",
+      "doc": "\"Hello, name\" in the render's locale."
+    }
+  ],
+  "attributes": [],
+  "snippets": {
+    "greeting": { "language": "html", "prefix": "cgreet", "body": ["<p>{{greet .Name}}</p>"], "description": "A greeting" }
+  },
+  "config": {
+    "type": "object",
+    "properties": { "formal": { "type": "boolean", "description": "Use the formal greeting." } }
+  }
+}
+```
+
+| Field | What it is for |
+| --- | --- |
+| `$schema` | The manifest's [JSON Schema](https://raw.githubusercontent.com/Elagoht/collage-snippets-highlighter/main/schemas/collage-plugin-manifest.schema.json), so an editor checks the file as you write it |
+| `name` | The plugin's `Name()`, the key its configuration is found under in `plugins-config.json` |
+| `description` | What the plugin does, in a sentence |
+| `repository` | Where the plugin's documentation lives |
+| `templateFunctions` | The functions the plugin adds with `AddTemplateFunc` or `AddRenderFunc`: each one's `name`, its `signature` as a template calls it, what completion inserts (`insert`, the name by default) and its `doc` in Markdown |
+| `attributes` | HTML attributes the plugin reads, offered in tags: each one's `name`, the `value` completion inserts (`null` for a boolean attribute) and its `doc` |
+| `snippets` | Snippets by name, each with its `language` (`html` or `go`), `prefix`, `body` and `description` |
+| `config` | The JSON Schema of the plugin's section of `plugins-config.json` |
+
+Every field but `name` is optional. `insert`, `value` and snippet bodies use VS
+Code's snippet syntax. The editor learns which of those functions the application
+actually has, and every page, fragment, slot and mounted file by name, from
+[`collage inspect`](/docs/cli#collage-inspect).
+
 ## A complete plugin
 
 `acme/stamp` names the generator in every page's head, offers the same name to

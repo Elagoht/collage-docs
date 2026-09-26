@@ -282,6 +282,49 @@ sentence, because error messages carry hostnames, file paths and credentials, an
 an error page is exactly the response most likely to hand them to a stranger. See
 [Errors](/docs/errors).
 
+## Editor support
+
+For VS Code there is the Collage Snippets & Highlighter extension. It adds:
+
+- **Snippets** for Go (`cpage`, `cfragd`, `caction`, `cplugin` …) and for templates
+  (`clayout`, `cslot`, `cform` …).
+- **Highlighting** of `{{ … }}` inside HTML. Templates stay HTML files, so Emmet,
+  tag completion and formatting keep working.
+- **Completion and hover** for every template function — collage's, its published
+  plugins' and Go's builtins — with its signature and documentation.
+- **Your project's names**: pages in `{{pageURL "…"}}` and their parameters,
+  fragments in `{{fragmentURL "…" "…"}}`, slots in `{{slot "…"}}` and mounted
+  files in `{{asset "…"}}`.
+- **Diagnostics and go to definition**: a warning for a page, fragment or file that
+  does not exist, and F12 from a name to the Go code declaring it.
+- **`plugins-config.json` validation**: completion, descriptions and a warning for
+  a misspelt key, for every published plugin and any plugin that ships a
+  [`collage.json`](/docs/writing-plugins#editor-support-collagejson).
+
+It learns your project's names by running `go run . collage-inspect` — what
+[`collage inspect`](/docs/cli#collage-inspect) runs — in every folder whose `go.mod`
+requires collage, and again whenever a Go file is saved. A project on collage
+v0.27.0 or later answers it with nothing more to add.
+
+The extension is not on the VS Code Marketplace yet. Download the `.vsix` from its
+[latest release](https://github.com/Elagoht/collage-snippets-highlighter/releases/latest)
+and install it:
+
+```sh
+code --install-extension collage-snippets-highlighter-<version>.vsix
+```
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| `collage.completions` | `auto` | Where completion and hover are offered: `auto`, only in a folder whose `go.mod` requires collage; `always`; or `never` |
+| `collage.inspect` | `true` | Whether to run `go run . collage-inspect` to learn the project. That builds the application without serving it, so a program that connects to a database while it builds does so here too |
+| `collage.diagnostics` | `warning` | How a name that does not exist is reported: `off`, `information`, `warning` or `error` |
+| `collage.goCommand` | `go` | The go command to run |
+
+Snippets and highlighting are always on. The extension's
+[README](https://github.com/Elagoht/collage-snippets-highlighter#readme) lists every
+snippet and the scopes to colour.
+
 ## Next
 
 [Your first page](/docs/your-first-page) builds a page with data from nothing, in

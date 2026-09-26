@@ -3,7 +3,7 @@ module github.com/Elagoht/collage-docs
 go 1.26
 
 require (
-	github.com/Elagoht/collage v0.26.0
+	github.com/Elagoht/collage v0.27.0
 	github.com/alecthomas/chroma/v2 v2.27.0
 	github.com/yuin/goldmark v1.8.6
 	github.com/yuin/goldmark-highlighting/v2 v2.0.0-20230729083705-37449abec8cc

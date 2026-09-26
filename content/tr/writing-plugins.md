@@ -809,6 +809,56 @@ README'nizde her key'i, tipini ve varsayılan değerini belgeleyin. `New()`'un y
 bir `NewWith(Config)` constructor'ı da sunarsanız, bir uygulama sizi Go kodunda da
 yapılandırabilir.
 
+## Editör desteği: collage.json
+
+v0.27.0'dan beri bir plugin, module'ünün kökündeki bir `collage.json` ile kendini
+editörlere tanıtabilir. Dosya, module'deki diğer dosyalar gibi module ile birlikte
+gelir. Bir editör extension'ı onu projenin module grafiği üzerinden, yani
+`go list -m -json all` ile bulur. Bu yüzden projenin bağımlı olduğu bir plugin,
+yayımlanmış olsun ya da olmasın tanınır. Extension, dosyanın listelediklerini
+önerir: imzaları ve dokümantasyonlarıyla template fonksiyonlarını, attribute'ları,
+snippet'leri ve plugin'in `plugins-config.json` içindeki bölümünün şemasını.
+
+```json
+{
+  "$schema": "https://raw.githubusercontent.com/Elagoht/collage-snippets-highlighter/main/schemas/collage-plugin-manifest.schema.json",
+  "name": "you/greeting",
+  "description": "Greets the reader by name.",
+  "templateFunctions": [
+    {
+      "name": "greet",
+      "signature": "greet name",
+      "insert": "greet ${1:.Name}",
+      "doc": "\"Hello, name\" in the render's locale."
+    }
+  ],
+  "attributes": [],
+  "snippets": {
+    "greeting": { "language": "html", "prefix": "cgreet", "body": ["<p>{{greet .Name}}</p>"], "description": "A greeting" }
+  },
+  "config": {
+    "type": "object",
+    "properties": { "formal": { "type": "boolean", "description": "Use the formal greeting." } }
+  }
+}
+```
+
+| Alan | Ne içindir |
+| --- | --- |
+| `$schema` | Manifest'in [JSON Schema'sı](https://raw.githubusercontent.com/Elagoht/collage-snippets-highlighter/main/schemas/collage-plugin-manifest.schema.json). Böylece editör, dosyayı siz yazarken denetler |
+| `name` | Plugin'in `Name()`'i; config'inin `plugins-config.json` içinde bulunduğu key |
+| `description` | Plugin'in ne yaptığı, tek cümleyle |
+| `repository` | Plugin'in dokümantasyonunun bulunduğu yer |
+| `templateFunctions` | Plugin'in `AddTemplateFunc` ya da `AddRenderFunc` ile eklediği fonksiyonlar. Her birinin `name`'i, bir template'in çağırdığı hâliyle `signature`'ı, completion'ın eklediği metin (`insert`, varsayılan olarak ad) ve Markdown ile yazılmış `doc`'u |
+| `attributes` | Plugin'in okuduğu ve tag'lerde önerilen HTML attribute'ları. Her birinin `name`'i, completion'ın eklediği `value` (boolean bir attribute için `null`) ve `doc`'u |
+| `snippets` | Ada göre snippet'ler. Her birinin `language`'ı (`html` ya da `go`), `prefix`'i, `body`'si ve `description`'ı vardır |
+| `config` | Plugin'in `plugins-config.json` içindeki bölümünün JSON Schema'sı |
+
+`name` dışındaki her alan isteğe bağlıdır. `insert`, `value` ve snippet body'leri VS
+Code'un snippet sözdizimini kullanır. Editör, bu fonksiyonlardan hangilerinin
+uygulamada gerçekten bulunduğunu ve her page'i, fragment'i, slot'u ve mount edilmiş
+dosyayı adıyla [`collage inspect`](/docs/cli#collage-inspect) üzerinden öğrenir.
+
 ## Eksiksiz bir plugin
 
 `acme/stamp`, her page'in head'ine generator'ın adını yazar ve aynı adı

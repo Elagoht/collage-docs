@@ -1,6 +1,6 @@
 ---
-description: collage CLI'ın bütün komutları (new, dev, build, export, serve, version ve help), flag'leri ve her birinin tam olarak neyi çalıştırdığı.
-reference: DispatchCommands, Command, ErrUnknownCommand
+description: collage CLI'ın bütün komutları (new, dev, build, export, serve, inspect, version ve help), flag'leri ve her birinin tam olarak neyi çalıştırdığı.
+reference: DispatchCommands, Command, ErrUnknownCommand, InspectCommand, Inspection
 ---
 
 # collage CLI
@@ -14,7 +14,7 @@ go install github.com/Elagoht/collage/cmd/collage@latest
 ```
 
 CLI, uygulamanızı kendi içine asla link etmez. Zaten edemez de, çünkü uygulamanız
-sizin kodunuzdur. `dev`, `build` ve `export` komutları, `go` aracını bulunduğunuz
+sizin kodunuzdur. `dev`, `build`, `export` ve `inspect` komutları, `go` aracını bulunduğunuz
 dizinde tıpkı elle çalıştıracağınız gibi çalıştırır. Bu sayfanın geri kalanı her
 komutun tam olarak neyi çalıştırdığını anlatır.
 
@@ -31,6 +31,7 @@ collage <command> [flags]
 | `build` | Bulunduğunuz dizindeki projeyi deploy edeceğiniz binary'ye derler |
 | `export` | Bulunduğunuz dizindeki projeyi static dosyalara render eder |
 | `serve` | Bir static export'u, bir static host'un sunacağı şekilde sunar |
+| `inspect` | Bulunduğunuz dizindeki projenin nelerden oluştuğunu JSON olarak yazdırır |
 | `version` | collage CLI'ın sürümünü yazdırır |
 | `help` | Bir komutun yardımını gösterir ya da bütün komutları listeler |
 
@@ -362,6 +363,38 @@ Dizin yoksa ya da içinde hiç dosya yoksa komut hata verir ve önce
 `collage export` çalıştırmanızı söyler. Path varsa ama dizin değilse de hata
 verir ve tam olarak bunu söyler.
 
+## collage inspect
+
+```sh
+collage inspect
+```
+
+Bulunduğunuz dizindeki projenin nelerden oluştuğunu JSON olarak yazdırır
+(v0.27.0'dan beri). Çıktıda pattern'leri ve parametreleriyle her page,
+template'i ve slot'larıyla her fragment, document'lar, action'lar, template
+fonksiyonları, plugin'ler, locale'ler ve mount'ların sunduğu dosyalar bulunur.
+Hiçbir flag almaz; positional argümanlar kullanım hatasıdır. Çalıştırdığı komut
+şudur:
+
+```sh
+go run . collage-inspect
+```
+
+`collage-inspect`, `collage.InspectCommand`'dır. `DispatchCommands` bu komutu bir
+plugin'e iletmez, kendisi cevaplar: `App.Inspect()`'in döndüğü
+`collage.Inspection`'ı girintili JSON olarak yazdırır. Adı prefix'lidir, böylece
+hiçbir plugin'in komut adını elinden almaz. Scaffold edilen `main.go`, flag'lerinden
+sonraki kelimeyi `DispatchCommands`'a verir (bkz.
+[Plugin komutları](#plugin-commands)). Bu yüzden collage v0.27.0 veya daha yeni bir
+sürümle çalışan, scaffold edilmiş bir projenin başka hiçbir şeye ihtiyacı yoktur.
+Argümanlarını bu şekilde dispatch etmeyen bir programın ise cevap verecek bir şeyi
+yoktur.
+
+Bir editörün completion'ı da bunu okur. VS Code için Collage Snippets & Highlighter
+extension'ı ([Editör desteği](/docs/installation#editor-support)),
+`{{pageURL "…"}}` içindeki page adlarını, `{{slot "…"}}` içindeki slot'ları ve
+`{{asset "…"}}` içindeki dosyaları buradan önerir.
+
 ## collage version
 
 ```sh
@@ -388,15 +421,16 @@ verildiğinde `collage: unknown command: "nope"` yazdırır ve `2` ile çıkar.
 
 ## main.go ile sözleşme
 
-`dev` ve `export`, `main.go`'nuzun yaptığı iki şeye dayanır. Scaffold edilen
-`main.go` ikisini de yapar. Bunlara ek olarak üçüncü bir şey daha yapar: plugin
-komutlarını çalıştırır. Hiçbir `collage` komutu buna ihtiyaç duymaz ama
-plugin'leriniz duyar:
+`dev`, `export` ve `inspect`, `main.go`'nuzun yaptığı üç şeye dayanır. Scaffold
+edilen `main.go` üçünü de yapar. Üçüncüsü, flag'lerden sonraki kelimeleri
+`collage.DispatchCommands`'a vermektir. Plugin'lerinizin komutlarını çalıştıran da
+budur:
 
 | Komut | Çalıştırdığı | `main.go`'nuzun yapması gereken |
 | --- | --- | --- |
 | `collage dev` | önce `go build`, sonra binary; `COLLAGE_DEV=1` ve dinlenecek `HOST` ile `PORT` ayarlı olarak | `COLLAGE_DEV` `1` olduğunda development modunu açmak ve `HOST` ile `PORT` üzerinde dinlemek |
 | `collage export` | `go run . -collage-build -out <dir> [-clean]` | `-collage-build`, `-out` ve `-clean` flag'lerini parse etmek; `-collage-build` verildiğinde sunmak yerine `<dir>` dizinine render etmek |
+| `collage inspect` | `go run . collage-inspect` | flag'lerden sonraki kelimeleri `collage.DispatchCommands`'a vermek |
 
 `collage build`'in `main.go`'dan hiçbir beklentisi yoktur. Derleme, `go build`'in
 kendisine hiçbir şey söylenmeden yaptığı bir iştir.
@@ -441,8 +475,8 @@ func main() {
 ```
 
 `main.go`'yu yeniden yazarsanız bunların hepsinin çalışmaya devam ettiğinden emin
-olun. Aksi hâlde `collage dev`, `collage export` ve plugin'lerinizin komutları
-projenizde işe yarar hiçbir şey yapmaz.
+olun. Aksi hâlde `collage dev`, `collage export`, `collage inspect` ve
+plugin'lerinizin komutları projenizde işe yarar hiçbir şey yapmaz.
 
 ## Plugin komutları
 
@@ -482,6 +516,8 @@ hatası, çalışıp başarısız olan bir komut ya da `Run`'ı olmayan bir komu
 döner. Nil bir app, argüman verilmemesi ya da hiçbir plugin'in register etmediği bir
 kelime (`ErrUnknownCommand`) için `2` döner. Hiçbir komuta karşılık gelmeyen bir
 kelime, yanlışlıkla başlatılmış bir sunucuya değil, kullanım hatasına yol açar.
+Hiçbir plugin'in register etmediği bir kelimeye yine de cevap verilir:
+[`collage inspect`](#collage-inspect) komutunun çalıştırdığı `collage-inspect`.
 Hiçbir komut eşleşmediğinde sunucuyu başlatmayı tercih eden bir program,
 `errors.Is(err, collage.ErrUnknownCommand)` ile kontrol edip çıkmak yerine devam
 edebilir. Kendi kullanım metninizi yazdırmak isterseniz `app.Commands()`

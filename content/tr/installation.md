@@ -299,6 +299,51 @@ genel cümle gösterir. Çünkü hata mesajları hostname'ler, dosya yolları ve
 credential'lar içerir. Bunları bir yabancının eline verme ihtimali en yüksek
 response da tam olarak error page'dir. [Hatalar](/docs/errors) sayfasına bakın.
 
+## Editör desteği
+
+VS Code için Collage Snippets & Highlighter extension'ı vardır. Şunları ekler:
+
+- **Snippet'ler**: Go için (`cpage`, `cfragd`, `caction`, `cplugin` …) ve
+  template'ler için (`clayout`, `cslot`, `cform` …).
+- **Highlighting**: HTML içindeki `{{ … }}` renklendirilir. Template'ler HTML
+  dosyası olarak kalır, bu yüzden Emmet, tag tamamlama ve biçimlendirme çalışmaya
+  devam eder.
+- **Completion ve hover**: collage'ın, yayımlanmış plugin'lerinin ve Go'nun
+  builtin'leri olan her template fonksiyonu için, imzası ve dokümantasyonuyla.
+- **Projenizdeki adlar**: `{{pageURL "…"}}` içinde page'ler ve parametreleri,
+  `{{fragmentURL "…" "…"}}` içinde fragment'ler, `{{slot "…"}}` içinde slot'lar ve
+  `{{asset "…"}}` içinde mount edilmiş dosyalar.
+- **Diagnostics ve go to definition**: var olmayan bir page, fragment ya da dosya
+  için bir uyarı verir. F12 ile bir addan onu tanımlayan Go koduna gidersiniz.
+- **`plugins-config.json` doğrulaması**: yayımlanmış her plugin ve
+  [`collage.json`](/docs/writing-plugins#editor-support-collagejson) içeren her
+  plugin için completion, açıklamalar ve yanlış yazılmış bir key için uyarı.
+
+Extension, projenizdeki adları `go run . collage-inspect` çalıştırarak öğrenir;
+[`collage inspect`](/docs/cli#collage-inspect) de bu komutu çalıştırır. Bunu
+`go.mod`'u collage'ı gerektiren her dizinde yapar ve bir Go dosyası her
+kaydedildiğinde tekrarlar. collage v0.27.0 veya daha yeni bir sürümle çalışan bir
+proje, hiçbir şey eklemeden bu komuta cevap verir.
+
+Extension henüz VS Code Marketplace'te değildir. `.vsix` dosyasını
+[son release'inden](https://github.com/Elagoht/collage-snippets-highlighter/releases/latest)
+indirin ve kurun:
+
+```sh
+code --install-extension collage-snippets-highlighter-<version>.vsix
+```
+
+| Ayar | Varsayılan | Ne yapar |
+| --- | --- | --- |
+| `collage.completions` | `auto` | Completion ve hover'ın nerede sunulacağı: `auto`, yalnızca `go.mod`'u collage'ı gerektiren bir dizinde; `always`; ya da `never` |
+| `collage.inspect` | `true` | Projeyi öğrenmek için `go run . collage-inspect` çalıştırılıp çalıştırılmayacağı. Bu komut uygulamayı sunmadan kurar. Bu yüzden kurulurken veritabanına bağlanan bir program burada da bağlanır |
+| `collage.diagnostics` | `warning` | Var olmayan bir adın nasıl raporlanacağı: `off`, `information`, `warning` ya da `error` |
+| `collage.goCommand` | `go` | Çalıştırılacak go komutu |
+
+Snippet'ler ve highlighting her zaman açıktır. Extension'ın
+[README'si](https://github.com/Elagoht/collage-snippets-highlighter#readme) bütün
+snippet'leri ve renklendirilecek scope'ları listeler.
+
 ## Sırada ne var
 
 [İlk page'iniz](/docs/your-first-page), minimal bir projede sıfırdan, veri kullanan
