@@ -1510,14 +1510,15 @@ app, err := collage.New(&collage.Config{
 { "elagoht/otel": { "skip": ["/healthz"] } }
 ```
 
-- v0.2.0 needs collage v0.25.0 or later; v0.1.0 needed v0.23.0. As the tracer it
+- v0.2.1 needs collage v0.26.0 or later; v0.2.0 needed v0.25.0, v0.1.0 v0.23.0. As the tracer it
   turns `collage.http`, `collage.render` and `collage.fragment` into spans; as a
   plugin it reads the caller's trace context from the headers, in a `RequestHook`
   that runs before collage's own span. Each works alone.
 - With both, a request is one trace: a server span, a child of the caller's, with
   `collage.http` under it and the render and every fragment under that. The server
-  span is named for the route `collage.RouteOf` reports — `GET /blog/{slug}` for a
-  page, the name or prefix for a document, a mount or a handler.
+  span is named for the route `collage.RouteInfo` reports — the pattern a page, a
+  document or an action was registered with (`GET /blog/{slug}`, `GET /feed.xml`),
+  the prefix of a mount or a handler.
 - The application owns the SDK: the provider, the exporter, the sampler and the
   propagator. Set a propagator, or every request starts a trace of its own.
 

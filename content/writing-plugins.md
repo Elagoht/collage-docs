@@ -1,6 +1,6 @@
 ---
 description: The plugin contract, what Host and ConfigHost expose, every hook and what it may change, and a complete plugin with its tests.
-reference: Plugin, Host, ConfigHost, Configurer, Command, BeforeRenderHook, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, RequestHook, RouteOf
+reference: Plugin, Host, ConfigHost, Configurer, Command, BeforeRenderHook, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, RequestHook, RouteOf, RouteInfo, Route
 ---
 
 # Writing a plugin
@@ -253,6 +253,11 @@ that resolved to nothing, such as a 404. It reads the context collage serves the
 request under, which the finish function's context shares and
 `Metrics.HTTPResponse` receives, so a span or a metric can be labelled with the
 route rather than the raw path — a bounded set rather than one per URL.
+
+`collage.RouteInfo(ctx)` reports the same with two more fields: `Pattern`, the path
+pattern the route was registered with (`/blog/{slug}`, without a locale prefix, or a
+mount's or handler's prefix), and `Locale`. It is what to label with when the name
+is not enough — a trace's `http.route` for a document as well as a page.
 
 Hooks run in registration order, and each is handed the request under the context
 the one before it made; the finish functions run in the reverse order. One that

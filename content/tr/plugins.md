@@ -569,8 +569,8 @@ Plugins: []collage.Plugin{highlight.New(highlight.Options{})},
 }
 ```
 
-- v0.2.0, collage v0.25.0 ya da sonrasını gerektirir; v0.1.0 v0.23.0'ı
-  gerektiriyordu. `Config.Plugins` içinde olmalıdır: `{{highlight}}`'ı ekler.
+- v0.2.1, collage v0.26.0 ya da sonrasını gerektirir; v0.2.0 v0.25.0'ı, v0.1.0
+  v0.23.0'ı gerektiriyordu. `Config.Plugins` içinde olmalıdır: `{{highlight}}`'ı ekler.
 - `auto` açıkken bir page'in içerdiği her `<pre><code class="language-go">`
   bulunduğu yerde, render başına bir kez renklendirilir. elagoht/markdown ve çoğu
   Markdown renderer'ı bu biçimi yazar. Cache'lenen bir page renklendirildiği hâliyle
@@ -1570,16 +1570,16 @@ app, err := collage.New(&collage.Config{
 { "elagoht/otel": { "skip": ["/healthz"] } }
 ```
 
-- v0.2.0, collage v0.25.0 ya da sonrasını gerektirir; v0.1.0 v0.23.0'ı
-  gerektiriyordu. Tracer olarak `collage.http`, `collage.render` ve
+- v0.2.1, collage v0.26.0 ya da sonrasını gerektirir; v0.2.0 v0.25.0'ı, v0.1.0
+  v0.23.0'ı gerektiriyordu. Tracer olarak `collage.http`, `collage.render` ve
   `collage.fragment`'i span'lere dönüştürür. Plugin olarak da çağıranın trace
   context'ini header'lardan okur; bunu collage'ın kendi span'inden önce çalışan bir
   `RequestHook` içinde yapar. İkisi de tek başına çalışır.
 - İkisi birlikteyken bir request tek bir trace'tir. Çağıranınkinin child'ı olan bir
   server span vardır; `collage.http` onun, render ve her fragment de
-  `collage.http`'nin altında yer alır. Server span, `collage.RouteOf`'un bildirdiği
-  route'a göre adlandırılır: bir page için `GET /blog/{slug}`, bir document, mount
-  ya da handler için adı ya da prefix'i.
+  `collage.http`'nin altında yer alır. Server span, `collage.RouteInfo`'nun bildirdiği
+  route'a göre adlandırılır: page, document ya da action için register edildiği
+  pattern (`GET /blog/{slug}`, `GET /feed.xml`), mount ya da handler için prefix'i.
 - SDK uygulamaya aittir: provider, exporter, sampler ve propagator. Bir propagator
   ayarlayın; yoksa her request kendi trace'ini başlatır.
 

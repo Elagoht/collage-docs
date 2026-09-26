@@ -1,6 +1,6 @@
 ---
 description: Plugin sözleşmesi, Host ve ConfigHost'un sundukları, her hook ve neyi değiştirebileceği, testleriyle birlikte eksiksiz bir plugin.
-reference: Plugin, Host, ConfigHost, Configurer, Command, BeforeRenderHook, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, RequestHook, RouteOf
+reference: Plugin, Host, ConfigHost, Configurer, Command, BeforeRenderHook, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, RequestHook, RouteOf, RouteInfo, Route
 ---
 
 # Plugin yazmak
@@ -268,6 +268,12 @@ context'i okur. Finish fonksiyonunun context'i de bu context'i paylaşır,
 `Metrics.HTTPResponse` da bu context'i alır. Böylece bir span ya da metric, ham
 path yerine route ile etiketlenebilir. Bu, URL başına bir değer değil, sınırlı bir
 kümedir.
+
+`collage.RouteInfo(ctx)` aynı bilgiyi iki alanla birlikte bildirir: `Pattern`,
+route'un register edildiği path pattern'idir (locale prefix'i olmadan
+`/blog/{slug}`, ya da mount'un veya handler'ın prefix'i); `Locale` ise locale'dir.
+Ad yetmediğinde etiket olarak bunu kullanın; örneğin bir trace'in `http.route`'u
+için, page kadar document'ta da.
 
 Hook'lar register sırasına göre çalışır. Her biri request'i kendinden öncekinin
 oluşturduğu context ile alır. Finish fonksiyonları ters sırada çalışır. Panic'e
