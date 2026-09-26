@@ -1,6 +1,6 @@
 ---
 description: Handling form posts, fetch calls and webhooks with actions, and protecting them from request forgery.
-reference: NewAction, ActionBuilder, ActionResult, SeeOther, JSONOf, RenderPage, RenderFragment, PageBuilder.WithAction, PageBuilder.WithFragmentPath, ErrDuplicateRoute, ErrUnknownFragmentPath
+reference: NewAction, ActionBuilder, ActionResult, SeeOther, JSONOf, RenderPage, RenderFragment, PageBuilder.WithAction, PageBuilder.WithFragmentPath, ErrDuplicateRoute, ErrUnknownFragmentPath, FetchHeader, LocationHeader
 ---
 
 # Forms and actions
@@ -139,6 +139,13 @@ and what they typed get back in front of them.
 
 **An accepted submission redirects**, with `303`. The work is done, and a reload
 must not do it twice.
+
+A form a script submits with `fetch` would follow the redirect too, downloading the
+page it leads to, and then navigate there and have it rendered a second time. Since
+v0.20.0 a request carrying the header `Collage-Fetch` (`collage.FetchHeader`) is
+answered `204 No Content` with the destination in `Collage-Location`
+(`collage.LocationHeader`) instead of a redirect, and the script navigates once.
+The action returns `SeeOther` as before. collage-live's forms send the header.
 
 ### The validation re-render
 
@@ -503,4 +510,8 @@ if problems := validate(rc); len(problems) > 0 {
 
 Any other failure — a 500, a refused forgery token — leaves the target as it was
 and marks it stale, rather than filling it with an error page. A redirect is
-followed as the browser would follow it.
+followed as the browser would follow it, in one request (since collage-live
+v0.2.1): the form sends [`Collage-Fetch`](#failure-renders-success-redirects), and
+collage answers with where the action redirects instead of the redirect, which
+`fetch` would otherwise follow and download before the navigation fetched the page
+again.

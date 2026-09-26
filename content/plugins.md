@@ -311,8 +311,8 @@ Plugins: []collage.Plugin{live.New()},
 ```
 
 - It must go in `Config.Plugins`: it adds `{{liveClient}}`, which the layout calls
-  to include the client. v0.2.0 needs collage v0.19.0 or later; v0.1.0 needed
-  v0.18.0.
+  to include the client. v0.2.1 needs collage v0.20.0 or later; v0.2.0 needed
+  v0.19.0, and v0.1.0 v0.18.0.
 - The page owns the container and the fragment owns what is inside it.
   `data-collage-interval` fetches on an interval, `data-collage-push` takes the
   fragment from the stream, `data-collage-swap="morph"` patches the DOM in place,
@@ -321,7 +321,9 @@ Plugins: []collage.Plugin{live.New()},
   submission did not validate: it answers the form's fragment again, with the
   errors, and status 422 (see
   [Forms and actions](/docs/forms-and-actions#refreshing-it-from-the-browser)). Any
-  other failure leaves the target as it was and marks it stale.
+  other failure leaves the target as it was and marks it stale. Since v0.2.1 a
+  form whose action redirects navigates in one request, with collage's
+  [`Collage-Fetch`](/docs/forms-and-actions#failure-renders-success-redirects).
 - The client sends the `ETag` it holds and leaves the DOM alone on a `304`, adds
   what the fragment hoisted to the head once by its key, stops in a hidden tab, and
   backs off when a request fails, marking the element `data-collage-stale`. A
@@ -330,7 +332,9 @@ Plugins: []collage.Plugin{live.New()},
 - **One connection per browser.** A browser holds at most six connections to one
   origin over HTTP/1.1, across all its tabs, so since v0.2.0 the client opens the
   stream from a shared worker that every tab of the site shares. Where there is no
-  shared worker, each tab opens its own and closes it while hidden.
+  shared worker, each tab opens its own and closes it while hidden. Since v0.2.1 a
+  tab coming back from the back-forward cache receives pushes again; the worker
+  forgot it when it left.
 - While the stream is down, pushed elements are marked stale; after three failed
   connections they are polled every five seconds, and the stream is tried again
   every minute.

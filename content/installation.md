@@ -244,9 +244,13 @@ to the answer to a form submission, which reloading would submit again.
 
 The script keeps a stream open to the server, and a browser allows at most six
 connections to one origin over HTTP/1.1, across all its tabs: with a stream in
-every open development tab, the seventh tab's pages waited for a free connection.
-Since v0.18.1 a hidden tab closes its stream and reconnects when it is seen again,
-and if anything changed while it was hidden, the page reloads then.
+every open development tab, six pages side by side held all six, and nothing else
+loaded — not the seventh tab, not their own fragments. Since v0.20.0 every
+development tab listens through one shared worker, `/_collage/reload-worker.js`,
+which holds a single stream for all of them, however many pages are open. Where
+there is no shared worker, each tab keeps its own stream and, as since v0.18.1,
+closes it while hidden, reconnecting when it is seen again; if anything changed
+while it was hidden, the page reloads then.
 
 A stream that never closes is a page that never finishes loading, which is what a
 screenshot tool or an end-to-end test waits for. A browser driven by Playwright,

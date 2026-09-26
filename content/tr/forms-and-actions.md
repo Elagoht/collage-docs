@@ -1,6 +1,6 @@
 ---
 description: Form post'larını, fetch çağrılarını ve webhook'ları action'larla karşılamak ve onları request forgery'ye karşı korumak.
-reference: NewAction, ActionBuilder, ActionResult, SeeOther, JSONOf, RenderPage, RenderFragment, PageBuilder.WithAction, PageBuilder.WithFragmentPath, ErrDuplicateRoute, ErrUnknownFragmentPath
+reference: NewAction, ActionBuilder, ActionResult, SeeOther, JSONOf, RenderPage, RenderFragment, PageBuilder.WithAction, PageBuilder.WithFragmentPath, ErrDuplicateRoute, ErrUnknownFragmentPath, FetchHeader, LocationHeader
 ---
 
 # Form'lar ve action'lar
@@ -146,6 +146,14 @@ etmektir.
 
 **Kabul edilen bir gönderim, `303` ile redirect eder.** İş yapılmıştır ve sayfayı
 yenilemek onu ikinci kez yapmamalıdır.
+
+Bir script'in `fetch` ile gönderdiği bir form da redirect'i izlerdi. Yönlendirdiği
+page'i indirir, sonra oraya gider ve page'i ikinci kez render ettirirdi. v0.20.0'dan
+beri `Collage-Fetch` header'ını (`collage.FetchHeader`) taşıyan bir request'e
+redirect yerine `204 No Content` ile cevap verilir ve hedef `Collage-Location`
+(`collage.LocationHeader`) içinde gönderilir. Script de yalnızca bir kez gider.
+Action eskisi gibi `SeeOther` döndürür. collage-live'ın form'ları bu header'ı
+gönderir.
 
 ### Validation için yeniden render
 
@@ -524,4 +532,8 @@ if problems := validate(rc); len(problems) > 0 {
 
 Başka her hata (bir 500, reddedilen bir forgery token) hedefi olduğu gibi bırakır
 ve onu bir hata page'iyle doldurmak yerine stale olarak işaretler. Bir redirect,
-tarayıcının izleyeceği gibi izlenir.
+tarayıcının izleyeceği gibi ve tek request'te izlenir (collage-live v0.2.1'den
+beri). Form [`Collage-Fetch`](#failure-renders-success-redirects) gönderir, collage
+da redirect yerine action'ın nereye redirect ettiğiyle cevap verir. Aksi halde
+`fetch` redirect'i izler ve page'i indirirdi, ardından sayfaya gidildiğinde page
+yeniden çekilirdi.

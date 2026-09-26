@@ -259,10 +259,14 @@ gönderirdi.
 
 Script sunucuya açık bir stream tutar. Bir tarayıcı HTTP/1.1 üzerinden bir
 origin'e, tüm sekmeleri toplamında en fazla altı bağlantı açar. Açık her
-development sekmesinde bir stream olunca, yedinci sekmenin page'leri boş bir
-bağlantı beklerdi. v0.18.1'den beri gizlenen bir sekme stream'ini kapatır ve
-yeniden görüldüğünde tekrar bağlanır. Gizliyken bir şey değiştiyse page o anda
-yenilenir.
+development sekmesinde bir stream olunca, yan yana açık altı page altı bağlantının
+hepsini tutardı ve başka hiçbir şey yüklenmezdi: ne yedinci sekme yüklenirdi ne
+de bu page'lerin kendi fragment'leri. v0.20.0'dan beri her development sekmesi tek bir
+shared worker üzerinden dinler: `/_collage/reload-worker.js`. Bu worker, kaç page
+açık olursa olsun hepsi için tek bir stream tutar. Shared worker olmayan yerlerde
+her sekme kendi stream'ini tutar ve v0.18.1'den beri olduğu gibi gizliyken onu
+kapatır, yeniden görüldüğünde tekrar bağlanır. Gizliyken bir şey değiştiyse page o
+anda yenilenir.
 
 Hiç kapanmayan bir stream, yüklenmesi hiç bitmeyen bir page demektir. Bir ekran
 görüntüsü aracı ya da bir end-to-end test de tam olarak bunun bitmesini bekler.

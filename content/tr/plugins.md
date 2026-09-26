@@ -332,8 +332,8 @@ Plugins: []collage.Plugin{live.New()},
 ```
 
 - `Config.Plugins` içinde olmalıdır, çünkü layout'un client'ı eklemek için çağırdığı
-  `{{liveClient}}`'ı ekler. v0.2.0, collage v0.19.0 ya da sonrasını gerektirir;
-  v0.1.0 v0.18.0'ı gerektiriyordu.
+  `{{liveClient}}`'ı ekler. v0.2.1, collage v0.20.0 ya da sonrasını gerektirir;
+  v0.2.0 v0.19.0'ı, v0.1.0 ise v0.18.0'ı gerektiriyordu.
 - Container'ın sahibi page'dir, içindekinin sahibi fragment'tir.
   `data-collage-interval` belli aralıklarla fetch eder, `data-collage-push`
   fragment'i stream'den alır, `data-collage-swap="morph"` DOM'u yerinde patch eder.
@@ -344,6 +344,9 @@ Plugins: []collage.Plugin{live.New()},
   döndürür (bkz.
   [Form'lar ve action'lar](/docs/forms-and-actions#refreshing-it-from-the-browser)).
   Başka her hata hedefi olduğu gibi bırakır ve onu stale olarak işaretler.
+  v0.2.1'den beri action'ı redirect eden bir form, collage'ın
+  [`Collage-Fetch`](/docs/forms-and-actions#failure-renders-success-redirects)
+  header'ı sayesinde tek request'te yönlendirilir.
 - Client elindeki `ETag`'i gönderir ve `304` gelirse DOM'a dokunmaz. Fragment'in
   hoist ettiklerini key'lerine göre head'e bir kez ekler. Gizli bir sekmede durur.
   Bir request başarısız olduğunda element'i `data-collage-stale` ile işaretler ve
@@ -353,7 +356,8 @@ Plugins: []collage.Plugin{live.New()},
   tüm sekmeleri toplamında en fazla altı bağlantı açar. Bu yüzden v0.2.0'dan beri
   client stream'i, sitenin tüm sekmelerinin paylaştığı bir shared worker'dan açar.
   Shared worker olmayan yerlerde her sekme kendi stream'ini açar ve gizliyken
-  kapatır.
+  kapatır. v0.2.1'den beri back-forward cache'ten dönen bir sekme yeniden push
+  alır. Önceden worker, sekme ayrıldığında onu unutuyordu.
 - Stream kapalıyken gönderilen element'ler stale olarak işaretlenir. Üç başarısız
   bağlantıdan sonra beş saniyede bir polling ile yenilenir ve stream dakikada bir
   yeniden denenir.
