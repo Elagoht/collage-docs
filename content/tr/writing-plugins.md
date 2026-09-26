@@ -1,6 +1,6 @@
 ---
 description: Plugin sözleşmesi, Host ve ConfigHost'un sundukları, her hook ve neyi değiştirebileceği, testleriyle birlikte eksiksiz bir plugin.
-reference: Plugin, Host, ConfigHost, Configurer, Command, BeforeRenderHook, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser
+reference: Plugin, Host, ConfigHost, Configurer, Command, BeforeRenderHook, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, PageURL, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile
 ---
 
 # Plugin yazmak
@@ -82,9 +82,10 @@ reddeder.
 | | `ConfigHost` (Configure) | `Host` (Init) |
 | --- | --- | --- |
 | `DevMode`, `Logger`, `Config` | evet | evet |
-| `AddTemplateFunc`, `WrapMount` | evet | — |
+| `AddTemplateFunc`, `AddRenderFunc`, `WrapMount` | evet | — |
 | `Pages`, `Page`, `InvalidateTags` | — | evet |
-| `RegisterPage`, `RegisterDocument`, `Mount`, `Handle` | — | evet |
+| `URL`, `FragmentURL`, `Locales`, `PageURLs` | — | evet |
+| `RegisterPage`, `RegisterDocument`, `Mount`, `Handle`, `Use` | — | evet |
 | `RenderFragment` | — | evet |
 | `RegisterCommand` | — | evet |
 
@@ -101,6 +102,7 @@ ulaşabileceği bir cache olmazdı.
 | `Config(v) error` | Bu plugin'in config bölümünü `v`'ye decode eder. Bkz. [Yapılandırma](#configuration). |
 | `AddTemplateFunc(name, fn) error` | Bir template fonksiyonu ekler. Ad daha önce eklenmişse `ErrDuplicateTemplateFunc` döner; ekleyen başka bir plugin de olabilir, aynı plugin'in önceki bir çağrısı da. |
 | `WrapMount(wrap func(fs.FS) fs.FS)` | Mount edilen her dosya sistemine uygulanacak bir dönüşümü register eder. Wrapper'lar register edildikleri sırayla uygulanır. |
+| `AddRenderFunc(name, factory) error` | Her render için o render'ın `*RenderContext`'inden yeniden üretilen bir template fonksiyonu ekler. Bkz. [Template fonksiyonları](#template-functions) (v0.21.0'dan beri). |
 
 ### Host
 
@@ -118,12 +120,19 @@ ulaşabileceği bir cache olmazdı.
 | `Handle(prefix, handler) error` | `App.Handle` gibi, bir `http.Handler`'ı bir URL prefix'i altında sunar. Örneğin bir event stream ya da bir WebSocket (v0.18.0'dan beri). |
 | `RenderFragment(r, req) (*collage.FragmentRender, error)` | Bir page'in `WithFragmentPath` ile açtığı bir fragment'i parçalar hâlinde render eder. Bkz. [Fragment göndermek](#pushing-fragments) (v0.18.0'dan beri). |
 | `RegisterCommand(cmd) error` | Bir komut ekler. Bkz. [Komutlar](#commands). |
+| `Use(middleware) error` | Her request'i, uygulamanın kendi middleware'inden sonra sarmalar (v0.21.0'dan beri). |
+| `URL(name, locale, params) (string, error)` | Bir page'in ya da document'ın path'ini `App.URL`'in oluşturduğu gibi döner (v0.21.0'dan beri). |
+| `FragmentURL(page, fragment, locale, params) (string, error)` | Bir fragment path'inin path'ini `App.FragmentURL`'in oluşturduğu gibi döner (v0.21.0'dan beri). |
+| `Locales() (default, supported)` | Varsayılan locale'i ve varsayılan dahil desteklenen her locale'i döner (v0.21.0'dan beri). |
+| `PageURLs(ctx, name) ([]collage.PageURL, error)` | Bir page'in her locale'de cevap verdiği her URL'yi döner; bir pattern, `WithStaticParams`'ı üzerinden açılır. Bir sitemap'in içeriği budur (v0.21.0'dan beri). |
 
 `Init`'e gelen değer `*App` değildir. Yalnızca bu metotları ileten dar bir değerdir.
 Bu yüzden bir plugin, type assertion ile `ListenAndServe`'e, `Shutdown`'a,
 router'a, cache'e ya da template kümesine ulaşamaz. `Handle` ve `RenderFragment`
-v0.18.0'da eklendi. Bu yüzden `Host`'u implement eden bir test double'ının da
-bunlara ihtiyacı vardır.
+v0.18.0'da eklendi. `Use`, `URL`, `FragmentURL`, `Locales` ve `PageURLs` ise
+v0.21.0'da, `ConfigHost`'taki `AddRenderFunc` ile birlikte eklendi. **Bu, bir test
+double'ı için breaking change'dir:** `Host`'u ya da `ConfigHost`'u implement eden
+bir test double'ının da yeni metotlara ihtiyacı vardır.
 
 **`Host`, bir plugin'in neye ulaşabileceğini sınırlar; neyi değiştirebileceğini
 sınırlamaz.** `Pages` ve `Page`, page struct'ının bir kopyasını döner. `Paths`,
@@ -201,11 +210,12 @@ sunucusunda da yapabilirdi.
 | --- | --- | --- | --- | --- |
 | `PageResolvedHook` | `OnPageResolved` | `PageResolvedEvent` | Her page request'inde bir kez, routing'in hemen ardından; cache hit'ler dahil | hiçbir şeyi |
 | `BeforeRenderHook` | `OnBeforeRender` | `BeforeRenderEvent` | Yeni bir page render'ından önce | event'te hiçbir şeyi; `ev.Context` üzerinden hoist edebilir |
-| `AfterRenderHook` | `OnAfterRender` | `AfterRenderEvent` | Bir page render'ı başarıyla bittikten sonra | `ev.HTML` |
+| `AfterRenderHook` | `OnAfterRender` | `AfterRenderEvent` | Bir page render'ı başarıyla bittikten sonra | `ev.HTML`; `ev.Warn` ve `ev.Error` ile raporlar |
 | `DocumentRenderedHook` | `OnDocumentRendered` | `DocumentRenderedEvent` | Bir document handler'ı body'sini ürettikten sonra | `ev.Body` |
 | `CacheWriteHook` | `OnCacheWrite` | `CacheWriteEvent` | Bir page ya da document cache'e yazılmadan önce | `ev.Skip`, `ev.TTL`, `ev.Tags` |
 | `CacheInvalidateHook` | `OnCacheInvalidate` | `CacheInvalidateEvent` | Entry'ler tag ile invalidate edildikten sonra | hiçbir şeyi |
 | `ErrorHook` | `OnError` | `ErrorEvent` | Bir request sunulurken bir hata oluştuğunda | hiçbir şeyi |
+| `BuildFinishedHook` | `OnBuildFinished` | `BuildFinishedEvent` | Bir static build her dosyayı yazdığında, bir kez (v0.21.0'dan beri) | `ev.Warn` ve `ev.Error` ile raporlar |
 
 Her hook metodunun imzası `func(ctx context.Context, ev *Event) error` biçimindedir.
 
@@ -233,6 +243,7 @@ type BeforeRenderEvent struct {
 	Page    *collage.Page
 	Locale  string
 	Path    string
+	Static  bool // rendered for a static build, not for a request
 }
 ```
 
@@ -253,8 +264,12 @@ func (p *Plugin) OnBeforeRender(_ context.Context, ev *collage.BeforeRenderEvent
 
 Burada yapılan bir tanım sıfır derinliğinde durur. Bu yüzden aynı key'i tanımlayan
 herhangi bir fragment onun yerini alır. Varsayılan değeri plugin, özel değeri page
-verir. Tanım yalnızca layout'un `{{hoist "head"}}` çağırdığı yere yerleşir. Dönen bir hata, request'i `"before_render"` altında 500 ile başarısız
-kılar.
+verir. Tanım yalnızca layout'un `{{hoist "head"}}` çağırdığı yere yerleşir. Dönen
+bir hata, request'i `"before_render"` altında 500 ile başarısız kılar.
+
+`Static` (v0.22.0'dan beri), page'in bir request için değil, `App.RenderPath`
+üzerinden bir static build için render edildiğini söyler. `AfterRenderEvent`'te de
+bulunur.
 
 ### AfterRenderHook
 
@@ -263,8 +278,10 @@ type AfterRenderEvent struct {
 	Page     *collage.Page
 	Locale   string
 	Degraded bool   // some fragment failed, fallback or not
+	Static   bool   // rendered for a static build, not for a request
 	HTML     []byte // replace it to post-process the page
 	// Data: the render's shared data, the map behind rc.Set and rc.Get
+	// Findings: what ev.Warn and ev.Error reported so far
 }
 ```
 
@@ -293,6 +310,52 @@ Bir action'ın `RenderPage` ile cevap olarak döndüğü page de bu hook'u çal�
 Bu, v0.10.0'dan beri böyledir; öncesinde yalnızca `BeforeRender` çalışıyordu. Böylece
 bir validation page'i de diğer page'ler gibi minify edilir. Dönen bir hata,
 request'i `"after_render"` altında 500 ile başarısız kılar.
+
+### Çıktıyı denetlemek: finding'ler
+
+Bir page'in render ettiği çıktıyı denetleyen bir plugin, örneğin atlanmış bir
+heading seviyesini, `alt`'ı olmayan bir görseli ya da label'ı olmayan bir form
+alanını bulan bir plugin, render'ı başarısız kılmak yerine bulduğunu raporlar
+(v0.21.0'dan beri):
+
+```go
+func (p *Plugin) OnAfterRender(_ context.Context, ev *collage.AfterRenderEvent) error {
+	if !bytes.Contains(ev.HTML, []byte("<h1")) {
+		ev.Error("one-h1", "the page has no <h1>")
+	}
+	return nil
+}
+```
+
+`ev.Warn(rule, message)` bir `collage.FindingWarning` raporlar; bu, düzeltmeye
+değer ama hiçbir şeyi durdurmaz. `ev.Error` ise bir `collage.FindingError`
+raporlar. Bir finding'in (`collage.Finding`) `Level`'ı, onu bulan `Rule`, bir
+`Message`, `Plugin` ve page'in `Path`'i vardır. Son ikisini framework doldurur.
+Finding'in nereye gideceği, page'in nerede render edildiğine bağlıdır:
+
+- **Development'ta** page'in üzerinde, başarısız bir fragment'in kullandığı panelde
+  gösterilir. Page olduğu gibi sunulur.
+- **Static build'de** raporda, ilgili olduğu page'in altında listelenir
+  (`BuildReport.Findings`). Error seviyesindeki bir finding build'i
+  `collage.ErrBuildFindings` ile başarısız kılar; page'ler her durumda yazılır.
+  Bkz. [Static export](/docs/static-export#reading-the-report).
+- **Production'da** onunla hiçbir şey yapılmaz. Her render'da yeniden çalışan bir
+  denetim, sunucunun zamanını build'in zaten bildiği şeye harcar. Bu yüzden
+  denetleyen bir plugin orada kendini kapatır: `ev.Static` bir render'ın static
+  build'e ait olduğunu, `host.DevMode()` ise sunucunun development sunucusu
+  olduğunu söyler.
+
+```go
+if !ev.Static && !p.dev { // p.dev from host.DevMode() in Init
+	return nil
+}
+```
+
+Tek bir render'ın söyleyemeyeceği şeyler, örneğin aynı title'ı taşıyan iki page ya
+da build'in yazmadığı bir page'e giden bir link,
+[`OnBuildFinished`](#buildfinishedhook) içinde denetlenir.
+[elagoht/htmlcheck](/docs/plugins#elagohthtmlcheck) ikisinin üzerine kurulmuş,
+denetleyen bir plugin'dir.
 
 ### DocumentRenderedHook
 
@@ -402,6 +465,31 @@ Geri kalanlar [Hatalar](/docs/errors#reported-to-error-hooks) sayfasında listel
 `OnError`'dan dönen bir hata log'lanır ve yutulur. Kalan plugin'ler event'i yine de
 alır. Başarısız olan bir error handler, yeni bir error handling turu başlatmamalıdır.
 
+### BuildFinishedHook
+
+```go
+type BuildFinishedEvent struct {
+	OutDir string              // the directory the build wrote into
+	Files  []collage.BuiltFile // every file it wrote, in no particular order
+	// Findings: what ev.Warn and ev.Error reported so far
+}
+
+type BuiltFile struct {
+	Kind   string // "page", "document" or "asset"
+	Name   string // the page's or document's name; empty for an asset
+	Locale string
+	Path   string // the URL path the file answers
+	File   string // its absolute path on disk
+}
+```
+
+Bir static build her page'i, document'ı ve asset'i yazdığında bir kez çalışır
+(v0.21.0'dan beri). Page'ler arası denetimler içindir. Bir dosyanın içeriği
+gerektiğinde onu `os.ReadFile` ile okuyun. `ev.Warn(path, rule, message)` ve
+`ev.Error`, `path`'teki page hakkında bir finding raporlar; `path` boşsa finding
+build'in bütünü hakkındadır. Hook'tan dönen bir hata da build'i başarısız kılar;
+zaten yazılmış dosyalar yerinde kalır. Bir sunucuda hiçbir zaman çalışmaz.
+
 ### Dispatch kuralları
 
 - Hook'lar **register sırasına göre** çalışır.
@@ -413,6 +501,9 @@ alır. Başarısız olan bir error handler, yeni bir error handling turu başlat
 - `OnCacheInvalidate` için ilk hata dispatch'i durdurur ve `InvalidateTags`'ten
   döner.
 - `OnError` için hatalar log'lanır ve dispatch devam eder.
+- `OnBuildFinished` için ilk hata dispatch'i durdurur ve build'i başarısız kılar.
+- Bir finding hata değildir: dispatch'i hiçbir zaman durdurmaz ve sonraki her
+  plugin yine çalışır.
 
 ## Template fonksiyonları
 
@@ -446,6 +537,22 @@ Bundan sonra her template `{{readingTime .Words}}` çağırabilir. Fonksiyon,
   yoktur, çünkü parse işleminden sonra eklenen bir fonksiyonu hiçbir template
   çağıramaz.
 
+`AddTemplateFunc`'ın fonksiyonu, uygulamanın ömrü boyunca tek bir değerdir.
+v0.21.0'dan beri `AddRenderFunc` ise bir factory alır. Factory her render için o
+render'ın `*RenderContext`'iyle çağrılır. Böylece döndürdüğü fonksiyon, o render'ın
+taşıdığı şeyleri okuyabilir: bir `BeforeRender` hook'unun ayarladığı nonce ya da
+render'ın locale'i gibi:
+
+```go
+host.AddRenderFunc("nonce", func(rc *collage.RenderContext) any {
+	nonce, _ := collage.Get[string](rc, "csp:nonce")
+	return func() string { return nonce }
+})
+```
+
+`AddTemplateFunc`'ın kurallarına uyar: `Configure` içinden çağrılır ve başka bir
+plugin'in eklediği bir ad `ErrDuplicateTemplateFunc` hatasıdır.
+
 ## Mount'ları wrap etmek
 
 `WrapMount`, mount edilen her dosya sistemine uygulanacak bir fonksiyonu register
@@ -474,7 +581,20 @@ Bir plugin, `Init` içinden kendi route'larını ekleyebilir. Bunun için
 `Host.RegisterPage`, `Host.RegisterDocument` ve `Host.Mount` kullanılır. Bu
 route'lar, bir uygulamanın kullandığı builder'larla oluşturulur. `Host.Handle` ise
 page olmayan şeyler için, örneğin bir event stream ya da bir WebSocket için, bir
-prefix altında düz bir `http.Handler` sunar.
+prefix altında düz bir `http.Handler` sunar. `Host.Use` (v0.21.0'dan beri),
+`App.Use` gibi her request'i uygulamanın kendi middleware'inden sonra sarmalar.
+Böylece bir plugin'in header'ları ve cookie'leri, uygulamanın middleware'inin
+ürettiğini sarar.
+
+Page'lere link veren bir plugin, onların nerede olduğunu tahmin etmez, sorar.
+`Host.URL` ve `Host.FragmentURL`, bir path'i `App.URL` ve `App.FragmentURL` gibi
+oluşturur. `Host.Locales` varsayılan locale'i ve desteklenen her locale'i döner.
+`Host.PageURLs(ctx, name)` ise bir page'in cevap verdiği her URL'yi listeler: her
+locale için ve bir pattern'in `WithStaticParams`'ının listelediği her parametre
+kümesi için bir `collage.PageURL` (`Locale`, `Path`, `Params`).
+`WithStaticParams`'ı olmayan bir pattern'in, bir plugin'in bilebileceği hiçbir
+URL'si yoktur. Bir sitemap bundan oluşur. `App.Locales` ve `App.PageURLs` aynı
+metotlardır ve uygulamanın kendi kodu içindir.
 
 *Dosya üreten* bir plugin, örneğin yeniden boyutlandırılmış görseller ya da
 üretilmiş ikonlar, bu dosyaları bir route yerine bir mount'tan sunmalıdır. Static

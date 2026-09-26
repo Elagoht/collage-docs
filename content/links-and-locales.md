@@ -8,7 +8,9 @@ reference: LocaleConfig, PageBuilder.WithPath, PageBuilder.WithFragmentPath, Var
 A collage site can serve every page in several languages, each at its own URL. It
 routes locales; it does not translate. What a word should be in Turkish lives in
 your content, wherever that already is — collage's part is knowing which URL
-belongs to which language, and building links that know it too.
+belongs to which language, and building links that know it too. For the words in
+your templates, the [elagoht/i18n](/docs/plugins#elagohti18n) plugin keeps a
+catalog per locale and translates in the locale the page is rendered in.
 
 ## Configuring locales
 

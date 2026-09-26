@@ -1,5 +1,5 @@
 ---
-description: Bir plugin'in neler yapabildiği, bir plugin'in nasıl register edilip yapılandırıldığı ve yayımlanmış beş plugin.
+description: Bir plugin'in neler yapabildiği, bir plugin'in nasıl register edilip yapılandırıldığı ve yayımlanmış on iki plugin.
 reference: Plugin, LoadPluginConfig, ErrUnknownPluginConfig, ErrAppStarted
 ---
 
@@ -40,6 +40,11 @@ verilen bir yetenekten geçer. Bu ikisiyle bir plugin şunları yapabilir:
   olur.
 - **Hataları gözlemleyebilir.** Her hatayı, pipeline'ın hangi aşamasında oluştuğu
   bilgisiyle birlikte alır.
+- **Her request'i sarmalayabilir.** Bunu, uygulamanınkinden sonra gelen kendi
+  middleware'iyle yapar (v0.21.0'dan beri).
+- **Çıktıyı denetleyip finding raporlayabilir.** Finding'ler development'ta page'in
+  üzerinde gösterilir, static build'in raporunda listelenir ve error seviyesinde
+  build'i başarısız kılar (v0.21.0'dan beri).
 - Programınızın çalıştırdığı **komutlar ekleyebilir.** `collage new` ile oluşturulan
   bir projede bunlar `go run . <command>` ile çalışır. Bkz.
   [collage CLI](/docs/cli#plugin-commands).
@@ -166,7 +171,7 @@ beklediği yerde bir string varsa, plugin bu bölümü okuduğunda hata oluşur.
 
 ## Yayımlanmış plugin'ler
 
-Framework ile birlikte beş plugin yayımlanmıştır. Her biri ayrı bir modüldür ve
+Framework ile birlikte on iki plugin yayımlanmıştır. Her biri ayrı bir modüldür ve
 her birinin tam referans niteliğinde kendi README'si vardır. Aşağıdaki bilgiler
 bir plugin'i kurmanız için yeterlidir.
 
@@ -415,6 +420,268 @@ Plugins: []collage.Plugin{lv, websocket.New(lv)},
   sitenin kendi page'leri bağlantı açabilir.
   `websocket.NewWith(lv, websocket.Options{...})`; `Path`'i (`/_live/ws/`), `Ping`
   aralığını ve ayrıca bağlanabilecek `OriginPatterns`'ı belirler.
+
+### elagoht/sitemap
+
+[github.com/Elagoht/collage-sitemap](https://github.com/Elagoht/collage-sitemap),
+uygulamanın register ettiği page'lerden `/sitemap.xml`'i sunar.
+
+```go
+import "github.com/Elagoht/collage-sitemap"
+
+Plugins: []collage.Plugin{sitemap.New(sitemap.Options{
+	BaseURL: "https://example.com",
+})},
+```
+
+```json
+{
+  "elagoht/sitemap": {
+    "baseURL": "https://example.com",
+    "path": "/sitemap.xml",
+    "exclude": ["thanks"],
+    "maxURLs": 50000
+  }
+}
+```
+
+- collage v0.21.0 ya da sonrasını gerektirir. `baseURL` zorunludur, çünkü bir
+  sitemap mutlak URL'ler listeler. Bu ayar olmadan uygulama başlamaz.
+- Path'i olan her page'i, her locale'de, `App.URL`'in yazdığı biçimde listeler.
+  Page'in diğer locale'leri `hreflang` alternate'leri olarak eklenir. Bir
+  `{param}` pattern'i, `WithStaticParams`'ının döndürdüğü her değer için bir kez
+  listelenir; bunlar static build'in yazdığı URL'lerdir. `WithStaticParams`'ı
+  olmayan bir pattern dışarıda kalır. `Exclude`, page'leri adlarıyla dışarıda
+  bırakır.
+- Bir page'in `<lastmod>`'unu bir Go fonksiyonu olan `LastMod` verir.
+- Static bir document'tır: cache'lenir, export edilir ve `sitemap.Tag` invalidate
+  edildiğinde yeniden üretilir. Yayımladığınız bir yazının tag'leriyle birlikte
+  onu da invalidate edin.
+- 50.000 URL'yi (`maxURLs`) aşınca numaralı dosyalardan oluşan bir sitemap
+  index'ine dönüşür.
+
+### elagoht/robots
+
+[github.com/Elagoht/collage-robots](https://github.com/Elagoht/collage-robots),
+`/robots.txt`'yi sunar.
+
+```go
+import "github.com/Elagoht/collage-robots"
+
+Plugins: []collage.Plugin{robots.New(robots.Options{
+	Rules:    []robots.Rule{{Disallow: []string{"/admin"}}},
+	Sitemaps: []string{"https://example.com/sitemap.xml"},
+})},
+```
+
+```json
+{
+  "elagoht/robots": {
+    "rules": [{ "userAgents": ["*"], "disallow": ["/admin"] }],
+    "sitemaps": ["https://example.com/sitemap.xml"],
+    "disallowAll": false
+  }
+}
+```
+
+- collage v0.21.0 ya da sonrasını gerektirir. Hiç kural yoksa her crawler'a her
+  şeye izin verir. User agent belirtmeyen bir kural `*` içindir.
+- `disallowAll`, kurallar ne derse desin siteyi bütün crawler'lara kapatır ve her
+  response'u `X-Robots-Tag: noindex, nofollow` ile gönderir. Bunu bir staging
+  deploy'unun config'inde açın. Böylece aynı binary production'da açık, başka
+  yerlerde kapalı olur.
+- Body uygulama başlarken sabitlenir ve static build onu `robots.txt` olarak
+  yazar.
+
+### elagoht/feed
+
+[github.com/Elagoht/collage-feed](https://github.com/Elagoht/collage-feed),
+uygulamanın listelediği öğelerden RSS 2.0 ve Atom 1.0 feed'leri sunar ve bunları
+her page'in head'inde duyurur.
+
+```go
+import "github.com/Elagoht/collage-feed"
+
+Plugins: []collage.Plugin{feed.New(feed.Feed{
+	Title:   "The blog",
+	BaseURL: "https://example.com",
+	Link:    "/blog",
+	Items:   latestPosts, // func(ctx) ([]feed.Item, error), newest first
+	Tags:    []string{"posts"},
+})},
+```
+
+- collage v0.21.0 ya da sonrasını gerektirir. `Items` bir fonksiyon olduğu için
+  yalnızca Go'da yapılandırılır.
+- Bir feed RSS olarak `/feed.xml`'de, Atom olarak `/atom.xml`'de sunulur. `RSS` ve
+  `Atom` bu path'leri değiştirir, `"-"` ise bir formatı dışarıda bırakır. Birden
+  fazla feed'in her biri bir `Name` ve kendi path'lerini alır. Bir feed en fazla
+  `Limit` kadar öğe taşır; varsayılan 20'dir.
+- Her page, her feed için bir `<link rel="alternate">` alır. Bu yüzden layout'ta
+  `{{hoist "head"}}` bulunması gerekir. `NoDiscovery`, bir feed'i head'lerin
+  dışında tutar.
+- Static bir document'tır: cache'lenir, export edilir ve `Tags`'inden biri
+  invalidate edildiğinde yeniden üretilir.
+
+### elagoht/htmlcheck
+
+[github.com/Elagoht/collage-htmlcheck](https://github.com/Elagoht/collage-htmlcheck),
+bir sitenin render ettiği HTML'i denetler: yapıyı, erişilebilirliği, bir arama
+motorunun okuduklarını, bir page'i yavaşlatanları ve page'ler arasındaki link'leri.
+Bulduklarını [finding](/docs/writing-plugins#checking-the-output-findings) olarak
+raporlar.
+
+```go
+import "github.com/Elagoht/collage-htmlcheck"
+
+Plugins: []collage.Plugin{htmlcheck.New(htmlcheck.Options{})},
+```
+
+```json
+{
+  "elagoht/htmlcheck": {
+    "rules": { "img-dimensions": "off", "heading-order": "error" },
+    "titleMax": 60,
+    "descriptionMax": 160,
+    "pageBudget": 200000,
+    "ignoreLinks": ["/api/"]
+  }
+}
+```
+
+- collage v0.22.0 ya da sonrasını gerektirir.
+- Development'ta her page render edilirken denetlenir ve bulunanlar page'in
+  üzerinde gösterilir. Static build'de önce her page, sonra build'in bütünü
+  denetlenir: iki page'in paylaştığı title'lar, build'in yazmadığı page'lere
+  giden link'ler. Bir error build'i başarısız kılar (bkz.
+  [Static export](/docs/static-export#findings)). Production sunucusunda hiçbir
+  şey denetlenmez.
+- 22 kuralı vardır: `html-lang`, `title`, `img-alt`, `input-label`,
+  `duplicate-id`, `heading-order`, `broken-link` ve diğerleri. Her biri
+  varsayılan olarak `error` ya da `warn` seviyesindedir. `rules` bir kuralın
+  seviyesini değiştirir ya da onu `off` ile kapatır. Plugin'in tanımadığı bir
+  kural adı uygulamanın başlamasını engeller. `htmlcheck.Rules()` hepsini
+  listeler.
+
+### elagoht/secure
+
+[github.com/Elagoht/collage-secure](https://github.com/Elagoht/collage-secure),
+bir sitenin göndermesi gereken güvenlik header'larını ve nonce'ları page cache'ten
+sağ çıkan bir Content-Security-Policy'yi gönderir.
+
+```go
+import "github.com/Elagoht/collage-secure"
+
+Plugins: []collage.Plugin{secure.New(secure.Options{
+	CSP: "default-src 'self'; script-src 'self' 'nonce-{nonce}'",
+})},
+```
+
+```json
+{
+  "elagoht/secure": {
+    "csp": "default-src 'self'; script-src 'self' 'nonce-{nonce}'",
+    "cspReportOnly": false,
+    "hsts": 63072000,
+    "hstsSubdomains": true,
+    "frameOptions": "DENY",
+    "permissionsPolicy": "camera=(), microphone=(), geolocation=()"
+  }
+}
+```
+
+- collage v0.22.0 ya da sonrasını gerektirir ve `Config.Plugins` içinde olmalıdır:
+  `{{cspNonce}}`'ı ekler.
+- Varsayılan olarak `X-Content-Type-Options`, `X-Frame-Options`,
+  `Referrer-Policy` ve `Cross-Origin-Opener-Policy` gönderir.
+  `Strict-Transport-Security`'yi ise TLS üzerinden ya da `X-Forwarded-Proto: https`
+  gönderen bir proxy'nin arkasında gönderir. `Permissions-Policy` ve CSP,
+  ayarlandıklarında gönderilir. `"-"` bir header'ı dışarıda bırakır.
+- Policy'deki `{nonce}` ile inline bir script'teki `{{cspNonce}}` aynı nonce'tur ve
+  her response'ta yenidir. Cache'lenen page bir placeholder taşır, plugin'in
+  middleware'i de onun yerine taze bir nonce koyar. Nonce taşıyan bir page
+  `Cache-Control: no-store` ile ve `ETag` olmadan gönderilir.
+- Development'ta policy report-only olarak gönderilir. Böylece collage'ın
+  live-reload script'i çalışmaya devam eder.
+
+### elagoht/flash
+
+[github.com/Elagoht/collage-flash](https://github.com/Elagoht/collage-flash),
+flash mesajları ekler: bir action'ın redirect etmeden önce ayarladığı ve redirect
+ettiği page'in bir kez gösterdiği mesaj.
+
+```go
+import "github.com/Elagoht/collage-flash"
+
+Plugins: []collage.Plugin{flash.New(flash.Options{Key: key})},
+```
+
+```go
+flash.Add(rc, flash.Success, "Your changes are saved.")
+return collage.SeeOther("/settings"), nil
+```
+
+```html
+{{range flashes}}
+  <p class="flash flash--{{.Kind}}" role="status">{{.Text}}</p>
+{{end}}
+```
+
+```json
+{
+  "elagoht/flash": {
+    "key": "hex-encoded, 32 bytes or more",
+    "cookie": "collage_flash",
+    "maxAge": 300
+  }
+}
+```
+
+- collage v0.22.0 ya da sonrasını gerektirir ve `Config.Plugins` içinde olmalıdır:
+  `{{flashes}}`'ı ekler.
+- Mesajlar imzalı, `HttpOnly` bir cookie içinde taşınır. En az 32 rastgele
+  byte'lık, her instance'ta aynı olan bir key ayarlayın. Key yoksa her process için
+  bir key üretilir ve bir uyarı log'lanır.
+- Mesaj taşıyan bir request yeniden render edilir. Page cache'ten okunmaz, ona
+  yazılmaz da ve `private, no-store` olarak işaretlenir. Diğer her request,
+  plugin yokmuş gibi sunulur.
+
+### elagoht/i18n
+
+[github.com/Elagoht/collage-i18n](https://github.com/Elagoht/collage-i18n),
+çeviri yapar: her locale için bir katalog, template'lerde page'in render edildiği
+locale'de `{{t}}`, çoğul biçimler ve finding olarak raporlanan eksik çeviriler.
+
+```go
+import "github.com/Elagoht/collage-i18n"
+
+//go:embed locales
+var locales embed.FS
+
+Plugins: []collage.Plugin{i18n.New(i18n.Options{FS: locales})},
+```
+
+```html
+<a href="{{pageURL "home"}}">{{t "nav.home"}}</a>
+<p>{{tn "cart" .Count}}</p>
+```
+
+```json
+{ "elagoht/i18n": { "dir": "locales" } }
+```
+
+- collage v0.22.0 ya da sonrasını gerektirir ve `Config.Plugins` içinde olmalıdır:
+  template fonksiyonları ekler.
+- Desteklenen her locale için iç içe key'lerden oluşan bir JSON dosyası olur:
+  `locales/<locale>.json`. Desteklenen bir locale'in dosyası yoksa uygulama
+  başlamaz.
+- `t` bir key'i çevirir ve `{name}`'i ad-değer çiftlerinden doldurur. `tn` bir
+  sayı için çoğul biçimi seçer, `th` ise katalogdan gelen markup'a izin verir. Bir
+  data handler `i18n.T(rc, key, pairs...)` çağırır.
+- Eksik bir key önce varsayılan locale'e, sonra key'in kendisine düşer.
+  Development'ta page'in üzerinde, static build'de ise build raporunda
+  `missing-translation` olarak raporlanır. Development'ta kataloglar her
+  request'te yeniden okunur.
 
 ## Head'e yazan plugin'ler
 

@@ -145,7 +145,9 @@ Reddin nedenini ve okuyucunun yazdıklarını tekrar önüne getirmenin yolu ren
 etmektir.
 
 **Kabul edilen bir gönderim, `303` ile redirect eder.** İş yapılmıştır ve sayfayı
-yenilemek onu ikinci kez yapmamalıdır.
+yenilemek onu ikinci kez yapmamalıdır. Redirect edilen page'de "kaydedildi" demek
+için [elagoht/flash](/docs/plugins#elagohtflash), tek seferlik bir mesajı redirect'in
+öbür tarafına taşır.
 
 Bir script'in `fetch` ile gönderdiği bir form da redirect'i izlerdi. Yönlendirdiği
 page'i indirir, sonra oraya gider ve page'i ikinci kez render ettirirdi. v0.20.0'dan

@@ -1,6 +1,6 @@
 ---
 description: The plugin contract, what Host and ConfigHost expose, every hook and what it may change, and a complete plugin with its tests.
-reference: Plugin, Host, ConfigHost, Configurer, Command, BeforeRenderHook, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser
+reference: Plugin, Host, ConfigHost, Configurer, Command, BeforeRenderHook, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, PageURL, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile
 ---
 
 # Writing a plugin
@@ -76,9 +76,10 @@ already parsed the templates, so it refuses such a plugin with
 | | `ConfigHost` (Configure) | `Host` (Init) |
 | --- | --- | --- |
 | `DevMode`, `Logger`, `Config` | yes | yes |
-| `AddTemplateFunc`, `WrapMount` | yes | — |
+| `AddTemplateFunc`, `AddRenderFunc`, `WrapMount` | yes | — |
 | `Pages`, `Page`, `InvalidateTags` | — | yes |
-| `RegisterPage`, `RegisterDocument`, `Mount`, `Handle` | — | yes |
+| `URL`, `FragmentURL`, `Locales`, `PageURLs` | — | yes |
+| `RegisterPage`, `RegisterDocument`, `Mount`, `Handle`, `Use` | — | yes |
 | `RenderFragment` | — | yes |
 | `RegisterCommand` | — | yes |
 
@@ -95,6 +96,7 @@ cache to reach.
 | `Config(v) error` | Decodes this plugin's configuration section into `v` — see [Configuration](#configuration). |
 | `AddTemplateFunc(name, fn) error` | Adds a template function. Returns `ErrDuplicateTemplateFunc` when the name was already added — by another plugin, or by this one earlier. |
 | `WrapMount(wrap func(fs.FS) fs.FS)` | Registers a transformation applied to every mounted filesystem, in the order wrappers were registered. |
+| `AddRenderFunc(name, factory) error` | Adds a template function made anew for each render from its `*RenderContext` — see [Template functions](#template-functions) (since v0.21.0). |
 
 ### Host
 
@@ -112,12 +114,19 @@ cache to reach.
 | `Handle(prefix, handler) error` | Serves an `http.Handler` under a URL prefix, as `App.Handle` does — an event stream, a WebSocket (since v0.18.0). |
 | `RenderFragment(r, req) (*collage.FragmentRender, error)` | Renders a fragment a page opened with `WithFragmentPath`, in parts — see [Pushing fragments](#pushing-fragments) (since v0.18.0). |
 | `RegisterCommand(cmd) error` | Contributes a command — see [Commands](#commands). |
+| `Use(middleware) error` | Wraps every request, after the application's own middleware (since v0.21.0). |
+| `URL(name, locale, params) (string, error)` | The path of a page or document, as `App.URL` builds it (since v0.21.0). |
+| `FragmentURL(page, fragment, locale, params) (string, error)` | The path of a fragment path, as `App.FragmentURL` builds it (since v0.21.0). |
+| `Locales() (default, supported)` | The default locale and every supported one, the default included (since v0.21.0). |
+| `PageURLs(ctx, name) ([]collage.PageURL, error)` | Every URL a page answers, in every locale, a pattern expanded through its `WithStaticParams` — a sitemap's contents (since v0.21.0). |
 
 What `Init` receives is not the `*App`. It is a narrow value that forwards these
 methods and nothing else, so a plugin cannot assert its way to `ListenAndServe`,
 `Shutdown`, the router, the cache or the template set. `Handle` and
-`RenderFragment` were added in v0.18.0, so a test double implementing `Host` needs
-them too.
+`RenderFragment` were added in v0.18.0, and `Use`, `URL`, `FragmentURL`, `Locales`
+and `PageURLs` in v0.21.0, with `AddRenderFunc` on `ConfigHost`. **That is a
+breaking change for a test double:** one implementing `Host` or `ConfigHost` needs
+the new methods too.
 
 **`Host` limits what a plugin can reach, not what it can change.** `Pages` and
 `Page` return copies of the page struct and of its `Paths`, `Redirects`, `SEO` and
@@ -189,11 +198,12 @@ take the connection over with `Hijack`, as it could on a bare `net/http` server.
 | --- | --- | --- | --- | --- |
 | `PageResolvedHook` | `OnPageResolved` | `PageResolvedEvent` | Once per page request, right after routing — cache hits included | nothing |
 | `BeforeRenderHook` | `OnBeforeRender` | `BeforeRenderEvent` | Before a fresh page render | nothing on the event; may hoist through `ev.Context` |
-| `AfterRenderHook` | `OnAfterRender` | `AfterRenderEvent` | After a page render succeeded | `ev.HTML` |
+| `AfterRenderHook` | `OnAfterRender` | `AfterRenderEvent` | After a page render succeeded | `ev.HTML`; reports with `ev.Warn`, `ev.Error` |
 | `DocumentRenderedHook` | `OnDocumentRendered` | `DocumentRenderedEvent` | After a document handler produced its body | `ev.Body` |
 | `CacheWriteHook` | `OnCacheWrite` | `CacheWriteEvent` | Before a page or document is written to the cache | `ev.Skip`, `ev.TTL`, `ev.Tags` |
 | `CacheInvalidateHook` | `OnCacheInvalidate` | `CacheInvalidateEvent` | After entries were invalidated by tag | nothing |
 | `ErrorHook` | `OnError` | `ErrorEvent` | On a failure while serving a request | nothing |
+| `BuildFinishedHook` | `OnBuildFinished` | `BuildFinishedEvent` | Once, when a static build has written every file (since v0.21.0) | reports with `ev.Warn`, `ev.Error` |
 
 Every hook method has the shape `func(ctx context.Context, ev *Event) error`.
 
@@ -221,6 +231,7 @@ type BeforeRenderEvent struct {
 	Page    *collage.Page
 	Locale  string
 	Path    string
+	Static  bool // rendered for a static build, not for a request
 }
 ```
 
@@ -244,6 +255,10 @@ key replaces it: the plugin provides the default, the page provides the specific
 thing. It lands only where the layout calls `{{hoist "head"}}`. An error fails the
 request with a 500, under `"before_render"`.
 
+`Static` (since v0.22.0) says the page is being rendered for a static build —
+through `App.RenderPath` — rather than for a request. It is on `AfterRenderEvent`
+too.
+
 ### AfterRenderHook
 
 ```go
@@ -251,8 +266,10 @@ type AfterRenderEvent struct {
 	Page     *collage.Page
 	Locale   string
 	Degraded bool   // some fragment failed, fallback or not
+	Static   bool   // rendered for a static build, not for a request
 	HTML     []byte // replace it to post-process the page
 	// Data: the render's shared data, the map behind rc.Set and rc.Get
+	// Findings: what ev.Warn and ev.Error reported so far
 }
 ```
 
@@ -278,6 +295,49 @@ Two consequences of where it sits:
 A page an action answers with through `RenderPage` runs it too (since v0.10.0;
 before, it ran `BeforeRender` only), so a validation page is minified like any
 other. An error fails the request with a 500, under `"after_render"`.
+
+### Checking the output: findings
+
+A plugin that checks what a page renders — a heading level skipped, an image
+without `alt`, a form field without a label — reports what it finds rather than
+failing the render (since v0.21.0):
+
+```go
+func (p *Plugin) OnAfterRender(_ context.Context, ev *collage.AfterRenderEvent) error {
+	if !bytes.Contains(ev.HTML, []byte("<h1")) {
+		ev.Error("one-h1", "the page has no <h1>")
+	}
+	return nil
+}
+```
+
+`ev.Warn(rule, message)` reports a `collage.FindingWarning`, worth fixing and
+stopping nothing; `ev.Error` a `collage.FindingError`. A finding
+(`collage.Finding`) has its `Level`, the `Rule` that found it, a `Message`, the
+`Plugin` and the page's `Path` — the last two filled in by the framework. Where it
+goes depends on where the page was rendered:
+
+- **In development** it is shown over the page, in the panel a failed fragment
+  uses, and the page is served as it is.
+- **In a static build** it is listed in the report under the page it is about
+  (`BuildReport.Findings`). An error-level finding fails the build with
+  `collage.ErrBuildFindings`; the pages are written either way. See
+  [Static export](/docs/static-export#reading-the-report).
+- **In production** nothing is done with it. A check re-run on every render would
+  spend a server's time on what the build already knew, so a checking plugin turns
+  itself off there: `ev.Static` says a render is a static build's, and
+  `host.DevMode()` says the server is a development one.
+
+```go
+if !ev.Static && !p.dev { // p.dev from host.DevMode() in Init
+	return nil
+}
+```
+
+What no single render can tell — two pages with one title, a link to a page the
+build did not write — belongs in [`OnBuildFinished`](#buildfinishedhook).
+[elagoht/htmlcheck](/docs/plugins#elagohthtmlcheck) is a checking plugin built on
+both.
 
 ### DocumentRenderedHook
 
@@ -384,6 +444,31 @@ An error returned from `OnError` is logged and swallowed, and the remaining
 plugins still receive the event: an error handler that fails must not start another
 round of error handling.
 
+### BuildFinishedHook
+
+```go
+type BuildFinishedEvent struct {
+	OutDir string              // the directory the build wrote into
+	Files  []collage.BuiltFile // every file it wrote, in no particular order
+	// Findings: what ev.Warn and ev.Error reported so far
+}
+
+type BuiltFile struct {
+	Kind   string // "page", "document" or "asset"
+	Name   string // the page's or document's name; empty for an asset
+	Locale string
+	Path   string // the URL path the file answers
+	File   string // its absolute path on disk
+}
+```
+
+Fires once, when a static build has written every page, document and asset (since
+v0.21.0), for checks across pages. Read a file with `os.ReadFile` when its content
+is needed. `ev.Warn(path, rule, message)` and `ev.Error` report a finding against
+the page at `path`, or against the build as a whole with an empty one. An error
+returned from the hook fails the build too, beside the files already written. It
+never fires on a server.
+
 ### Dispatch rules
 
 - Hooks run in **registration order**.
@@ -395,6 +480,9 @@ round of error handling.
 - For `OnCacheInvalidate`, the first error stops dispatch and is returned from
   `InvalidateTags`.
 - For `OnError`, errors are logged and dispatch continues.
+- For `OnBuildFinished`, the first error stops dispatch and fails the build.
+- A finding is not an error: it never stops dispatch, and every later plugin still
+  runs.
 
 ## Template functions
 
@@ -426,6 +514,21 @@ Every template can then call `{{readingTime .Words}}`. The function is any value
 - It must be called from `Configure`. There is no way to add one later, because a
   function added after parsing is one no template can call.
 
+`AddTemplateFunc`'s function is one value for the life of the application. Since
+v0.21.0 `AddRenderFunc` takes a factory instead, called for each render with its
+`*RenderContext`, so the function it returns can read what that render holds — a
+nonce a `BeforeRender` hook set, the render's locale:
+
+```go
+host.AddRenderFunc("nonce", func(rc *collage.RenderContext) any {
+	nonce, _ := collage.Get[string](rc, "csp:nonce")
+	return func() string { return nonce }
+})
+```
+
+It follows `AddTemplateFunc`'s rules: it is called from `Configure`, and a name
+another plugin added is `ErrDuplicateTemplateFunc`.
+
 ## Wrapping mounts
 
 `WrapMount` registers a function applied to every mounted filesystem:
@@ -451,7 +554,18 @@ Wrappers run in the order they were registered, and a `nil` wrapper is ignored.
 From `Init`, a plugin can add routes of its own through `Host.RegisterPage`,
 `Host.RegisterDocument` and `Host.Mount`, built with the same builders an
 application uses. `Host.Handle` serves a plain `http.Handler` under a prefix, for
-what is not a page — an event stream, a WebSocket.
+what is not a page — an event stream, a WebSocket. `Host.Use` (since v0.21.0) wraps
+every request, as `App.Use` does, after the application's own middleware, so a
+plugin's headers and cookies wrap what the application's middleware produced.
+
+A plugin that links to pages asks where they live rather than guessing:
+`Host.URL` and `Host.FragmentURL` build a path as `App.URL` and `App.FragmentURL`
+do, `Host.Locales` returns the default locale and every supported one, and
+`Host.PageURLs(ctx, name)` lists every URL a page answers — one `collage.PageURL`
+(`Locale`, `Path`, `Params`) per locale, and per parameter set a pattern's
+`WithStaticParams` lists. A pattern without it has none a plugin could know. It is
+what a sitemap is made of. `App.Locales` and `App.PageURLs` are the same, for an
+application's own code.
 
 A plugin that *produces files* — resized images, generated icons — should serve
 them from a mount rather than a route. A static build copies every mount into its

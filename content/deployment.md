@@ -309,7 +309,9 @@ example.com {
 ```
 
 With nginx, `proxy_set_header X-Forwarded-Proto $scheme;` in the `location` block
-does the same.
+does the same. The security headers themselves — HSTS, a Content-Security-Policy
+and the rest — can come from the binary, with the
+[elagoht/secure](/docs/plugins#elagohtsecure) plugin.
 
 If you want the binary to terminate TLS itself, `app.Handler()` is an ordinary
 `http.Handler`:

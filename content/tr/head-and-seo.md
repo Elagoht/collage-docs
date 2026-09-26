@@ -279,6 +279,12 @@ içinde `jsonld.New()`), bir site adıyla yapılandırılmışsa site genelinde 
 `WebSite` node'u ekler. Page'e özel veri ise her zaman data handler'larınızdan gelir.
 Çünkü page'in ne hakkında olduğunu yalnızca onlar bilir.
 
+Bir crawler'ın head dışında okuduklarını üç plugin daha karşılar:
+[elagoht/sitemap](/docs/plugins#elagohtsitemap), register ettiğiniz page'lerden
+`/sitemap.xml`'i sunar. [elagoht/robots](/docs/plugins#elagohtrobots),
+`/robots.txt`'yi sunar. [elagoht/feed](/docs/plugins#elagohtfeed) ise RSS ve Atom
+feed'leri sunar ve bunları her page'in head'inde duyurur.
+
 ## Hoisting ve collage'ın geri kalanı
 
 - **Cache'lenen page'ler head'lerini korur.** Marker, page saklanmadan önce

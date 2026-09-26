@@ -268,6 +268,12 @@ adds a site-wide `WebSite` node when it is configured with a site name; the
 per-page data always comes from your data handlers, because only they know what the
 page is about.
 
+Three more plugins cover what a crawler reads beyond the head:
+[elagoht/sitemap](/docs/plugins#elagohtsitemap) serves `/sitemap.xml` from the
+pages you registered, [elagoht/robots](/docs/plugins#elagohtrobots) serves
+`/robots.txt`, and [elagoht/feed](/docs/plugins#elagohtfeed) serves RSS and Atom
+feeds and announces them in every page's head.
+
 ## Hoisting and the rest of collage
 
 - **Cached pages keep their head.** The marker is replaced before the page is

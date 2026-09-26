@@ -330,7 +330,9 @@ example.com {
 ```
 
 nginx'te `location` bloğuna eklenen `proxy_set_header X-Forwarded-Proto $scheme;`
-aynı işi görür.
+aynı işi görür. Güvenlik header'larının kendileri, yani HSTS, bir
+Content-Security-Policy ve diğerleri, [elagoht/secure](/docs/plugins#elagohtsecure)
+plugin'iyle binary'den de gelebilir.
 
 TLS'i binary'nin kendisinin terminate etmesini istiyorsanız, `app.Handler()` sıradan
 bir `http.Handler`'dır:

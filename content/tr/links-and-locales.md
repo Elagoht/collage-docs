@@ -9,6 +9,9 @@ Bir collage sitesi her page'i birkaç dilde, her dili kendi URL'sinde sunabilir.
 collage locale'leri route eder, çeviri yapmaz. Bir kelimenin Türkçe karşılığı
 içeriğinizde durur ve içeriğiniz zaten nerede tutuluyorsa orada kalır. collage'ın
 işi, hangi URL'nin hangi dile ait olduğunu bilmek ve bunu bilen link'ler üretmektir.
+Template'lerinizdeki kelimeler için [elagoht/i18n](/docs/plugins#elagohti18n)
+plugin'i her locale için bir katalog tutar ve page'in render edildiği locale'de
+çeviri yapar.
 
 ## Locale'leri yapılandırmak
 

@@ -1,5 +1,5 @@
 ---
-description: What a plugin can do, how to register and configure one, and the five published plugins.
+description: What a plugin can do, how to register and configure one, and the twelve published plugins.
 reference: Plugin, LoadPluginConfig, ErrUnknownPluginConfig, ErrAppStarted
 ---
 
@@ -33,6 +33,11 @@ handed at startup. Between them, a plugin can:
 - **adjust a cache write** — change its lifetime or tags, or skip it — and hear
   about invalidations.
 - **observe failures**, with the stage of the pipeline they happened in.
+- **wrap every request** with middleware of its own, after the application's
+  (since v0.21.0).
+- **check the output** and report findings — shown over the page in development,
+  listed in a static build's report, failing the build at error level (since
+  v0.21.0).
 - **add commands** that your program runs — `go run . <command>` in a scaffolded
   project; see [The collage CLI](/docs/cli#plugin-commands).
 
@@ -152,7 +157,7 @@ a boolean — is also an error, raised when the plugin reads it.
 
 ## The published plugins
 
-Five plugins are published alongside the framework. Each is its own module, with
+Twelve plugins are published alongside the framework. Each is its own module, with
 its own README that is the full reference; what follows is enough to set one up.
 
 ### elagoht/minimizer
@@ -389,6 +394,256 @@ Plugins: []collage.Plugin{lv, websocket.New(lv)},
   site itself may open one; `websocket.NewWith(lv, websocket.Options{...})` sets
   the `Path` (`/_live/ws/`), the `Ping` interval and the `OriginPatterns` that may
   connect as well.
+
+### elagoht/sitemap
+
+[github.com/Elagoht/collage-sitemap](https://github.com/Elagoht/collage-sitemap)
+serves `/sitemap.xml` from the pages the application registered.
+
+```go
+import "github.com/Elagoht/collage-sitemap"
+
+Plugins: []collage.Plugin{sitemap.New(sitemap.Options{
+	BaseURL: "https://example.com",
+})},
+```
+
+```json
+{
+  "elagoht/sitemap": {
+    "baseURL": "https://example.com",
+    "path": "/sitemap.xml",
+    "exclude": ["thanks"],
+    "maxURLs": 50000
+  }
+}
+```
+
+- It needs collage v0.21.0 or later. `baseURL` is required — a sitemap lists
+  absolute URLs — and the application does not start without it.
+- It lists every page with a path, in every locale, as `App.URL` spells it, with
+  its other locales as `hreflang` alternates. A `{param}` pattern is listed once
+  for each value its `WithStaticParams` returns, the URLs a static build writes;
+  one without it is left out. `Exclude` leaves pages out by name.
+- `LastMod`, a Go function, gives a page's `<lastmod>`.
+- It is a static document: cached, exported, and made again when `sitemap.Tag` is
+  invalidated — invalidate it with the tags of a post you publish.
+- Past 50,000 URLs (`maxURLs`) it becomes a sitemap index of numbered files.
+
+### elagoht/robots
+
+[github.com/Elagoht/collage-robots](https://github.com/Elagoht/collage-robots)
+serves `/robots.txt`.
+
+```go
+import "github.com/Elagoht/collage-robots"
+
+Plugins: []collage.Plugin{robots.New(robots.Options{
+	Rules:    []robots.Rule{{Disallow: []string{"/admin"}}},
+	Sitemaps: []string{"https://example.com/sitemap.xml"},
+})},
+```
+
+```json
+{
+  "elagoht/robots": {
+    "rules": [{ "userAgents": ["*"], "disallow": ["/admin"] }],
+    "sitemaps": ["https://example.com/sitemap.xml"],
+    "disallowAll": false
+  }
+}
+```
+
+- It needs collage v0.21.0 or later. With no rules it allows every crawler
+  everything; a rule with no user agents is for `*`.
+- `disallowAll` closes the site to every crawler, whatever the rules say, and
+  sends every response with `X-Robots-Tag: noindex, nofollow`. Set it in the
+  configuration of a staging deployment, so one binary is open in production and
+  closed elsewhere.
+- The body is fixed at startup, and a static build writes it to `robots.txt`.
+
+### elagoht/feed
+
+[github.com/Elagoht/collage-feed](https://github.com/Elagoht/collage-feed) serves
+RSS 2.0 and Atom 1.0 feeds from items the application lists, and announces them in
+every page's head.
+
+```go
+import "github.com/Elagoht/collage-feed"
+
+Plugins: []collage.Plugin{feed.New(feed.Feed{
+	Title:   "The blog",
+	BaseURL: "https://example.com",
+	Link:    "/blog",
+	Items:   latestPosts, // func(ctx) ([]feed.Item, error), newest first
+	Tags:    []string{"posts"},
+})},
+```
+
+- It needs collage v0.21.0 or later. It is configured in Go only, since `Items` is
+  a function.
+- A feed is served at `/feed.xml` as RSS and `/atom.xml` as Atom; `RSS` and `Atom`
+  move them, and `"-"` leaves a format out. Several feeds each take a `Name` and
+  their own paths. It carries at most `Limit` items, 20 by default.
+- Every page gets a `<link rel="alternate">` for every feed, so it needs
+  `{{hoist "head"}}` in the layout; `NoDiscovery` keeps a feed out of the heads.
+- It is a static document: cached, exported, and made again when one of its
+  `Tags` is invalidated.
+
+### elagoht/htmlcheck
+
+[github.com/Elagoht/collage-htmlcheck](https://github.com/Elagoht/collage-htmlcheck)
+checks the HTML a site renders — structure, accessibility, what a search engine
+reads, what slows a page down, and the links between pages — and reports what it
+finds as [findings](/docs/writing-plugins#checking-the-output-findings).
+
+```go
+import "github.com/Elagoht/collage-htmlcheck"
+
+Plugins: []collage.Plugin{htmlcheck.New(htmlcheck.Options{})},
+```
+
+```json
+{
+  "elagoht/htmlcheck": {
+    "rules": { "img-dimensions": "off", "heading-order": "error" },
+    "titleMax": 60,
+    "descriptionMax": 160,
+    "pageBudget": 200000,
+    "ignoreLinks": ["/api/"]
+  }
+}
+```
+
+- It needs collage v0.22.0 or later.
+- In development each page is checked as it renders, and what is found is shown
+  over the page. In a static build every page is checked, then the build as a
+  whole — titles two pages share, links to pages the build did not write — and an
+  error fails the build (see
+  [Static export](/docs/static-export#findings)). On a production server nothing
+  is checked.
+- It has 22 rules — `html-lang`, `title`, `img-alt`, `input-label`,
+  `duplicate-id`, `heading-order`, `broken-link` and more — each at `error` or
+  `warn` by default. `rules` changes a level or turns one `off`; a rule name it
+  does not know stops the application from starting. `htmlcheck.Rules()` lists
+  them all.
+
+### elagoht/secure
+
+[github.com/Elagoht/collage-secure](https://github.com/Elagoht/collage-secure)
+sends the security headers a site should, and a Content-Security-Policy whose
+nonces survive the page cache.
+
+```go
+import "github.com/Elagoht/collage-secure"
+
+Plugins: []collage.Plugin{secure.New(secure.Options{
+	CSP: "default-src 'self'; script-src 'self' 'nonce-{nonce}'",
+})},
+```
+
+```json
+{
+  "elagoht/secure": {
+    "csp": "default-src 'self'; script-src 'self' 'nonce-{nonce}'",
+    "cspReportOnly": false,
+    "hsts": 63072000,
+    "hstsSubdomains": true,
+    "frameOptions": "DENY",
+    "permissionsPolicy": "camera=(), microphone=(), geolocation=()"
+  }
+}
+```
+
+- It needs collage v0.22.0 or later, and must go in `Config.Plugins`: it adds
+  `{{cspNonce}}`.
+- By default it sends `X-Content-Type-Options`, `X-Frame-Options`,
+  `Referrer-Policy`, `Cross-Origin-Opener-Policy` and, over TLS or behind a proxy
+  sending `X-Forwarded-Proto: https`, `Strict-Transport-Security`.
+  `Permissions-Policy` and the CSP are sent when set; `"-"` leaves a header out.
+- `{nonce}` in the policy and `{{cspNonce}}` on an inline script are one nonce,
+  new on every response: the cached page carries a placeholder, and the plugin's
+  middleware puts a fresh nonce in its place. A page carrying one is sent with
+  `Cache-Control: no-store` and no `ETag`.
+- In development the policy is sent report-only, so collage's live-reload script
+  keeps working.
+
+### elagoht/flash
+
+[github.com/Elagoht/collage-flash](https://github.com/Elagoht/collage-flash) adds
+flash messages: a message an action sets before it redirects, shown once by the
+page it redirects to.
+
+```go
+import "github.com/Elagoht/collage-flash"
+
+Plugins: []collage.Plugin{flash.New(flash.Options{Key: key})},
+```
+
+```go
+flash.Add(rc, flash.Success, "Your changes are saved.")
+return collage.SeeOther("/settings"), nil
+```
+
+```html
+{{range flashes}}
+  <p class="flash flash--{{.Kind}}" role="status">{{.Text}}</p>
+{{end}}
+```
+
+```json
+{
+  "elagoht/flash": {
+    "key": "hex-encoded, 32 bytes or more",
+    "cookie": "collage_flash",
+    "maxAge": 300
+  }
+}
+```
+
+- It needs collage v0.22.0 or later, and must go in `Config.Plugins`: it adds
+  `{{flashes}}`.
+- The messages travel in a signed, `HttpOnly` cookie. Set a key of at least 32
+  random bytes, the same on every instance; without one a key is made per process
+  and a warning logged.
+- A request carrying a message is rendered fresh, neither read from the page cache
+  nor written to it, and marked `private, no-store`. Every other request is served
+  as it would be without the plugin.
+
+### elagoht/i18n
+
+[github.com/Elagoht/collage-i18n](https://github.com/Elagoht/collage-i18n)
+translates: a catalog per locale, `{{t}}` in templates in the locale the page is
+rendered in, plurals, and missing translations reported as findings.
+
+```go
+import "github.com/Elagoht/collage-i18n"
+
+//go:embed locales
+var locales embed.FS
+
+Plugins: []collage.Plugin{i18n.New(i18n.Options{FS: locales})},
+```
+
+```html
+<a href="{{pageURL "home"}}">{{t "nav.home"}}</a>
+<p>{{tn "cart" .Count}}</p>
+```
+
+```json
+{ "elagoht/i18n": { "dir": "locales" } }
+```
+
+- It needs collage v0.22.0 or later, and must go in `Config.Plugins`: it adds
+  template functions.
+- One JSON file of nested keys per supported locale, `locales/<locale>.json`; the
+  application does not start while a supported locale has none.
+- `t` translates a key and fills `{name}` from name and value pairs, `tn` picks a
+  plural form for a count, `th` allows markup from the catalog. A data handler
+  calls `i18n.T(rc, key, pairs...)`.
+- A missing key falls back to the default locale, then to the key, and is reported
+  as `missing-translation` over the page in development and in a static build's
+  report. In development the catalogs are read again on every request.
 
 ## Plugins that write to the head
 

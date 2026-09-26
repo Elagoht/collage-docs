@@ -1,6 +1,6 @@
 ---
 description: Render the site to static files with collage export — what is written, what is skipped and why, dynamic paths, and publishing to a static host.
-reference: NewBuilder, BuildOptions, BuildReport, PrintBuildReport, StaticParamsFunc, SkipRecord, ErrNotStatic, ErrDynamicPathUnresolved, ErrRouteParams
+reference: NewBuilder, BuildOptions, BuildReport, PrintBuildReport, StaticParamsFunc, SkipRecord, ErrNotStatic, ErrDynamicPathUnresolved, ErrRouteParams, ErrBuildFindings
 ---
 
 # Static export
@@ -61,7 +61,8 @@ func staticBuild(app *collage.App, outDir string, clean bool) error {
 `Build` returns a report even when it also returns an error: one failing page does
 not stop the others, and every failure is in `report.Errors`. The returned error is
 all of them joined, and `main` exits non-zero on it, so a CI job fails when a page
-could not be written. Skipped pages and warnings do not fail the build.
+could not be written. Skipped pages and warnings do not fail the build; an
+error-level [finding](#reading-the-report) does, with every page still written.
 
 If you rewrite `main.go`, keep the `-collage-build`, `-out` and `-clean` flags, or
 `collage export` stops doing anything useful.
@@ -162,6 +163,10 @@ These are errors: the page is not written, the build reports it and exits non-ze
   values twice. No page is rendered when this is found; the documents, the `404.html`
   pages and the mounted assets are still written, and the build still fails.
 
+**An error-level finding** fails the build as well, with `collage.ErrBuildFindings`
+(since v0.21.0), but differently: the pages are written either way, and the
+findings are in the report. See [Reading the report](#reading-the-report).
+
 ## Dynamic paths: `WithStaticParams`
 
 A page at `/blog/{slug}` is one page with many URLs. The page lists them itself,
@@ -248,7 +253,9 @@ The export renders in the state the server does. Every plugin's `Init` runs firs
 so a plugin reads the same configuration; `OnBeforeRender`, `OnAfterRender` and
 `OnDocumentRendered` fire for every page and document, so what a minifier or a
 structured-data plugin does to a served page it does to the file. `OnPageResolved`
-does not fire, because an export is not a request. See [Using plugins](/docs/plugins).
+does not fire, because an export is not a request. Since v0.21.0 `OnBuildFinished`
+runs once every file is written, for a plugin that checks the build as a whole.
+See [Using plugins](/docs/plugins).
 
 ## Reading the report
 
@@ -280,14 +287,34 @@ truncated. The last line has every count and is coloured by the worst of them.
 Skips are counted as routes, pages and documents together — `3 skipped`, not
 `3 pages skipped`, since v0.10.0.
 
-To act on the report in code, read `report.Skipped`, `report.Warnings` and
-`report.Errors` yourself. Each skip is a `collage.SkipRecord` with the route's name
-(`Page`), its `Locale`, a `Reason` for people and, since v0.10.0, an `Err` to match
-with `errors.Is` — see [Errors](/docs/errors#static-builds).
+To act on the report in code, read `report.Skipped`, `report.Warnings`,
+`report.Findings` and `report.Errors` yourself. Each skip is a
+`collage.SkipRecord` with the route's name (`Page`), its `Locale`, a `Reason` for
+people and, since v0.10.0, an `Err` to match with `errors.Is` — see
+[Errors](/docs/errors#static-builds).
 [Testing](/docs/testing#testing-the-export) turns that into a test.
 
-Colour and the `✓ ▲ ✗` marks appear only on a terminal, and not when `NO_COLOR` is
-set. In a CI log the marks are plain ASCII (`+ ! x`).
+Colour and the `✓ ▲ ◆ ✗` marks appear only on a terminal, and not when `NO_COLOR`
+is set. In a CI log the marks are plain ASCII (`+ ! * x`).
+
+### Findings
+
+A plugin that checks the output — [elagoht/htmlcheck](/docs/plugins#elagohthtmlcheck)
+is one — reports what it finds as findings, and since v0.21.0 the report lists them
+under the page they are about, errors first:
+
+```sh
+◆ 2 findings
+  /about
+    error img-alt  <img src="/team.jpg"> has no alt  elagoht/htmlcheck
+    warning heading-order  <h4> follows <h2>  elagoht/htmlcheck
+```
+
+A warning stops nothing. An error-level finding fails the build with
+`collage.ErrBuildFindings`, so `main` exits non-zero and CI fails, but every page
+is still written. The findings are in `report.Findings`, each a `collage.Finding`.
+How a plugin reports one is in
+[Writing a plugin](/docs/writing-plugins#checking-the-output-findings).
 
 ## Looking at it: `collage serve`
 

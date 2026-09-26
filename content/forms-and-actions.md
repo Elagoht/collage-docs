@@ -138,7 +138,9 @@ it and send it again — resubmitting is the point — and rendering is how the 
 and what they typed get back in front of them.
 
 **An accepted submission redirects**, with `303`. The work is done, and a reload
-must not do it twice.
+must not do it twice. To say "saved" on the page it redirects to,
+[elagoht/flash](/docs/plugins#elagohtflash) carries a one-time message across the
+redirect.
 
 A form a script submits with `fetch` would follow the redirect too, downloading the
 page it leads to, and then navigate there and have it rendered a second time. Since

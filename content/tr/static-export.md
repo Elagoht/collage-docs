@@ -1,6 +1,6 @@
 ---
 description: Siteyi collage export ile static dosyalara render edin: nelerin yazıldığı, nelerin neden atlandığı, dinamik path'ler ve bir static host'ta yayımlama.
-reference: NewBuilder, BuildOptions, BuildReport, PrintBuildReport, StaticParamsFunc, SkipRecord, ErrNotStatic, ErrDynamicPathUnresolved, ErrRouteParams
+reference: NewBuilder, BuildOptions, BuildReport, PrintBuildReport, StaticParamsFunc, SkipRecord, ErrNotStatic, ErrDynamicPathUnresolved, ErrRouteParams, ErrBuildFindings
 ---
 
 # Static export
@@ -62,7 +62,8 @@ func staticBuild(app *collage.App, outDir string, clean bool) error {
 durdurmaz ve bütün hatalar `report.Errors` içinde yer alır. Dönen hata, bunların
 hepsinin birleşimidir. `main` bu durumda sıfırdan farklı bir kodla çıkar, böylece
 bir page yazılamadığında CI job'ı da başarısız olur. Atlanan page'ler ve uyarılar
-build'i başarısız kılmaz.
+build'i başarısız kılmaz. Error seviyesindeki bir [finding](#reading-the-report)
+ise kılar; bu durumda da her page yine yazılır.
 
 `main.go`'yu yeniden yazarsanız `-collage-build`, `-out` ve `-clean` flag'lerini
 koruyun. Aksi hâlde `collage export` işe yarar hiçbir şey yapmaz.
@@ -173,6 +174,10 @@ kodla çıkar.
   page render edilmez. Document'lar, `404.html` page'leri ve mount edilen asset'ler
   yine yazılır, ama build yine de başarısız olur.
 
+**Error seviyesindeki bir finding** de build'i `collage.ErrBuildFindings` ile
+başarısız kılar (v0.21.0'dan beri), ama farklı bir şekilde: page'ler her durumda
+yazılır ve finding'ler raporda yer alır. Bkz. [Raporu okumak](#reading-the-report).
+
 ## Dinamik path'ler: `WithStaticParams`
 
 `/blog/{slug}` adresindeki bir page, birçok URL'si olan tek bir page'dir. Page bu
@@ -262,8 +267,9 @@ Export, sunucuyla aynı durumda render eder. Önce her plugin'in `Init`'i çalı
 böylece plugin'ler aynı config'i okur. `OnBeforeRender`, `OnAfterRender` ve
 `OnDocumentRendered` her page ve document için tetiklenir. Yani bir minifier ya da
 structured data plugin'i sunulan bir page'e ne yapıyorsa dosyaya da onu yapar.
-`OnPageResolved` ise tetiklenmez, çünkü export bir request değildir. Bkz.
-[Plugin kullanmak](/docs/plugins).
+`OnPageResolved` ise tetiklenmez, çünkü export bir request değildir. v0.21.0'dan
+beri `OnBuildFinished`, her dosya yazıldıktan sonra bir kez çalışır. Build'i bir
+bütün olarak denetleyen plugin'ler içindir. Bkz. [Plugin kullanmak](/docs/plugins).
 
 ## Raporu okumak
 
@@ -296,16 +302,38 @@ duruma göre renklendirilir. v0.10.0'dan beri atlananlar route olarak sayılır,
 page'ler ve document'lar birlikte sayılır. Bu yüzden çıktıda `3 pages skipped` değil,
 `3 skipped` yazar.
 
-Raporu kodda kullanmak için `report.Skipped`, `report.Warnings` ve `report.Errors`
-alanlarını kendiniz okuyun. Her atlama bir `collage.SkipRecord`'dur. Bu kayıtta
+Raporu kodda kullanmak için `report.Skipped`, `report.Warnings`, `report.Findings`
+ve `report.Errors` alanlarını kendiniz okuyun. Her atlama bir `collage.SkipRecord`'dur. Bu kayıtta
 route'un adı (`Page`), `Locale`'i ve okuyan kişi için bir `Reason` bulunur.
 v0.10.0'dan beri `errors.Is` ile eşleştirebileceğiniz bir `Err` de bulunur. Bkz.
 [Hatalar](/docs/errors#static-builds).
 [Test yazmak](/docs/testing#testing-the-export) sayfası bunu bir teste dönüştürür.
 
-Renkler ve `✓ ▲ ✗` işaretleri yalnızca terminalde görünür. `NO_COLOR` tanımlıysa
+Renkler ve `✓ ▲ ◆ ✗` işaretleri yalnızca terminalde görünür. `NO_COLOR` tanımlıysa
 terminalde de görünmez. CI log'larında bu işaretler düz ASCII olarak yazılır
-(`+ ! x`).
+(`+ ! * x`).
+
+### Finding'ler
+
+Çıktıyı denetleyen bir plugin, örneğin
+[elagoht/htmlcheck](/docs/plugins#elagohthtmlcheck), bulduklarını finding olarak
+raporlar. v0.21.0'dan beri rapor bunları ilgili oldukları page'in altında, önce
+error'lar gelecek şekilde listeler:
+
+```sh
+◆ 2 findings
+  /about
+    error img-alt  <img src="/team.jpg"> has no alt  elagoht/htmlcheck
+    warning heading-order  <h4> follows <h2>  elagoht/htmlcheck
+```
+
+Bir warning hiçbir şeyi durdurmaz. Error seviyesindeki bir finding build'i
+`collage.ErrBuildFindings` ile başarısız kılar. Böylece `main` sıfırdan farklı bir
+kodla çıkar ve CI başarısız olur, ama her page yine yazılır. Finding'ler
+`report.Findings` içindedir; her biri bir `collage.Finding`'dir. Bir plugin'in
+finding'i nasıl raporladığı
+[Plugin yazmak](/docs/writing-plugins#checking-the-output-findings) sayfasında
+anlatılır.
 
 ## Göz atmak: `collage serve`
 
