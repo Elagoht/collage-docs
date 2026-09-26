@@ -257,6 +257,13 @@ itibaren). Script hiçbir zaman production'daki bir page'e eklenmez. Bir form
 gönderiminin response'una da eklenmez, çünkü sayfayı yenilemek formu yeniden
 gönderirdi.
 
+Hiç kapanmayan bir stream, yüklenmesi hiç bitmeyen bir page demektir. Bir ekran
+görüntüsü aracı ya da bir end-to-end test de tam olarak bunun bitmesini bekler.
+Playwright, Puppeteer ya da Selenium'un yönettiği bir tarayıcı `navigator.webdriver`'ı
+set eder ve script orada bağlanmaz (v0.18.0'dan beri). Bunu set etmeyen araçlar
+için, yani headless Chrome'un `--screenshot` ve `--dump-dom` seçenekleri için,
+URL'ye `?collage-reload=0` ekleyin. Page script olmadan serve edilir.
+
 ### Hatalar page'in üzerinde görünür
 
 Development'ta hata veren bir fragment sessizce ortadan kaybolmaz. Page, üzerinde

@@ -1,6 +1,6 @@
 ---
 description: collage'ın export ettiği bütün error değerleri, nereden geldiklerine göre gruplanmış hâlde; her birinin ne anlama geldiği ve ne yapmanız gerektiğiyle birlikte.
-reference: PanicError, ErrUnknownSlot, ErrConflictingData, ErrNoDocumentHandler, ErrRouteParams
+reference: PanicError, ErrUnknownSlot, ErrConflictingData, ErrNoDocumentHandler, ErrRouteParams, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath
 ---
 
 # Hatalar
@@ -129,7 +129,7 @@ Bu hataları `RegisterPage`, `RegisterNotFoundPage`, `RegisterErrorPage` ve
 | `ErrTemplateNotFound` | `collage: template not found` | Bir page'in fragment'i, yüklenmemiş bir template belirtir. | Path'i `Template.Root`'a göre, uzantısıyla birlikte kontrol edin. |
 | `ErrUnregisteredErrorPage` | `collage: error page not registered` | Bir page, hiç register edilmemiş bir not-found ya da error page belirtir. Bu, başlarken kontrol edilir. | Onu `RegisterNotFoundPage` ya da `RegisterErrorPage` ile register edin. Register edilmemiş bir error page, gerektiğinde boş render edilirdi. |
 | `ErrInvalidPattern` | `collage: invalid pattern` | Bir path ya da redirect kaynağı hatalıdır: başta `/` yoktur, boş bir segment vardır, placeholder ismi boştur, catch-all en sonda değildir ya da (v0.11.0'dan beri) bir segment'in içinde placeholder vardır, örneğin `/feeds/{category}.xml`. | Pattern'i düzeltin. Bir placeholder segment'in tamamını kaplar: `/feeds/{category}/rss.xml`. |
-| `ErrDuplicateRoute` | `collage: duplicate route` | Bir path ya da redirect kaynağı o locale'de zaten register edilmiştir. | — |
+| `ErrDuplicateRoute` | `collage: duplicate route` | Bir path ya da redirect kaynağı o locale'de zaten register edilmiştir. v0.18.0'dan beri bir action'ın bir page'in ya da bir document'ın path'inde `GET` veya `HEAD`'e cevap vermesi de bu hatayı verir; register sırası fark etmez. | Genellikle sebep, page'inin path'iyle aynı yazılmış bir fragment path'idir. Ona kendine ait bir path verin. |
 | `ErrAmbiguousParameterName` | `collage: ambiguous parameter name` | İki pattern aynı pozisyonda farklı parametre isimleri kullanır, örneğin `/blog/{slug}` ve `/blog/{id}/edit`. | O pozisyonda tek bir isim kullanın. |
 | `ErrRedirectShadowsPage` | `collage: redirect shadows a registered page` | Bir redirect'in kaynağı aynı zamanda bir page'in path'idir. | İkisinden birine ulaşılamazdı; birini kaldırın. |
 | `ErrUnsubstitutedPlaceholder` | `collage: redirect placeholder not captured by from pattern` | Bir redirect'in hedefi, kaynağının capture etmediği bir `{name}` kullanır. | Onu kaynakta capture edin ya da kaldırın. |
@@ -201,8 +201,9 @@ yer alır. Production page'i değişmemiştir ve sebep hakkında hiçbir şey s�
 
 ## Link'ler ve URL'ler
 
-Bu hataları `App.URL` döner. `{{pageURL}}`, `{{pageURLIn}}` ve `{{localeURL}}` ise
-başarısız olan render'larla bildirir. Bkz. [Link'ler ve locale'ler](/docs/links-and-locales).
+Bu hataları `App.URL` ve `App.FragmentURL` döner. `{{pageURL}}`, `{{pageURLIn}}`,
+`{{localeURL}}`, `{{fragmentURL}}` ve `{{fragmentURLIn}}` ise başarısız olan
+render'larla bildirir. Bkz. [Link'ler ve locale'ler](/docs/links-and-locales).
 
 | Hata | Mesaj | Anlamı |
 | --- | --- | --- |
@@ -210,6 +211,8 @@ başarısız olan render'larla bildirir. Bkz. [Link'ler ve locale'ler](/docs/lin
 | `ErrNoPathInLocale` | `collage: no path in that locale` | Route'un istenen locale'de bir path'i yoktur. `{{pageURL}}` bu durumda varsayılan locale'e fallback yapar, `{{localeURL}}` ise boş string render eder. |
 | `ErrRouteParams` | `collage: route parameters do not match the pattern` | Bir parametre eksik ya da boştur, hiçbir placeholder'a karşılık gelmez, `.` ya da `..`'dır, ya da template tek sayıda argüman vermiştir. |
 | `ErrLocaleUnreachable` | `collage: no URL reaches that locale` | Locale `Locale.Supported`'da yoktur ya da varsayılan locale değildir ve path locale'leri kapalıdır. |
+| `ErrUnknownFragmentPath` | `collage: the page opened no fragment path by that name` | Page, `WithFragmentPath` ile o adda bir fragment açmamıştır (v0.18.0'dan beri). |
+| `ErrAmbiguousFragmentPath` | `collage: the fragment is opened at more than one path` | Page fragment'i o locale'de iki path'te açmıştır, bu yüzden link birini seçemez (v0.18.0'dan beri). |
 
 ## Action'lar
 

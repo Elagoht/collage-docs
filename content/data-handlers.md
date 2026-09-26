@@ -317,6 +317,10 @@ value and every cached page built from it. Where nothing is kept across renders 
 caching off, development, a preview — it behaves exactly like `Once`. The details
 are in [Caching](/docs/caching#caching-data-across-pages).
 
+It is also the one to reach for when fragments are refreshed separately. Each
+[fragment path](/docs/forms-and-actions#a-fragment-at-its-own-url) is a render of
+its own, so `Once` shares nothing between two of them; `Cached` does.
+
 ## Handlers that render nothing
 
 Some fragments exist to declare things for the page rather than to render

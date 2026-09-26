@@ -1,6 +1,6 @@
 ---
 description: Every built-in template function — slot, hoist, asset, stylesheet, csrfToken, the URL functions and the string helpers — with its signature, an example and its edge cases.
-reference: TemplateConfig, DefaultContentSlot, ErrUnknownSlot, FragmentBuilder.WithTitle
+reference: TemplateConfig, DefaultContentSlot, ErrUnknownSlot, FragmentBuilder.WithTitle, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath
 ---
 
 # Template functions
@@ -20,6 +20,8 @@ Templates are Go's `html/template`, so everything it provides is there: `if`,
 | [`pageURL`](#pageurl) | `pageURL name [param value]...` | a route's URL in this render's locale |
 | [`pageURLIn`](#pageurlin) | `pageURLIn locale name [param value]...` | a route's URL in exactly that locale |
 | [`localeURL`](#localeurl) | `localeURL locale` | this page's URL in another locale |
+| [`fragmentURL`](#fragmenturl) | `fragmentURL page fragment [param value]...` | a fragment path's URL in this render's locale |
+| [`fragmentURLIn`](#fragmenturlin) | `fragmentURLIn locale page fragment [param value]...` | a fragment path's URL in exactly that locale |
 | [`safeHTML`](#safehtml) | `safeHTML string` | the string, trusted as HTML |
 | [`safeURL`](#safeurl) | `safeURL string` | the string, trusted as a URL |
 | [`dict`](#dict) | `dict key value [key value]...` | a map built from pairs |
@@ -39,7 +41,7 @@ See [Fragments and slots](/docs/fragments-and-slots).
 
 ## Bound per render
 
-The first eight functions need the render they are part of — the fragment, the
+The first ten functions need the render they are part of — the fragment, the
 request, the locale, the application's routes and mounts. They are registered when
 templates are parsed as placeholders, so that a template may call them, and the
 render engine binds the real implementation on every render. A placeholder that
@@ -265,6 +267,37 @@ a language switcher is made of.
 - For the `<link rel="alternate" hreflang>` search engines read, declare them from
   Go with `rc.HoistAlternate` — see
   [Head and SEO](/docs/head-and-seo#canonical-and-alternate-links).
+
+### fragmentURL
+
+```html
+<div data-live="{{fragmentURL "home" "cpu-usage"}}">{{slot "cpu-usage"}}</div>
+<div data-live="{{fragmentURL "post" "comments" "slug" .Slug}}">…</div>
+```
+
+The path a page opened for one of its fragments with
+[`WithFragmentPath`](/docs/forms-and-actions#a-fragment-at-its-own-url), built from
+the page's name and the fragment's (since v0.18.0). The path is written once, in
+Go, and every link to it follows it.
+
+- **In this render's locale**, falling back to the default one, as `pageURL` does.
+- **As strict as `pageURL`.** An unknown page is `ErrUnknownRoute`, a fragment the
+  page did not open is `ErrUnknownFragmentPath`, a fragment opened at two paths in
+  one locale is `ErrAmbiguousFragmentPath`, and parameters that do not fill the
+  pattern are `ErrRouteParams`. Each fails the render.
+
+From Go it is `app.FragmentURL(page, fragment, locale, params)`. See
+[Links and locales](/docs/links-and-locales#a-fragments-url).
+
+### fragmentURLIn
+
+```html
+<div data-live="{{fragmentURLIn "tr" "home" "cpu-usage"}}">…</div>
+```
+
+`fragmentURL` in exactly the locale given, with no fallback: a fragment with no
+path in that locale is `ErrNoPathInLocale`, and a locale no URL can reach is
+`ErrLocaleUnreachable`.
 
 ### safeHTML
 

@@ -286,8 +286,10 @@ içinde `jsonld.New()`), bir site adıyla yapılandırılmışsa site genelinde 
   sunulur.
 - **Kendi URL'sinde sunulan bir fragment'in head'i yoktur.**
   [`WithFragmentPath`](/docs/forms-and-actions#a-fragment-at-its-own-url) ile sunulan
-  bir fragment'in layout'u yoktur. Bu yüzden hoist ettiği şeylerin yerleşeceği bir
-  yer de yoktur.
+  bir fragment'in layout'u yoktur. v0.18.0'dan beri marker koymadığı bir alana
+  hoist ettiği şeyler markup'ından önce, her item için etkisiz bir
+  `<template data-collage-hoist>` olarak gelir. Bir script bunları page'e ekleyebilir.
+  Bkz. [Hoist ettikleri](/docs/forms-and-actions#what-it-hoists).
 - **Hoist işlemini `rc.Page` üzerinden değil, data handler'lardan yapın.** `rc.Page`
   register edilmiş page'dir ve her request tarafından paylaşılır. Ona yazmak data
   race'e yol açar. Request'e göre değişen her şey `rc` üzerinden tanımlanır.

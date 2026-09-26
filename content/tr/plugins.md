@@ -1,5 +1,5 @@
 ---
-description: Bir plugin'in neler yapabildiği, bir plugin'in nasıl register edilip yapılandırıldığı ve yayımlanmış üç plugin.
+description: Bir plugin'in neler yapabildiği, bir plugin'in nasıl register edilip yapılandırıldığı ve yayımlanmış beş plugin.
 reference: Plugin, LoadPluginConfig, ErrUnknownPluginConfig, ErrAppStarted
 ---
 
@@ -31,6 +31,10 @@ verilen bir yetenekten geçer. Bu ikisiyle bir plugin şunları yapabilir:
 - Kendine ait **page'ler, document'lar ve mount'lar register edebilir**. Bir görsel
   optimize edici plugin, link verdiği yeniden boyutlandırılmış görselleri kendi
   mount'undan sunar.
+- Kendine ait **bir handler sunabilir.** Bu bir event stream ya da bir WebSocket
+  olabilir. Plugin, bir page'in
+  [fragment path'lerini](/docs/forms-and-actions#a-fragment-at-its-own-url) render
+  edip bu bağlantı üzerinden gönderebilir (v0.18.0'dan beri).
 - **Bir cache yazımını ayarlayabilir.** Yazılan kaydın ömrünü ya da tag'lerini
   değiştirebilir veya yazımı tamamen atlayabilir. Invalidation'lardan da haberdar
   olur.
@@ -162,7 +166,7 @@ beklediği yerde bir string varsa, plugin bu bölümü okuduğunda hata oluşur.
 
 ## Yayımlanmış plugin'ler
 
-Framework ile birlikte üç plugin yayımlanmıştır. Her biri ayrı bir modüldür ve
+Framework ile birlikte beş plugin yayımlanmıştır. Her biri ayrı bir modüldür ve
 her birinin tam referans niteliğinde kendi README'si vardır. Aşağıdaki bilgiler
 bir plugin'i kurmanız için yeterlidir.
 
@@ -292,6 +296,94 @@ Plugins: []collage.Plugin{optiimage.New()},
 
 `optiimage.NewWith(optiimage.Config{...})` Go tarafında bir başlangıç config'i
 belirler. JSON bölümü daha sonra bu config'in üzerine key key decode edilir.
+
+### elagoht/live
+
+[github.com/Elagoht/collage-live](https://github.com/Elagoht/collage-live), bir
+page'in parçalarını tarayıcıda güncel tutar. Bir page'in
+[`WithFragmentPath`](/docs/forms-and-actions#a-fragment-at-its-own-url) ile açtığı
+fragment'leri yenileyen küçük bir client script'i sunar. Yenileme belli aralıklarla
+ya da sunucu bir event stream üzerinden bir değişiklik gönderdiğinde yapılır.
+
+```go
+import live "github.com/Elagoht/collage-live"
+
+Plugins: []collage.Plugin{live.New()},
+```
+
+```json
+{
+  "elagoht/live": { "prefix": "/_live/", "noStream": false, "keepAlive": "25s", "maxFragments": 32 }
+}
+```
+
+```html
+<head>
+  {{liveClient}}
+</head>
+
+<section data-collage-fragment="{{fragmentURL "home" "cpu"}}" data-collage-interval="2s">
+  {{slot "cpu"}}
+</section>
+
+<section data-collage-fragment="{{fragmentURL "home" "disks"}}" data-collage-push>
+  {{slot "disks"}}
+</section>
+```
+
+- `Config.Plugins` içinde olmalıdır, çünkü layout'un client'ı eklemek için çağırdığı
+  `{{liveClient}}`'ı ekler. collage v0.18.0 ya da sonrasını gerektirir.
+- Container'ın sahibi page'dir, içindekinin sahibi fragment'tir.
+  `data-collage-interval` belli aralıklarla fetch eder, `data-collage-push`
+  fragment'i stream'den alır, `data-collage-swap="morph"` DOM'u yerinde patch eder.
+  Bir form üzerindeki `data-collage-target` ise form'u `fetch` ile gönderir ve
+  cevabı bir element'in içine koyar.
+- Client elindeki `ETag`'i gönderir ve `304` gelirse DOM'a dokunmaz. Fragment'in
+  hoist ettiklerini key'lerine göre head'e bir kez ekler. Gizli bir sekmede durur.
+  Bir request başarısız olduğunda element'i `data-collage-stale` ile işaretler ve
+  beklemeyi artırır.
+- **Gönderme tag'lere dayanır.** Uygulama bir tag'i invalidate ettiğinde plugin, o
+  tag'e bağlı her açık fragment'i yeniden render eder ve stream'den gönderir.
+  API'nin tamamı invalidate etmektir. Değişmek yerine örneklenen veri, bir timer ile
+  invalidate edilerek gönderilir. Aynı ölçümü okuyan birkaç fragment bu ölçümü
+  `collage.Cached` üzerinden çekmelidir.
+- Framework'ün `Shared` olarak bildirdiği bir render URL başına bir kez yapılır ve o
+  URL'nin her okuyucusuna gönderilir. Diğer render'lar her bağlantı için o
+  bağlantının kendi request'iyle yapılır.
+- Stream `<prefix>stream/` adresinde sunulur. Kendi compression middleware'iniz
+  `text/event-stream`'e dokunmamalıdır. Aksi hâlde stream ancak bittiğinde ulaşır.
+  `noStream` açıkken client yalnızca polling yapar.
+
+### elagoht/websocket
+
+[github.com/Elagoht/collage-websocket](https://github.com/Elagoht/collage-websocket),
+collage-live'ın gönderdiği fragment'leri bir event stream yerine bir WebSocket
+üzerinden taşır.
+
+```go
+import (
+	live "github.com/Elagoht/collage-live"
+	"github.com/Elagoht/collage-websocket"
+)
+
+lv := live.New()
+Plugins: []collage.Plugin{lv, websocket.New(lv)},
+```
+
+- collage-live'ı da bu plugin'den önce register edin. collage v0.18.0 ve
+  collage-live v0.1.0 ya da sonrasını gerektirir.
+- Başka hiçbir şey değişmez. Layout yine `{{liveClient}}`'ı içerir, bu artık
+  client'a buraya bağlanmasını söyler. Element'ler de yine `data-collage-push`
+  taşır. collage-live kendi event stream'ini sunmayı bırakır.
+- **Genellikle buna ihtiyacınız olmaz.** Fragment göndermek tek yönlüdür ve event
+  stream tam da bunun içindir: bağımlılık gerektirmez ve kendiliğinden yeniden
+  bağlanır. Bu plugin, stream'lerin bozulduğu deploy'lar içindir. Örneğin
+  stream'leri buffer'layan bir proxy ya da onları sınırlayan bir platform. Live
+  ailesinin bağımlılığı olan tek parçasıdır: `github.com/coder/websocket`.
+- Bir bağlantı okuyucunun cookie'lerini taşır. Bu yüzden varsayılan olarak yalnızca
+  sitenin kendi page'leri bağlantı açabilir.
+  `websocket.NewWith(lv, websocket.Options{...})`; `Path`'i (`/_live/ws/`), `Ping`
+  aralığını ve ayrıca bağlanabilecek `OriginPatterns`'ı belirler.
 
 ## Head'e yazan plugin'ler
 

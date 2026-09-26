@@ -340,6 +340,11 @@ kapalıyken, development'ta, bir preview'da) `collage.Cached` tam olarak `Once`
 gibi davranır. Ayrıntılar [Caching](/docs/caching#caching-data-across-pages)
 sayfasındadır.
 
+Fragment'ler ayrı ayrı yenileniyorsa başvurulacak olan da `Cached`'dir. Her
+[fragment path'i](/docs/forms-and-actions#a-fragment-at-its-own-url) kendi başına
+bir render'dır. Bu yüzden `Once` iki fragment path'i arasında hiçbir şey paylaşmaz,
+`Cached` ise paylaşır.
+
 ## Hiçbir şey render etmeyen handler'lar
 
 Bazı fragment'ler markup render etmek için değil, page için bir şeyler tanımlamak

@@ -1,6 +1,6 @@
 ---
 description: Handling form posts, fetch calls and webhooks with actions, and protecting them from request forgery.
-reference: NewAction, ActionBuilder, ActionResult, SeeOther, JSONOf, RenderPage, RenderFragment, PageBuilder.WithAction
+reference: NewAction, ActionBuilder, ActionResult, SeeOther, JSONOf, RenderPage, RenderFragment, PageBuilder.WithAction, PageBuilder.WithFragmentPath, ErrDuplicateRoute, ErrUnknownFragmentPath
 ---
 
 # Forms and actions
@@ -79,7 +79,11 @@ err := app.RegisterAction(collage.NewAction("like").
 ```
 
 An action may share a path with a page — that is exactly what `WithAction` does —
-but two actions may not answer the same method at the same path. An action with no
+but not for `GET` or `HEAD`, which the page answers. Since v0.18.0 an action
+answering either on the path of a page or a document is refused with
+`collage.ErrDuplicateRoute`, in whichever order the two are registered; before, it
+was matched first and hid the page without a word. Nor may two actions answer the
+same method at the same path. An action with no
 name, no path, no method or no handler is refused by `RegisterAction`, and so is a
 second action under a name already taken — each with its own error, listed in
 [Errors](/docs/errors#actions).
@@ -383,8 +387,8 @@ collage.NewPage("search").
 
 `GET /search/results?q=grid` renders the `results` fragment and nothing else. Its
 data handler runs, its own slots are filled and its failure policy applies — it
-is the same render, started lower down. There is no layout around it, so what it
-hoists has nowhere to go, and its response is not cached.
+is the same render, started lower down. There is no layout around it, and its
+response is never cached by the framework.
 
 ```js
 const input = document.querySelector('input[name="q"]');
@@ -397,6 +401,22 @@ input.addEventListener("input", async () => {
 Nothing is reachable unless it is declared. A framework that exposed every
 fragment automatically would put every internal part of every page on the public
 web.
+
+A fragment path is claimed like any other route. One spelled like a page's path, a
+document's, another page's fragment path, or a redirect's source is refused at
+registration, in whichever order the two arrive: it would otherwise hide the page
+without a word.
+
+**Each fragment path is a render of its own.** Inside a page, fragments that need
+the same slow value share it with `collage.Once`: one fetch per render. A page
+refreshed part by part is several renders, and `Once` shares nothing between them.
+For fragments that read the same data, use `collage.Cached`, which keeps the value
+across renders for as long as its TTL — or until one of its tags is invalidated:
+
+```go
+stats, err := collage.Cached(rc, "system:stats", time.Second, []string{"system"},
+	func(ctx context.Context) (monitor.Stats, error) { return monitor.Collect(ctx) })
+```
 
 Combined with an action that answers `RenderFragment`, a form can post and be
 answered with only the part that changed:
@@ -414,3 +434,51 @@ WithAction("POST", func(ctx context.Context, rc *collage.RenderContext) (*collag
 
 The fragment's data handler runs with the action's `RenderContext`, so it sees the
 comment just added — and anything the handler put there with `rc.Set`.
+
+### Linking to one
+
+Write the path once, in `WithFragmentPath`, and build every link to it by name, as
+`pageURL` does for pages (since v0.18.0):
+
+```html
+<div data-live="{{fragmentURL "search" "results"}}">{{slot "results"}}</div>
+<div data-live="{{fragmentURL "post" "comments" "slug" .Slug}}">…</div>
+```
+
+`fragmentURL` uses the render's locale and falls back to the default one;
+`fragmentURLIn "tr" "search" "results"` names the locale, and
+`app.FragmentURL(page, fragment, locale, params)` is the same from Go. A fragment
+the page did not open is `collage.ErrUnknownFragmentPath`; the rest is in
+[Links and locales](/docs/links-and-locales#a-fragments-url).
+
+### What it hoists
+
+A fragment answered on its own has no layout around it. A `{{hoist}}` marker the
+fragment writes itself is filled as in a page; what it hoisted into any other area
+— a stylesheet asked for with `{{stylesheet}}`, a title — comes ahead of the
+markup (since v0.18.0), one inert `<template>` per item:
+
+```html
+<template data-collage-hoist="head" data-collage-key="stylesheet:/static/chart.css"><link rel="stylesheet" href="/static/chart.css"></template>
+<section>…the fragment…</section>
+```
+
+The key is the one the page's own head deduplicated by, so a script can add to
+`document.head` what it does not already have. A client that ignores the channel
+inserts template elements, which render nothing and run nothing.
+
+### Revalidation
+
+Since v0.18.0 the answer to a GET carries an `ETag`, the hash of the body as sent,
+and `Cache-Control: private, no-cache`. A request with a matching `If-None-Match` is
+answered `304` with no body. The render still runs; what is saved is the body on
+the wire and the client's work, which for a panel refreshed every few seconds is
+most of it. A handler that sets `Cache-Control` itself keeps its own.
+
+### Refreshing it from the browser
+
+The framework ships no client script. [collage-live](/docs/plugins#elagohtlive) is
+a plugin that does: it refreshes elements marked with `data-collage-fragment` on an
+interval or when the server pushes a change over an event stream, and applies the
+hoist channel and the ETag above. The protocol it speaks is this section, so htmx
+or a script of your own works against the same server.

@@ -1,6 +1,6 @@
 ---
 description: Bir siteyi birkaç dilde sunmak ve page'lere adlarıyla link vermek; böylece link'ler page'i her locale'de takip eder.
-reference: LocaleConfig, PageBuilder.WithPath, Vary, ErrNoPathInLocale, ErrUnknownRoute
+reference: LocaleConfig, PageBuilder.WithPath, PageBuilder.WithFragmentPath, Vary, ErrNoPathInLocale, ErrUnknownRoute, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath
 ---
 
 # Link'ler ve locale'ler
@@ -212,6 +212,31 @@ Bilinmeyen bir ad `collage.ErrUnknownRoute` döner. Route'un path'i olmayan bir 
 `DisablePathLocale` açıkken varsayılan dışındaki herhangi bir locale bu gruptadır.
 Sonuç, prefix dahil bir path'tir. Mutlak bir URL gerektiğinde başına sitenizin
 origin'ini ekleyin.
+
+### Bir fragment'in URL'si
+
+Bir page'in [`WithFragmentPath`](/docs/forms-and-actions#a-fragment-at-its-own-url)
+ile kendi URL'sinde açtığı bir fragment'e de aynı şekilde, page'in ve fragment'in
+adıyla link verilir (v0.18.0'dan beri):
+
+```html
+<div data-live="{{fragmentURL "home" "cpu-usage"}}">{{slot "cpu-usage"}}</div>
+<div data-live="{{fragmentURL "post" "comments" "slug" .Slug}}">…</div>
+```
+
+`fragmentURL` render'ın locale'ini kullanır ve varsayılan locale'e fallback yapar.
+`fragmentURLIn "tr" "home" "cpu-usage"` ise locale'i kendisi belirtir. Go
+tarafındaki karşılığı `app.FragmentURL`'dir:
+
+```go
+func (a *App) FragmentURL(page, fragment, locale string, params map[string]string) (string, error)
+```
+
+`app.URL` kadar katıdır. Bilinmeyen bir page `collage.ErrUnknownRoute` döner. Page'in
+açmadığı bir fragment `collage.ErrUnknownFragmentPath` döner. Bir locale'de iki
+path'te açılmış bir fragment `collage.ErrAmbiguousFragmentPath` döner. Eksik
+parametreler ise `collage.ErrRouteParams` döner. Bir template'te bunların her biri
+render'ı başarısız kılar.
 
 ## Dili kendiniz belirlemek
 

@@ -1,6 +1,6 @@
 ---
 description: The plugin contract, what Host and ConfigHost expose, every hook and what it may change, and a complete plugin with its tests.
-reference: Plugin, Host, ConfigHost, Configurer, Command, BeforeRenderHook, AfterRenderHook, CacheInvalidateHook
+reference: Plugin, Host, ConfigHost, Configurer, Command, BeforeRenderHook, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser
 ---
 
 # Writing a plugin
@@ -78,7 +78,8 @@ already parsed the templates, so it refuses such a plugin with
 | `DevMode`, `Logger`, `Config` | yes | yes |
 | `AddTemplateFunc`, `WrapMount` | yes | — |
 | `Pages`, `Page`, `InvalidateTags` | — | yes |
-| `RegisterPage`, `RegisterDocument`, `Mount` | — | yes |
+| `RegisterPage`, `RegisterDocument`, `Mount`, `Handle` | — | yes |
+| `RenderFragment` | — | yes |
 | `RegisterCommand` | — | yes |
 
 `ConfigHost` is narrower on purpose. During `Configure` the application has
@@ -108,11 +109,15 @@ cache to reach.
 | `RegisterPage(page) error` | Registers a page the plugin contributes. |
 | `RegisterDocument(doc) error` | Registers a document the plugin contributes. |
 | `Mount(prefix, fsys, opts...) error` | Serves a filesystem under a URL prefix. |
+| `Handle(prefix, handler) error` | Serves an `http.Handler` under a URL prefix, as `App.Handle` does — an event stream, a WebSocket (since v0.18.0). |
+| `RenderFragment(r, req) (*collage.FragmentRender, error)` | Renders a fragment a page opened with `WithFragmentPath`, in parts — see [Pushing fragments](#pushing-fragments) (since v0.18.0). |
 | `RegisterCommand(cmd) error` | Contributes a command — see [Commands](#commands). |
 
 What `Init` receives is not the `*App`. It is a narrow value that forwards these
 methods and nothing else, so a plugin cannot assert its way to `ListenAndServe`,
-`Shutdown`, the router, the cache or the template set.
+`Shutdown`, the router, the cache or the template set. `Handle` and
+`RenderFragment` were added in v0.18.0, so a test double implementing `Host` needs
+them too.
 
 **`Host` limits what a plugin can reach, not what it can change.** `Pages` and
 `Page` return copies of the page struct and of its `Paths`, `Redirects`, `SEO` and
@@ -126,6 +131,53 @@ say so. Treat pages as read-only. Plugins are trusted code, not a sandbox.
 Pages, documents and mounts a plugin registers are held to the same rules as the
 application's own: a name or a path that is already taken is a startup error, not
 a race decided by registration order.
+
+### Pushing fragments
+
+`RenderFragment` is for a plugin that sends fragments over a connection it owns — an
+event stream or a WebSocket — instead of waiting for the browser to ask for them. It
+renders exactly what a request to the fragment's path renders, and returns the parts
+instead of a response:
+
+| Field | |
+| --- | --- |
+| `HTML` | The markup, with the reader's forgery token in any form it holds |
+| `Head` | What the fragment hoisted into an area it placed no marker for, as `HoistItem`s with their area and key |
+| `DependencyTags` | The tags the render depended on — match them against `CacheInvalidateEvent.Tags` to know what to push |
+| `Shared` | The render is the same for every reader: the page is cached for everyone, or no handler in the subtree reads the request, and there is no form token |
+| `Cookie` | The forgery cookie the forms in `HTML` need, when the request carried none |
+
+A `FragmentRequest` names the fragment either by `Page`, `Fragment`, `Locale` and
+`Params`, or by `Path` — the URL a page linked with `{{fragmentURL}}`, query
+included — which is resolved as a request to it would be. A client subscribing to
+the elements it shows only knows their URLs, so `Path` is usually what a stream
+has.
+
+```go
+out, err := host.RenderFragment(r, collage.FragmentRequest{Path: "/live/cpu"})
+```
+
+Only fragments the page opened are rendered: a stream reaches exactly what HTTP
+reaches. A render that is not `Shared` may hold one reader's data, so it must be
+rendered for each connection with that connection's request, never once for all.
+`App.RenderFragment` is the same method, for an application's own code.
+
+### Streams and shutdown
+
+A plugin's `Shutdown` runs after the server has stopped, and the server stops by
+waiting for every open request to end — which an event stream or a WebSocket never
+does by itself. A plugin serving one implements `StreamCloser` (since v0.18.0):
+
+```go
+var _ collage.StreamCloser = (*Plugin)(nil)
+
+func (p *Plugin) CloseStreams() { p.hub.close() }
+```
+
+`CloseStreams` runs when shutdown begins, before the server waits, and must end the
+streams without waiting for them. A handler served through `Handle` can push its
+write deadline forward with `http.NewResponseController(w).SetWriteDeadline`, and
+take the connection over with `Hijack`, as it could on a bare `net/http` server.
 
 ## The hooks
 
@@ -394,7 +446,8 @@ Wrappers run in the order they were registered, and a `nil` wrapper is ignored.
 
 From `Init`, a plugin can add routes of its own through `Host.RegisterPage`,
 `Host.RegisterDocument` and `Host.Mount`, built with the same builders an
-application uses.
+application uses. `Host.Handle` serves a plain `http.Handler` under a prefix, for
+what is not a page — an event stream, a WebSocket.
 
 A plugin that *produces files* — resized images, generated icons — should serve
 them from a mount rather than a route. A static build copies every mount into its
@@ -605,7 +658,9 @@ app, err := collage.New(&collage.Config{
    application that never started, one whose start failed, and the plugins the
    failed start already rolled back all get the call. So `Shutdown` must be safe
    to call without `Init` and more than once. Every plugin gets its turn even if one
-   fails, and the errors are joined.
+   fails, and the errors are joined. A plugin implementing `StreamCloser` has its
+   `CloseStreams` called earlier, when shutdown begins — see
+   [Streams and shutdown](#streams-and-shutdown).
 
    With `ListenAndServe`, plugins are shut down after the server has drained its
    requests, or once `Server.ShutdownTimeout` has passed if it has not — past the

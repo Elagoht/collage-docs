@@ -1,5 +1,5 @@
 ---
-description: What a plugin can do, how to register and configure one, and the three published plugins.
+description: What a plugin can do, how to register and configure one, and the five published plugins.
 reference: Plugin, LoadPluginConfig, ErrUnknownPluginConfig, ErrAppStarted
 ---
 
@@ -27,6 +27,9 @@ handed at startup. Between them, a plugin can:
   instance, already minified.
 - **register pages, documents and mounts** of its own. An image optimiser serves
   the resized images it links to from its own mount.
+- **serve a handler** of its own — an event stream, a WebSocket — and render a
+  page's [fragment paths](/docs/forms-and-actions#a-fragment-at-its-own-url) to push
+  over it (since v0.18.0).
 - **adjust a cache write** — change its lifetime or tags, or skip it — and hear
   about invalidations.
 - **observe failures**, with the stage of the pipeline they happened in.
@@ -149,7 +152,7 @@ a boolean — is also an error, raised when the plugin reads it.
 
 ## The published plugins
 
-Three plugins are published alongside the framework. Each is its own module, with
+Five plugins are published alongside the framework. Each is its own module, with
 its own README that is the full reference; what follows is enough to set one up.
 
 ### elagoht/minimizer
@@ -272,6 +275,91 @@ Plugins: []collage.Plugin{optiimage.New()},
 
 `optiimage.NewWith(optiimage.Config{...})` sets a starting configuration in Go,
 which the JSON section is then decoded over key by key.
+
+### elagoht/live
+
+[github.com/Elagoht/collage-live](https://github.com/Elagoht/collage-live) keeps
+parts of a page current in the browser. It serves a small client script that
+refreshes the fragments a page opened with
+[`WithFragmentPath`](/docs/forms-and-actions#a-fragment-at-its-own-url) — on an
+interval, or when the server pushes a change over an event stream.
+
+```go
+import live "github.com/Elagoht/collage-live"
+
+Plugins: []collage.Plugin{live.New()},
+```
+
+```json
+{
+  "elagoht/live": { "prefix": "/_live/", "noStream": false, "keepAlive": "25s", "maxFragments": 32 }
+}
+```
+
+```html
+<head>
+  {{liveClient}}
+</head>
+
+<section data-collage-fragment="{{fragmentURL "home" "cpu"}}" data-collage-interval="2s">
+  {{slot "cpu"}}
+</section>
+
+<section data-collage-fragment="{{fragmentURL "home" "disks"}}" data-collage-push>
+  {{slot "disks"}}
+</section>
+```
+
+- It must go in `Config.Plugins`: it adds `{{liveClient}}`, which the layout calls
+  to include the client. It needs collage v0.18.0 or later.
+- The page owns the container and the fragment owns what is inside it.
+  `data-collage-interval` fetches on an interval, `data-collage-push` takes the
+  fragment from the stream, `data-collage-swap="morph"` patches the DOM in place,
+  and `data-collage-target` on a form submits it with `fetch` and puts the answer
+  into an element.
+- The client sends the `ETag` it holds and leaves the DOM alone on a `304`, adds
+  what the fragment hoisted to the head once by its key, stops in a hidden tab, and
+  backs off when a request fails, marking the element `data-collage-stale`.
+- **Pushing is tag-based.** When the application invalidates a tag, the plugin
+  re-renders every open fragment that depended on it and sends it down the stream;
+  invalidating is the whole API. Data that is sampled rather than changed is pushed
+  by invalidating on a timer, and several fragments reading one measurement should
+  fetch it through `collage.Cached`.
+- A render the framework reports as `Shared` is made once per URL and sent to every
+  reader of it; any other is made for each connection with its own request.
+- The stream is served at `<prefix>stream/`. A compression middleware of your own
+  should leave `text/event-stream` alone, or the stream arrives only when it ends.
+  With `noStream` the client only polls.
+
+### elagoht/websocket
+
+[github.com/Elagoht/collage-websocket](https://github.com/Elagoht/collage-websocket)
+carries collage-live's pushed fragments over a WebSocket instead of an event stream.
+
+```go
+import (
+	live "github.com/Elagoht/collage-live"
+	"github.com/Elagoht/collage-websocket"
+)
+
+lv := live.New()
+Plugins: []collage.Plugin{lv, websocket.New(lv)},
+```
+
+- Register collage-live as well, before this plugin. It needs collage v0.18.0 and
+  collage-live v0.1.0 or later.
+- Nothing else changes: the layout still includes `{{liveClient}}`, which now tells
+  the client to connect here, and elements still say `data-collage-push`.
+  collage-live stops serving its event stream.
+- **Usually you do not need it.** Pushing fragments is one-way, which is what an
+  event stream is for: it needs no dependency and reconnects by itself. This plugin
+  is for deployments where streams are what breaks — a proxy that buffers them, a
+  platform that limits them. It is the one piece of the live stack with a
+  dependency, `github.com/coder/websocket`.
+- A connection carries the reader's cookies, so by default only a page from the
+  site itself may open one; `websocket.NewWith(lv, websocket.Options{...})` sets
+  the `Path` (`/_live/ws/`), the `Ping` interval and the `OriginPatterns` that may
+  connect as well.
 
 ## Plugins that write to the head
 

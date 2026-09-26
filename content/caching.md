@@ -475,3 +475,8 @@ Use `Once` for what one page fetches twice, `Cached` for what many pages fetch,
 and the page cache for the page itself. They combine: a cached page is not
 rendered, so none of its fetches run at all. See
 [Data handlers](/docs/data-handlers) for `Once`.
+
+A page refreshed part by part through its
+[fragment paths](/docs/forms-and-actions#a-fragment-at-its-own-url) is several
+renders, one per fragment path, and `Once` shares nothing between them. Fragments
+refreshed separately that read the same data share a fetch only through `Cached`.

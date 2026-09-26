@@ -1,6 +1,6 @@
 ---
 description: Built-in template fonksiyonlarının tamamını imzaları, örnekleri ve sınır durumlarıyla anlatır. Bunlar slot, hoist, asset, stylesheet, csrfToken, URL fonksiyonları ve string yardımcılarıdır.
-reference: TemplateConfig, DefaultContentSlot, ErrUnknownSlot, FragmentBuilder.WithTitle
+reference: TemplateConfig, DefaultContentSlot, ErrUnknownSlot, FragmentBuilder.WithTitle, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath
 ---
 
 # Template fonksiyonları
@@ -21,6 +21,8 @@ bunlara bu sayfadaki fonksiyonları ekler.
 | [`pageURL`](#pageurl) | `pageURL name [param value]...` | bir route'un bu render'ın locale'indeki URL'si |
 | [`pageURLIn`](#pageurlin) | `pageURLIn locale name [param value]...` | bir route'un tam olarak o locale'deki URL'si |
 | [`localeURL`](#localeurl) | `localeURL locale` | bu page'in başka bir locale'deki URL'si |
+| [`fragmentURL`](#fragmenturl) | `fragmentURL page fragment [param value]...` | bir fragment path'inin bu render'ın locale'indeki URL'si |
+| [`fragmentURLIn`](#fragmenturlin) | `fragmentURLIn locale page fragment [param value]...` | bir fragment path'inin tam olarak o locale'deki URL'si |
 | [`safeHTML`](#safehtml) | `safeHTML string` | HTML olarak güvenilir sayılan string |
 | [`safeURL`](#safeurl) | `safeURL string` | URL olarak güvenilir sayılan string |
 | [`dict`](#dict) | `dict key value [key value]...` | çiftlerden oluşturulan bir map |
@@ -42,7 +44,7 @@ listeler. Ayrıntılar için
 
 ## Her render'da bağlananlar
 
-İlk sekiz fonksiyon, içinde çalıştıkları render'a ihtiyaç duyar: fragment'e,
+İlk on fonksiyon, içinde çalıştıkları render'a ihtiyaç duyar: fragment'e,
 request'e, locale'e, uygulamanın route'larına ve mount'larına. Template'ler parse
 edilirken bu fonksiyonlar placeholder olarak register edilir, böylece template'ler onları
 çağırabilir. Gerçek implementasyonu ise render engine her render'da bağlar. Bir
@@ -280,6 +282,40 @@ Bir dil seçici bununla yapılır.
 - Arama motorlarının okuduğu `<link rel="alternate" hreflang>` etiketlerini Go
   tarafında `rc.HoistAlternate` ile tanımlayın. Ayrıntılar için
   [Head ve SEO](/docs/head-and-seo#canonical-and-alternate-links) sayfasına bakın.
+
+### fragmentURL
+
+```html
+<div data-live="{{fragmentURL "home" "cpu-usage"}}">{{slot "cpu-usage"}}</div>
+<div data-live="{{fragmentURL "post" "comments" "slug" .Slug}}">…</div>
+```
+
+Bir page'in fragment'lerinden biri için
+[`WithFragmentPath`](/docs/forms-and-actions#a-fragment-at-its-own-url) ile açtığı
+path'i döner (v0.18.0'dan beri). Path page'in adından ve fragment'in adından
+oluşturulur. Path bir kez, Go tarafında yazılır ve ona giden her link onu takip
+eder.
+
+- **Bu render'ın locale'inde çalışır.** `pageURL` gibi varsayılan locale'e fallback
+  yapar.
+- **`pageURL` kadar katıdır.** Bilinmeyen bir page `ErrUnknownRoute`, page'in
+  açmadığı bir fragment `ErrUnknownFragmentPath`, bir locale'de iki path'te açılmış
+  bir fragment `ErrAmbiguousFragmentPath`, pattern'i doldurmayan parametreler ise
+  `ErrRouteParams` olur. Her biri render'ı başarısız kılar.
+
+Go tarafındaki karşılığı `app.FragmentURL(page, fragment, locale, params)`'tır.
+Ayrıntılar için [Link'ler ve locale'ler](/docs/links-and-locales#a-fragments-url)
+sayfasına bakın.
+
+### fragmentURLIn
+
+```html
+<div data-live="{{fragmentURLIn "tr" "home" "cpu-usage"}}">…</div>
+```
+
+Tam olarak verilen locale'de, fallback olmadan çalışan `fragmentURL`'dir. O
+locale'de path'i olmayan bir fragment `ErrNoPathInLocale`, hiçbir URL'nin
+ulaşamadığı bir locale ise `ErrLocaleUnreachable` olur.
 
 ### safeHTML
 

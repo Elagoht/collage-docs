@@ -242,6 +242,13 @@ template nor a static file, so name its directory in
 changes reload the page too. The script is never added to a production page, nor
 to the answer to a form submission, which reloading would submit again.
 
+A stream that never closes is a page that never finishes loading, which is what a
+screenshot tool or an end-to-end test waits for. A browser driven by Playwright,
+Puppeteer or Selenium sets `navigator.webdriver`, and the script does not connect
+there (since v0.18.0). For the tools that do not — headless Chrome's `--screenshot`
+and `--dump-dom` — add `?collage-reload=0` to the URL and the page is served
+without the script.
+
 ### Errors show up on the page
 
 A fragment that fails in development does not quietly vanish. The page is served

@@ -502,3 +502,8 @@ Bir page'in iki kez çektiği şey için `Once`'ı, birçok page'in çektiği ş
 `Cached`'i, page'in kendisi için de page cache'i kullanın. Üçü birlikte çalışır.
 Cache'lenmiş bir page render edilmez, bu yüzden veri çekme işlemlerinin hiçbiri
 çalışmaz. `Once` için [Data handler'lar](/docs/data-handlers) sayfasına bakın.
+
+[Fragment path'leri](/docs/forms-and-actions#a-fragment-at-its-own-url) üzerinden
+parça parça yenilenen bir page, her fragment path'i için bir tane olmak üzere birkaç
+render'dır ve `Once` bunlar arasında hiçbir şey paylaşmaz. Ayrı ayrı yenilenen ve
+aynı veriyi okuyan fragment'ler bir fetch'i yalnızca `Cached` ile paylaşır.

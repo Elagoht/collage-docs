@@ -1,6 +1,6 @@
 ---
 description: Every exported error value in collage, grouped by where it comes from, with what it means and what to do about it.
-reference: PanicError, ErrUnknownSlot, ErrConflictingData, ErrNoDocumentHandler, ErrRouteParams
+reference: PanicError, ErrUnknownSlot, ErrConflictingData, ErrNoDocumentHandler, ErrRouteParams, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath
 ---
 
 # Errors
@@ -126,7 +126,7 @@ Returned by `RegisterPage`, `RegisterNotFoundPage`, `RegisterErrorPage` and
 | `ErrTemplateNotFound` | `collage: template not found` | A page's fragment names a template that was not loaded. | Check the path relative to `Template.Root`, extension included. |
 | `ErrUnregisteredErrorPage` | `collage: error page not registered` | A page names a not-found or error page that was never registered. Checked at start. | Register it with `RegisterNotFoundPage` or `RegisterErrorPage`; an unregistered one would render empty when needed. |
 | `ErrInvalidPattern` | `collage: invalid pattern` | A path or redirect source is malformed: no leading `/`, an empty segment, an empty placeholder name, a catch-all that is not last, or — since v0.11.0 — a placeholder inside a segment, such as `/feeds/{category}.xml`. | Fix the pattern. A placeholder is a whole segment: `/feeds/{category}/rss.xml`. |
-| `ErrDuplicateRoute` | `collage: duplicate route` | A path or redirect source is already registered in that locale. | — |
+| `ErrDuplicateRoute` | `collage: duplicate route` | A path or redirect source is already registered in that locale — or, since v0.18.0, an action answers `GET` or `HEAD` on a page's or a document's path, in either registration order. | A fragment path spelled like its page's path is the usual cause; give it a path of its own. |
 | `ErrAmbiguousParameterName` | `collage: ambiguous parameter name` | Two patterns use different parameter names at one position, such as `/blog/{slug}` and `/blog/{id}/edit`. | Use one name at that position. |
 | `ErrRedirectShadowsPage` | `collage: redirect shadows a registered page` | A redirect's source is also a page's path. | One of the two would be unreachable; remove one. |
 | `ErrUnsubstitutedPlaceholder` | `collage: redirect placeholder not captured by from pattern` | A redirect's destination uses a `{name}` its source does not capture. | Capture it in the source, or remove it. |
@@ -197,8 +197,8 @@ unchanged, and says nothing about the cause.
 
 ## Links and URLs
 
-Returned by `App.URL` and failed renders from `{{pageURL}}`, `{{pageURLIn}}` and
-`{{localeURL}}`. See [Links and locales](/docs/links-and-locales).
+Returned by `App.URL` and `App.FragmentURL`, and failed renders from `{{pageURL}}`,
+`{{pageURLIn}}`, `{{localeURL}}`, `{{fragmentURL}}` and `{{fragmentURLIn}}`. See [Links and locales](/docs/links-and-locales).
 
 | Error | Message | Means |
 | --- | --- | --- |
@@ -206,6 +206,8 @@ Returned by `App.URL` and failed renders from `{{pageURL}}`, `{{pageURLIn}}` and
 | `ErrNoPathInLocale` | `collage: no path in that locale` | The route has no path in the locale asked for. `{{pageURL}}` falls back to the default locale instead, and `{{localeURL}}` renders the empty string. |
 | `ErrRouteParams` | `collage: route parameters do not match the pattern` | A parameter is missing or empty, names no placeholder, is `.` or `..`, or the template passed an odd number of arguments. |
 | `ErrLocaleUnreachable` | `collage: no URL reaches that locale` | The locale is not in `Locale.Supported`, or it is not the default and path locales are disabled. |
+| `ErrUnknownFragmentPath` | `collage: the page opened no fragment path by that name` | The page opened no fragment by that name with `WithFragmentPath` (since v0.18.0). |
+| `ErrAmbiguousFragmentPath` | `collage: the fragment is opened at more than one path` | The page opened the fragment at two paths in that locale, so the link cannot pick one (since v0.18.0). |
 
 ## Actions
 

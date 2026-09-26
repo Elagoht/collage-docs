@@ -1,6 +1,6 @@
 ---
 description: Serving a site in several languages, and linking between pages by name so links follow them in every locale.
-reference: LocaleConfig, PageBuilder.WithPath, Vary, ErrNoPathInLocale, ErrUnknownRoute
+reference: LocaleConfig, PageBuilder.WithPath, PageBuilder.WithFragmentPath, Vary, ErrNoPathInLocale, ErrUnknownRoute, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath
 ---
 
 # Links and locales
@@ -201,6 +201,30 @@ are `collage.ErrRouteParams`, and a locale no URL can carry — unsupported, or
 anything but the default with `DisablePathLocale` on — is
 `collage.ErrLocaleUnreachable`. The result is a path, prefix included; add your
 site's origin when you need an absolute URL.
+
+### A fragment's URL
+
+A fragment a page opened at its own URL with
+[`WithFragmentPath`](/docs/forms-and-actions#a-fragment-at-its-own-url) is linked
+the same way, by the page's name and the fragment's (since v0.18.0):
+
+```html
+<div data-live="{{fragmentURL "home" "cpu-usage"}}">{{slot "cpu-usage"}}</div>
+<div data-live="{{fragmentURL "post" "comments" "slug" .Slug}}">…</div>
+```
+
+`fragmentURL` uses the render's locale and falls back to the default one;
+`fragmentURLIn "tr" "home" "cpu-usage"` names the locale. In Go it is `app.FragmentURL`:
+
+```go
+func (a *App) FragmentURL(page, fragment, locale string, params map[string]string) (string, error)
+```
+
+It is as strict as `app.URL`: an unknown page is `collage.ErrUnknownRoute`, a
+fragment the page did not open is `collage.ErrUnknownFragmentPath`, a fragment
+opened at two paths in one locale is `collage.ErrAmbiguousFragmentPath`, and
+missing parameters are `collage.ErrRouteParams`. In a template, each fails the
+render.
 
 ## Negotiating a language yourself
 

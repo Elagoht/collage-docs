@@ -1,6 +1,6 @@
 ---
 description: Form post'larını, fetch çağrılarını ve webhook'ları action'larla karşılamak ve onları request forgery'ye karşı korumak.
-reference: NewAction, ActionBuilder, ActionResult, SeeOther, JSONOf, RenderPage, RenderFragment, PageBuilder.WithAction
+reference: NewAction, ActionBuilder, ActionResult, SeeOther, JSONOf, RenderPage, RenderFragment, PageBuilder.WithAction, PageBuilder.WithFragmentPath, ErrDuplicateRoute, ErrUnknownFragmentPath
 ---
 
 # Form'lar ve action'lar
@@ -82,7 +82,12 @@ err := app.RegisterAction(collage.NewAction("like").
 ```
 
 Bir action bir page ile aynı path'i paylaşabilir. `WithAction`'ın yaptığı da tam
-olarak budur. Ancak iki action aynı path'te aynı method'a cevap veremez.
+olarak budur. Ancak page'in cevap verdiği `GET` ve `HEAD` için bu geçerli değildir.
+v0.18.0'dan beri bir page'in ya da bir document'ın path'inde bu iki method'dan
+birine cevap veren bir action, `collage.ErrDuplicateRoute` ile reddedilir. İkisinin
+hangi sırayla register edildiği fark etmez. Önceden böyle bir action önce eşleşir ve
+page'i tek kelime söylemeden gizlerdi. İki action da aynı path'te aynı method'a
+cevap veremez.
 `RegisterAction`; adı, path'i, method'u ya da handler'ı olmayan bir action'ı
 reddeder. Daha önce alınmış bir adla gelen ikinci bir action'ı da reddeder. Her
 birinin kendi hatası vardır ve hepsi [Hatalar](/docs/errors#actions) sayfasında
@@ -399,8 +404,7 @@ collage.NewPage("search").
 `GET /search/results?q=grid` sadece `results` fragment'ini render eder, başka hiçbir
 şeyi render etmez. Fragment'in data handler'ı çalışır, kendi slot'ları doldurulur ve
 failure policy'si uygulanır. Bu aynı render'dır, sadece daha aşağıdan başlar.
-Etrafında bir layout olmadığı için hoist ettiği şeylerin gidecek bir yeri yoktur ve
-response'u cache'lenmez.
+Etrafında bir layout yoktur ve response'u framework tarafından asla cache'lenmez.
 
 ```js
 const input = document.querySelector('input[name="q"]');
@@ -412,6 +416,23 @@ input.addEventListener("input", async () => {
 
 Tanımlanmamış hiçbir şeye erişilemez. Her fragment'i otomatik olarak dışarı açan bir
 framework, her page'in her iç parçasını public web'e açmış olurdu.
+
+Bir fragment path'i de diğer route'lar gibi sahiplenilir. Bir page'in, bir
+document'ın ya da başka bir page'in fragment path'iyle veya bir redirect'in
+kaynağıyla aynı yazılan bir fragment path'i register sırasında reddedilir. İkisinin
+hangi sırayla geldiği fark etmez. Aksi hâlde page'i tek kelime söylemeden gizlerdi.
+
+**Her fragment path'i kendi başına bir render'dır.** Bir page içinde aynı yavaş
+değere ihtiyaç duyan fragment'ler onu `collage.Once` ile paylaşır: render başına tek
+bir fetch. Parça parça yenilenen bir page ise birkaç render'dır ve `Once` bunlar
+arasında hiçbir şey paylaşmaz. Aynı veriyi okuyan fragment'ler için
+`collage.Cached` kullanın. `Cached` değeri TTL'i boyunca ya da tag'lerinden biri
+invalidate edilene kadar render'lar arasında saklar:
+
+```go
+stats, err := collage.Cached(rc, "system:stats", time.Second, []string{"system"},
+	func(ctx context.Context) (monitor.Stats, error) { return monitor.Collect(ctx) })
+```
 
 `RenderFragment` ile cevap veren bir action ile birleştirildiğinde bir form post
 edilebilir ve sadece değişen kısımla cevaplanabilir:
@@ -429,3 +450,55 @@ WithAction("POST", func(ctx context.Context, rc *collage.RenderContext) (*collag
 
 Fragment'in data handler'ı action'ın `RenderContext`'i ile çalışır. Böylece az önce
 eklenen yorumu görür. Handler'ın oraya `rc.Set` ile koyduğu her şeyi de görür.
+
+### Ona link vermek
+
+Path'i bir kez, `WithFragmentPath` içinde yazın. Ona giden her link'i, `pageURL`'in
+page'ler için yaptığı gibi adıyla oluşturun (v0.18.0'dan beri):
+
+```html
+<div data-live="{{fragmentURL "search" "results"}}">{{slot "results"}}</div>
+<div data-live="{{fragmentURL "post" "comments" "slug" .Slug}}">…</div>
+```
+
+`fragmentURL` render'ın locale'ini kullanır ve varsayılan locale'e fallback yapar.
+`fragmentURLIn "tr" "search" "results"` locale'i kendisi belirtir.
+`app.FragmentURL(page, fragment, locale, params)` ise Go tarafındaki karşılığıdır.
+Page'in açmadığı bir fragment `collage.ErrUnknownFragmentPath` olur. Geri kalanı
+[Link'ler ve locale'ler](/docs/links-and-locales#a-fragments-url) sayfasındadır.
+
+### Hoist ettikleri
+
+Tek başına cevap olarak verilen bir fragment'in etrafında layout yoktur.
+Fragment'in kendi yazdığı bir `{{hoist}}` marker'ı page'deki gibi doldurulur. Başka
+herhangi bir alana hoist ettiği şeyler ise markup'tan önce gelir (v0.18.0'dan beri).
+Örneğin `{{stylesheet}}` ile istenen bir stylesheet ya da bir title böyledir. Her
+item için etkisiz bir `<template>` gönderilir:
+
+```html
+<template data-collage-hoist="head" data-collage-key="stylesheet:/static/chart.css"><link rel="stylesheet" href="/static/chart.css"></template>
+<section>…the fragment…</section>
+```
+
+Key, page'in kendi head'inin tekrarları ayıklarken kullandığı key'dir. Böylece bir
+script `document.head`'e orada olmayanı ekleyebilir. Bu kanalı yok sayan bir client
+template element'leri ekler. Bunlar hiçbir şey render etmez ve hiçbir şey
+çalıştırmaz.
+
+### Revalidation
+
+v0.18.0'dan beri bir GET'e verilen cevap bir `ETag` taşır. Bu, body'nin gönderildiği
+hâliyle hash'idir. Cevap ayrıca `Cache-Control: private, no-cache` taşır. Eşleşen
+bir `If-None-Match` ile gelen request'e body olmadan `304` ile cevap verilir. Render
+yine de çalışır. Kazanılan şey, kablodaki body ve client'ın yapacağı iştir. Birkaç
+saniyede bir yenilenen bir panel için bu, işin çoğudur. `Cache-Control`'ü kendisi
+set eden bir handler kendi değerini korur.
+
+### Tarayıcıdan yenilemek
+
+Framework bir client script'i ile gelmez. [collage-live](/docs/plugins#elagohtlive)
+bunu yapan bir plugin'dir. `data-collage-fragment` ile işaretlenmiş element'leri
+belli aralıklarla ya da sunucu bir event stream üzerinden bir değişiklik
+gönderdiğinde yeniler. Yukarıdaki hoist kanalını ve ETag'i de uygular. Konuştuğu
+protokol bu bölümdür. Bu yüzden htmx ya da kendi yazdığınız bir script de aynı
+sunucuyla çalışır.

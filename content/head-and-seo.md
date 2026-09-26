@@ -274,7 +274,10 @@ page is about.
   stored, so a cached page is served with everything that was declared.
 - **A fragment at its own URL has no head.** A fragment served through
   [`WithFragmentPath`](/docs/forms-and-actions#a-fragment-at-its-own-url) has no
-  layout, so what it hoists has nowhere to land.
+  layout. Since v0.18.0 what it hoists into an area it placed no marker for comes
+  ahead of its markup, one inert `<template data-collage-hoist>` per item, for a
+  script to add to the page — see
+  [What it hoists](/docs/forms-and-actions#what-it-hoists).
 - **Hoist from data handlers, not from `rc.Page`.** `rc.Page` is the registered
   page, shared by every request; writing to it is a data race. What varies per
   request is declared through `rc`.

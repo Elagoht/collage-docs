@@ -1,6 +1,6 @@
 ---
 description: Plugin sözleşmesi, Host ve ConfigHost'un sundukları, her hook ve neyi değiştirebileceği, testleriyle birlikte eksiksiz bir plugin.
-reference: Plugin, Host, ConfigHost, Configurer, Command, BeforeRenderHook, AfterRenderHook, CacheInvalidateHook
+reference: Plugin, Host, ConfigHost, Configurer, Command, BeforeRenderHook, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser
 ---
 
 # Plugin yazmak
@@ -84,7 +84,8 @@ reddeder.
 | `DevMode`, `Logger`, `Config` | evet | evet |
 | `AddTemplateFunc`, `WrapMount` | evet | — |
 | `Pages`, `Page`, `InvalidateTags` | — | evet |
-| `RegisterPage`, `RegisterDocument`, `Mount` | — | evet |
+| `RegisterPage`, `RegisterDocument`, `Mount`, `Handle` | — | evet |
+| `RenderFragment` | — | evet |
 | `RegisterCommand` | — | evet |
 
 `ConfigHost` bilerek daha dar tutulmuştur. `Configure` sırasında uygulama henüz
@@ -114,11 +115,15 @@ ulaşabileceği bir cache olmazdı.
 | `RegisterPage(page) error` | Plugin'in eklediği bir page'i register eder. |
 | `RegisterDocument(doc) error` | Plugin'in eklediği bir document'ı register eder. |
 | `Mount(prefix, fsys, opts...) error` | Bir dosya sistemini bir URL prefix'i altında sunar. |
+| `Handle(prefix, handler) error` | `App.Handle` gibi, bir `http.Handler`'ı bir URL prefix'i altında sunar. Örneğin bir event stream ya da bir WebSocket (v0.18.0'dan beri). |
+| `RenderFragment(r, req) (*collage.FragmentRender, error)` | Bir page'in `WithFragmentPath` ile açtığı bir fragment'i parçalar hâlinde render eder. Bkz. [Fragment göndermek](#pushing-fragments) (v0.18.0'dan beri). |
 | `RegisterCommand(cmd) error` | Bir komut ekler. Bkz. [Komutlar](#commands). |
 
 `Init`'e gelen değer `*App` değildir. Yalnızca bu metotları ileten dar bir değerdir.
 Bu yüzden bir plugin, type assertion ile `ListenAndServe`'e, `Shutdown`'a,
-router'a, cache'e ya da template kümesine ulaşamaz.
+router'a, cache'e ya da template kümesine ulaşamaz. `Handle` ve `RenderFragment`
+v0.18.0'da eklendi. Bu yüzden `Host`'u implement eden bir test double'ının da
+bunlara ihtiyacı vardır.
 
 **`Host`, bir plugin'in neye ulaşabileceğini sınırlar; neyi değiştirebileceğini
 sınırlamaz.** `Pages` ve `Page`, page struct'ının bir kopyasını döner. `Paths`,
@@ -134,6 +139,57 @@ koddur; bir sandbox içinde çalışmazlar.
 Bir plugin'in register ettiği page, document ve mount'lar, uygulamanınkilerle aynı
 kurallara tabidir. Zaten kullanılan bir ad ya da path bir startup hatasıdır. Hangi
 kaydın kazanacağı register sırasına bırakılmaz.
+
+### Fragment göndermek
+
+`RenderFragment`, fragment'lerin tarayıcı tarafından istenmesini beklemek yerine
+onları kendi sahip olduğu bir bağlantı üzerinden gönderen plugin'ler içindir. Bu
+bağlantı bir event stream ya da bir WebSocket olabilir. Metot, fragment'in path'ine
+gelen bir request'in render edeceği şeyin tam olarak aynısını render eder. Bir
+response yerine parçaları döner:
+
+| Field | |
+| --- | --- |
+| `HTML` | Markup. İçindeki her form okuyucunun forgery token'ını taşır |
+| `Head` | Fragment'in marker koymadığı bir alana hoist ettikleri; area'ları ve key'leriyle birlikte `HoistItem` olarak |
+| `DependencyTags` | Render'ın bağlı olduğu tag'ler. Neyin gönderileceğini bilmek için bunları `CacheInvalidateEvent.Tags` ile eşleştirin |
+| `Shared` | Render her okuyucu için aynıdır: page herkes için cache'lenir ya da alt ağaçtaki hiçbir handler request'i okumaz, ayrıca form token'ı yoktur |
+| `Cookie` | Request hiç cookie taşımıyorsa `HTML`'deki form'ların ihtiyaç duyduğu forgery cookie'si |
+
+Bir `FragmentRequest`, fragment'i ya `Page`, `Fragment`, `Locale` ve `Params` ile ya
+da `Path` ile belirtir. `Path`, bir page'in `{{fragmentURL}}` ile link verdiği
+URL'dir; query de buna dahildir. Bu URL, ona gelen bir request gibi çözümlenir.
+Gösterdiği element'lere abone olan bir client yalnızca onların URL'lerini bilir. Bu
+yüzden bir stream'in elinde genellikle `Path` vardır.
+
+```go
+out, err := host.RenderFragment(r, collage.FragmentRequest{Path: "/live/cpu"})
+```
+
+Yalnızca page'in açtığı fragment'ler render edilir: bir stream tam olarak HTTP'nin
+ulaştığı yere ulaşır. `Shared` olmayan bir render tek bir okuyucunun verisini
+taşıyabilir. Bu yüzden herkes için bir kez değil, her bağlantı için o bağlantının
+request'iyle render edilmelidir. `App.RenderFragment` aynı metottur ve uygulamanın
+kendi kodu içindir.
+
+### Stream'ler ve shutdown
+
+Bir plugin'in `Shutdown`'ı sunucu durduktan sonra çalışır. Sunucu da açık her
+request'in bitmesini bekleyerek durur. Bir event stream ya da bir WebSocket ise
+kendiliğinden hiç bitmez. Böyle bir bağlantı sunan plugin `StreamCloser`'ı
+implement eder (v0.18.0'dan beri):
+
+```go
+var _ collage.StreamCloser = (*Plugin)(nil)
+
+func (p *Plugin) CloseStreams() { p.hub.close() }
+```
+
+`CloseStreams` shutdown başlarken, sunucu beklemeye başlamadan önce çalışır.
+Stream'leri onları beklemeden sonlandırmalıdır. `Handle` ile sunulan bir handler,
+write deadline'ını `http.NewResponseController(w).SetWriteDeadline` ile ileri
+alabilir ve bağlantıyı `Hijack` ile devralabilir. Bunları çıplak bir `net/http`
+sunucusunda da yapabilirdi.
 
 ## Hook'lar
 
@@ -412,7 +468,9 @@ wrapper ise bu hesabı doğru tutar. Wrapper'lar register edildikleri sırayla �
 
 Bir plugin, `Init` içinden kendi route'larını ekleyebilir. Bunun için
 `Host.RegisterPage`, `Host.RegisterDocument` ve `Host.Mount` kullanılır. Bu
-route'lar, bir uygulamanın kullandığı builder'larla oluşturulur.
+route'lar, bir uygulamanın kullandığı builder'larla oluşturulur. `Host.Handle` ise
+page olmayan şeyler için, örneğin bir event stream ya da bir WebSocket için, bir
+prefix altında düz bir `http.Handler` sunar.
 
 *Dosya üreten* bir plugin, örneğin yeniden boyutlandırılmış görseller ya da
 üretilmiş ikonlar, bu dosyaları bir route yerine bir mount'tan sunmalıdır. Static
@@ -633,7 +691,9 @@ app, err := collage.New(&collage.Config{
    uygulamanın ve başarısız başlatmanın zaten geri aldığı plugin'lerin hepsi bu
    çağrıyı alır. Bu yüzden `Shutdown`, `Init` olmadan ve birden fazla kez
    çağrıldığında güvenli olmalıdır. Biri başarısız olsa bile her plugin sırasını
-   alır ve hatalar join edilir.
+   alır ve hatalar join edilir. `StreamCloser`'ı implement eden bir plugin'in
+   `CloseStreams`'i daha önce, shutdown başlarken çağrılır. Bkz.
+   [Stream'ler ve shutdown](#streams-and-shutdown).
 
    `ListenAndServe` kullanıyorsanız, plugin'ler sunucu request'lerini boşalttıktan
    sonra shutdown edilir. Sunucu bunu bitiremezse, `Server.ShutdownTimeout`
