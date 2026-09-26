@@ -430,9 +430,13 @@ arasında hiçbir şey paylaşmaz. Aynı veriyi okuyan fragment'ler için
 invalidate edilene kadar render'lar arasında saklar:
 
 ```go
-stats, err := collage.Cached(rc, "system:stats", time.Second, []string{"system"},
+stats, err := collage.Cached(rc, "system:stats", time.Second, nil,
 	func(ctx context.Context) (monitor.Stats, error) { return monitor.Collect(ctx) })
 ```
+
+Bu örnekteki gibi bir ölçüme tag verilmez: onu TTL'i güncel tutar, onu okuyan her
+fragment de kendi tag'ini döner. Tag verilirse her fragment bütün tag'lere bağlı
+olur ve bir parçayı invalidate etmek hepsini yeniden render eder.
 
 `RenderFragment` ile cevap veren bir action ile birleştirildiğinde bir form post
 edilebilir ve sadece değişen kısımla cevaplanabilir:
