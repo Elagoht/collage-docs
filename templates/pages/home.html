@@ -25,6 +25,269 @@ collage dev</code></pre>
     {{end}}
   </section>
 
+  <section class="how" aria-labelledby="how-title">
+    <h2 id="how-title">{{.T.HowItWorks}}</h2>
+    <div class="diagrams">
+      <svg class="diagram diagram-defs" aria-hidden="true" focusable="false">
+        <defs>
+          <marker id="d-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+            <path class="d-head" d="M0 0 8 4 0 8z" />
+          </marker>
+          <symbol id="c-layout" viewBox="0 0 140 160">
+            <rect class="d-frame" x="1" y="1" width="138" height="158" rx="8" />
+            <text x="10" y="18">layout</text>
+            <rect class="d-bar" x="10" y="26" width="120" height="12" rx="3" />
+            <rect class="d-slot d-slot-a" x="10" y="46" width="120" height="104" rx="4" />
+            <text class="d-slot-text-a" x="70" y="102" text-anchor="middle">slot "content"</text>
+          </symbol>
+          <symbol id="c-post" viewBox="0 0 140 160">
+            <rect class="d-frame d-frame-a" x="1" y="1" width="138" height="158" rx="8" />
+            <text class="d-slot-text-a" x="10" y="18">post</text>
+            <rect class="d-bar" x="10" y="26" width="110" height="6" rx="3" />
+            <rect class="d-bar" x="10" y="38" width="80" height="6" rx="3" />
+            <rect class="d-slot d-slot-b" x="10" y="54" width="120" height="42" rx="4" />
+            <text x="70" y="79" text-anchor="middle">slot "author"</text>
+            <rect class="d-slot d-slot-c" x="10" y="104" width="120" height="46" rx="4" />
+            <text x="70" y="131" text-anchor="middle">slot "related"</text>
+          </symbol>
+          <symbol id="c-author" viewBox="0 0 90 40">
+            <rect class="d-b" width="90" height="40" rx="4" /><text class="d-on-b" x="45" y="24" text-anchor="middle">author</text>
+          </symbol>
+          <symbol id="c-related" viewBox="0 0 90 40">
+            <rect class="d-c" width="90" height="40" rx="4" /><text class="d-on-c" x="45" y="24" text-anchor="middle">related</text>
+          </symbol>
+          <symbol id="c-page" viewBox="0 0 180 160">
+            <rect class="d-frame" x="1" y="1" width="178" height="158" rx="8" />
+            <line class="d-rule" x1="1" y1="20" x2="179" y2="20" />
+            <circle class="d-dot" cx="11" cy="10.5" r="2.5" /><circle class="d-dot" cx="19" cy="10.5" r="2.5" /><circle class="d-dot" cx="27" cy="10.5" r="2.5" />
+            <text class="d-small" x="40" y="14">/blog/hello</text>
+            <rect class="d-bar" x="10" y="28" width="160" height="12" rx="3" />
+            <rect class="d-soft-a" x="10" y="46" width="160" height="104" rx="4" />
+            <rect class="d-a" x="18" y="54" width="100" height="5" rx="2.5" />
+            <rect class="d-a" x="18" y="64" width="70" height="5" rx="2.5" />
+            <rect class="d-b" x="18" y="76" width="144" height="30" rx="3" /><text class="d-on-b" x="26" y="95">author</text>
+            <rect class="d-c" x="18" y="112" width="144" height="30" rx="3" /><text class="d-on-c" x="26" y="131">related</text>
+          </symbol>
+        </defs>
+      </svg>
+
+      {{with index .T.Diagrams 0}}
+      <figure class="wide">
+        <svg class="diagram only-wide" viewBox="0 0 680 180" aria-hidden="true">
+          <use href="#c-layout" x="10" y="10" width="140" height="160" />
+          <text class="d-op" x="165" y="96" text-anchor="middle">+</text>
+          <use href="#c-post" x="180" y="10" width="140" height="160" />
+          <text class="d-op" x="335" y="96" text-anchor="middle">+</text>
+          <use href="#c-author" x="350" y="40" width="90" height="40" />
+          <use href="#c-related" x="350" y="100" width="90" height="40" />
+          <line class="d-flow" x1="452" y1="90" x2="482" y2="90" marker-end="url(#d-arrow)" />
+          <use href="#c-page" x="490" y="10" width="180" height="160" />
+        </svg>
+        <svg class="diagram only-narrow" viewBox="0 0 320 430" aria-hidden="true">
+          <use href="#c-layout" x="10" y="10" width="140" height="160" />
+          <text class="d-op" x="160" y="96" text-anchor="middle">+</text>
+          <use href="#c-post" x="170" y="10" width="140" height="160" />
+          <use href="#c-author" x="45" y="184" width="90" height="40" />
+          <text class="d-op" x="160" y="210" text-anchor="middle">+</text>
+          <use href="#c-related" x="185" y="184" width="90" height="40" />
+          <line class="d-flow" x1="160" y1="234" x2="160" y2="258" marker-end="url(#d-arrow)" />
+          <use href="#c-page" x="70" y="264" width="180" height="160" />
+        </svg>
+        <figcaption>
+          <h3>{{.Title}}</h3>
+          <p>{{.Text}}</p>
+        </figcaption>
+      </figure>
+      {{end}}
+
+      {{with index .T.Diagrams 1}}
+      <figure>
+        <svg class="diagram" viewBox="0 0 320 180" aria-hidden="true">
+          <defs>
+            <marker id="d1-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+              <path class="d-head" d="M0 0 8 4 0 8z" />
+            </marker>
+          </defs>
+          <rect class="d-pill" x="12" y="54" width="54" height="24" rx="12" /><text x="39" y="70" text-anchor="middle">cms</text>
+          <rect class="d-pill" x="12" y="94" width="54" height="24" rx="12" /><text x="39" y="110" text-anchor="middle">db</text>
+          <rect class="d-pill" x="12" y="131" width="54" height="24" rx="12" /><text x="39" y="147" text-anchor="middle">api</text>
+          <rect class="d-frame" x="140" y="14" width="168" height="152" rx="8" />
+          <line class="d-flow" x1="70" y1="66" x2="148" y2="66" marker-end="url(#d1-arrow)" />
+          <line class="d-flow" x1="70" y1="106" x2="148" y2="106" marker-end="url(#d1-arrow)" />
+          <line class="d-flow" x1="70" y1="143" x2="148" y2="143" marker-end="url(#d1-arrow)" />
+          <rect class="d-bar" x="150" y="24" width="148" height="18" rx="3" /><text x="158" y="37">layout</text>
+          <rect class="d-a" x="150" y="50" width="148" height="32" rx="4" /><text class="d-on-a" x="160" y="70">post</text>
+          <rect class="d-b" x="150" y="90" width="148" height="32" rx="4" /><text class="d-on-b" x="160" y="110">author</text>
+          <rect class="d-c" x="150" y="130" width="148" height="26" rx="4" /><text class="d-on-c" x="160" y="147">related</text>
+        </svg>
+        <figcaption>
+          <h3>{{.Title}}</h3>
+          <p>{{.Text}}</p>
+        </figcaption>
+      </figure>
+      {{end}}
+
+      {{with index .T.Diagrams 2}}
+      <figure>
+        <svg class="diagram" viewBox="0 0 320 180" aria-hidden="true">
+          <defs>
+            <marker id="d2-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+              <path class="d-head-hit" d="M0 0 8 4 0 8z" />
+            </marker>
+          </defs>
+          <rect class="d-cmd" x="66" y="10" width="188" height="26" rx="13" />
+          <text class="d-cmd-text" x="160" y="27" text-anchor="middle">invalidate("author:ada")</text>
+          <path class="d-hitline" d="M130 36 60 62" marker-end="url(#d2-arrow)" />
+          <path class="d-hitline" d="M160 36V62" marker-end="url(#d2-arrow)" />
+
+          <g class="d-dropped">
+            <rect class="d-frame" x="12" y="66" width="92" height="102" rx="8" />
+            <text x="22" y="86">/post/1</text>
+            <rect class="d-chip" x="20" y="96" width="76" height="20" rx="10" /><text x="58" y="110" text-anchor="middle">post:1</text>
+            <rect class="d-chip-hit" x="20" y="124" width="76" height="20" rx="10" /><text class="d-hit-text" x="58" y="138" text-anchor="middle">author:ada</text>
+          </g>
+          <g class="d-dropped">
+            <rect class="d-frame" x="114" y="66" width="92" height="102" rx="8" />
+            <text x="124" y="86">/post/2</text>
+            <rect class="d-chip" x="122" y="96" width="76" height="20" rx="10" /><text x="160" y="110" text-anchor="middle">post:2</text>
+            <rect class="d-chip-hit" x="122" y="124" width="76" height="20" rx="10" /><text class="d-hit-text" x="160" y="138" text-anchor="middle">author:ada</text>
+          </g>
+          <g>
+            <rect class="d-frame" x="216" y="66" width="92" height="102" rx="8" />
+            <text x="226" y="86">/about</text>
+            <rect class="d-chip" x="224" y="96" width="76" height="20" rx="10" /><text x="262" y="110" text-anchor="middle">page:about</text>
+            <text class="d-kept" x="262" y="156" text-anchor="middle">✓</text>
+          </g>
+        </svg>
+        <figcaption>
+          <h3>{{.Title}}</h3>
+          <p>{{.Text}}</p>
+        </figcaption>
+      </figure>
+      {{end}}
+
+      {{with index .T.Diagrams 3}}
+      <figure>
+        <svg class="diagram" viewBox="0 0 320 180" aria-hidden="true">
+          <rect class="d-frame" x="12" y="38" width="92" height="104" rx="8" />
+          <rect class="d-bar" x="22" y="50" width="72" height="22" rx="3" /><circle class="d-dot" cx="32" cy="61" r="3" />
+          <rect class="d-a" x="22" y="79" width="72" height="22" rx="3" /><text class="d-on-a" x="36" y="94">cpu</text>
+          <rect class="d-bar" x="22" y="108" width="72" height="22" rx="3" /><circle class="d-dot" cx="32" cy="119" r="3" />
+
+          <line class="d-stream-track" x1="104" y1="90" x2="196" y2="90" />
+          <line class="d-stream" x1="104" y1="90" x2="196" y2="90" />
+          <text x="150" y="80" text-anchor="middle">push</text>
+
+          <rect class="d-frame" x="196" y="22" width="112" height="140" rx="8" />
+          <line class="d-rule" x1="196" y1="40" x2="308" y2="40" />
+          <circle class="d-dot" cx="207" cy="31" r="2.5" /><circle class="d-dot" cx="215" cy="31" r="2.5" /><circle class="d-dot" cx="223" cy="31" r="2.5" />
+          <rect class="d-bar" x="206" y="50" width="92" height="12" rx="3" />
+          <rect class="d-bar" x="206" y="70" width="44" height="82" rx="3" />
+          <rect class="d-a d-pulse" x="256" y="70" width="42" height="38" rx="3" /><text class="d-on-a" x="277" y="93" text-anchor="middle">cpu</text>
+          <rect class="d-bar" x="256" y="114" width="42" height="38" rx="3" />
+        </svg>
+        <figcaption>
+          <h3>{{.Title}}</h3>
+          <p>{{.Text}}</p>
+        </figcaption>
+      </figure>
+      {{end}}
+
+      {{with index .T.Diagrams 4}}
+      <figure>
+        <svg class="diagram" viewBox="0 0 320 180" aria-hidden="true">
+          <defs>
+            <marker id="d4-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+              <path class="d-head" d="M0 0 8 4 0 8z" />
+            </marker>
+          </defs>
+          <rect class="d-frame" x="12" y="30" width="96" height="46" rx="6" /><text x="24" y="58">post.html</text>
+          <rect class="d-frame" x="12" y="104" width="96" height="46" rx="6" /><text x="24" y="132">main.go</text>
+
+          <path class="d-flow" d="M108 53C140 53 150 70 190 76" marker-end="url(#d4-arrow)" />
+          <path class="d-flow" d="M108 127C140 127 150 110 190 104" marker-end="url(#d4-arrow)" />
+          <circle class="d-badge" cx="146" cy="60" r="11" /><text class="d-badge-text d-icon" x="146" y="65" text-anchor="middle">↻</text>
+          <rect class="d-badge" x="122" y="109" width="48" height="20" rx="10" /><text class="d-badge-text d-small" x="146" y="122" text-anchor="middle">build</text>
+
+          <rect class="d-frame" x="196" y="22" width="112" height="140" rx="8" />
+          <line class="d-rule" x1="196" y1="40" x2="308" y2="40" />
+          <circle class="d-dot" cx="207" cy="31" r="2.5" /><circle class="d-dot" cx="215" cy="31" r="2.5" /><circle class="d-dot" cx="223" cy="31" r="2.5" />
+          <g class="d-refresh">
+            <rect class="d-bar" x="206" y="50" width="92" height="12" rx="3" />
+            <rect class="d-a" x="206" y="70" width="92" height="36" rx="3" />
+            <rect class="d-b" x="206" y="112" width="44" height="40" rx="3" />
+            <rect class="d-c" x="256" y="112" width="42" height="40" rx="3" />
+          </g>
+        </svg>
+        <figcaption>
+          <h3>{{.Title}}</h3>
+          <p>{{.Text}}</p>
+        </figcaption>
+      </figure>
+      {{end}}
+
+      {{with index .T.Diagrams 5}}
+      <figure class="wide">
+        <svg class="diagram only-wide" viewBox="0 0 680 190" aria-hidden="true">
+          <rect class="d-frame" x="10" y="64" width="110" height="62" rx="8" />
+          <text x="22" y="86">mysite/</text>
+          <text class="d-small" x="22" y="102">main.go</text>
+          <text class="d-small" x="22" y="115">templates/</text>
+          <path class="d-flow" d="M120 84C140 84 140 42 162 42" marker-end="url(#d-arrow)" />
+          <path class="d-flow" d="M120 106C140 106 140 148 162 148" marker-end="url(#d-arrow)" />
+
+          <rect class="d-cmd" x="166" y="29" width="120" height="26" rx="13" /><text class="d-cmd-text" x="226" y="46" text-anchor="middle">collage build</text>
+          <line class="d-flow" x1="286" y1="42" x2="306" y2="42" marker-end="url(#d-arrow)" />
+          <rect class="d-chip" x="312" y="12" width="110" height="24" rx="4" /><text x="367" y="28" text-anchor="middle">linux/amd64</text>
+          <rect class="d-chip" x="312" y="44" width="110" height="24" rx="4" /><text x="367" y="60" text-anchor="middle">linux/arm64</text>
+          <rect class="d-chip" x="432" y="12" width="110" height="24" rx="4" /><text x="487" y="28" text-anchor="middle">darwin/arm64</text>
+          <rect class="d-chip" x="432" y="44" width="110" height="24" rx="4" /><text x="487" y="60" text-anchor="middle">windows/amd64</text>
+          <rect class="d-a" x="560" y="16" width="110" height="48" rx="6" /><text class="d-on-a" x="615" y="37" text-anchor="middle">1 binary</text><text class="d-on-a d-small" x="615" y="52" text-anchor="middle">0 deps · :8080</text>
+          <line class="d-flow" x1="542" y1="40" x2="554" y2="40" marker-end="url(#d-arrow)" />
+
+          <rect class="d-cmd" x="166" y="135" width="120" height="26" rx="13" /><text class="d-cmd-text" x="226" y="152" text-anchor="middle">collage export</text>
+          <line class="d-flow" x1="286" y1="148" x2="306" y2="148" marker-end="url(#d-arrow)" />
+          <path class="d-folder" d="M312 128h30l6 6h46v42h-82z" /><text x="330" y="160">dist/</text>
+          <line class="d-flow" x1="394" y1="148" x2="414" y2="148" marker-end="url(#d-arrow)" />
+          <rect class="d-cmd" x="420" y="135" width="120" height="26" rx="13" /><text class="d-cmd-text" x="480" y="152" text-anchor="middle">collage serve</text>
+          <line class="d-flow" x1="540" y1="148" x2="554" y2="148" marker-end="url(#d-arrow)" />
+          <rect class="d-frame" x="560" y="120" width="110" height="58" rx="6" />
+          <line class="d-rule" x1="560" y1="134" x2="670" y2="134" />
+          <circle class="d-dot" cx="568" cy="127" r="2" /><circle class="d-dot" cx="575" cy="127" r="2" /><circle class="d-dot" cx="582" cy="127" r="2" />
+          <text class="d-small" x="615" y="160" text-anchor="middle">*.html · static</text>
+        </svg>
+        <svg class="diagram only-narrow" viewBox="0 0 320 300" aria-hidden="true">
+          <rect class="d-frame" x="105" y="8" width="110" height="36" rx="8" /><text x="160" y="30" text-anchor="middle">mysite/</text>
+          <path class="d-flow" d="M140 44C140 56 80 52 80 64" marker-end="url(#d-arrow)" />
+          <path class="d-flow" d="M180 44C180 56 240 52 240 64" marker-end="url(#d-arrow)" />
+
+          <rect class="d-cmd" x="20" y="68" width="120" height="26" rx="13" /><text class="d-cmd-text" x="80" y="85" text-anchor="middle">collage build</text>
+          <rect class="d-chip" x="20" y="104" width="120" height="22" rx="4" /><text x="80" y="119" text-anchor="middle">linux/amd64</text>
+          <rect class="d-chip" x="20" y="132" width="120" height="22" rx="4" /><text x="80" y="147" text-anchor="middle">darwin/arm64</text>
+          <rect class="d-chip" x="20" y="160" width="120" height="22" rx="4" /><text x="80" y="175" text-anchor="middle">windows/amd64</text>
+          <line class="d-flow" x1="80" y1="184" x2="80" y2="206" marker-end="url(#d-arrow)" />
+          <rect class="d-a" x="20" y="212" width="120" height="48" rx="6" /><text class="d-on-a" x="80" y="233" text-anchor="middle">1 binary</text><text class="d-on-a d-small" x="80" y="248" text-anchor="middle">0 deps · :8080</text>
+
+          <rect class="d-cmd" x="180" y="68" width="120" height="26" rx="13" /><text class="d-cmd-text" x="240" y="85" text-anchor="middle">collage export</text>
+          <line class="d-flow" x1="240" y1="94" x2="240" y2="106" marker-end="url(#d-arrow)" />
+          <path class="d-folder" d="M199 110h30l6 6h46v38h-82z" /><text x="240" y="140" text-anchor="middle">dist/</text>
+          <line class="d-flow" x1="240" y1="154" x2="240" y2="166" marker-end="url(#d-arrow)" />
+          <rect class="d-cmd" x="180" y="170" width="120" height="26" rx="13" /><text class="d-cmd-text" x="240" y="187" text-anchor="middle">collage serve</text>
+          <line class="d-flow" x1="240" y1="196" x2="240" y2="208" marker-end="url(#d-arrow)" />
+          <rect class="d-frame" x="185" y="212" width="110" height="58" rx="6" />
+          <line class="d-rule" x1="185" y1="226" x2="295" y2="226" />
+          <circle class="d-dot" cx="193" cy="219" r="2" /><circle class="d-dot" cx="200" cy="219" r="2" /><circle class="d-dot" cx="207" cy="219" r="2" />
+          <text class="d-small" x="240" y="252" text-anchor="middle">*.html · static</text>
+        </svg>
+        <figcaption>
+          <h3>{{.Title}}</h3>
+          <p>{{.Text}}</p>
+        </figcaption>
+      </figure>
+      {{end}}
+    </div>
+  </section>
+
   <section class="map" aria-label="{{.T.TheGuide}}">
     {{range .Sections}}
     <div>

@@ -35,7 +35,11 @@ type Text struct {
 	ViewOnGitHub    string
 	WhatYouGet      string
 	Points          []Point
-	TheGuide        string
+	HowItWorks      string
+	// Diagrams captions the home page's four diagrams, in the order
+	// templates/pages/home.html draws them.
+	Diagrams []Point
+	TheGuide string
 
 	NotFoundTitle     string
 	NotFoundHeadline  string
@@ -83,6 +87,15 @@ var texts = map[string]Text{
 			{"Forms without JavaScript", "Actions answer POST with forgery protection built in, and a cached page can still carry a form."},
 			{"Served or exported", "One program is a server and a static site generator. This site is the second."},
 		},
+		HowItWorks: "How it works",
+		Diagrams: []Point{
+			{"Layouts and slots", "A layout leaves a slot for the page's content, and a fragment can leave slots of its own. Fill them with fragments and collage assembles the page."},
+			{"Fetch at once", "Every fragment has its own data handler. Sibling fragments fetch together, and the HTML still comes out in order."},
+			{"Invalidate by tag", "A page remembers what it was built from. Invalidate one tag and only the pages that used it are dropped."},
+			{"Stream fragments live", "With collage-live, invalidating a tag re-renders every open fragment that used it and pushes it to the browser over one stream. Only that part changes."},
+			{"Save and see", "collage dev reloads the browser when a template changes and rebuilds when Go does. A failed render shows its file and line in the browser."},
+			{"Build, export, serve", "collage build makes one static binary, the site's whole server, for any operating system and architecture. collage export writes the site as static files, and collage serve serves them the way a static host would."},
+		},
 		TheGuide: "The guide",
 
 		NotFoundTitle:     "Not found — collage",
@@ -122,6 +135,15 @@ var texts = map[string]Text{
 			{"Neye bağlıysa ona göre cache'lenir", "Page'ler ve veriler tag taşır. Bir yazarı değiştirdiğinizde tek bir çağrı hem yazarı hem de onu gösteren her page'i cache'ten düşürür."},
 			{"JavaScript'siz form'lar", "Action'lar POST request'lerini yerleşik forgery korumasıyla karşılar. Cache'lenmiş bir page de form içerebilir."},
 			{"Serve edin ya da export edin", "Tek bir program hem sunucu hem de static site generator'dır. Bu site ikinci yolla üretildi."},
+		},
+		HowItWorks: "Nasıl çalışır",
+		Diagrams: []Point{
+			{"Layout'lar ve slot'lar", "Layout, page'in içeriği için bir slot bırakır. Bir fragment da kendi slot'larını bırakabilir. Slot'ları fragment'lerle doldurun, collage page'i birleştirir."},
+			{"Aynı anda çekin", "Her fragment'in kendi data handler'ı vardır. Kardeş fragment'ler verilerini eşzamanlı çeker, HTML yine de sırasıyla yazılır."},
+			{"Tag ile invalidate edin", "Bir page neyden oluştuğunu bilir. Tek bir tag'i invalidate edin, yalnızca onu kullanan page'ler cache'ten düşer."},
+			{"Fragment'leri canlı stream edin", "collage-live ile bir tag'i invalidate etmek, onu kullanan ve açık olan her fragment'i yeniden render eder ve tek bir stream üzerinden tarayıcıya gönderir. Yalnızca o parça değişir."},
+			{"Kaydedin ve görün", "collage dev, bir template değiştiğinde tarayıcıyı yeniler, Go kodu değiştiğinde yeniden build eder. Başarısız bir render, dosyasını ve satırını tarayıcıda gösterir."},
+			{"Build edin, export edin, serve edin", "collage build, her işletim sistemi ve mimari için sitenin sunucusunun tamamı olan tek bir static binary üretir. collage export siteyi static dosyalar olarak yazar, collage serve de onları bir static host gibi serve eder."},
 		},
 		TheGuide: "Rehber",
 
