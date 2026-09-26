@@ -257,6 +257,13 @@ itibaren). Script hiçbir zaman production'daki bir page'e eklenmez. Bir form
 gönderiminin response'una da eklenmez, çünkü sayfayı yenilemek formu yeniden
 gönderirdi.
 
+Script sunucuya açık bir stream tutar. Bir tarayıcı HTTP/1.1 üzerinden bir
+origin'e, tüm sekmeleri toplamında en fazla altı bağlantı açar. Açık her
+development sekmesinde bir stream olunca, yedinci sekmenin page'leri boş bir
+bağlantı beklerdi. v0.18.1'den beri gizlenen bir sekme stream'ini kapatır ve
+yeniden görüldüğünde tekrar bağlanır. Gizliyken bir şey değiştiyse page o anda
+yenilenir.
+
 Hiç kapanmayan bir stream, yüklenmesi hiç bitmeyen bir page demektir. Bir ekran
 görüntüsü aracı ya da bir end-to-end test de tam olarak bunun bitmesini bekler.
 Playwright, Puppeteer ya da Selenium'un yönettiği bir tarayıcı `navigator.webdriver`'ı

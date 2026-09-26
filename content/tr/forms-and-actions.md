@@ -502,3 +502,22 @@ belli aralıklarla ya da sunucu bir event stream üzerinden bir değişiklik
 gönderdiğinde yeniler. Yukarıdaki hoist kanalını ve ETag'i de uygular. Konuştuğu
 protokol bu bölümdür. Bu yüzden htmx ya da kendi yazdığınız bir script de aynı
 sunucuyla çalışır.
+
+`fetch` ile gönderdiği bir form, [yukarıdaki kuralı](#failure-renders-success-redirects)
+parça parça izler: cevap form'un hedefine yalnızca başarı durumunda ya da `422`
+geldiğinde yerleştirilir. Bu yüzden bir action, bir gönderimin validation'dan
+geçmediğini form'un fragment'ini hatalarla birlikte yeniden ve 422 status'uyla
+döndürerek söyler (collage-live v0.2.0'dan beri):
+
+```go
+if problems := validate(rc); len(problems) > 0 {
+	rc.Set("problems", problems)
+	result := collage.RenderFragment(formFragment)
+	result.Status = http.StatusUnprocessableEntity
+	return result, nil
+}
+```
+
+Başka her hata (bir 500, reddedilen bir forgery token) hedefi olduğu gibi bırakır
+ve onu bir hata page'iyle doldurmak yerine stale olarak işaretler. Bir redirect,
+tarayıcının izleyeceği gibi izlenir.

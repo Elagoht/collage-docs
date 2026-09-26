@@ -313,7 +313,7 @@ Plugins: []collage.Plugin{live.New()},
 
 ```json
 {
-  "elagoht/live": { "prefix": "/_live/", "noStream": false, "keepAlive": "25s", "maxFragments": 32 }
+  "elagoht/live": { "prefix": "/_live/", "noStream": false, "keepAlive": "25s", "maxFragments": 32, "maxStreamAge": "0s" }
 }
 ```
 
@@ -332,24 +332,49 @@ Plugins: []collage.Plugin{live.New()},
 ```
 
 - `Config.Plugins` içinde olmalıdır, çünkü layout'un client'ı eklemek için çağırdığı
-  `{{liveClient}}`'ı ekler. collage v0.18.0 ya da sonrasını gerektirir.
+  `{{liveClient}}`'ı ekler. v0.2.0, collage v0.19.0 ya da sonrasını gerektirir;
+  v0.1.0 v0.18.0'ı gerektiriyordu.
 - Container'ın sahibi page'dir, içindekinin sahibi fragment'tir.
   `data-collage-interval` belli aralıklarla fetch eder, `data-collage-push`
   fragment'i stream'den alır, `data-collage-swap="morph"` DOM'u yerinde patch eder.
   Bir form üzerindeki `data-collage-target` ise form'u `fetch` ile gönderir ve
-  cevabı bir element'in içine koyar.
+  cevabı bir element'in içine koyar. Bunu başarı durumunda ya da bir `422`
+  geldiğinde yapar. Bir action, bir gönderimin validation'dan geçmediğini böyle
+  söyler: form'un fragment'ini hatalarla birlikte ve 422 status'uyla yeniden
+  döndürür (bkz.
+  [Form'lar ve action'lar](/docs/forms-and-actions#refreshing-it-from-the-browser)).
+  Başka her hata hedefi olduğu gibi bırakır ve onu stale olarak işaretler.
 - Client elindeki `ETag`'i gönderir ve `304` gelirse DOM'a dokunmaz. Fragment'in
   hoist ettiklerini key'lerine göre head'e bir kez ekler. Gizli bir sekmede durur.
   Bir request başarısız olduğunda element'i `data-collage-stale` ile işaretler ve
-  beklemeyi artırır.
+  beklemeyi artırır. Gönderilen bir kopya, polling'in alacağı ETag'in aynısını
+  taşır. Bu yüzden client'ın zaten elinde olan bir kopya yeniden gönderilmez.
+- **Tarayıcı başına tek bağlantı.** Bir tarayıcı HTTP/1.1 üzerinden bir origin'e,
+  tüm sekmeleri toplamında en fazla altı bağlantı açar. Bu yüzden v0.2.0'dan beri
+  client stream'i, sitenin tüm sekmelerinin paylaştığı bir shared worker'dan açar.
+  Shared worker olmayan yerlerde her sekme kendi stream'ini açar ve gizliyken
+  kapatır.
+- Stream kapalıyken gönderilen element'ler stale olarak işaretlenir. Üç başarısız
+  bağlantıdan sonra beş saniyede bir polling ile yenilenir ve stream dakikada bir
+  yeniden denenir.
 - **Gönderme tag'lere dayanır.** Uygulama bir tag'i invalidate ettiğinde plugin, o
   tag'e bağlı her açık fragment'i yeniden render eder ve stream'den gönderir.
-  API'nin tamamı invalidate etmektir. Değişmek yerine örneklenen veri, bir timer ile
-  invalidate edilerek gönderilir. Aynı ölçümü okuyan birkaç fragment bu ölçümü
-  `collage.Cached` üzerinden çekmelidir.
+  API'nin tamamı invalidate etmektir.
+- **Örneklenen veri** (CPU yükü, bir kuyruğun uzunluğu gibi), fragment başına bir
+  tag ile bir timer'la invalidate edilerek gönderilir. Böyle bir fragment'i
+  `Static()` ile değil, [`Shared()`](/docs/caching#a-page-that-declares-none) ile
+  işaretleyin. Böylece page dynamic kalırken fragment sekme başına değil, her
+  değişiklikte bir kez render edilir. Aynı ölçümü okuyan birkaç fragment onu tag'siz
+  bir `collage.Cached` ile çeker. Böylece bir fragment'in tick'i diğerlerini yeniden
+  render ettirmez. Bir sistem monitörü örneği
+  [README](https://github.com/Elagoht/collage-live#sampled-data-a-system-monitor)'de
+  adım adım anlatılır.
 - Framework'ün `Shared` olarak bildirdiği bir render URL başına bir kez yapılır ve o
   URL'nin her okuyucusuna gönderilir. Diğer render'lar her bağlantı için o
-  bağlantının kendi request'iyle yapılır.
+  bağlantının kendi request'iyle yapılır. Bir bağlantı, açıldığı andaki
+  cookie'lerle render eder. İmzalı, stateless cookie'ler kullanıyorsanız
+  `maxStreamAge` bağlantıyı bu süre sonunda kapatır ve client onu o anda elinde
+  olan cookie'lerle hemen yeniden açar.
 - Stream `<prefix>stream/` adresinde sunulur. Kendi compression middleware'iniz
   `text/event-stream`'e dokunmamalıdır. Aksi hâlde stream ancak bittiğinde ulaşır.
   `noStream` açıkken client yalnızca polling yapar.
@@ -370,11 +395,13 @@ lv := live.New()
 Plugins: []collage.Plugin{lv, websocket.New(lv)},
 ```
 
-- collage-live'ı da bu plugin'den önce register edin. collage v0.18.0 ve
-  collage-live v0.1.0 ya da sonrasını gerektirir.
+- collage-live'ı da bu plugin'den önce register edin. v0.2.0, collage v0.19.0 ve
+  collage-live v0.2.0 ya da sonrasını gerektirir.
 - Başka hiçbir şey değişmez. Layout yine `{{liveClient}}`'ı içerir, bu artık
   client'a buraya bağlanmasını söyler. Element'ler de yine `data-collage-push`
-  taşır. collage-live kendi event stream'ini sunmayı bırakır.
+  taşır. collage-live kendi event stream'ini sunmayı bırakır. WebSocket da aynı
+  shared worker'dan açılır. Bu yüzden tüm sekmeler yine tek bir bağlantıyı
+  paylaşır ve `maxStreamAge` burada da geçerlidir.
 - **Genellikle buna ihtiyacınız olmaz.** Fragment göndermek tek yönlüdür ve event
   stream tam da bunun içindir: bağımlılık gerektirmez ve kendiliğinden yeniden
   bağlanır. Bu plugin, stream'lerin bozulduğu deploy'lar içindir. Örneğin

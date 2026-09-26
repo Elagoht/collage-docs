@@ -1,6 +1,6 @@
 ---
 description: collage'ın render edilmiş page'leri ve onları oluşturan veriyi nasıl cache'lediği, neyi atacağını nasıl bildiği.
-reference: CacheConfig, Cached, Once, TaggedCache, SkipCache, Vary, PageBuilder.Static, PageBuilder.Incremental, PageBuilder.Dynamic, FragmentBuilder.Static, StrategyAuto
+reference: CacheConfig, Cached, Once, TaggedCache, SkipCache, Vary, PageBuilder.Static, PageBuilder.Incremental, PageBuilder.Dynamic, FragmentBuilder.Static, FragmentBuilder.Shared, StrategyAuto
 ---
 
 # Caching
@@ -123,6 +123,26 @@ Yalnızca fragment'in kendi handler'ını kapsar. Başka bir fragment'in handler
 page'i yine dynamic yapar. Static bir fragment'te olsa bile bir slot resolver da
 aynı şeyi yapar, çünkü döndüreceği fragment'ler bir render onları isteyene kadar
 bilinmez.
+
+`Static()` aynı anda iki söz verir: çıktı her okuyucu için aynıdır ve bir şey
+invalidate edilene kadar da aynı kalır. Hiçbir cookie okumayan ama bir ölçüm
+döndüren bir handler (CPU yükü, bir kuyruğun uzunluğu, saat gibi) ilk sözü tutar,
+ikincisini tutmaz. Çıktısı her okuyucu için aynıdır ama zaman içinde aynı kalmaz.
+Böyle bir fragment'i bunun yerine `Shared()` ile işaretleyin. v0.19.0'dan beri.
+
+```go
+cpu := collage.NewFragment("cpu", "fragments/cpu.html").
+	WithDataHandler(cpuUsage). // the same for everyone, different every second
+	Shared().
+	Build()
+```
+
+`Shared()` page'in stratejisine dokunmaz. Page dynamic kalır ve bir export, tek bir
+anın ölçümünü page'e yazmaz. Fragment'i okuyuculara gönderen şeye de tek bir
+render'ın hepsine gönderilebileceğini söyler (bkz.
+[Plugin yazmak](/docs/writing-plugins#pushing-fragments)). `Static()` bunu zaten
+içerir. `Static()`'te olduğu gibi, sözünü bozan bir handler bir okuyucunun
+verisini başka bir okuyucuya gönderir.
 
 Bir page'in tanımlanmış stratejisi hiçbir yönde sorgulanmaz: `Dynamic()` diyen bir
 page, fragment'leri ne derse desin dynamic kalır. v0.16.0'a kadar hiçbir şey
@@ -387,8 +407,12 @@ bir şey yoktur.
   birleştirilir. Böylece birçok client'ın yokladığı ve expire olan bir feed,
   handler'ını yalnızca bir kez çalıştırır.
 - **Bir okuyucunun vazgeçmesi diğerlerini başarısız kılmaz.** Bağlantısı kapanan bir
-  request beklemeyi bırakır. Render eden request'in kendisi iptal edilirse, arkasında
-  bekleyenler onun hatasını almak yerine yeniden dener.
+  request beklemeyi bırakır. Render'ın kendisi onu bekleyen request'lerin hiçbirine
+  ait değildir. Bu yüzden ilk request vazgeçtiğinde render durmaz: v0.18.1'den beri
+  o request'in context değerleriyle ama iptali olmadan çalışır ve yalnızca
+  fragment'lerin kendi timeout'larıyla sınırlanır. Stop'a basan tek bir okuyucu,
+  aynı anda isteyen herkese parçaları "context canceled" ile başarısız olmuş bir
+  page veremez.
 - **Bu durum görünürdür.** Bu şekilde sunulan bir request metriklerinize iki kez
   bildirilir. Önce lookup hiçbir şey bulamadığında `CacheMiss` olarak, sonra başka bir
   request'in render'ıyla sunulduğunda `CacheCoalesced` olarak bildirilir. Yani bir

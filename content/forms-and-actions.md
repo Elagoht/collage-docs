@@ -482,3 +482,21 @@ a plugin that does: it refreshes elements marked with `data-collage-fragment` on
 interval or when the server pushes a change over an event stream, and applies the
 hoist channel and the ETag above. The protocol it speaks is this section, so htmx
 or a script of your own works against the same server.
+
+A form it submits with `fetch` follows the [rule above](#failure-renders-success-redirects),
+in parts: the answer goes into the form's target on a success, or on a `422`. So an
+action says a submission did not validate by answering the form's fragment again,
+with the errors, and status 422 (since collage-live v0.2.0):
+
+```go
+if problems := validate(rc); len(problems) > 0 {
+	rc.Set("problems", problems)
+	result := collage.RenderFragment(formFragment)
+	result.Status = http.StatusUnprocessableEntity
+	return result, nil
+}
+```
+
+Any other failure — a 500, a refused forgery token — leaves the target as it was
+and marks it stale, rather than filling it with an error page. A redirect is
+followed as the browser would follow it.

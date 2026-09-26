@@ -144,7 +144,8 @@ instead of a response:
 | `HTML` | The markup, with the reader's forgery token in any form it holds |
 | `Head` | What the fragment hoisted into an area it placed no marker for, as `HoistItem`s with their area and key |
 | `DependencyTags` | The tags the render depended on — match them against `CacheInvalidateEvent.Tags` to know what to push |
-| `Shared` | The render is the same for every reader: the page is cached for everyone, or no handler in the subtree reads the request, and there is no form token |
+| `Shared` | The render is the same for every reader at this moment: the page is cached for everyone, or every handler in the subtree is declared `Static()` or `Shared()` and there is no slot resolver — and there is no form token. (since v0.19.0; before, a handler counted as reading the request unless it was `Static()`) |
+| `ETag` | The ETag a request to the fragment's path would get for the same body, so a client can tell a pushed copy from one it already shows, or recognise the two as the same (since v0.19.0) |
 | `Cookie` | The forgery cookie the forms in `HTML` need, when the request carried none |
 
 A `FragmentRequest` names the fragment either by `Page`, `Fragment`, `Locale` and
@@ -160,6 +161,9 @@ out, err := host.RenderFragment(r, collage.FragmentRequest{Path: "/live/cpu"})
 Only fragments the page opened are rendered: a stream reaches exactly what HTTP
 reaches. A render that is not `Shared` may hold one reader's data, so it must be
 rendered for each connection with that connection's request, never once for all.
+A fragment whose handler returns the same for everyone at one moment — a
+measurement — is marked [`Shared()`](/docs/caching#a-page-that-declares-none) so
+that its render counts, without making its page static.
 `App.RenderFragment` is the same method, for an application's own code.
 
 ### Streams and shutdown

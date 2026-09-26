@@ -74,7 +74,9 @@ can tell whether it does. A handler whose output is the same for every reader �
 post read from a file — belongs on a page that says `Static()` or
 `Incremental(ttl)` itself. A handler that reads only the path's parameters and the
 locale can say it on its fragment instead, with `Static()`, and then it leaves
-every page using that fragment static. See
+every page using that fragment static. A handler whose output is the same for
+every reader but changes over time — a measurement — says `Shared()` instead:
+its render may be shared between readers, and the page stays dynamic. See
 [Caching](/docs/caching#a-page-that-declares-none).
 
 ### Fixed data: WithData
@@ -393,6 +395,13 @@ The deadline is only an error if the handler says so: one that ignores `ctx` and
 returns `nil` late has succeeded, and its data renders. Pair a short timeout with a
 fallback on anything that is nice to have, and the page stops waiting on a slow
 service at the point you chose.
+
+The error says which deadline it was. Only the fragment's own timeout is reported
+as one — `collage: execution exceeded 5s` — and a context that ended above it, a
+request cancelled or a shorter deadline, is reported as `collage: execution
+stopped by context`, with its cause when it has one. Before v0.18.1 both read as
+a timeout, and a cancelled request sent you looking for a handler that was never
+slow.
 
 ## Panics
 

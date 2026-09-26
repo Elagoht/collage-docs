@@ -292,7 +292,7 @@ Plugins: []collage.Plugin{live.New()},
 
 ```json
 {
-  "elagoht/live": { "prefix": "/_live/", "noStream": false, "keepAlive": "25s", "maxFragments": 32 }
+  "elagoht/live": { "prefix": "/_live/", "noStream": false, "keepAlive": "25s", "maxFragments": 32, "maxStreamAge": "0s" }
 }
 ```
 
@@ -311,22 +311,45 @@ Plugins: []collage.Plugin{live.New()},
 ```
 
 - It must go in `Config.Plugins`: it adds `{{liveClient}}`, which the layout calls
-  to include the client. It needs collage v0.18.0 or later.
+  to include the client. v0.2.0 needs collage v0.19.0 or later; v0.1.0 needed
+  v0.18.0.
 - The page owns the container and the fragment owns what is inside it.
   `data-collage-interval` fetches on an interval, `data-collage-push` takes the
   fragment from the stream, `data-collage-swap="morph"` patches the DOM in place,
   and `data-collage-target` on a form submits it with `fetch` and puts the answer
-  into an element.
+  into an element — on a success, or on a `422`, which is how an action says a
+  submission did not validate: it answers the form's fragment again, with the
+  errors, and status 422 (see
+  [Forms and actions](/docs/forms-and-actions#refreshing-it-from-the-browser)). Any
+  other failure leaves the target as it was and marks it stale.
 - The client sends the `ETag` it holds and leaves the DOM alone on a `304`, adds
   what the fragment hoisted to the head once by its key, stops in a hidden tab, and
-  backs off when a request fails, marking the element `data-collage-stale`.
+  backs off when a request fails, marking the element `data-collage-stale`. A
+  pushed copy carries the same ETag a poll would get, so one the client already
+  holds is not sent again.
+- **One connection per browser.** A browser holds at most six connections to one
+  origin over HTTP/1.1, across all its tabs, so since v0.2.0 the client opens the
+  stream from a shared worker that every tab of the site shares. Where there is no
+  shared worker, each tab opens its own and closes it while hidden.
+- While the stream is down, pushed elements are marked stale; after three failed
+  connections they are polled every five seconds, and the stream is tried again
+  every minute.
 - **Pushing is tag-based.** When the application invalidates a tag, the plugin
   re-renders every open fragment that depended on it and sends it down the stream;
-  invalidating is the whole API. Data that is sampled rather than changed is pushed
-  by invalidating on a timer, and several fragments reading one measurement should
-  fetch it through `collage.Cached`.
+  invalidating is the whole API.
+- **Sampled data** — CPU load, a queue's length — is pushed by invalidating on a
+  timer, one tag per fragment. Mark such a fragment
+  [`Shared()`](/docs/caching#a-page-that-declares-none), not `Static()`, so that it
+  is rendered once per change rather than once per tab while its page stays
+  dynamic; several fragments reading one measurement fetch it through
+  `collage.Cached` with no tags, so that one fragment's tick does not re-render the
+  others. The [README](https://github.com/Elagoht/collage-live#sampled-data-a-system-monitor)
+  walks through a system monitor.
 - A render the framework reports as `Shared` is made once per URL and sent to every
-  reader of it; any other is made for each connection with its own request.
+  reader of it; any other is made for each connection with its own request. A
+  connection renders with the cookies it was opened with; with signed, stateless
+  cookies, `maxStreamAge` closes it after that long, and the client reopens it at
+  once with the cookies it holds then.
 - The stream is served at `<prefix>stream/`. A compression middleware of your own
   should leave `text/event-stream` alone, or the stream arrives only when it ends.
   With `noStream` the client only polls.
@@ -346,11 +369,13 @@ lv := live.New()
 Plugins: []collage.Plugin{lv, websocket.New(lv)},
 ```
 
-- Register collage-live as well, before this plugin. It needs collage v0.18.0 and
-  collage-live v0.1.0 or later.
+- Register collage-live as well, before this plugin. v0.2.0 needs collage v0.19.0
+  and collage-live v0.2.0 or later.
 - Nothing else changes: the layout still includes `{{liveClient}}`, which now tells
   the client to connect here, and elements still say `data-collage-push`.
-  collage-live stops serving its event stream.
+  collage-live stops serving its event stream. The WebSocket is opened from the
+  same shared worker, so every tab still shares one connection, and `maxStreamAge`
+  applies to it too.
 - **Usually you do not need it.** Pushing fragments is one-way, which is what an
   event stream is for: it needs no dependency and reconnects by itself. This plugin
   is for deployments where streams are what breaks — a proxy that buffers them, a

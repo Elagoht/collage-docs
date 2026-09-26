@@ -79,8 +79,10 @@ okuyucu için aynı olan bir handler'ı (dosyadan okunan bir yazı gibi),
 `Static()` ya da `Incremental(ttl)`'yi kendisi belirten bir page'e koyun. Yalnızca
 path'in parametrelerini ve locale'i okuyan bir handler bunu bunun yerine kendi
 fragment'inde `Static()` ile söyleyebilir. O zaman o fragment'i kullanan her page
-static kalır. Ayrıntılar için [Caching](/docs/caching#a-page-that-declares-none)
-sayfasına bakın.
+static kalır. Çıktısı her okuyucu için aynı olan ama zaman içinde değişen bir
+handler (bir ölçüm gibi) bunun yerine `Shared()` der. Render'ı okuyucular arasında
+paylaşılabilir ve page dynamic kalır. Ayrıntılar için
+[Caching](/docs/caching#a-page-that-declares-none) sayfasına bakın.
 
 ### Sabit veri: WithData
 
@@ -421,6 +423,13 @@ sayıp geç de olsa `nil` dönen bir handler başarılı olmuştur ve verisi ren
 edilir. Olmasa da olur türündeki her şey için kısa bir timeout'u bir fallback ile
 birlikte kullanın. Böylece page, yavaş bir servisi sizin seçtiğiniz noktada
 beklemeyi bırakır.
+
+Hata, hangi deadline'ın dolduğunu söyler. Yalnızca fragment'in kendi timeout'u
+timeout olarak bildirilir: `collage: execution exceeded 5s`. Daha yukarıda biten
+bir context (iptal edilen bir request ya da daha kısa bir deadline) ise varsa
+nedeniyle birlikte `collage: execution stopped by context` olarak bildirilir.
+v0.18.1'den önce ikisi de timeout gibi görünürdü ve iptal edilen bir request sizi
+hiç yavaş olmamış bir handler'ı aramaya gönderirdi.
 
 ## Panic'ler
 

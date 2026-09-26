@@ -1,6 +1,6 @@
 ---
 description: How collage caches rendered pages and the data they are made from, and how it knows what to throw away.
-reference: CacheConfig, Cached, Once, TaggedCache, SkipCache, Vary, PageBuilder.Static, PageBuilder.Incremental, PageBuilder.Dynamic, FragmentBuilder.Static, StrategyAuto
+reference: CacheConfig, Cached, Once, TaggedCache, SkipCache, Vary, PageBuilder.Static, PageBuilder.Incremental, PageBuilder.Dynamic, FragmentBuilder.Static, FragmentBuilder.Shared, StrategyAuto
 ---
 
 # Caching
@@ -113,6 +113,26 @@ reader's render to the next. It covers the fragment's own handler and nothing
 else: another fragment's handler still makes the page dynamic; so does a slot
 resolver, even on a static fragment, since the fragments it returns are not known
 until a render asks for them.
+
+`Static()` promises two things at once: the output is the same for every reader,
+and it stays the same until something is invalidated. A handler that reads no
+cookie but returns a measurement — CPU load, a queue's length, the time — keeps
+the first promise and not the second: it is the same for every reader, not the
+same over time. Mark it `Shared()` instead. Since v0.19.0.
+
+```go
+cpu := collage.NewFragment("cpu", "fragments/cpu.html").
+	WithDataHandler(cpuUsage). // the same for everyone, different every second
+	Shared().
+	Build()
+```
+
+`Shared()` leaves the page's strategy alone — the page stays dynamic, and an
+export does not write one moment's reading into it — and tells whatever pushes the
+fragment to readers that one render may be sent to all of them (see
+[Writing plugins](/docs/writing-plugins#pushing-fragments)).
+`Static()` implies it. As with `Static()`, a handler that breaks the promise sends
+one reader's data to another.
 
 A page's declared strategy is never second-guessed, in either direction: a page
 that says `Dynamic()` stays dynamic whatever its fragments say. Until v0.16.0 a
@@ -366,8 +386,11 @@ nothing to configure.
   coalesces like a page since v0.12.0: an expiring feed that many clients poll runs
   its handler once.
 - **One reader giving up does not fail the others.** A request whose connection
-  closes stops waiting. If the rendering request itself is cancelled, the ones
-  waiting behind it try again instead of receiving its error.
+  closes stops waiting. The render itself belongs to none of the requests waiting
+  on it, so it does not stop when the first of them does: since v0.18.1 it runs
+  with that request's context values but not its cancellation, bounded by the
+  fragments' own timeouts. One reader pressing stop cannot hand everyone who asked
+  at the same moment a page whose parts failed with "context canceled".
 - **It is visible.** A request served this way is reported to your metrics twice:
   as a `CacheMiss`, when its lookup found nothing, and then as `CacheCoalesced`,
   when it was served another request's render. So the renders a key cost are its

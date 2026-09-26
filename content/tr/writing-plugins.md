@@ -153,7 +153,8 @@ response yerine parçaları döner:
 | `HTML` | Markup. İçindeki her form okuyucunun forgery token'ını taşır |
 | `Head` | Fragment'in marker koymadığı bir alana hoist ettikleri; area'ları ve key'leriyle birlikte `HoistItem` olarak |
 | `DependencyTags` | Render'ın bağlı olduğu tag'ler. Neyin gönderileceğini bilmek için bunları `CacheInvalidateEvent.Tags` ile eşleştirin |
-| `Shared` | Render her okuyucu için aynıdır: page herkes için cache'lenir ya da alt ağaçtaki hiçbir handler request'i okumaz, ayrıca form token'ı yoktur |
+| `Shared` | Render bu anda her okuyucu için aynıdır: page herkes için cache'lenir ya da alt ağaçtaki her handler `Static()` veya `Shared()` olarak tanımlanmıştır ve slot resolver yoktur. Ayrıca form token'ı da yoktur (v0.19.0'dan beri; öncesinde `Static()` olmayan her handler request'i okuyor sayılırdı) |
+| `ETag` | Aynı body için fragment'in path'ine gelen bir request'in alacağı ETag. Böylece bir client, gönderilen bir kopyayı zaten gösterdiği kopyadan ayırt edebilir ya da ikisinin aynı olduğunu anlayabilir (v0.19.0'dan beri) |
 | `Cookie` | Request hiç cookie taşımıyorsa `HTML`'deki form'ların ihtiyaç duyduğu forgery cookie'si |
 
 Bir `FragmentRequest`, fragment'i ya `Page`, `Fragment`, `Locale` ve `Params` ile ya
@@ -169,8 +170,11 @@ out, err := host.RenderFragment(r, collage.FragmentRequest{Path: "/live/cpu"})
 Yalnızca page'in açtığı fragment'ler render edilir: bir stream tam olarak HTTP'nin
 ulaştığı yere ulaşır. `Shared` olmayan bir render tek bir okuyucunun verisini
 taşıyabilir. Bu yüzden herkes için bir kez değil, her bağlantı için o bağlantının
-request'iyle render edilmelidir. `App.RenderFragment` aynı metottur ve uygulamanın
-kendi kodu içindir.
+request'iyle render edilmelidir. Handler'ı belli bir anda herkes için aynı şeyi
+döndüren bir fragment (bir ölçüm gibi)
+[`Shared()`](/docs/caching#a-page-that-declares-none) olarak işaretlenir. Böylece
+render'ı, page'i static yapmadan `Shared` sayılır. `App.RenderFragment` aynı
+metottur ve uygulamanın kendi kodu içindir.
 
 ### Stream'ler ve shutdown
 

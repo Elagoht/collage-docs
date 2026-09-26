@@ -1,6 +1,6 @@
 ---
 description: Fragment'ler, sundukları slot'lar, bir fragment başarısız olduğunda ne olduğu ve render sırasında içerikten doldurulan slot'lar.
-reference: NewFragment, FragmentBuilder, Fragment, FragmentBuilder.WithFallback, FragmentBuilder.WithSlot, FragmentBuilder.WithData, FragmentBuilder.Static, SlotResolverFunc, ErrUnknownSlot
+reference: NewFragment, FragmentBuilder, Fragment, FragmentBuilder.WithFallback, FragmentBuilder.WithSlot, FragmentBuilder.WithData, FragmentBuilder.Static, FragmentBuilder.Shared, SlotResolverFunc, ErrUnknownSlot
 ---
 
 # Fragment'ler ve slot'lar
@@ -50,6 +50,7 @@ Geri kalan her şey isteğe bağlıdır:
 | `WithFallback(f)` | Bu fragment başarısız olduğunda neyin render edileceğini |
 | `WithTimeout(d)` | Data handler'ının ne kadar sürebileceğini |
 | `Static()` | Data handler'ının aynı URL'e gelen her request'e aynı sonucu döndürdüğünü, böylece page'i dynamic yapmadığını. v0.17.0'dan beri |
+| `Shared()` | Data handler'ının belli bir anda her okuyucuya aynı sonucu döndürdüğünü, ama bu sonucun zamanla değiştiğini. Böylece render'ı birçok okuyucuya gönderilebilir ve page'in stratejisine dokunulmaz. v0.19.0'dan beri |
 
 Page builder'da olduğu gibi fragment builder da hataları zinciri durdurmadan kaydeder
 ve `BuildErr()` bunları döner. Kaydedilen hatalar, builder'ın oluşturduğu fragment'in
@@ -68,7 +69,10 @@ cache'lenebilir de tutar: strateji tanımlamayan bir page, render ettiği bir ş
 data handler'ı ya da slot resolver'ı olmadıkça static'tir. Bkz.
 [Caching](/docs/caching#a-page-that-declares-none). Handler'ı yalnızca path'in
 parametrelerini ve locale'i okuyan bir fragment `Static()` der ve handler'ı artık
-hesaba katılmaz. `WithData` ile
+hesaba katılmaz. Handler'ı her okuyucu için aynı olan ama zaman içinde aynı
+kalmayan bir fragment (bir ölçüm gibi) `Shared()` der. Bu, page hakkında hiçbir şey
+söylemez ve handler yine hesaba katılır. İki sözden birini bozan bir handler, bir
+okuyucunun verisini başka bir okuyucuya gönderir. `WithData` ile
 `WithDataHandler`'ı birlikte ayarlamak, register sırasında `ErrConflictingData`
 hatası verir.
 

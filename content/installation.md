@@ -242,6 +242,12 @@ template nor a static file, so name its directory in
 changes reload the page too. The script is never added to a production page, nor
 to the answer to a form submission, which reloading would submit again.
 
+The script keeps a stream open to the server, and a browser allows at most six
+connections to one origin over HTTP/1.1, across all its tabs: with a stream in
+every open development tab, the seventh tab's pages waited for a free connection.
+Since v0.18.1 a hidden tab closes its stream and reconnects when it is seen again,
+and if anything changed while it was hidden, the page reloads then.
+
 A stream that never closes is a page that never finishes loading, which is what a
 screenshot tool or an end-to-end test waits for. A browser driven by Playwright,
 Puppeteer or Selenium sets `navigator.webdriver`, and the script does not connect

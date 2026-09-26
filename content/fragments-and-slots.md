@@ -1,6 +1,6 @@
 ---
 description: Fragments, the slots they expose, what happens when one fails, and slots filled from content at render time.
-reference: NewFragment, FragmentBuilder, Fragment, FragmentBuilder.WithFallback, FragmentBuilder.WithSlot, FragmentBuilder.WithData, FragmentBuilder.Static, SlotResolverFunc, ErrUnknownSlot
+reference: NewFragment, FragmentBuilder, Fragment, FragmentBuilder.WithFallback, FragmentBuilder.WithSlot, FragmentBuilder.WithData, FragmentBuilder.Static, FragmentBuilder.Shared, SlotResolverFunc, ErrUnknownSlot
 ---
 
 # Fragments and slots
@@ -48,6 +48,7 @@ Everything else is optional:
 | `WithFallback(f)` | What renders when this fragment fails |
 | `WithTimeout(d)` | How long its data handler may take |
 | `Static()` | Its data handler returns the same for every request to one URL, so it does not make a page dynamic. Since v0.17.0 |
+| `Shared()` | Its data handler returns the same for every reader at one moment, though not over time, so its render may be sent to many readers; the page's strategy is left alone. Since v0.19.0 |
 
 Like the page builder, the fragment builder records mistakes rather than stopping
 the chain, and `BuildErr()` returns them. What it recorded stays on the fragment it
@@ -64,7 +65,10 @@ job is to arrange slots. It also keeps the page cacheable: a page that declares 
 strategy is static unless something it renders has a data handler or a slot
 resolver — see [Caching](/docs/caching#a-page-that-declares-none). A fragment
 whose handler reads only the path's parameters and the locale says `Static()`,
-and its handler no longer counts. Setting both
+and its handler no longer counts. One whose handler is the same for every reader
+but not over time — a measurement — says `Shared()`, which implies nothing about
+the page and still counts; a handler that breaks either promise sends one reader's
+data to another. Setting both
 `WithData` and `WithDataHandler` is `ErrConflictingData` at registration.
 
 ## Slots
