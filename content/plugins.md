@@ -220,7 +220,8 @@ func loadArticle(ctx context.Context, rc *collage.RenderContext) (any, []string,
 }
 ```
 
-- It has no `Configure` phase, so `RegisterPlugin` accepts it too.
+- It needs collage v0.24.0 or later. It has no `Configure` phase, so
+  `RegisterPlugin` accepts it too.
 - `Emit` appends and works whether or not the plugin is registered. Nodes are keyed
   by schema.org type, so a nested fragment's `Article` replaces one declared
   further out, and nodes of different types all appear.
@@ -411,11 +412,12 @@ Plugins: []collage.Plugin{redirects.New(redirects.Options{FS: siteFS})},
 }
 ```
 
-- It needs collage v0.23.0 or later.
+- It needs collage v0.24.0 or later.
 - One rule a line: the old path, where it went, and a status — `301` when left out,
-  or `302`, `307`, `308`, or `410` with `-` for a page that is gone. `/blog/*` is a
-  prefix, and `:splat` in the target is what the `*` matched. The first rule that
-  matches wins, and the reader's query string is carried over.
+  or `302`, `307`, `308`, or `410` with `-` for a page that is gone, answered with
+  the site's own not-found page and status `410`. `/blog/*` is a prefix, and
+  `:splat` in the target is what the `*` matched. The first rule that matches wins,
+  and the reader's query string is carried over.
 - A file that is wrong stops the application from starting, and says where: a
   malformed line, a rule no request can reach, rules that send a reader round in a
   circle.
@@ -504,8 +506,9 @@ app.RegisterPage(collage.NewPage("post").
 }
 ```
 
-- It needs collage v0.23.0 or later, and must go in `Config.Plugins`: a static
-  build lists the files before the application starts.
+- It needs collage v0.24.0 or later, and can go in `Config.Plugins` or
+  `RegisterPlugin`: it reads its configuration and files when the application
+  starts, which a static build does before it lists the pages to write.
 - `md.Handler()` hands the template the `Doc` its `slug` names — `Title`,
   `Description`, `Date`, `Tags`, `HTML`, `Text`, `Headings` — or
   `collage.ErrNotFound`. `md.IndexHandler()`, `md.List` and `md.Get` feed an index
@@ -744,7 +747,7 @@ Plugins: []collage.Plugin{honeypot.New(honeypot.Options{Key: key})},
 }
 ```
 
-- It needs collage v0.23.0 or later, and must go in `Config.Plugins`: it adds
+- It needs collage v0.24.0 or later, and must go in `Config.Plugins`: it adds
   `{{honeypot}}`.
 - Every form body posted to a protected path is checked before it reaches the
   action, so every such form must carry `{{honeypot}}`. A JSON body and every `GET`
@@ -916,7 +919,7 @@ Plugins: []collage.Plugin{ratelimit.New(ratelimit.Options{
 }
 ```
 
-- It needs collage v0.23.0 or later. With no options, every form and action — every
+- It needs collage v0.24.0 or later. With no options, every form and action — every
   method but `GET`, `HEAD` and `OPTIONS` — is limited to a burst of ten, then one
   request every two seconds.
 - The first rule a request matches counts it, so put narrow rules first; each rule
@@ -952,7 +955,7 @@ Plugins: []collage.Plugin{basicauth.New(basicauth.Options{
 }
 ```
 
-- It needs collage v0.23.0 or later. The application does not start with no users.
+- It needs collage v0.24.0 or later. The application does not start with no users.
 - A password is written in plain text, as `sha256:` and its hex, or as a bcrypt
   hash. `COLLAGE_BASICAUTH_USERS` adds users from the environment, keeping secrets
   out of files.
@@ -1063,8 +1066,8 @@ lv := live.New()
 Plugins: []collage.Plugin{lv, websocket.New(lv)},
 ```
 
-- Register collage-live as well, before this plugin. v0.2.0 needs collage v0.19.0
-  and collage-live v0.2.0 or later.
+- Register collage-live as well, before this plugin. v0.2.1 needs collage v0.24.0
+  and collage-live v0.2.1 or later.
 - Nothing else changes: the layout still includes `{{liveClient}}`, which now tells
   the client to connect here, and elements still say `data-collage-push`.
   collage-live stops serving its event stream. The WebSocket is opened from the
@@ -1103,8 +1106,8 @@ Plugins: []collage.Plugin{minimizer.New()},
 }
 ```
 
-- It must go in `Config.Plugins`: it wraps the mounted filesystems, which happens
-  while the application is built.
+- It needs collage v0.24.0 or later, and must go in `Config.Plugins`: it wraps the
+  mounted filesystems, which happens while the application is built.
 - `New()` enables HTML, JSON and CSS. JavaScript is off by default; turn it on with
   `{"js": true}`. `minimizer.NewWith(minimizer.Config{...})` sets every switch
   yourself and bypasses those defaults.
@@ -1136,7 +1139,7 @@ Plugins: []collage.Plugin{optiimage.New()},
 }
 ```
 
-- It must go in `Config.Plugins`.
+- It needs collage v0.24.0 or later, and must go in `Config.Plugins`.
 - **An empty `allowedOrigins` disables it.** It never fetches from a host you did
   not list, and the scheme is part of the origin.
 - Only images with both `width` and `height` as pixel counts are rewritten; that
@@ -1337,13 +1340,15 @@ Plugins: []collage.Plugin{offline.New(offline.Options{
 }
 ```
 
-- It needs collage v0.23.0 or later, and must go in `Config.Plugins`: it adds
+- It needs collage v0.24.0 or later, and must go in `Config.Plugins`: it adds
   `{{offlineScript}}`, which installs the worker served at `/sw.js`.
 - Pages are fetched network-first and kept; static files under `assets` are served
   stale-while-revalidate; a page neither reachable nor kept gets the `fallback`
   page. A response marked `no-store` is never kept.
 - The worker's caches are named after a version that changes with each deployment,
-  so a new build replaces what the old one kept.
+  so a new build replaces what the old one kept. The build is `version` when set,
+  and otherwise collage's `Host.BuildID` — `Config.Cache.Version`, or a
+  fingerprint of the executable.
 - In development `/sw.js` unregisters itself. A static build writes `sw.js`; keep a
   CDN from holding it long.
 
@@ -1394,9 +1399,10 @@ Plugins: []collage.Plugin{htmlcheck.New(htmlcheck.Options{})},
 
 [github.com/Elagoht/collage-devtoolbar](https://github.com/Elagoht/collage-devtoolbar)
 shows a small panel at the bottom of every page in development: which page
-rendered, in which locale, with what status, how long the render took, its
-`Cache-Control` and `ETag`, its size, and how many findings the checking plugins
-reported.
+rendered, in which locale, with what status, how long the render and each of its
+fragments took, which fragments failed, the dependency tags the render depended
+on, its `Cache-Control` and `ETag`, its size, and how many findings the checking
+plugins reported.
 
 ```go
 import "github.com/Elagoht/collage-devtoolbar"
@@ -1407,7 +1413,7 @@ Plugins: []collage.Plugin{
 },
 ```
 
-- It needs collage v0.23.0 or later, and has nothing to configure.
+- It needs collage v0.24.0 or later, and has nothing to configure.
 - **Register it last**: the findings it counts are those of the plugins that ran
   before it.
 - On a server without `DevMode` and in a static build it does nothing at all. The
@@ -1436,7 +1442,7 @@ Plugins: []collage.Plugin{accesslog.New(accesslog.Options{})},
 }
 ```
 
-- It needs collage v0.23.0 or later.
+- It needs collage v0.24.0 or later.
 - The line has the method, path without its query, status, bytes, duration, client
   address, user agent, referer and request id, through the application's logger or
   `Options.Logger`; a `5xx` is logged at `ERROR`.
@@ -1468,14 +1474,15 @@ app, err := collage.New(&collage.Config{
 }
 ```
 
-- It needs collage v0.23.0 or later. Hand the one value over as both the
+- It needs collage v0.24.0 or later. Hand the one value over as both the
   application's `Metrics` and a plugin: without the first nothing is measured,
   without the second nothing is served.
 - No label is taken from a request. `route` is the name of the page whose pattern
   the path matched, `/blog/a` and `/blog/b` both `post`, so a crawler inventing
   paths cannot mint time series.
 - Set `token` and the scrape must send it as a bearer token; `path: "-"` serves the
-  metrics nowhere.
+  metrics nowhere. The path is exact: one another route already answers, or one
+  ending in `/`, stops the application from starting.
 
 #### elagoht/otel
 
