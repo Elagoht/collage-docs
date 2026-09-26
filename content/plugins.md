@@ -541,14 +541,16 @@ Plugins: []collage.Plugin{highlight.New(highlight.Options{})},
 }
 ```
 
-- It needs collage v0.23.0 or later, and must go in `Config.Plugins`: it adds
-  `{{highlight}}`.
+- v0.2.0 needs collage v0.25.0 or later; v0.1.0 needed v0.23.0. It must go in
+  `Config.Plugins`: it adds `{{highlight}}`.
 - With `auto` on, every `<pre><code class="language-go">` a page holds — what
   elagoht/markdown and most Markdown renderers write — is coloured where it
   stands, once per render; a cached page is served as it was coloured.
 - The stylesheet is linked from pages with coloured code only, by a
-  content-addressed name, each theme under its own `prefers-color-scheme` query. It
-  needs `{{hoist "head"}}` in the layout.
+  content-addressed name, each theme under its own `prefers-color-scheme` query.
+  Since v0.2.0 the `auto` pass hoists it with `AfterRenderEvent.Hoist`, so it lands
+  where the layout put `{{hoist "head"}}`, or before `</head>` without one;
+  `{{highlight}}` needs `{{hoist "head"}}` in the layout.
 
 #### elagoht/toc
 
@@ -1470,16 +1472,19 @@ app, err := collage.New(&collage.Config{
 
 ```json
 {
-  "elagoht/prometheus": { "path": "/metrics", "token": "s3cret", "routes": ["/api/"] }
+  "elagoht/prometheus": { "path": "/metrics", "token": "s3cret" }
 }
 ```
 
-- It needs collage v0.24.0 or later. Hand the one value over as both the
-  application's `Metrics` and a plugin: without the first nothing is measured,
-  without the second nothing is served.
-- No label is taken from a request. `route` is the name of the page whose pattern
-  the path matched, `/blog/a` and `/blog/b` both `post`, so a crawler inventing
-  paths cannot mint time series.
+- v0.2.0 needs collage v0.25.0 or later; v0.1.1 needed v0.24.0. Hand the one value
+  over as both the application's `Metrics` and a plugin: without the first nothing
+  is measured, without the second nothing is served.
+- No label is taken from a request. Since v0.2.0 `route` is what
+  `collage.RouteOf` says the request resolved to, as kind and name — `/blog/a` and
+  `/blog/b` both `page:post`, `/robots.txt` `document:robots`, a mount
+  `mount:/static/`, a 404 `other` — so a crawler inventing paths cannot mint time
+  series. The `routes` option is gone: mounts and handlers are labelled by their
+  prefix without it.
 - Set `token` and the scrape must send it as a bearer token; `path: "-"` serves the
   metrics nowhere. The path is exact: one another route already answers, or one
   ending in `/`, stops the application from starting.
@@ -1505,11 +1510,14 @@ app, err := collage.New(&collage.Config{
 { "elagoht/otel": { "skip": ["/healthz"] } }
 ```
 
-- It needs collage v0.23.0 or later. As the tracer it turns `collage.http`,
-  `collage.render` and `collage.fragment` into spans; as a plugin it reads the
-  caller's trace context from the headers. Each works alone.
-- With both, a request is one server span, a child of the caller's, named for its
-  route — `GET /blog/{slug}` — with the render and every fragment nested under it.
+- v0.2.0 needs collage v0.25.0 or later; v0.1.0 needed v0.23.0. As the tracer it
+  turns `collage.http`, `collage.render` and `collage.fragment` into spans; as a
+  plugin it reads the caller's trace context from the headers, in a `RequestHook`
+  that runs before collage's own span. Each works alone.
+- With both, a request is one trace: a server span, a child of the caller's, with
+  `collage.http` under it and the render and every fragment under that. The server
+  span is named for the route `collage.RouteOf` reports — `GET /blog/{slug}` for a
+  page, the name or prefix for a document, a mount or a handler.
 - The application owns the SDK: the provider, the exporter, the sampler and the
   propagator. Set a propagator, or every request starts a trace of its own.
 

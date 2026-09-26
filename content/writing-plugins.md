@@ -1,6 +1,6 @@
 ---
 description: The plugin contract, what Host and ConfigHost expose, every hook and what it may change, and a complete plugin with its tests.
-reference: Plugin, Host, ConfigHost, Configurer, Command, BeforeRenderHook, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile
+reference: Plugin, Host, ConfigHost, Configurer, Command, BeforeRenderHook, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, RequestHook, RouteOf
 ---
 
 # Writing a plugin
@@ -200,6 +200,7 @@ take the connection over with `Hijack`, as it could on a bare `net/http` server.
 
 | Interface | Method | Event | Fires | May change |
 | --- | --- | --- | --- | --- |
+| `RequestHook` | `OnRequest` | the `*http.Request` | First on every request, before collage's request span, middleware and routing (since v0.25.0) | the request's context |
 | `PageResolvedHook` | `OnPageResolved` | `PageResolvedEvent` | Once per page request, right after routing — cache hits included | nothing |
 | `BeforeRenderHook` | `OnBeforeRender` | `BeforeRenderEvent` | Before a fresh page render | nothing on the event; may hoist through `ev.Context` |
 | `AfterRenderHook` | `OnAfterRender` | `AfterRenderEvent` | After a page render succeeded | `ev.HTML`; reports with `ev.Warn`, `ev.Error` |
@@ -209,7 +210,53 @@ take the connection over with `Hijack`, as it could on a bare `net/http` server.
 | `ErrorHook` | `OnError` | `ErrorEvent` | On a failure while serving a request | nothing |
 | `BuildFinishedHook` | `OnBuildFinished` | `BuildFinishedEvent` | Once, when a static build has written every file (since v0.21.0) | reports with `ev.Warn`, `ev.Error` |
 
-Every hook method has the shape `func(ctx context.Context, ev *Event) error`.
+Every hook method has the shape `func(ctx context.Context, ev *Event) error`, except
+`OnRequest`.
+
+### RequestHook
+
+```go
+type RequestHook interface {
+	OnRequest(r *http.Request) (context.Context, func(status int))
+}
+```
+
+Runs before anything else on a request (since v0.25.0): before collage starts its
+request span, before middleware, before routing. It returns the context the request
+is served under — derived from `r.Context()` — and a function collage calls with
+the status once the response is written. The function may be `nil`, and it must not
+write to the response.
+
+It is what a tracing plugin needs. A trace carried in from the caller has to be the
+parent of collage's own `collage.http` span, and middleware added with `Host.Use`
+runs too late for that, inside the span collage has already started:
+
+```go
+func (p *Plugin) OnRequest(r *http.Request) (context.Context, func(status int)) {
+	ctx := p.propagator.Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+	ctx, span := p.tracer.Start(ctx, r.Method, trace.WithSpanKind(trace.SpanKindServer))
+	return ctx, func(status int) {
+		if kind, name := collage.RouteOf(ctx); kind != "" {
+			span.SetName(r.Method + " " + kind + ":" + name)
+		}
+		span.SetAttributes(attribute.Int("http.response.status_code", status))
+		span.End()
+	}
+}
+```
+
+`collage.RouteOf(ctx)` reports what the request resolved to: its kind — `"page"`,
+`"document"`, `"action"`, `"mount"` or `"handler"` — and the registered name or
+prefix: the page's, the document's or the action's name, the mount's or the
+handler's prefix. Both are empty while the request is unresolved, and for a request
+that resolved to nothing, such as a 404. It reads the context collage serves the
+request under, which the finish function's context shares and
+`Metrics.HTTPResponse` receives, so a span or a metric can be labelled with the
+route rather than the raw path — a bounded set rather than one per URL.
+
+Hooks run in registration order, and each is handed the request under the context
+the one before it made; the finish functions run in the reverse order. One that
+panics is skipped, and the request is served under the context before it.
 
 ### PageResolvedHook
 
@@ -245,7 +292,8 @@ an action answers with through `RenderPage`, and for every page a static build
 renders.
 
 It is the only hook that gets the render context, and the reason is hoisting. A
-plugin that contributes to the page has to declare before the tree renders:
+plugin that contributes to the page declares before the tree renders, so that a
+fragment can still override it:
 
 ```go
 func (p *Plugin) OnBeforeRender(_ context.Context, ev *collage.BeforeRenderEvent) error {
@@ -308,6 +356,27 @@ Two consequences of where it sits:
 A page an action answers with through `RenderPage` runs it too (since v0.10.0;
 before, it ran `BeforeRender` only), so a validation page is minified like any
 other. An error fails the request with a 500, under `"after_render"`.
+
+### Adding to the head after the render
+
+A plugin that learns what a page needs only from its finished markup — the code
+blocks it highlighted need a stylesheet — adds it with `ev.Hoist(area, key, html)`
+in `OnAfterRender` (since v0.25.0):
+
+```go
+if highlighted {
+	ev.Hoist("head", "highlight:css", `<link rel="stylesheet" href="/_highlight/style.css">`)
+}
+```
+
+It lands where the layout put `{{hoist "head"}}`, after what the render declared
+there. A key the render already declared in that area is left alone — the page is
+more specific than a plugin afterwards — and so is a key hoisted twice. `ev.Hoist`
+reports whether it added the HTML.
+
+It finds the layout's place only in the HTML the render produced. If an earlier
+plugin replaced `ev.HTML` — or you did, in the same hook — `"head"` lands before
+`</head>` instead, and any other area reports false. Hoist first, then rewrite.
 
 ### Checking the output: findings
 
@@ -502,6 +571,8 @@ never fires on a server.
 - For `OnCacheInvalidate`, the first error stops dispatch and is returned from
   `InvalidateTags`.
 - For `OnError`, errors are logged and dispatch continues.
+- `OnRequest` returns no error. A panicking one is logged and skipped, and the
+  request goes on under the context before it.
 - For `OnBuildFinished`, the first error stops dispatch and fails the build.
 - A finding is not an error: it never stops dispatch, and every later plugin still
   runs.

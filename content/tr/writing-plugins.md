@@ -1,6 +1,6 @@
 ---
 description: Plugin sözleşmesi, Host ve ConfigHost'un sundukları, her hook ve neyi değiştirebileceği, testleriyle birlikte eksiksiz bir plugin.
-reference: Plugin, Host, ConfigHost, Configurer, Command, BeforeRenderHook, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile
+reference: Plugin, Host, ConfigHost, Configurer, Command, BeforeRenderHook, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, RequestHook, RouteOf
 ---
 
 # Plugin yazmak
@@ -213,6 +213,7 @@ sunucusunda da yapabilirdi.
 
 | Interface | Metot | Event | Ne zaman çalışır | Neyi değiştirebilir |
 | --- | --- | --- | --- | --- |
+| `RequestHook` | `OnRequest` | `*http.Request` | Her request'te ilk olarak; collage'ın request span'inden, middleware'den ve routing'den önce (v0.25.0'dan beri) | request'in context'ini |
 | `PageResolvedHook` | `OnPageResolved` | `PageResolvedEvent` | Her page request'inde bir kez, routing'in hemen ardından; cache hit'ler dahil | hiçbir şeyi |
 | `BeforeRenderHook` | `OnBeforeRender` | `BeforeRenderEvent` | Yeni bir page render'ından önce | event'te hiçbir şeyi; `ev.Context` üzerinden hoist edebilir |
 | `AfterRenderHook` | `OnAfterRender` | `AfterRenderEvent` | Bir page render'ı başarıyla bittikten sonra | `ev.HTML`; `ev.Warn` ve `ev.Error` ile raporlar |
@@ -222,7 +223,55 @@ sunucusunda da yapabilirdi.
 | `ErrorHook` | `OnError` | `ErrorEvent` | Bir request sunulurken bir hata oluştuğunda | hiçbir şeyi |
 | `BuildFinishedHook` | `OnBuildFinished` | `BuildFinishedEvent` | Bir static build her dosyayı yazdığında, bir kez (v0.21.0'dan beri) | `ev.Warn` ve `ev.Error` ile raporlar |
 
-Her hook metodunun imzası `func(ctx context.Context, ev *Event) error` biçimindedir.
+`OnRequest` dışında her hook metodunun imzası
+`func(ctx context.Context, ev *Event) error` biçimindedir.
+
+### RequestHook
+
+```go
+type RequestHook interface {
+	OnRequest(r *http.Request) (context.Context, func(status int))
+}
+```
+
+Bir request'te her şeyden önce çalışır (v0.25.0'dan beri): collage kendi request
+span'ini başlatmadan, middleware'den ve routing'den önce. Request'in sunulacağı
+context'i döner; bu context `r.Context()`'ten türetilir. Bir de response yazıldıktan
+sonra collage'ın status ile çağırdığı bir fonksiyon döner. Bu fonksiyon `nil`
+olabilir ve response'a yazmamalıdır.
+
+Bir tracing plugin'inin ihtiyaç duyduğu şey budur. Çağırandan gelen bir trace,
+collage'ın kendi `collage.http` span'inin parent'ı olmalıdır. `Host.Use` ile eklenen
+middleware bunun için geç kalır; collage'ın çoktan başlattığı span'in içinde
+çalışır:
+
+```go
+func (p *Plugin) OnRequest(r *http.Request) (context.Context, func(status int)) {
+	ctx := p.propagator.Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+	ctx, span := p.tracer.Start(ctx, r.Method, trace.WithSpanKind(trace.SpanKindServer))
+	return ctx, func(status int) {
+		if kind, name := collage.RouteOf(ctx); kind != "" {
+			span.SetName(r.Method + " " + kind + ":" + name)
+		}
+		span.SetAttributes(attribute.Int("http.response.status_code", status))
+		span.End()
+	}
+}
+```
+
+`collage.RouteOf(ctx)`, request'in neye resolve edildiğini bildirir: türünü (`"page"`,
+`"document"`, `"action"`, `"mount"` ya da `"handler"`) ve register edildiği adı ya
+da prefix'i. Bu ad page'in, document'ın ya da action'ın adıdır; mount'ta ve
+handler'da ise prefix'tir. Request henüz resolve edilmemişken ve 404 gibi hiçbir şeye
+resolve edilmeyen bir request'te ikisi de boştur. collage'ın request'i sunduğu
+context'i okur. Finish fonksiyonunun context'i de bu context'i paylaşır,
+`Metrics.HTTPResponse` da bu context'i alır. Böylece bir span ya da metric, ham
+path yerine route ile etiketlenebilir. Bu, URL başına bir değer değil, sınırlı bir
+kümedir.
+
+Hook'lar register sırasına göre çalışır. Her biri request'i kendinden öncekinin
+oluşturduğu context ile alır. Finish fonksiyonları ters sırada çalışır. Panic'e
+düşen bir hook atlanır ve request ondan önceki context ile sunulur.
 
 ### PageResolvedHook
 
@@ -258,7 +307,8 @@ olarak döndüğü page için çalışır. Static build'in render ettiği her pa
 çalışır.
 
 Render context'ini alan tek hook budur ve sebebi hoisting'dir. Page'e bir şey
-ekleyen plugin, bunu ağaç render edilmeden önce tanımlamak zorundadır:
+ekleyen plugin, bunu ağaç render edilmeden önce tanımlar. Böylece bir fragment onu
+hâlâ override edebilir:
 
 ```go
 func (p *Plugin) OnBeforeRender(_ context.Context, ev *collage.BeforeRenderEvent) error {
@@ -325,6 +375,29 @@ Bir action'ın `RenderPage` ile cevap olarak döndüğü page de bu hook'u çal�
 Bu, v0.10.0'dan beri böyledir; öncesinde yalnızca `BeforeRender` çalışıyordu. Böylece
 bir validation page'i de diğer page'ler gibi minify edilir. Dönen bir hata,
 request'i `"after_render"` altında 500 ile başarısız kılar.
+
+### Render'dan sonra head'e eklemek
+
+Page'in neye ihtiyaç duyduğunu yalnızca bitmiş markup'tan öğrenen bir plugin
+vardır: highlight ettiği kod blokları bir stylesheet ister. Böyle bir plugin bunu
+`OnAfterRender` içinde `ev.Hoist(area, key, html)` ile ekler (v0.25.0'dan beri):
+
+```go
+if highlighted {
+	ev.Hoist("head", "highlight:css", `<link rel="stylesheet" href="/_highlight/style.css">`)
+}
+```
+
+Eklenen içerik, layout'un `{{hoist "head"}}` koyduğu yere, render'ın orada
+tanımladıklarının arkasına yerleşir. Render'ın o alanda zaten tanımladığı bir
+key'e dokunulmaz, çünkü page sonradan gelen bir plugin'den daha özeldir. İki kez
+hoist edilen bir key'e de dokunulmaz. `ev.Hoist`, HTML'i ekleyip eklemediğini
+döner.
+
+Layout'un yerini yalnızca render'ın ürettiği HTML'de bulur. Daha önceki bir plugin
+`ev.HTML`'i değiştirdiyse (ya da aynı hook'ta siz değiştirdiyseniz), `"head"`
+bunun yerine `</head>`'in önüne yerleşir; başka bir alan ise false döner. Önce
+hoist edin, sonra yeniden yazın.
 
 ### Çıktıyı denetlemek: finding'ler
 
@@ -525,6 +598,8 @@ zaten yazılmış dosyalar yerinde kalır. Bir sunucuda hiçbir zaman çalışma
 - `OnCacheInvalidate` için ilk hata dispatch'i durdurur ve `InvalidateTags`'ten
   döner.
 - `OnError` için hatalar log'lanır ve dispatch devam eder.
+- `OnRequest` hata dönmez. Panic'e düşen bir `OnRequest` log'lanır ve atlanır;
+  request ondan önceki context ile devam eder.
 - `OnBuildFinished` için ilk hata dispatch'i durdurur ve build'i başarısız kılar.
 - Bir finding hata değildir: dispatch'i hiçbir zaman durdurmaz ve sonraki her
   plugin yine çalışır.

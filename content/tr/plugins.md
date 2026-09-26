@@ -569,15 +569,18 @@ Plugins: []collage.Plugin{highlight.New(highlight.Options{})},
 }
 ```
 
-- collage v0.23.0 ya da sonrasını gerektirir ve `Config.Plugins` içinde olmalıdır:
-  `{{highlight}}`'ı ekler.
+- v0.2.0, collage v0.25.0 ya da sonrasını gerektirir; v0.1.0 v0.23.0'ı
+  gerektiriyordu. `Config.Plugins` içinde olmalıdır: `{{highlight}}`'ı ekler.
 - `auto` açıkken bir page'in içerdiği her `<pre><code class="language-go">`
   bulunduğu yerde, render başına bir kez renklendirilir. elagoht/markdown ve çoğu
   Markdown renderer'ı bu biçimi yazar. Cache'lenen bir page renklendirildiği hâliyle
   sunulur.
 - Stylesheet yalnızca renklendirilmiş kod içeren page'lerden, içeriğe göre
   adlandırılmış bir adla link'lenir. Her tema kendi `prefers-color-scheme` sorgusu
-  altındadır. Layout'ta `{{hoist "head"}}` gerektirir.
+  altındadır. v0.2.0'dan beri `auto` geçişi stylesheet'i `AfterRenderEvent.Hoist`
+  ile hoist eder. Böylece stylesheet, layout'un `{{hoist "head"}}` koyduğu yere,
+  o yoksa `</head>`'in önüne yerleşir. `{{highlight}}` ise layout'ta
+  `{{hoist "head"}}` gerektirir.
 
 #### elagoht/toc
 
@@ -1527,16 +1530,20 @@ app, err := collage.New(&collage.Config{
 
 ```json
 {
-  "elagoht/prometheus": { "path": "/metrics", "token": "s3cret", "routes": ["/api/"] }
+  "elagoht/prometheus": { "path": "/metrics", "token": "s3cret" }
 }
 ```
 
-- collage v0.24.0 ya da sonrasını gerektirir. Tek değeri hem uygulamanın `Metrics`'i
-  hem de bir plugin olarak verin. Birincisi olmadan hiçbir şey ölçülmez, ikincisi
+- v0.2.0, collage v0.25.0 ya da sonrasını gerektirir; v0.1.1 v0.24.0'ı
+  gerektiriyordu. Tek değeri hem uygulamanın `Metrics`'i hem de bir plugin olarak
+  verin. Birincisi olmadan hiçbir şey ölçülmez, ikincisi
   olmadan hiçbir şey sunulmaz.
-- Hiçbir label bir request'ten alınmaz. `route`, path'in eşleştiği pattern'e sahip
-  page'in adıdır; `/blog/a` ve `/blog/b` ikisi de `post`'tur. Böylece path uyduran
-  bir crawler yeni time series üretemez.
+- Hiçbir label bir request'ten alınmaz. v0.2.0'dan beri `route`, `collage.RouteOf`'un
+  request'in neye resolve edildiğini söylediği tür ve addır: `/blog/a` ve `/blog/b`
+  ikisi de `page:post`, `/robots.txt` `document:robots`, bir mount
+  `mount:/static/`, bir 404 ise `other` olur. Böylece path uyduran bir crawler yeni
+  time series üretemez. `routes` seçeneği kaldırıldı: mount'lar ve handler'lar o
+  olmadan da prefix'leriyle etiketlenir.
 - `token` ayarlanırsa scrape onu bir bearer token olarak göndermelidir.
   `path: "-"` metric'leri hiçbir yerde sunmaz. Path birebir eşleşir: başka bir
   route'un zaten yanıtladığı ya da `/` ile biten bir path uygulamanın başlamasını
@@ -1563,12 +1570,16 @@ app, err := collage.New(&collage.Config{
 { "elagoht/otel": { "skip": ["/healthz"] } }
 ```
 
-- collage v0.23.0 ya da sonrasını gerektirir. Tracer olarak `collage.http`,
-  `collage.render` ve `collage.fragment`'i span'lere dönüştürür. Plugin olarak da
-  çağıranın trace context'ini header'lardan okur. İkisi de tek başına çalışır.
-- İkisi birlikteyken bir request, çağıranınkinin child'ı olan tek bir server span'dir.
-  Route'una göre adlandırılır (`GET /blog/{slug}`); render ve her fragment onun
-  altında yer alır.
+- v0.2.0, collage v0.25.0 ya da sonrasını gerektirir; v0.1.0 v0.23.0'ı
+  gerektiriyordu. Tracer olarak `collage.http`, `collage.render` ve
+  `collage.fragment`'i span'lere dönüştürür. Plugin olarak da çağıranın trace
+  context'ini header'lardan okur; bunu collage'ın kendi span'inden önce çalışan bir
+  `RequestHook` içinde yapar. İkisi de tek başına çalışır.
+- İkisi birlikteyken bir request tek bir trace'tir. Çağıranınkinin child'ı olan bir
+  server span vardır; `collage.http` onun, render ve her fragment de
+  `collage.http`'nin altında yer alır. Server span, `collage.RouteOf`'un bildirdiği
+  route'a göre adlandırılır: bir page için `GET /blog/{slug}`, bir document, mount
+  ya da handler için adı ya da prefix'i.
 - SDK uygulamaya aittir: provider, exporter, sampler ve propagator. Bir propagator
   ayarlayın; yoksa her request kendi trace'ini başlatır.
 
