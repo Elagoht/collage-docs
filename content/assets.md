@@ -246,8 +246,15 @@ those: a media directory is not doubled for names no page uses.
 ## What mounts do not do
 
 - **No compression.** No gzip or Brotli, and no pre-compressed sidecar files. Put a
-  reverse proxy or CDN in front, or wrap `app.Handler()`.
+  reverse proxy or CDN in front, wrap `app.Handler()`, or register
+  [elagoht/compress](/docs/plugins#elagohtcompress).
 - **No bundling, minification or image processing.** A mount serves the bytes it
-  is given; [plugins](/docs/plugins) can do more.
+  is given; [plugins](/docs/plugins) can do more:
+  [elagoht/bundle](/docs/plugins#elagohtbundle) bundles scripts and stylesheets with
+  esbuild, [elagoht/minimizer](/docs/plugins#elagohtminimizer) minifies what a mount
+  serves, [elagoht/opti-image](/docs/plugins#elagohtopti-image) resizes images,
+  [elagoht/favicon](/docs/plugins#elagohtfavicon) makes a site's icons from one
+  image, and [elagoht/offline](/docs/plugins#elagohtoffline) keeps pages and static
+  files for reading without a network.
 - **Only `fs.FS` sources.** An object store such as S3 is not one. Serve it
   yourself with [`app.Handle`](/docs/middleware-and-apis), or link to it directly.

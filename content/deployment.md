@@ -271,6 +271,11 @@ cache. What a new build finds depends on what changed:
   container, so each instance fills its own cache, at one render per page per
   instance.
 
+A CDN in front keeps copies of its own:
+[elagoht/cdnpurge](/docs/plugins#elagohtcdnpurge) purges them when collage
+invalidates a page, and [elagoht/compress](/docs/plugins#elagohtcompress) compresses
+responses with Brotli and gzip, once per cached page rather than once per reader.
+
 ### Invalidation with several instances
 
 `app.InvalidateTags` drops entries from the cache of the process it runs in. With
@@ -312,6 +317,9 @@ With nginx, `proxy_set_header X-Forwarded-Proto $scheme;` in the `location` bloc
 does the same. The security headers themselves — HSTS, a Content-Security-Policy
 and the rest — can come from the binary, with the
 [elagoht/secure](/docs/plugins#elagohtsecure) plugin.
+[elagoht/ratelimit](/docs/plugins#elagohtratelimit) limits how fast one client can
+submit forms, and [elagoht/basicauth](/docs/plugins#elagohtbasicauth) puts a
+password in front of a staging deployment.
 
 If you want the binary to terminate TLS itself, `app.Handler()` is an ordinary
 `http.Handler`:
@@ -363,6 +371,13 @@ machine, pass a JSON handler:
 ```go
 Logger: slog.New(slog.NewJSONHandler(os.Stdout, nil)),
 ```
+
+collage logs what goes wrong, not every request.
+[elagoht/accesslog](/docs/plugins#elagohtaccesslog) writes one line per request, with
+a request id, through the same logger;
+[elagoht/prometheus](/docs/plugins#elagohtprometheus) serves the framework's metrics
+at `/metrics`; and [elagoht/otel](/docs/plugins#elagohtotel) turns its spans into
+OpenTelemetry traces.
 
 ## A checklist
 

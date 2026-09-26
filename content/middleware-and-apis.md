@@ -39,6 +39,15 @@ Two things about where it runs:
   instead of a dropped connection, and a request it answers itself is counted like
   any other.
 
+### Paths are cleaned first
+
+A path with dot segments or doubled slashes — `/a/../b`, `/a//b`, `/a/./b` — is
+redirected to its clean spelling before anything reads it, middleware and plugins
+included: 301 for `GET` and `HEAD`, 308 for a method that carries a body, the query
+kept (since v0.24.0). A middleware that skips `/_collage/` or protects `/admin/`
+therefore never meets `/_collage/../admin`, and a prefix check is a check on the
+path the router will route.
+
 ### Passing values to data handlers
 
 What middleware puts in the request's context is what data handlers receive as
@@ -149,10 +158,14 @@ shutdown. A 5xx it answers with is reported to plugins' error hooks as
 
 ### Prefixes and conflicts
 
-The prefix must begin and end with `/` and cannot be `/` alone
-(`collage.ErrInvalidHandlerPrefix`). A handler at `/` would take every request from
-every page; if that is really what you want, put `app.Handler()` inside a mux of your
-own instead.
+The prefix must begin with `/` and cannot be `/` alone
+(`collage.ErrInvalidHandlerPrefix`). Ending in `/`, it claims every path beneath
+it. Without the trailing slash it is one exact path, and answers that path alone —
+`app.Handle("/metrics", h)` serves `/metrics` and not `/metrics/x` (since v0.24.0;
+before, the prefix had to end in `/`).
+
+A handler at `/` would take every request from every page; if that is really what
+you want, put `app.Handler()` inside a mux of your own instead.
 
 A prefix may not cover anything collage routes. `app.Handle("/api/", ...)` next to
 an action at `/api/count` is refused with `collage.ErrMountShadowsRoute`, and two

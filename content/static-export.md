@@ -249,8 +249,10 @@ project.
 
 ### Plugins in an export
 
-The export renders in the state the server does. Every plugin's `Init` runs first,
-so a plugin reads the same configuration; `OnBeforeRender`, `OnAfterRender` and
+The export renders in the state the server does. A build starts the application
+first, running every plugin's `Init` before pages are enumerated (since v0.24.0), so
+a page a plugin registers, or the `WithStaticParams` of data a plugin loads, is
+built, and a plugin reads the same configuration; `OnBeforeRender`, `OnAfterRender` and
 `OnDocumentRendered` fire for every page and document, so what a minifier or a
 structured-data plugin does to a served page it does to the file. `OnPageResolved`
 does not fire, because an export is not a request. Since v0.21.0 `OnBuildFinished`

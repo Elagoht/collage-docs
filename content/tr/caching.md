@@ -1,6 +1,6 @@
 ---
 description: collage'ın render edilmiş page'leri ve onları oluşturan veriyi nasıl cache'lediği, neyi atacağını nasıl bildiği.
-reference: CacheConfig, Cached, Once, TaggedCache, SkipCache, Vary, PageBuilder.Static, PageBuilder.Incremental, PageBuilder.Dynamic, FragmentBuilder.Static, FragmentBuilder.Shared, StrategyAuto
+reference: CacheConfig, Cached, Once, TaggedCache, SkipCache, Vary, PageBuilder.Static, PageBuilder.Incremental, PageBuilder.Dynamic, FragmentBuilder.Static, FragmentBuilder.Shared, StrategyAuto, PathTag
 ---
 
 # Caching
@@ -247,6 +247,26 @@ da bir admin form'unda. Bir action bunu declarative olarak da yapabilir. Bunun i
 [result'ındaki `InvalidateTags`](/docs/forms-and-actions#invalidating-what-an-action-changed)
 alanını kullanır. Bu invalidation response yazılmadan önce çalışır. Böylece az önce
 değiştirdiği page'e redirect edilen okuyucu eski sürümü hiçbir zaman görmez.
+
+### Path'e göre invalidate etmek
+
+Cache'lenen her page ve document ayrıca render edildiği URL path'ini adlandıran bir
+tag'e de bağlıdır: `collage.PathTag(path)` (v0.23.0'dan beri). Bu yüzden elinizde
+bir tag değil de path varsa, entry'yi path'iyle atabilirsiniz:
+
+```go
+app.InvalidateTags(ctx, collage.PathTag("/blog/hello"))
+```
+
+Bu, o path için cache'lenmiş olanı, başka neye bağlı olursa olsun atar.
+
+Bir invalidation ne attığını da söyler. Bir plugin her invalidation'ı
+`OnCacheInvalidate` üzerinden duyar. Event tag'leri ve `Paths` içinde atılan
+cache'lenmiş page ve document'ların URL path'lerini taşır. Bir CDN'in purge etmesi
+ve bir arama motoruna değiştiği bildirilmesi gereken budur. Hiç cache'lenmemiş bir
+page burada yer almaz. Bkz. [Plugin yazmak](/docs/writing-plugins#cacheinvalidatehook).
+[elagoht/cdnpurge](/docs/plugins#elagohtcdnpurge) ve
+[elagoht/indexnow](/docs/plugins#elagohtindexnow) bunun üzerine kuruludur.
 
 ### Tag index'i process başınadır ve sınırlıdır
 

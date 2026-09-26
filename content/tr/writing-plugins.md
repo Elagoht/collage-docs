@@ -1,6 +1,6 @@
 ---
 description: Plugin sözleşmesi, Host ve ConfigHost'un sundukları, her hook ve neyi değiştirebileceği, testleriyle birlikte eksiksiz bir plugin.
-reference: Plugin, Host, ConfigHost, Configurer, Command, BeforeRenderHook, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, PageURL, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile
+reference: Plugin, Host, ConfigHost, Configurer, Command, BeforeRenderHook, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile
 ---
 
 # Plugin yazmak
@@ -85,6 +85,7 @@ reddeder.
 | `AddTemplateFunc`, `AddRenderFunc`, `WrapMount` | evet | — |
 | `Pages`, `Page`, `InvalidateTags` | — | evet |
 | `URL`, `FragmentURL`, `Locales`, `PageURLs` | — | evet |
+| `BuildID`, `ServeStatus` | — | evet |
 | `RegisterPage`, `RegisterDocument`, `Mount`, `Handle`, `Use` | — | evet |
 | `RenderFragment` | — | evet |
 | `RegisterCommand` | — | evet |
@@ -117,7 +118,7 @@ ulaşabileceği bir cache olmazdı.
 | `RegisterPage(page) error` | Plugin'in eklediği bir page'i register eder. |
 | `RegisterDocument(doc) error` | Plugin'in eklediği bir document'ı register eder. |
 | `Mount(prefix, fsys, opts...) error` | Bir dosya sistemini bir URL prefix'i altında sunar. |
-| `Handle(prefix, handler) error` | `App.Handle` gibi, bir `http.Handler`'ı bir URL prefix'i altında sunar. Örneğin bir event stream ya da bir WebSocket (v0.18.0'dan beri). |
+| `Handle(prefix, handler) error` | `App.Handle` gibi, bir `http.Handler`'ı `/` ile biten bir URL prefix'i altında ya da sonunda `/` olmayan tek bir tam path'te (`/metrics`, v0.24.0'dan beri) sunar. Örneğin bir event stream ya da bir WebSocket (v0.18.0'dan beri). |
 | `RenderFragment(r, req) (*collage.FragmentRender, error)` | Bir page'in `WithFragmentPath` ile açtığı bir fragment'i parçalar hâlinde render eder. Bkz. [Fragment göndermek](#pushing-fragments) (v0.18.0'dan beri). |
 | `RegisterCommand(cmd) error` | Bir komut ekler. Bkz. [Komutlar](#commands). |
 | `Use(middleware) error` | Her request'i, uygulamanın kendi middleware'inden sonra sarmalar (v0.21.0'dan beri). |
@@ -125,14 +126,18 @@ ulaşabileceği bir cache olmazdı.
 | `FragmentURL(page, fragment, locale, params) (string, error)` | Bir fragment path'inin path'ini `App.FragmentURL`'in oluşturduğu gibi döner (v0.21.0'dan beri). |
 | `Locales() (default, supported)` | Varsayılan locale'i ve varsayılan dahil desteklenen her locale'i döner (v0.21.0'dan beri). |
 | `PageURLs(ctx, name) ([]collage.PageURL, error)` | Bir page'in her locale'de cevap verdiği her URL'yi döner; bir pattern, `WithStaticParams`'ı üzerinden açılır. Bir sitemap'in içeriği budur (v0.21.0'dan beri). |
+| `BuildID() string` | Sunan build'i adlandırır: `Config.Cache.Version` ya da executable'ın bir parmak izi. Tarayıcının deploy'lar boyunca sakladıklarını sürümlemek içindir; örneğin bir service worker'ın cache'leri ya da bir asset'in query string'i (v0.24.0'dan beri). |
+| `ServeStatus(w, r, status)` | Request'e status'la ve sitenin o status için kendi page'iyle cevap verir: 404 ve 410 için not-found page'i, diğerleri için error page'i. Bir request'e kendisi cevap veren ve cevabı sitenin geri kalanı gibi görünmesi gereken bir plugin içindir (v0.24.0'dan beri). |
 
 `Init`'e gelen değer `*App` değildir. Yalnızca bu metotları ileten dar bir değerdir.
 Bu yüzden bir plugin, type assertion ile `ListenAndServe`'e, `Shutdown`'a,
 router'a, cache'e ya da template kümesine ulaşamaz. `Handle` ve `RenderFragment`
 v0.18.0'da eklendi. `Use`, `URL`, `FragmentURL`, `Locales` ve `PageURLs` ise
-v0.21.0'da, `ConfigHost`'taki `AddRenderFunc` ile birlikte eklendi. **Bu, bir test
-double'ı için breaking change'dir:** `Host`'u ya da `ConfigHost`'u implement eden
-bir test double'ının da yeni metotlara ihtiyacı vardır.
+v0.21.0'da, `ConfigHost`'taki `AddRenderFunc` ile birlikte eklendi. `BuildID` ve
+`ServeStatus` ise v0.24.0'da geldi. **Bunların her biri bir test double'ı için
+breaking change'dir:** `Host`'u ya da `ConfigHost`'u implement eden bir test
+double'ının da yeni metotlara ihtiyacı vardır. v0.24.0'dan beri bunlar `BuildID` ve
+`ServeStatus`'tur.
 
 **`Host`, bir plugin'in neye ulaşabileceğini sınırlar; neyi değiştirebileceğini
 sınırlamaz.** `Pages` ve `Page`, page struct'ının bir kopyasını döner. `Paths`,
@@ -280,6 +285,8 @@ type AfterRenderEvent struct {
 	Degraded bool   // some fragment failed, fallback or not
 	Static   bool   // rendered for a static build, not for a request
 	HTML     []byte // replace it to post-process the page
+	// Fragments: each fragment's time and failure, as collage.FragmentReport
+	// DependencyTags: the tags the render depended on
 	// Data: the render's shared data, the map behind rc.Set and rc.Get
 	// Findings: what ev.Warn and ev.Error reported so far
 }
@@ -297,6 +304,14 @@ Markup'ı geri parse etmek yerine doğrudan makalenin kendisini isteyen bir plug
 bunu kullanır. İçinde ne olduğu tamamen uygulamanın kendi convention'ına bağlıdır;
 framework oraya hiçbir şey koymaz. Bu canlı map'tir. Okumakta sakınca yoktur, ama
 hook bittikten sonra elde tutarsanız request state'ini tutmuş olursunuz.
+
+`ev.Fragments` ve `ev.DependencyTags` (v0.24.0'dan beri), render'ın nasıl geçtiğini
+bildirir. Bir development aracının page'in yanında göstermesi içindir. Her
+`collage.FragmentReport` şunları taşır: fragment'in adı `Name`; slot'larındaki
+fragment'ler dahil süresi `Duration`; bir fallback yerine geçse bile render'ının
+başarısız olduğunu söyleyen `Failed`; `UsedFallback`; ve neyle başarısız olduğunu
+söyleyen `Err`. `DependencyTags`, render'ın bağlı olduğu tag'lerdir. İkisi de
+event'in kendi kopyalarıdır.
 
 Bulunduğu yerin iki sonucu vardır:
 
@@ -417,7 +432,8 @@ iyidir. Hata, error hook'larına `"cache_write"` altında raporlanır.
 
 ```go
 type CacheInvalidateEvent struct {
-	Tags []string
+	Tags  []string
+	Paths []string // the URL paths of the cached entries dropped, sorted
 }
 ```
 
@@ -426,6 +442,14 @@ bir action'ın ya da bir plugin'in çağırması fark etmez. Hook bir request'te
 o çağrının içinden dispatch edilir. Dönen bir hata, `InvalidateTags`'in döndüğü
 hatayla join edilir. Invalidation'ı kendiniz tetiklemek için `Host.InvalidateTags`'i
 çağırın.
+
+`Paths` (v0.23.0'dan beri), invalidation'ın düşürdüğü cache'lenmiş page ve
+document'ların URL path'lerini listeler. Bir CDN'in purge etmesi ve bir arama
+motoruna değiştiği bildirilmesi gereken budur. Cache'lenmemiş bir page burada asla
+yer almaz, çünkü ondan düşürülen bir şey yoktur. Cache'lenen her entry ayrıca
+`collage.PathTag(path)` tag'ine de bağlıdır. Bu yüzden tag'i değil path'i bilen bir
+plugin, oradaki cache'i `host.InvalidateTags(ctx, collage.PathTag("/blog"))` ile
+düşürür. Bkz. [Caching](/docs/caching#invalidating-by-path).
 
 ### ErrorHook
 
@@ -581,7 +605,9 @@ Bir plugin, `Init` içinden kendi route'larını ekleyebilir. Bunun için
 `Host.RegisterPage`, `Host.RegisterDocument` ve `Host.Mount` kullanılır. Bu
 route'lar, bir uygulamanın kullandığı builder'larla oluşturulur. `Host.Handle` ise
 page olmayan şeyler için, örneğin bir event stream ya da bir WebSocket için, bir
-prefix altında düz bir `http.Handler` sunar. `Host.Use` (v0.21.0'dan beri),
+prefix altında düz bir `http.Handler` sunar. `/` ile biten bir prefix, altındaki her
+path'i üstlenir. v0.24.0'dan beri sonunda `/` olmayan bir prefix, örneğin
+`/metrics`, tek bir tam path'tir. `Host.Use` (v0.21.0'dan beri),
 `App.Use` gibi her request'i uygulamanın kendi middleware'inden sonra sarmalar.
 Böylece bir plugin'in header'ları ve cookie'leri, uygulamanın middleware'inin
 ürettiğini sarar.
@@ -603,6 +629,16 @@ yüzden page'lerin ne istediğini kaydeden bir dosya sistemi, builder'a tam olar
 doğru dosya kümesini verir. Export edilen sitenin arkasında da hiçbir şeyin
 çalışmasına gerek kalmaz. Dinamik bir path'teki document ise bu şekilde
 listelenemez.
+
+Bir request'e kendisi cevap veren bir plugin, örneğin artık olmayan bir page için ya
+da reddettiği bir request için, tek satırlık bir metin yerine sitenin kendi page'iyle
+cevap verebilir. `host.ServeStatus(w, r, http.StatusGone)`, 404 ve 410 için
+not-found page'ini, diğer her status için error page'ini sunar (v0.24.0'dan beri).
+Tarayıcının deploy'lar boyunca sakladıklarını sürümleyen bir plugin, örneğin bir
+service worker'ın cache'lerini ya da bir asset'in query string'ini, `host.BuildID()`
+okur. Bu, ayarlanmışsa `Config.Cache.Version`, değilse executable'ın bir parmak
+izidir. `App.BuildID` ve `App.ServeStatus` aynı metotlardır ve uygulamanın kendi
+kodu içindir.
 
 ## Komutlar
 

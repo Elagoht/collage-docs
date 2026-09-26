@@ -1,6 +1,6 @@
 ---
 description: The plugin contract, what Host and ConfigHost expose, every hook and what it may change, and a complete plugin with its tests.
-reference: Plugin, Host, ConfigHost, Configurer, Command, BeforeRenderHook, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, PageURL, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile
+reference: Plugin, Host, ConfigHost, Configurer, Command, BeforeRenderHook, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile
 ---
 
 # Writing a plugin
@@ -79,6 +79,7 @@ already parsed the templates, so it refuses such a plugin with
 | `AddTemplateFunc`, `AddRenderFunc`, `WrapMount` | yes | — |
 | `Pages`, `Page`, `InvalidateTags` | — | yes |
 | `URL`, `FragmentURL`, `Locales`, `PageURLs` | — | yes |
+| `BuildID`, `ServeStatus` | — | yes |
 | `RegisterPage`, `RegisterDocument`, `Mount`, `Handle`, `Use` | — | yes |
 | `RenderFragment` | — | yes |
 | `RegisterCommand` | — | yes |
@@ -111,7 +112,7 @@ cache to reach.
 | `RegisterPage(page) error` | Registers a page the plugin contributes. |
 | `RegisterDocument(doc) error` | Registers a document the plugin contributes. |
 | `Mount(prefix, fsys, opts...) error` | Serves a filesystem under a URL prefix. |
-| `Handle(prefix, handler) error` | Serves an `http.Handler` under a URL prefix, as `App.Handle` does — an event stream, a WebSocket (since v0.18.0). |
+| `Handle(prefix, handler) error` | Serves an `http.Handler` under a URL prefix ending in `/`, or at one exact path without it (`/metrics`, since v0.24.0), as `App.Handle` does — an event stream, a WebSocket (since v0.18.0). |
 | `RenderFragment(r, req) (*collage.FragmentRender, error)` | Renders a fragment a page opened with `WithFragmentPath`, in parts — see [Pushing fragments](#pushing-fragments) (since v0.18.0). |
 | `RegisterCommand(cmd) error` | Contributes a command — see [Commands](#commands). |
 | `Use(middleware) error` | Wraps every request, after the application's own middleware (since v0.21.0). |
@@ -119,14 +120,17 @@ cache to reach.
 | `FragmentURL(page, fragment, locale, params) (string, error)` | The path of a fragment path, as `App.FragmentURL` builds it (since v0.21.0). |
 | `Locales() (default, supported)` | The default locale and every supported one, the default included (since v0.21.0). |
 | `PageURLs(ctx, name) ([]collage.PageURL, error)` | Every URL a page answers, in every locale, a pattern expanded through its `WithStaticParams` — a sitemap's contents (since v0.21.0). |
+| `BuildID() string` | The build serving — `Config.Cache.Version`, or a fingerprint of the executable — for versioning what a browser keeps across deploys: a service worker's caches, an asset's query string (since v0.24.0). |
+| `ServeStatus(w, r, status)` | Answers the request with the status and the site's own page for it — the not-found page for 404 and 410, the error page otherwise — for a plugin answering a request itself that should look like the site (since v0.24.0). |
 
 What `Init` receives is not the `*App`. It is a narrow value that forwards these
 methods and nothing else, so a plugin cannot assert its way to `ListenAndServe`,
 `Shutdown`, the router, the cache or the template set. `Handle` and
 `RenderFragment` were added in v0.18.0, and `Use`, `URL`, `FragmentURL`, `Locales`
-and `PageURLs` in v0.21.0, with `AddRenderFunc` on `ConfigHost`. **That is a
-breaking change for a test double:** one implementing `Host` or `ConfigHost` needs
-the new methods too.
+and `PageURLs` in v0.21.0, with `AddRenderFunc` on `ConfigHost`, and `BuildID` and
+`ServeStatus` in v0.24.0. **Each of these is a breaking change for a test double:**
+one implementing `Host` or `ConfigHost` needs the new methods too — since v0.24.0,
+`BuildID` and `ServeStatus`.
 
 **`Host` limits what a plugin can reach, not what it can change.** `Pages` and
 `Page` return copies of the page struct and of its `Paths`, `Redirects`, `SEO` and
@@ -268,6 +272,8 @@ type AfterRenderEvent struct {
 	Degraded bool   // some fragment failed, fallback or not
 	Static   bool   // rendered for a static build, not for a request
 	HTML     []byte // replace it to post-process the page
+	// Fragments: each fragment's time and failure, as collage.FragmentReport
+	// DependencyTags: the tags the render depended on
 	// Data: the render's shared data, the map behind rc.Set and rc.Get
 	// Findings: what ev.Warn and ev.Error reported so far
 }
@@ -284,6 +290,13 @@ ones produced.
 wants the article rather than markup to parse back. What is in it is entirely the
 application's convention; the framework puts nothing there. It is the live map:
 reading it is fine, keeping it past the hook is holding request state.
+
+`ev.Fragments` and `ev.DependencyTags` (since v0.24.0) report how the render went,
+for a development tool to show beside the page. Each `collage.FragmentReport` has
+the fragment's `Name`; its `Duration`, the fragments in its slots included;
+`Failed`, even when a fallback stood in; `UsedFallback`; and `Err`, what it failed
+with. `DependencyTags` are the tags the render depended on. Both are the event's
+own copies.
 
 Two consequences of where it sits:
 
@@ -398,7 +411,8 @@ problem into a 500. The error is reported to error hooks under `"cache_write"`.
 
 ```go
 type CacheInvalidateEvent struct {
-	Tags []string
+	Tags  []string
+	Paths []string // the URL paths of the cached entries dropped, sorted
 }
 ```
 
@@ -406,6 +420,14 @@ Fires after `InvalidateTags` dropped the entries for some tags — whether the
 application, an action or a plugin called it. It is dispatched from that call, not
 from a request, and an error is joined into what `InvalidateTags` returns. To
 trigger an invalidation yourself, call `Host.InvalidateTags`.
+
+`Paths` (since v0.23.0) names the URL paths of the cached pages and documents the
+invalidation dropped — what a CDN has to purge, and a search engine be told has
+changed. A page that was not cached is never in it: nothing of it was dropped.
+Every cached entry also depends on the tag `collage.PathTag(path)`, so a plugin
+that knows a path rather than a tag drops what is cached there with
+`host.InvalidateTags(ctx, collage.PathTag("/blog"))`. See
+[Caching](/docs/caching#invalidating-by-path).
 
 ### ErrorHook
 
@@ -554,7 +576,9 @@ Wrappers run in the order they were registered, and a `nil` wrapper is ignored.
 From `Init`, a plugin can add routes of its own through `Host.RegisterPage`,
 `Host.RegisterDocument` and `Host.Mount`, built with the same builders an
 application uses. `Host.Handle` serves a plain `http.Handler` under a prefix, for
-what is not a page — an event stream, a WebSocket. `Host.Use` (since v0.21.0) wraps
+what is not a page — an event stream, a WebSocket. A prefix ending in `/` claims
+every path beneath it; since v0.24.0 one without, `/metrics`, is a single exact
+path. `Host.Use` (since v0.21.0) wraps
 every request, as `App.Use` does, after the application's own middleware, so a
 plugin's headers and cookies wrap what the application's middleware produced.
 
@@ -573,6 +597,15 @@ output after every page has rendered, so a filesystem that records what the page
 asked for hands the builder exactly the right set, and the exported site needs
 nothing running behind it. A document at a dynamic path cannot be enumerated that
 way.
+
+A plugin that answers a request itself — a page that is gone, a request it
+refuses — can answer with the site's own page rather than a line of text:
+`host.ServeStatus(w, r, http.StatusGone)` serves the not-found page for 404 and
+410, and the error page for any other status (since v0.24.0). A plugin versioning
+what a browser keeps across deploys — a service worker's caches, an asset's query
+string — reads `host.BuildID()`: `Config.Cache.Version` when it is set, or a
+fingerprint of the executable. `App.BuildID` and `App.ServeStatus` are the same,
+for an application's own code.
 
 ## Commands
 

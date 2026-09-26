@@ -42,6 +42,15 @@ Middleware'in nerede çalıştığıyla ilgili iki nokta var:
   hata yolunda sıradan bir 500'e dönüşür. Middleware'in kendisinin cevap verdiği
   bir request de diğer request'ler gibi sayılır.
 
+### Path'ler önce temizlenir
+
+Dot segment'ler ya da çift slash içeren bir path (`/a/../b`, `/a//b`, `/a/./b`),
+middleware ve plugin'ler dahil hiçbir şey onu okumadan önce temiz yazımına redirect
+edilir. `GET` ve `HEAD` için 301, body taşıyan bir metot için 308 kullanılır; query
+korunur (v0.24.0'dan beri). Bu yüzden `/_collage/`'ı atlayan ya da `/admin/`'i
+koruyan bir middleware `/_collage/../admin` ile hiç karşılaşmaz. Bir prefix kontrolü,
+router'ın route edeceği path'in kontrolüdür.
+
 ### Data handler'lara değer aktarmak
 
 Middleware'in request'in context'ine koyduğu değerleri data handler'lar `ctx`
@@ -156,10 +165,14 @@ cevapları ise handler'ın kendi sorumluluğundadır.
 
 ### Prefix'ler ve çakışmalar
 
-Prefix `/` ile başlamalı ve `/` ile bitmelidir. Tek başına `/` olamaz
-(`collage.ErrInvalidHandlerPrefix`). `/`'deki bir handler bütün page'lerin bütün
-request'lerini alırdı. Gerçekten istediğiniz buysa `app.Handler()`'ı kendi mux'ınızın
-içine koyun.
+Prefix `/` ile başlamalıdır ve tek başına `/` olamaz
+(`collage.ErrInvalidHandlerPrefix`). `/` ile biterse altındaki her path'i üstlenir.
+Sonunda `/` yoksa tek bir tam path'tir ve yalnızca o path'e cevap verir:
+`app.Handle("/metrics", h)`, `/metrics`'i sunar, `/metrics/x`'i sunmaz (v0.24.0'dan
+beri; öncesinde prefix'in `/` ile bitmesi gerekiyordu).
+
+`/`'deki bir handler bütün page'lerin bütün request'lerini alırdı. Gerçekten
+istediğiniz buysa `app.Handler()`'ı kendi mux'ınızın içine koyun.
 
 Bir prefix, collage'ın route ettiği hiçbir şeyi kapsayamaz. `/api/count`'ta bir
 action varken `app.Handle("/api/", ...)` çağrısı `collage.ErrMountShadowsRoute` ile

@@ -321,8 +321,10 @@ func (s *Site) checkLinks(base *Site) error {
 	return nil
 }
 
+// hasHeading reports whether the page has a heading with the id, at any level: an
+// h4 is as much an anchor as the h2 and h3 the table of contents lists.
 func (p *Page) hasHeading(id string) bool {
-	for _, h := range p.Headings {
+	for _, h := range p.outline {
 		if h.ID == id {
 			return true
 		}

@@ -219,6 +219,13 @@ refuses it with `collage.ErrUnregisteredPage`, naming the page. The closure over
 To redirect to a page by name rather than by path, use
 [`app.URL`](/docs/links-and-locales#links-from-go).
 
+Three plugins cover what a form usually needs around this:
+[elagoht/validate](/docs/plugins#elagohtvalidate) checks the fields and answers a
+refused submission with the page and a 422, the reader's input and each field's
+message in it; [elagoht/honeypot](/docs/plugins#elagohthoneypot) refuses spam
+without a CAPTCHA; and [elagoht/session](/docs/plugins#elagohtsession) keeps who is
+signed in, in a signed cookie.
+
 ## Forgery protection
 
 Every request to an action with an unsafe method (anything but `GET`, `HEAD` and

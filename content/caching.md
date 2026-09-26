@@ -1,6 +1,6 @@
 ---
 description: How collage caches rendered pages and the data they are made from, and how it knows what to throw away.
-reference: CacheConfig, Cached, Once, TaggedCache, SkipCache, Vary, PageBuilder.Static, PageBuilder.Incremental, PageBuilder.Dynamic, FragmentBuilder.Static, FragmentBuilder.Shared, StrategyAuto
+reference: CacheConfig, Cached, Once, TaggedCache, SkipCache, Vary, PageBuilder.Static, PageBuilder.Incremental, PageBuilder.Dynamic, FragmentBuilder.Static, FragmentBuilder.Shared, StrategyAuto, PathTag
 ---
 
 # Caching
@@ -237,6 +237,26 @@ admin form. An action can do it declaratively, with
 [`InvalidateTags` on its result](/docs/forms-and-actions#invalidating-what-an-action-changed),
 which runs before the response is written — so a reader redirected to the page
 they just changed never sees the old version.
+
+### Invalidating by path
+
+Every cached page and document also depends on a tag naming the URL path it was
+rendered for, `collage.PathTag(path)` (since v0.23.0), so an entry can be dropped
+by its path when that is what you know rather than a tag:
+
+```go
+app.InvalidateTags(ctx, collage.PathTag("/blog/hello"))
+```
+
+It drops what is cached for that path, whatever else it depends on.
+
+An invalidation also says what it dropped. A plugin hears of every one through
+`OnCacheInvalidate`, and the event carries the tags and — in `Paths` — the URL paths
+of the cached pages and documents dropped: what a CDN has to purge, and a search
+engine be told has changed. A page that was never cached is not in it. See
+[Writing a plugin](/docs/writing-plugins#cacheinvalidatehook);
+[elagoht/cdnpurge](/docs/plugins#elagohtcdnpurge) and
+[elagoht/indexnow](/docs/plugins#elagohtindexnow) are built on it.
 
 ### The tag index is per process, and bounded
 

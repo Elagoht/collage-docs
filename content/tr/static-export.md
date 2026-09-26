@@ -263,8 +263,10 @@ Aksi hâlde `-out .` ile `-clean` birlikte verildiğinde projeniz silinirdi.
 
 ### Export'ta plugin'ler
 
-Export, sunucuyla aynı durumda render eder. Önce her plugin'in `Init`'i çalışır,
-böylece plugin'ler aynı config'i okur. `OnBeforeRender`, `OnAfterRender` ve
+Export, sunucuyla aynı durumda render eder. Build önce uygulamayı başlatır ve
+page'ler listelenmeden önce her plugin'in `Init`'ini çalıştırır (v0.24.0'dan beri).
+Böylece bir plugin'in register ettiği page de, bir plugin'in yüklediği veriye dayanan
+`WithStaticParams` da build edilir ve plugin'ler aynı config'i okur. `OnBeforeRender`, `OnAfterRender` ve
 `OnDocumentRendered` her page ve document için tetiklenir. Yani bir minifier ya da
 structured data plugin'i sunulan bir page'e ne yapıyorsa dosyaya da onu yapar.
 `OnPageResolved` ise tetiklenmez, çünkü export bir request değildir. v0.21.0'dan

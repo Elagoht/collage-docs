@@ -274,6 +274,13 @@ pages you registered, [elagoht/robots](/docs/plugins#elagohtrobots) serves
 `/robots.txt`, and [elagoht/feed](/docs/plugins#elagohtfeed) serves RSS and Atom
 feeds and announces them in every page's head.
 
+[elagoht/meta](/docs/plugins#elagohtmeta) writes the Open Graph and Twitter tags,
+the canonical URL and the `hreflang` links described on this page from site-wide
+defaults and what each page says; [elagoht/redirects](/docs/plugins#elagohtredirects)
+serves a migration's old addresses from a file; and
+[elagoht/indexnow](/docs/plugins#elagohtindexnow) tells search engines which URLs an
+invalidation changed.
+
 ## Hoisting and the rest of collage
 
 - **Cached pages keep their head.** The marker is replaced before the page is

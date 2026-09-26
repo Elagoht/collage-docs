@@ -336,6 +336,7 @@ text.d-kept { font-size: 16px; fill: var(--blue); }
 
 .prose h2 { margin: 2.6rem 0 .8rem; font-size: 1.5rem; letter-spacing: -.01em; }
 .prose h3 { margin: 2rem 0 .6rem; font-size: 1.15rem; }
+.prose h4 { margin: 1.8rem 0 .5rem; font-size: 1rem; font-family: var(--mono); }
 .prose p, .prose ul, .prose ol { margin: 0 0 1.1rem; }
 .prose li { margin: .25rem 0; }
 .prose code {
@@ -365,7 +366,7 @@ text.d-kept { font-size: 16px; fill: var(--blue); }
 .prose table { width: 100%; margin: 0 0 1.4rem; border-collapse: collapse; font-size: .94rem; }
 .prose th, .prose td { padding: .5rem .7rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
 .prose th { font-weight: 600; }
-.prose h2 a, .prose h3 a { color: inherit; }
+.prose h2 a, .prose h3 a, .prose h4 a { color: inherit; }
 
 .reference {
   margin-top: 3rem;

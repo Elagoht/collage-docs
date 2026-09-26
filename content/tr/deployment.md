@@ -289,6 +289,12 @@ bulacağı, neyin değiştiğine bağlıdır:
   içindedir. Bu yüzden her instance kendi cache'ini doldurur. Her page, her instance'ta
   bir kez render edilir.
 
+Öndeki bir CDN kendi kopyalarını tutar.
+[elagoht/cdnpurge](/docs/plugins#elagohtcdnpurge), collage bir page'i invalidate
+ettiğinde bu kopyaları purge eder. [elagoht/compress](/docs/plugins#elagohtcompress)
+ise response'ları Brotli ve gzip ile, okuyucu başına değil cache'lenen page başına
+bir kez sıkıştırır.
+
 ### Birden fazla instance ile invalidation
 
 `app.InvalidateTags`, içinde çalıştığı process'in cache'inden entry'leri düşürür. Tek
@@ -333,6 +339,9 @@ nginx'te `location` bloğuna eklenen `proxy_set_header X-Forwarded-Proto $scheme
 aynı işi görür. Güvenlik header'larının kendileri, yani HSTS, bir
 Content-Security-Policy ve diğerleri, [elagoht/secure](/docs/plugins#elagohtsecure)
 plugin'iyle binary'den de gelebilir.
+[elagoht/ratelimit](/docs/plugins#elagohtratelimit) tek bir istemcinin form'ları ne
+kadar hızlı gönderebileceğini sınırlar. [elagoht/basicauth](/docs/plugins#elagohtbasicauth)
+ise bir staging deploy'unun önüne bir parola koyar.
 
 TLS'i binary'nin kendisinin terminate etmesini istiyorsanız, `app.Handler()` sıradan
 bir `http.Handler`'dır:
@@ -386,6 +395,13 @@ sunucuda loglar bir makine tarafından okunur. Orada bir JSON handler verin:
 ```go
 Logger: slog.New(slog.NewJSONHandler(os.Stdout, nil)),
 ```
+
+collage her request'i değil, ters giden şeyleri log'lar.
+[elagoht/accesslog](/docs/plugins#elagohtaccesslog) aynı logger üzerinden her
+request için request id'li bir satır yazar.
+[elagoht/prometheus](/docs/plugins#elagohtprometheus) framework'ün metric'lerini
+`/metrics`'te sunar. [elagoht/otel](/docs/plugins#elagohtotel) ise span'lerini
+OpenTelemetry trace'lerine dönüştürür.
 
 ## Kontrol listesi
 

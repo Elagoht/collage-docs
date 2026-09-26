@@ -229,6 +229,13 @@ kurulan closure, action'a kendi page'ini vermenin en basit yoludur.
 Bir page'e path yerine adıyla redirect etmek için
 [`app.URL`](/docs/links-and-locales#links-from-go) kullanın.
 
+Bir form'un bunun etrafında genellikle ihtiyaç duyduklarını üç plugin karşılar.
+[elagoht/validate](/docs/plugins#elagohtvalidate) alanları kontrol eder ve
+reddedilen bir gönderime page ve 422 ile cevap verir; okuyucunun girdisi ve her
+alanın mesajı page'de yer alır. [elagoht/honeypot](/docs/plugins#elagohthoneypot)
+spam'i CAPTCHA olmadan reddeder. [elagoht/session](/docs/plugins#elagohtsession) ise
+kimin giriş yaptığını imzalı bir cookie'de tutar.
+
 ## Forgery koruması
 
 Unsafe bir method ile (`GET`, `HEAD` ve `OPTIONS` dışındaki her şey) bir action'a

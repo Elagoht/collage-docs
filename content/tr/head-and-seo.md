@@ -285,6 +285,13 @@ Bir crawler'ın head dışında okuduklarını üç plugin daha karşılar:
 `/robots.txt`'yi sunar. [elagoht/feed](/docs/plugins#elagohtfeed) ise RSS ve Atom
 feed'leri sunar ve bunları her page'in head'inde duyurur.
 
+[elagoht/meta](/docs/plugins#elagohtmeta), bu sayfada anlatılan Open Graph ve
+Twitter tag'lerini, canonical URL'yi ve `hreflang` link'lerini site genelindeki
+varsayılanlardan ve her page'in söylediklerinden yazar.
+[elagoht/redirects](/docs/plugins#elagohtredirects), bir taşımanın eski adreslerini
+bir dosyadan sunar. [elagoht/indexnow](/docs/plugins#elagohtindexnow) ise bir
+invalidation'ın hangi URL'leri değiştirdiğini arama motorlarına bildirir.
+
 ## Hoisting ve collage'ın geri kalanı
 
 - **Cache'lenen page'ler head'lerini korur.** Marker, page saklanmadan önce

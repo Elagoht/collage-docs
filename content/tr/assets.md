@@ -257,11 +257,18 @@ medya dizini, hiçbir page'in kullanmadığı adlar için ikiye katlanmaz.
 ## Mount'ların yapmadıkları
 
 - **Sıkıştırma yapmazlar.** Gzip ya da Brotli yoktur, önceden sıkıştırılmış
-  sidecar dosyalar da desteklenmez. Önüne bir reverse proxy ya da CDN koyun veya
-  `app.Handler()`'ı wrap edin.
+  sidecar dosyalar da desteklenmez. Önüne bir reverse proxy ya da CDN koyun,
+  `app.Handler()`'ı wrap edin ya da [elagoht/compress](/docs/plugins#elagohtcompress)'i
+  register edin.
 - **Bundling, minification ya da görsel işleme yapmazlar.** Bir mount kendisine
   verilen byte'ları olduğu gibi sunar. Daha fazlası için [plugin'ler](/docs/plugins)
-  kullanılabilir.
+  kullanılabilir: [elagoht/bundle](/docs/plugins#elagohtbundle) script'leri ve
+  stylesheet'leri esbuild ile bundle eder,
+  [elagoht/minimizer](/docs/plugins#elagohtminimizer) bir mount'un sunduklarını
+  minify eder, [elagoht/opti-image](/docs/plugins#elagohtopti-image) görselleri
+  yeniden boyutlandırır, [elagoht/favicon](/docs/plugins#elagohtfavicon) bir sitenin
+  ikonlarını tek bir görselden üretir, [elagoht/offline](/docs/plugins#elagohtoffline)
+  ise page'leri ve static dosyaları ağ olmadan okumak için saklar.
 - **Yalnızca `fs.FS` kaynaklarıyla çalışırlar.** S3 gibi bir object store bir
   `fs.FS` değildir. Onu [`app.Handle`](/docs/middleware-and-apis) ile kendiniz
   sunun ya da doğrudan ona link verin.
