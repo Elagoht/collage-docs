@@ -1,6 +1,6 @@
 ---
 description: Fragment'ler, sundukları slot'lar, bir fragment başarısız olduğunda ne olduğu ve render sırasında içerikten doldurulan slot'lar.
-reference: NewFragment, FragmentBuilder, Fragment, FragmentBuilder.WithFallback, FragmentBuilder.WithSlot, FragmentBuilder.WithData, FragmentBuilder.Static, FragmentBuilder.Shared, SlotResolverFunc, ErrUnknownSlot
+reference: NewFragment, NewInlineFragment, FragmentBuilder, Fragment, FragmentBuilder.WithFallback, FragmentBuilder.WithSlot, FragmentBuilder.WithData, FragmentBuilder.Static, FragmentBuilder.Shared, SlotResolverFunc, ErrUnknownSlot
 ---
 
 # Fragment'ler ve slot'lar
@@ -75,6 +75,58 @@ söylemez ve handler yine hesaba katılır. İki sözden birini bozan bir handle
 okuyucunun verisini başka bir okuyucuya gönderir. `WithData` ile
 `WithDataHandler`'ı birlikte ayarlamak, register sırasında `ErrConflictingData`
 hatası verir.
+
+### Inline template'ler
+
+Küçük bir fragment, bir dosya belirtmek yerine template'ini kendisi taşıyabilir
+(v0.29.0'dan beri). `collage.NewInlineFragment(name, html)` aynı builder'ı döner,
+bu yüzden zincirin geri kalanı değişmez:
+
+```go
+row := collage.NewInlineFragment("post-row", `
+  <tr>
+    <td>{{.Title}}</td>
+    <td>{{template "partials/date.html" .Date}}</td>
+  </tr>`).
+	WithDataHandler(loadRow).
+	Build()
+```
+
+Bir dosya template'i gibi render edilir: slot'lar, `hoist`, her
+[template fonksiyonu](/docs/template-functions) ve template dizinine yapılan
+`{{template}}` çağrıları aynen çalışır. Register işlemi de onu bir dosya template'i
+gibi parse edip kontrol eder. Bir parse hatası ya da template'in hiç çağırmadığı bir
+slot, page'i ve fragment'i adıyla belirterek startup'ı durdurur. İki fragment aynı
+ismi paylaşıp farklı template'ler taşıyabilir; her biri kendi template'ini render
+eder. Development error panel'i onu `inline template of fragment "post-row"`
+olarak adlandırır.
+
+Inline template'i, bir page'in birkaç satırlık markup'tan oluşan ve onu besleyen
+handler'ın hemen yanında duran kısımları için kullanın: bir tablo satırı, bir
+buton, bir form alanı. Layout'lar ve bütün page'ler dosya olarak daha okunaklıdır.
+
+Template koddur, bu yüzden sabit olmalıdır. Onu asla veriden oluşturmayın:
+`NewInlineFragment("row", "<p>"+post.Title+"</p>")`, başlığın içerdiği her
+`{{…}}` ifadesini çalıştırır ve her farklı string, program kapanana kadar saklanan
+bir template'e dönüşür. Bu en çok, fragment'leri her request'te oluşturan bir
+[slot resolver](#slots-filled-per-render)'da önemlidir. Resolver'ın fragment'leri
+inline olabilir, ama template'leri sabittir ve veri onlara `WithData` ya da bir
+data handler üzerinden ulaşır.
+
+Bunun dışında üç sınırı daha vardır:
+
+- Go'nun raw string'i backtick içeremez. Bu yüzden JavaScript template literal
+  içeren bir template dosyada kalır.
+- Inline bir template, kendine ait template'leri `{{define}}` ya da `{{block}}` ile
+  tanımlayamaz. Böyle bir tanım, aynı isimli bir dosya template'inin yerini her
+  page'de alacağı için register sırasında `ErrSourceConflict` hatası verir.
+- Bir dosya template'inden inline bir template'i `{{template}}` ile çağırmak
+  desteklenmez: template kümesindeki ismi internal'dır.
+
+Bir fragment ya bir dosya belirtir ya da bir template taşır; ikisi birden olamaz
+(`ErrConflictingTemplate`). Boş bir template ise `ErrEmptyTemplatePath`
+hatası verir. [`collage inspect`](/docs/cli#collage-inspect) inline bir fragment'i
+`"inline": true` ile işaretler ve `template` alanını boş bırakır.
 
 ## Slot'lar
 

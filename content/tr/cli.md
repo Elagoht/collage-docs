@@ -370,9 +370,11 @@ collage inspect
 ```
 
 Bulunduğunuz dizindeki projenin nelerden oluştuğunu JSON olarak yazdırır
-(v0.27.0'dan beri). Çıktıda pattern'leri ve parametreleriyle her page,
-template'i ve slot'larıyla her fragment, document'lar, action'lar, template
-fonksiyonları, plugin'ler, locale'ler ve mount'ların sunduğu dosyalar bulunur.
+(v0.27.0'dan beri). Çıktıda pattern'leri, parametreleri, `layouts`'u (en dıştaki
+başta) ve `guards`'ıyla her page, template'i ve slot'larıyla her fragment (inline
+bir fragment `"inline": true` ile ve template path'i olmadan gelir), document'lar,
+action'lar, template fonksiyonları, plugin'ler, locale'ler ve mount'ların sunduğu
+dosyalar bulunur.
 Hiçbir flag almaz; positional argümanlar kullanım hatasıdır. Çalıştırdığı komut
 şudur:
 

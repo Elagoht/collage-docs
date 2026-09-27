@@ -1,6 +1,6 @@
 ---
 description: Fragments, the slots they expose, what happens when one fails, and slots filled from content at render time.
-reference: NewFragment, FragmentBuilder, Fragment, FragmentBuilder.WithFallback, FragmentBuilder.WithSlot, FragmentBuilder.WithData, FragmentBuilder.Static, FragmentBuilder.Shared, SlotResolverFunc, ErrUnknownSlot
+reference: NewFragment, NewInlineFragment, FragmentBuilder, Fragment, FragmentBuilder.WithFallback, FragmentBuilder.WithSlot, FragmentBuilder.WithData, FragmentBuilder.Static, FragmentBuilder.Shared, SlotResolverFunc, ErrUnknownSlot
 ---
 
 # Fragments and slots
@@ -70,6 +70,56 @@ but not over time — a measurement — says `Shared()`, which implies nothing a
 the page and still counts; a handler that breaks either promise sends one reader's
 data to another. Setting both
 `WithData` and `WithDataHandler` is `ErrConflictingData` at registration.
+
+### Inline templates
+
+A small fragment can carry its template itself instead of naming a file (since
+v0.29.0). `collage.NewInlineFragment(name, html)` returns the same builder, so the
+rest of the chain is unchanged:
+
+```go
+row := collage.NewInlineFragment("post-row", `
+  <tr>
+    <td>{{.Title}}</td>
+    <td>{{template "partials/date.html" .Date}}</td>
+  </tr>`).
+	WithDataHandler(loadRow).
+	Build()
+```
+
+It renders as a file template does — slots, `hoist`, every
+[template function](/docs/template-functions), `{{template}}` calls into the
+template directory — and registration parses and checks it like one: a parse error
+or a slot it never calls stops startup, naming the page and the fragment. Two
+fragments may share a name and still carry different templates; each renders its
+own. The development error panel names it as `inline template of fragment
+"post-row"`.
+
+Use it for the parts of a page that are a few lines of markup next to the handler
+that feeds them — a table row, a button, a form field. Layouts and whole pages
+read better as files.
+
+The template is code, so it must be a constant. Never build it from data —
+`NewInlineFragment("row", "<p>"+post.Title+"</p>")` runs whatever `{{…}}` the
+title holds, and each distinct string becomes a template the program keeps until
+it exits. This matters most in a [slot resolver](#slots-filled-per-render), which
+builds fragments per request: its fragments can be inline, but their templates are
+fixed, and the data reaches them through `WithData` or a data handler.
+
+Three more limits come with it:
+
+- A Go raw string cannot hold a backtick, so a template with a JavaScript template
+  literal stays in a file.
+- An inline template cannot `{{define}}` or `{{block}}` templates of its own —
+  `ErrSourceConflict` at registration — because a definition would replace a file
+  template of that name for every page.
+- Calling an inline template from a file template with `{{template}}` is not
+  supported: its name in the template set is internal.
+
+A fragment names a file or carries a template, never both
+(`ErrConflictingTemplate`), and an empty template is `ErrEmptyTemplatePath`.
+[`collage inspect`](/docs/cli#collage-inspect) marks an inline fragment with
+`"inline": true` and leaves its `template` empty.
 
 ## Slots
 

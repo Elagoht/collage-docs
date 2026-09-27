@@ -349,9 +349,10 @@ collage inspect
 ```
 
 Prints what the current directory's project is made of, as JSON (since v0.27.0):
-every page with its patterns and parameters, every fragment with its template and
-slots, the documents, the actions, the template functions, the plugins, the locales,
-and the files the mounts serve. It takes no flags; positional arguments are a usage
+every page with its patterns, parameters, `layouts` (outermost first) and `guards`,
+every fragment with its template and slots — an inline fragment with `"inline":
+true` and no template path — the documents, the actions, the template functions,
+the plugins, the locales, and the files the mounts serve. It takes no flags; positional arguments are a usage
 error. It runs:
 
 ```sh

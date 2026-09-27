@@ -97,7 +97,9 @@ reddedilir.
 | Hata | Mesaj | Anlamı |
 | --- | --- | --- |
 | `ErrEmptyName` | `collage: empty name` | Bir fragment'in ya da page'in ismi yoktur. |
-| `ErrEmptyTemplatePath` | `collage: empty template path` | Bir fragment hiçbir template belirtmez. |
+| `ErrEmptyTemplatePath` | `collage: empty template path` | Bir fragment hiçbir template belirtmez ya da `NewInlineFragment`'e boş bir template verilmiştir. |
+| `ErrConflictingTemplate` | `collage: fragment has both a template path and an inline template` | Elle oluşturulan bir fragment hem bir template dosyası hem de inline bir template belirtmiştir. |
+| `ErrSourceConflict` | `collage: inline template conflicts with another template` | [Inline bir template](/docs/fragments-and-slots#inline-templates) kendine ait bir template'i `{{define}}` ya da `{{block}}` ile tanımlamıştır. Bu tanım, aynı isimli bir dosya template'inin yerini her page'de alırdı. |
 | `ErrNilFragment` | `collage: nil fragment` | Fragment gereken bir yerde `nil` bir fragment kullanılmıştır. Bu bir slot'a bağlanmış, bir slot resolver tarafından döndürülmüş ya da `WithLayouts`'a verilmiş olabilir. |
 | `ErrDuplicateSlot` | `collage: slot already declared` | `WithSlot` aynı isimle iki kez çağrılmıştır. |
 | `ErrUnknownSlot` | `collage: unknown slot` | Bir fragment, template'inin hiç çağırmadığı bir slot'a bağlanmıştır; bağlamanın iki tarafından birinde yazım hatası vardır. Mesaj, slot'u ve template'in gerçekten çağırdığı slot'ları adlarıyla belirtir. Template'in çağırdığı ama hiçbir şeyin doldurmadığı bir slot hata değildir: boş render edilir. |

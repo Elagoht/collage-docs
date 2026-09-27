@@ -94,7 +94,9 @@ before it serves anything.
 | Error | Message | Means |
 | --- | --- | --- |
 | `ErrEmptyName` | `collage: empty name` | A fragment or page has no name. |
-| `ErrEmptyTemplatePath` | `collage: empty template path` | A fragment names no template. |
+| `ErrEmptyTemplatePath` | `collage: empty template path` | A fragment names no template — or `NewInlineFragment` was given an empty one. |
+| `ErrConflictingTemplate` | `collage: fragment has both a template path and an inline template` | A fragment built by hand sets both a template file and an inline template. |
+| `ErrSourceConflict` | `collage: inline template conflicts with another template` | An [inline template](/docs/fragments-and-slots#inline-templates) `{{define}}`s or `{{block}}`s a template of its own, which would replace a file template of that name for every page. |
 | `ErrNilFragment` | `collage: nil fragment` | A `nil` fragment was used where one is required — bound to a slot, returned by a slot resolver, or listed in `WithLayouts`. |
 | `ErrDuplicateSlot` | `collage: slot already declared` | `WithSlot` was called twice with one name. |
 | `ErrUnknownSlot` | `collage: unknown slot` | A fragment is bound into a slot its template never calls — a typo on either side of the binding. The message names the slot and the slots the template does call. A slot the template calls and nothing fills is not an error: it renders empty. |
