@@ -1,6 +1,6 @@
 ---
 description: Every exported error value in collage, grouped by where it comes from, with what it means and what to do about it.
-reference: PanicError, ErrUnknownSlot, ErrConflictingData, ErrNoDocumentHandler, ErrRouteParams, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath
+reference: PanicError, ErrUnknownSlot, ErrConflictingData, ErrNoDocumentHandler, ErrRouteParams, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath, ErrInvalidGuardDecision, ErrGuardRefused, ErrGuarded
 ---
 
 # Errors
@@ -73,8 +73,10 @@ See [Writing a plugin](/docs/writing-plugins).
 Two places report these. A few are recorded by the builders as the chain runs —
 `ErrDuplicateSlot` and `ErrSlotResolved` from `WithSlot`, `WithSlotResolver` and
 `WithSlotFragment` (which also records `Bind`'s `ErrNilFragment` and
-`ErrSlotOccupied`), `ErrInvalidTimeout` from `WithTimeout`, `ErrMissingContent`
-from a page's `Build`, and `ErrNoDocumentHandler` from a document's — and you can
+`ErrSlotOccupied`), `ErrInvalidTimeout` from `WithTimeout`, `ErrMissingLayout`,
+`ErrConflictingLayout`, `ErrNilFragment` and `ErrFragmentCycle` from `WithLayouts`,
+`ErrMissingContent` from a page's `Build`, and `ErrNoDocumentHandler` from a
+document's — and you can
 read them with `BuildErr()`. What a builder recorded stays
 on the value it built, and `RegisterPage` and `RegisterDocument` refuse a value
 carrying any — a page's own, or those of any fragment in its tree — wrapped as
@@ -93,15 +95,17 @@ before it serves anything.
 | --- | --- | --- |
 | `ErrEmptyName` | `collage: empty name` | A fragment or page has no name. |
 | `ErrEmptyTemplatePath` | `collage: empty template path` | A fragment names no template. |
-| `ErrNilFragment` | `collage: nil fragment` | A `nil` fragment was used where one is required — bound to a slot, or returned by a slot resolver. |
+| `ErrNilFragment` | `collage: nil fragment` | A `nil` fragment was used where one is required — bound to a slot, returned by a slot resolver, or listed in `WithLayouts`. |
 | `ErrDuplicateSlot` | `collage: slot already declared` | `WithSlot` was called twice with one name. |
 | `ErrUnknownSlot` | `collage: unknown slot` | A fragment is bound into a slot its template never calls — a typo on either side of the binding. The message names the slot and the slots the template does call. A slot the template calls and nothing fills is not an error: it renders empty. |
 | `ErrInvalidSlotDefinition` | `collage: invalid slot definition` | A slot has an empty name, or a map key that does not match its own name. |
-| `ErrSlotOccupied` | `collage: slot already occupied` | A second fragment was bound to a slot that holds one — or a resolver returned several for it. |
+| `ErrSlotOccupied` | `collage: slot already occupied` | A second fragment was bound to a slot that holds one — or a resolver returned several for it, or a layout in a page's chain arrived with its `content` slot already filled. |
 | `ErrSlotResolved` | `collage: slot is filled by a resolver` | One slot was given both a resolver and bound fragments. |
 | `ErrRequiredSlotUnfilled` | `collage: required slot has no fill` | A slot declared required has nothing bound to it. |
-| `ErrFragmentCycle` | `collage: fragment cycle detected` | A fragment is reachable from itself. |
+| `ErrFragmentCycle` | `collage: fragment cycle detected` | A fragment is reachable from itself — or `WithLayouts` names one layout twice. |
 | `ErrMissingContent` | `collage: missing content` | A page has no content fragment. |
+| `ErrMissingLayout` | `collage: missing layout` | `WithLayouts` was called with no layouts. A page without a layout does not call it. |
+| `ErrConflictingLayout` | `collage: layout chain already declared` | `WithLayouts` was called twice on one builder — or a page built by hand sets a `LayoutFragment` that is not the first entry of its `LayoutChain`. |
 | `ErrConflictingData` | `collage: fixed data and a handler are both set` | A fragment sets both `WithData` and `WithDataHandler`. |
 | `ErrInvalidTimeout` | `collage: invalid timeout` | A fragment's timeout is negative. |
 | `ErrMissingTTL` | `collage: missing cache ttl for incremental strategy` | `Incremental` was given a zero TTL. |
@@ -274,6 +278,8 @@ apart without reading messages. See
 | `ErrMethodNotAllowed` | `collage: method not allowed` | `route` | The path exists but answers no such method: a 405, with an `Allow` header naming what it does answer. On a document's URL the 405 is plain text (since v0.11.0). |
 | `ErrEmptyRender` | `collage: page rendered no markup` | `render` | A page rendered successfully but produced no markup, served or answered by an action: a 500. The same sentinel a static build records. |
 | `ErrCSRFMissing`, `ErrCSRFMismatch`, `ErrCSRFInvalid` | see [above](#request-forgery) | `route` | A submission refused by the forgery check. |
+| `ErrInvalidGuardDecision` | `collage: invalid guard decision` | `guard` | A page's [guard](/docs/pages-and-layouts#private-pages-guards) answered with a decision that cannot be written — a redirect with no location, a `200` — and the request failed with a 500. A guard that returns an error is reported at the same stage, with its own error. |
+| `ErrGuardRefused` | `collage: the guard refused this reader` | — | Returned, not reported: `RenderFragment` asked for a fragment whose guard refuses the reader. A plugin streaming fragments sends that reader nothing. |
 | `ErrEmptyErrorPage` | `collage: error page rendered empty` | `error_page` | A registered error page rendered successfully but produced no markup, so the built-in page was served instead. |
 | `ErrPanic` | `collage: panic recovered while serving the request` | `panic` | Something panicked while serving — a `Cache`, `Metrics` or `Tracer` implementation, a router, a plugin hook — and was recovered into a 500. Panics in data handlers and templates are `PanicError` instead. |
 | `ErrAssetFailed` | `collage: asset request failed` | `asset` | A mounted file request answered with a status of 400 or above: one sentinel for every such status. |
@@ -298,6 +304,7 @@ Returned by `collage.NewBuilder` and `Builder.Build`, or recorded in the
 | `ErrDynamicPathUnresolved` | `collage: a path pattern with a {param} needs WithStaticParams to be built` | skip | A page's or document's path has a `{param}` and no `WithStaticParams`. |
 | `ErrRouteParams` | see [Links and URLs](#links-and-urls) | report error | A map `WithStaticParams` returned does not fill the pattern exactly — a name missing, or one the pattern does not have. Only that file fails; the rest are built. |
 | `ErrNotStatic` | `collage: a Dynamic() route cannot be built statically` | skip | A page or document is dynamic — declared `Dynamic()`, or declaring no strategy and rendering a data handler — so there is nothing to export. |
+| `ErrGuarded` | `collage: a guarded page cannot be built statically` | skip | A page has a [guard](/docs/pages-and-layouts#private-pages-guards) on its layout chain or content fragment. An export has no reader to ask it about, and a file on a static host is served to anyone. |
 | `ErrDuplicateOutputPath` | `collage: two build tasks write the same output path` | skip | Two document tasks resolve to one file — `WithStaticParams` listing the same values twice. The first is built, the rest skipped. |
 | `ErrDegradedRender` | `collage: refusing to write a degraded render` | report error | A page rendered with a failed fragment and `AllowDegraded` is off. No file is written. |
 | `ErrEmptyRender` | `collage: page rendered no markup` | report error | A page rendered no markup at all. Refused even with `AllowDegraded`. One sentinel with serving's, above. |
@@ -308,6 +315,6 @@ Returned by `collage.NewBuilder` and `Builder.Build`, or recorded in the
 Report errors are in `BuildReport.Errors`, a slice of errors that match with
 `errors.Is`. A skip is a `SkipRecord` in `BuildReport.Skipped`: its `Reason` is a
 sentence for people, and its `Err` (since v0.10.0) is the sentinel for code —
-`ErrNotStatic`, `ErrDynamicPathUnresolved`, `ErrUnresolvedToken` or
+`ErrNotStatic`, `ErrGuarded`, `ErrDynamicPathUnresolved`, `ErrUnresolvedToken` or
 `ErrDuplicateOutputPath` — so match it with `errors.Is(skip.Err, …)` rather than by
 reading `Reason`.

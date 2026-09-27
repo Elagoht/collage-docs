@@ -20,7 +20,7 @@ action for that method:
 
 ```go
 collage.NewPage("contact").
-	WithLayout(layout).
+	WithLayouts(layout).
 	WithContent(contactForm).
 	WithPath("en", "/contact").
 	WithAction("POST", sendMessage).
@@ -64,6 +64,11 @@ collage.NewPage("post").
 		Build()).
 	Build()
 ```
+
+An action on a page is reached through the page's URL, so it is covered by the
+page's [guards](/docs/pages-and-layouts#private-pages-guards): a form on a private
+page cannot be submitted by a reader the page refuses. The guard runs before the
+body is read and before the forgery check.
 
 ## An action at its own URL
 
@@ -169,7 +174,7 @@ func ContactPage() *collage.Page {
 
 	var page *collage.Page
 	page = collage.NewPage("contact").
-		WithLayout(layouts.Layout()).
+		WithLayouts(layouts.Layout()).
 		WithContent(form).
 		WithPath("en", "/contact").
 		WithAction("POST", func(ctx context.Context, rc *collage.RenderContext) (*collage.ActionResult, error) {
@@ -393,7 +398,7 @@ answers with only that part, and a few lines of JavaScript to swap it in.
 
 ```go
 collage.NewPage("search").
-	WithLayout(layout).
+	WithLayouts(layout).
 	WithContent(searchContent).
 	WithPath("en", "/search").
 	WithFragmentPath("en", "/search/results", results).
@@ -417,6 +422,18 @@ input.addEventListener("input", async () => {
 Nothing is reachable unless it is declared. A framework that exposed every
 fragment automatically would put every internal part of every page on the public
 web.
+
+A fragment path does not inherit the page's
+[guards](/docs/pages-and-layouts#private-pages-guards). It is a route of its own,
+and the fragment's own guard is its whole policy. A fragment path opened on a
+private page is public unless its fragment carries a guard too:
+
+```go
+results := collage.NewFragment("results", "fragments/results.html").
+	WithDataHandler(search).
+	WithGuard(requireUser). // the page's layout guard does not reach this URL
+	Build()
+```
 
 A fragment path is claimed like any other route. One spelled like a page's path, a
 document's, another page's fragment path, or a redirect's source is refused at

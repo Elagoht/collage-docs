@@ -89,7 +89,7 @@ func HomePage() *collage.Page {
 
 	// No Static() needed: nothing here fetches per render, so the page is static.
 	return collage.NewPage("home").
-		WithLayout(layouts.Layout()).
+		WithLayouts(layouts.Layout()).
 		WithContent(content).
 		WithPath("en", "/").
 		Build()
@@ -203,7 +203,7 @@ func RecipePage() *collage.Page {
 		Build()
 
 	return collage.NewPage("recipe").
-		WithLayout(layouts.Layout()).
+		WithLayouts(layouts.Layout()).
 		WithContent(content).
 		WithPath("en", "/recipes/{slug}").
 		Build()
@@ -438,7 +438,7 @@ static dosyalardan oluşabilir. `pages/recipe.go` dosyasındaki iki satır bunu 
 
 ```go
 	return collage.NewPage("recipe").
-		WithLayout(layouts.Layout()).
+		WithLayouts(layouts.Layout()).
 		WithContent(content).
 		WithPath("en", "/recipes/{slug}").
 		Static().

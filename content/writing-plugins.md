@@ -172,7 +172,11 @@ out, err := host.RenderFragment(r, collage.FragmentRequest{Path: "/live/cpu"})
 ```
 
 Only fragments the page opened are rendered: a stream reaches exactly what HTTP
-reaches. A render that is not `Shared` may hold one reader's data, so it must be
+reaches. That includes the fragment's own
+[guard](/docs/pages-and-layouts#private-pages-guards) (since v0.28.0): it is asked
+about `r` as it would be about a request to the fragment's URL, and a reader it
+refuses gets `collage.ErrGuardRefused` instead of a render — send that connection
+nothing. A render that is not `Shared` may hold one reader's data, so it must be
 rendered for each connection with that connection's request, never once for all.
 A fragment whose handler returns the same for everyone at one moment — a
 measurement — is marked [`Shared()`](/docs/caching#a-page-that-declares-none) so
@@ -201,7 +205,7 @@ take the connection over with `Hijack`, as it could on a bare `net/http` server.
 | Interface | Method | Event | Fires | May change |
 | --- | --- | --- | --- | --- |
 | `RequestHook` | `OnRequest` | the `*http.Request` | First on every request, before collage's request span, middleware and routing (since v0.25.0) | the request's context |
-| `PageResolvedHook` | `OnPageResolved` | `PageResolvedEvent` | Once per page request, right after routing — cache hits included | nothing |
+| `PageResolvedHook` | `OnPageResolved` | `PageResolvedEvent` | Once per page request, right after routing and the page's guards — cache hits included | nothing |
 | `BeforeRenderHook` | `OnBeforeRender` | `BeforeRenderEvent` | Before a fresh page render | nothing on the event; may hoist through `ev.Context` |
 | `AfterRenderHook` | `OnAfterRender` | `AfterRenderEvent` | After a page render succeeded | `ev.HTML`; reports with `ev.Warn`, `ev.Error` |
 | `DocumentRenderedHook` | `OnDocumentRendered` | `DocumentRenderedEvent` | After a document handler produced its body | `ev.Body` |
@@ -274,7 +278,9 @@ type PageResolvedEvent struct {
 ```
 
 Fires once per request that routed to a page, before the cache is consulted, so
-it sees cache hits as well as fresh renders. It never fires for a document, and
+it sees cache hits as well as fresh renders. It fires after the page's
+[guards](/docs/pages-and-layouts#private-pages-guards) and not at all for a request
+one of them blocked: that request never reached the page. It never fires for a document, and
 it does not fire during a static build — a build is not a request, and a plugin
 counting requests would count renders nobody asked for. An error fails the request
 with a 500, under the stage `"page_resolved"`.
@@ -521,7 +527,9 @@ or a handler registered with `App.Handle`. `Stage` names where it happened.
 no page was resolved, and also for a document, an action — including a page the
 action answers with through `RenderPage` — a mount and an `App.Handle` handler.
 Read `Path` to tell those apart, and guard every use of `Page`. The
-stages the framework uses are `"route"`, `"not_found"`, `"page_resolved"`,
+stages the framework uses are `"route"`, `"not_found"`, `"guard"` (since
+v0.28.0: a page's guard failed or answered with a decision it cannot write),
+`"page_resolved"`,
 `"before_render"`, `"render"`, `"after_render"`, `"cache_write"`, `"error_page"`,
 `"asset"`, `"handler"` and `"panic"` — the set is not a closed enum.
 

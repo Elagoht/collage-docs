@@ -34,7 +34,7 @@ Ardından her page, bulunduğu her locale için kendi path'ini tanımlar:
 
 ```go
 collage.NewPage("about").
-	WithLayout(layout).
+	WithLayouts(layout).
 	WithContent(about).
 	WithPath("en", "/about").
 	WithPath("tr", "/hakkinda").

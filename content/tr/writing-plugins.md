@@ -182,9 +182,13 @@ out, err := host.RenderFragment(r, collage.FragmentRequest{Path: "/live/cpu"})
 ```
 
 Yalnızca page'in açtığı fragment'ler render edilir: bir stream tam olarak HTTP'nin
-ulaştığı yere ulaşır. `Shared` olmayan bir render tek bir okuyucunun verisini
-taşıyabilir. Bu yüzden herkes için bir kez değil, her bağlantı için o bağlantının
-request'iyle render edilmelidir. Handler'ı belli bir anda herkes için aynı şeyi
+ulaştığı yere ulaşır. Buna fragment'in kendi
+[guard](/docs/pages-and-layouts#private-pages-guards)'ı da dahildir (v0.28.0'dan
+beri): guard'a, fragment'in URL'sine gelen bir request'te olduğu gibi `r` hakkında
+sorulur. Reddettiği bir okuyucu render yerine `collage.ErrGuardRefused` alır; o
+bağlantıya hiçbir şey göndermeyin. `Shared` olmayan bir render tek bir okuyucunun
+verisini taşıyabilir. Bu yüzden herkes için bir kez değil, her bağlantı için o
+bağlantının request'iyle render edilmelidir. Handler'ı belli bir anda herkes için aynı şeyi
 döndüren bir fragment (bir ölçüm gibi)
 [`Shared()`](/docs/caching#a-page-that-declares-none) olarak işaretlenir. Böylece
 render'ı, page'i static yapmadan `Shared` sayılır. `App.RenderFragment` aynı
@@ -214,7 +218,7 @@ sunucusunda da yapabilirdi.
 | Interface | Metot | Event | Ne zaman çalışır | Neyi değiştirebilir |
 | --- | --- | --- | --- | --- |
 | `RequestHook` | `OnRequest` | `*http.Request` | Her request'te ilk olarak; collage'ın request span'inden, middleware'den ve routing'den önce (v0.25.0'dan beri) | request'in context'ini |
-| `PageResolvedHook` | `OnPageResolved` | `PageResolvedEvent` | Her page request'inde bir kez, routing'in hemen ardından; cache hit'ler dahil | hiçbir şeyi |
+| `PageResolvedHook` | `OnPageResolved` | `PageResolvedEvent` | Her page request'inde bir kez, routing'in ve page'in guard'larının hemen ardından; cache hit'ler dahil | hiçbir şeyi |
 | `BeforeRenderHook` | `OnBeforeRender` | `BeforeRenderEvent` | Yeni bir page render'ından önce | event'te hiçbir şeyi; `ev.Context` üzerinden hoist edebilir |
 | `AfterRenderHook` | `OnAfterRender` | `AfterRenderEvent` | Bir page render'ı başarıyla bittikten sonra | `ev.HTML`; `ev.Warn` ve `ev.Error` ile raporlar |
 | `DocumentRenderedHook` | `OnDocumentRendered` | `DocumentRenderedEvent` | Bir document handler'ı body'sini ürettikten sonra | `ev.Body` |
@@ -290,9 +294,12 @@ type PageResolvedEvent struct {
 ```
 
 Bir page'e route edilen her request'te, cache'e bakılmadan önce bir kez çalışır. Bu
-yüzden yeni render'ları da, cache hit'leri de görür. Bir document için hiçbir zaman
-çalışmaz. Static build sırasında da çalışmaz: build bir request değildir ve
-request'leri sayan bir plugin, kimsenin istemediği render'ları da saymış olurdu.
+yüzden yeni render'ları da, cache hit'leri de görür. Page'in
+[guard](/docs/pages-and-layouts#private-pages-guards)'larından sonra çalışır;
+onlardan birinin engellediği bir request için hiç çalışmaz, çünkü o request page'e
+hiç ulaşmamıştır. Bir document için hiçbir zaman çalışmaz. Static build
+sırasında da çalışmaz: build bir request değildir ve request'leri sayan bir
+plugin, kimsenin istemediği render'ları da saymış olurdu.
 Dönen bir hata, request'i `"page_resolved"` stage'i altında 500 ile başarısız kılar.
 
 ### BeforeRenderHook
@@ -550,7 +557,9 @@ Hiçbir page resolve edilmediğinde `nil`'dir. Document, action, mount ve
 `App.Handle` handler'ı için de `nil`'dir; action'ın `RenderPage` ile cevap olarak
 döndüğü page de buna dahildir. Bunları birbirinden ayırmak için `Path`'e bakın ve
 `Page`'i her kullanışınızda önce kontrol edin. Framework'ün kullandığı stage'ler
-şunlardır: `"route"`, `"not_found"`, `"page_resolved"`, `"before_render"`,
+şunlardır: `"route"`, `"not_found"`, `"guard"` (v0.28.0'dan beri: bir page'in
+guard'ı başarısız olmuş ya da yazılamayacak bir kararla cevap vermiştir),
+`"page_resolved"`, `"before_render"`,
 `"render"`, `"after_render"`, `"cache_write"`, `"error_page"`, `"asset"`,
 `"handler"` ve `"panic"`. Bu küme kapalı bir enum değildir.
 

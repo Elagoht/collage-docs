@@ -36,7 +36,7 @@ func HomePage(app *collage.App, docs func() (*site.Set, error)) *collage.Page {
 		Build()
 
 	builder := collage.NewPage("home").
-		WithLayout(layouts.Layout(app, docs)).
+		WithLayouts(layouts.Layout(app, docs)).
 		WithContent(content).
 		Static()
 	for _, locale := range site.Locales() {

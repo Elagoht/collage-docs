@@ -1,6 +1,6 @@
 ---
 description: Render the site to static files with collage export — what is written, what is skipped and why, dynamic paths, and publishing to a static host.
-reference: NewBuilder, BuildOptions, BuildReport, PrintBuildReport, StaticParamsFunc, SkipRecord, ErrNotStatic, ErrDynamicPathUnresolved, ErrRouteParams, ErrBuildFindings
+reference: NewBuilder, BuildOptions, BuildReport, PrintBuildReport, StaticParamsFunc, SkipRecord, ErrNotStatic, ErrGuarded, ErrDynamicPathUnresolved, ErrRouteParams, ErrBuildFindings
 ---
 
 # Static export
@@ -115,6 +115,11 @@ report, with the reason:
   page may be `Static()` on purpose — cached, and invalidated by the action it posts
   to — and it is served rather than exported. The scaffold's `/features` page is
   one.
+- **Guarded pages.** A page with a [guard](/docs/pages-and-layouts#private-pages-guards)
+  on its layout chain or content fragment is skipped with `collage.ErrGuarded`,
+  whatever its strategy. An export renders without a request, so there is no
+  reader to ask the guard about, and a file on a static host is served to anyone.
+  The running server keeps serving it, guard and all.
 - **A `{param}` pattern with no `WithStaticParams`.** `/blog/{slug}` cannot be
   written until something says which slugs exist, and it is skipped with
   `collage.ErrDynamicPathUnresolved`. See below.
@@ -184,7 +189,7 @@ documentation in the original and every page translated so far in a translation:
 
 ```go
 builder := collage.NewPage("doc").
-	WithLayout(layouts.Layout(app, docs)).
+	WithLayouts(layouts.Layout(app, docs)).
 	WithContent(content).
 	Static().
 	WithStaticParams(func(_ context.Context, locale string) ([]map[string]string, error) {

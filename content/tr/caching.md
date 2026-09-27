@@ -42,8 +42,16 @@ Her page, çıktısının nasıl yeniden kullanılabileceğini builder'ındaki t
 | `Static()` | Bir kez render edilir, bir şey onu invalidate edene kadar sunulur | `public, max-age=0, must-revalidate` |
 | `Incremental(ttl)` | Render'dan sonra `ttl` geçene kadar cache'ten sunulur | `public, max-age=<saniye cinsinden ttl>` |
 
-Form'un `{{csrfToken}}` değerini taşıyan bir page, son sütunun istisnasıdır. Bu
-page de diğerleri gibi cache'lenir, ama her okuyucuya kendi token'ı gönderilir.
+Son sütunun iki istisnası vardır. Biri
+[guard'lı bir page](/docs/pages-and-layouts#private-pages-guards)'dir. Guard cache
+okunmadan önce çalıştığı için okuyucuları bu cache'i paylaşır, ama sunucunun
+önündeki bir CDN ya da proxy guard çalıştırmaz. Bu yüzden response, strateji ne
+olursa olsun `private, no-cache` ile gider. Okuyucunun kendi tarayıcısı page'i
+saklayıp ETag'iyle yeniden doğrulayabilir; yeniden doğrulama da guard'ın gördüğü
+bir request'tir.
+
+Diğeri, form'un `{{csrfToken}}` değerini taşıyan bir page'dir. Bu page de
+diğerleri gibi cache'lenir, ama her okuyucuya kendi token'ı gönderilir.
 Bu yüzden response, strateji ne olursa olsun `private, no-store` ile gider.
 Ayrıntılar için
 [Form'lar ve action'lar](/docs/forms-and-actions#pages-with-forms-are-still-cached)
@@ -51,7 +59,7 @@ sayfasına bakın.
 
 ```go
 page := collage.NewPage("blog-post").
-	WithLayout(layout).
+	WithLayouts(layout).
 	WithContent(post).
 	WithPath("en", "/blog/{slug}").
 	Incremental(10 * time.Minute).
@@ -308,7 +316,7 @@ Bunun yerine page'in hangi parametreleri okuduğunu belirtin:
 
 ```go
 collage.NewPage("articles").
-	WithLayout(layout).
+	WithLayouts(layout).
 	WithContent(list).
 	WithPath("en", "/articles").
 	WithCacheParams("page", "sort").

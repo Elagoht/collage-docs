@@ -33,7 +33,7 @@ A page then declares its path in each locale it exists in:
 
 ```go
 collage.NewPage("about").
-	WithLayout(layout).
+	WithLayouts(layout).
 	WithContent(about).
 	WithPath("en", "/about").
 	WithPath("tr", "/hakkinda").

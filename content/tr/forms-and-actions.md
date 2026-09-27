@@ -22,7 +22,7 @@ action verin:
 
 ```go
 collage.NewPage("contact").
-	WithLayout(layout).
+	WithLayouts(layout).
 	WithContent(contactForm).
 	WithPath("en", "/contact").
 	WithAction("POST", sendMessage).
@@ -67,6 +67,11 @@ collage.NewPage("post").
 		Build()).
 	Build()
 ```
+
+Bir page'deki action'a page'in URL'si üzerinden ulaşılır, bu yüzden page'in
+[guard](/docs/pages-and-layouts#private-pages-guards)'ları onu da kapsar: private
+bir page'deki bir form, page'in reddettiği bir okuyucu tarafından gönderilemez.
+Guard, body okunmadan ve forgery kontrolünden önce çalışır.
 
 ## Kendi URL'sinde bir action
 
@@ -177,7 +182,7 @@ func ContactPage() *collage.Page {
 
 	var page *collage.Page
 	page = collage.NewPage("contact").
-		WithLayout(layouts.Layout()).
+		WithLayouts(layouts.Layout()).
 		WithContent(form).
 		WithPath("en", "/contact").
 		WithAction("POST", func(ctx context.Context, rc *collage.RenderContext) (*collage.ActionResult, error) {
@@ -410,7 +415,7 @@ JavaScript. Birincisini `WithFragmentPath` sağlar:
 
 ```go
 collage.NewPage("search").
-	WithLayout(layout).
+	WithLayouts(layout).
 	WithContent(searchContent).
 	WithPath("en", "/search").
 	WithFragmentPath("en", "/search/results", results).
@@ -433,6 +438,18 @@ input.addEventListener("input", async () => {
 
 Tanımlanmamış hiçbir şeye erişilemez. Her fragment'i otomatik olarak dışarı açan bir
 framework, her page'in her iç parçasını public web'e açmış olurdu.
+
+Bir fragment path, page'in [guard](/docs/pages-and-layouts#private-pages-guards)'larını
+devralmaz. Başlı başına bir route'tur ve tek politikası fragment'in kendi
+guard'ıdır. Private bir page'de açılan bir fragment path, fragment'i de bir guard
+taşımıyorsa public'tir:
+
+```go
+results := collage.NewFragment("results", "fragments/results.html").
+	WithDataHandler(search).
+	WithGuard(requireUser). // the page's layout guard does not reach this URL
+	Build()
+```
 
 Bir fragment path'i de diğer route'lar gibi sahiplenilir. Bir page'in, bir
 document'ın ya da başka bir page'in fragment path'iyle veya bir redirect'in

@@ -1,6 +1,6 @@
 ---
 description: Siteyi collage export ile static dosyalara render edin: nelerin yazıldığı, nelerin neden atlandığı, dinamik path'ler ve bir static host'ta yayımlama.
-reference: NewBuilder, BuildOptions, BuildReport, PrintBuildReport, StaticParamsFunc, SkipRecord, ErrNotStatic, ErrDynamicPathUnresolved, ErrRouteParams, ErrBuildFindings
+reference: NewBuilder, BuildOptions, BuildReport, PrintBuildReport, StaticParamsFunc, SkipRecord, ErrNotStatic, ErrGuarded, ErrDynamicPathUnresolved, ErrRouteParams, ErrBuildFindings
 ---
 
 # Static export
@@ -119,6 +119,12 @@ birlikte raporda listeler:
   okuyucuya aittir. Page bilerek `Static()` yapılmış olabilir, yani cache'lenir ve
   post ettiği action tarafından invalidate edilir. Bu durumda da export edilmez,
   sunucudan sunulur. Scaffold'daki `/features` page'i buna bir örnektir.
+- **Guard'lı page'ler.** Layout zincirinde ya da content fragment'inde bir
+  [guard](/docs/pages-and-layouts#private-pages-guards) bulunan page, stratejisi ne
+  olursa olsun `collage.ErrGuarded` ile atlanır. Export request olmadan render
+  eder, dolayısıyla guard'a sorulacak bir okuyucu yoktur; static host'taki bir
+  dosya ise herkese sunulur. Çalışan sunucu page'i guard'ıyla birlikte sunmaya
+  devam eder.
 - **`WithStaticParams`'ı olmayan bir `{param}` pattern'i.** Hangi slug'ların var
   olduğunu bir şey söylemeden `/blog/{slug}` yazılamaz ve
   `collage.ErrDynamicPathUnresolved` ile atlanır. Aşağıya bakın.
@@ -197,7 +203,7 @@ sayfayı listeler:
 
 ```go
 builder := collage.NewPage("doc").
-	WithLayout(layouts.Layout(app, docs)).
+	WithLayouts(layouts.Layout(app, docs)).
 	WithContent(content).
 	Static().
 	WithStaticParams(func(_ context.Context, locale string) ([]map[string]string, error) {

@@ -55,7 +55,7 @@ func DocPage(app *collage.App, docs func() (*site.Set, error)) *collage.Page {
 		Build()
 
 	builder := collage.NewPage("doc").
-		WithLayout(layouts.Layout(app, docs)).
+		WithLayouts(layouts.Layout(app, docs)).
 		WithContent(content).
 		Static().
 		WithStaticParams(func(_ context.Context, locale string) ([]map[string]string, error) {

@@ -39,7 +39,7 @@ post := collage.NewFragment("post", "pages/post.html").
 	Build()
 
 page := collage.NewPage("post").
-	WithLayout(layout).
+	WithLayouts(layout).
 	WithContent(post).
 	WithPath("en", "/blog/{slug}").
 	Incremental(10 * time.Minute).

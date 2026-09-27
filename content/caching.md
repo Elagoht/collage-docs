@@ -40,14 +40,21 @@ Each page says how its output may be reused, with one call on its builder:
 | `Static()` | Rendered once, served until something invalidates it | `public, max-age=0, must-revalidate` |
 | `Incremental(ttl)` | Served from the cache until `ttl` has passed since the render | `public, max-age=<ttl in seconds>` |
 
-A page carrying a form's `{{csrfToken}}` is the exception to the last column: it is
+The last column has two exceptions. A
+[guarded page](/docs/pages-and-layouts#private-pages-guards) is one: its readers
+share this cache, because the guard runs before the cache is read, but a CDN or
+proxy in front of the server runs no guard. So the response goes out
+`private, no-cache` whatever the strategy: the reader's own browser may keep it and
+revalidate with its ETag, and a revalidation is a request the guard sees.
+
+A page carrying a form's `{{csrfToken}}` is the other: it is
 cached like any other, but each reader is sent their own token, so the response
 goes out `private, no-store` whatever the strategy — see
 [Forms and actions](/docs/forms-and-actions#pages-with-forms-are-still-cached).
 
 ```go
 page := collage.NewPage("blog-post").
-	WithLayout(layout).
+	WithLayouts(layout).
 	WithContent(post).
 	WithPath("en", "/blog/{slug}").
 	Incremental(10 * time.Minute).
@@ -294,7 +301,7 @@ nobody asked for, evicting real ones. Say which parameters the page reads:
 
 ```go
 collage.NewPage("articles").
-	WithLayout(layout).
+	WithLayouts(layout).
 	WithContent(list).
 	WithPath("en", "/articles").
 	WithCacheParams("page", "sort").

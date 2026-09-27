@@ -1,6 +1,6 @@
 ---
-description: What a page is, how its layout and content fit together, the paths that reach it, how it is cached, what it shows when it fails, and what registration does to it.
-reference: NewPage, PageBuilder, Page, RenderPage, DefaultContentSlot, StrategyAuto
+description: What a page is, how its layouts and content fit together, who may see it, the paths that reach it, how it is cached, what it shows when it fails, and what registration does to it.
+reference: NewPage, PageBuilder, PageBuilder.WithLayouts, Page, RenderPage, DefaultContentSlot, StrategyAuto, FragmentBuilder.WithGuard, GuardFunc, GuardDecision
 ---
 
 # Pages and layouts
@@ -12,7 +12,7 @@ has no template and no data of its own; those belong to its fragments.
 
 ```go
 page := collage.NewPage("blog-post").
-	WithLayout(layout).
+	WithLayouts(layout).
 	WithContent(post).
 	WithPath("en", "/blog/{slug}").
 	Incremental(10 * time.Minute).
@@ -38,7 +38,7 @@ was asked records the error and carries on, and `BuildErr()` returns everything
 recorded:
 
 ```go
-builder := collage.NewPage("blog-post").WithLayout(layout).WithPath("en", "/blog/{slug}")
+builder := collage.NewPage("blog-post").WithLayouts(layout).WithPath("en", "/blog/{slug}")
 page := builder.Build()
 if err := builder.BuildErr(); err != nil {
 	return err // collage.ErrMissingContent: there is no WithContent
@@ -83,7 +83,7 @@ declaration, and so is any other slot it calls — see
 [Fragments and slots](/docs/fragments-and-slots#slots). `WithTitle` gives every page
 that uses it a `<title>` until something inside names a better one.
 
-`WithLayout(layout)` and `WithContent(post)` name the two, and **registration puts
+`WithLayouts(layout)` and `WithContent(post)` name the two, and **registration puts
 the content into the layout's `content` slot**
 (`collage.DefaultContentSlot`). You do not bind it yourself, and a layout whose
 template never calls `{{slot "content"}}` is refused at registration with
@@ -112,6 +112,134 @@ layout completely, then register pages with it.
 The scaffold writes its layout as a function, `layouts.Layout()`, which returns a
 new fragment each call. That works just as well; sharing one value is simply
 allowed.
+
+### Layouts inside layouts
+
+A page can sit in more than one layout: the HTML shell with its `<head>`, and
+inside it a narrower frame the sign-in pages share. `WithLayouts` takes the whole
+chain, **outermost first** (since v0.28.0, which replaced `WithLayout` with it — a
+single layout is `WithLayouts(layout)`):
+
+```go
+func Master() *collage.Fragment {
+	return collage.NewFragment("layout", "layouts/default.html").
+		WithTitle("My site").
+		Build()
+}
+
+func Auth() *collage.Fragment {
+	return collage.NewFragment("auth-layout", "layouts/auth.html").Build()
+}
+
+page := collage.NewPage("login").
+	WithLayouts(layouts.Master(), layouts.Auth()).
+	WithContent(login).
+	WithPath("en", "/login").
+	Build()
+```
+
+Every layout in the chain renders the one inside it with `{{slot "content"}}`, as
+a single layout renders the content. Registration does all of the wrapping: the
+content goes into the innermost layout's `content` slot, and each layout into the
+`content` slot of the one outside it. So a layout with a hole in it is still a
+finished `*collage.Fragment`, and a helper that makes one returns it built, not as
+a builder the page has to complete.
+
+Each page gets its own copy of every layout's slot table, as it does of a single
+layout, so the chain's layouts can be shared across the site. A layout in a chain
+must arrive with its `content` slot empty — registration fills it — and is refused
+with `ErrSlotOccupied` otherwise.
+
+`WithLayouts` records `ErrMissingLayout` when called with no layouts,
+`ErrNilFragment` for a nil one, `ErrFragmentCycle` for the same layout twice, and
+`ErrConflictingLayout` when called a second time on one builder.
+
+## Private pages: guards
+
+A section of a site that only signed-in readers may see is a layout that says so.
+`WithGuard` (since v0.28.0) gives a fragment a function that is asked, before the
+page is served, whether this request may have it:
+
+```go
+func requireUser(ctx context.Context, r *http.Request) (*collage.GuardDecision, error) {
+	if session.FromContext(ctx).Get("user") != "" {
+		return nil, nil // allowed
+	}
+	return &collage.GuardDecision{
+		Status:   http.StatusSeeOther,
+		Location: "/login?next=" + url.QueryEscape(r.URL.RequestURI()),
+	}, nil
+}
+
+func Private() *collage.Fragment {
+	return collage.NewFragment("private", "layouts/private.html").
+		WithGuard(requireUser).
+		Build()
+}
+
+page := collage.NewPage("dashboard").
+	WithLayouts(layouts.Master(), layouts.Private()).
+	WithContent(dashboard).
+	WithPath("en", "/dashboard").
+	Build()
+```
+
+Every page wrapped in `Private()` is private, and a page is public by leaving it
+out. There is no list of protected paths to keep in step with the routes: the
+guard runs for whatever URL reaches the page, in every locale, with every
+parameter.
+
+A guard is asked for a page when it is on the page's **spine**: a layout in the
+page's chain, or the page's content fragment. Guards run outermost first, the
+content fragment's last, and the first that answers decides. A guard on any other
+fragment — one bound into a slot, one a resolver returns, a fallback — is ignored:
+who may see a page is a property of the page, not of the parts it is drawn from.
+
+It answers in one of three ways:
+
+| Return | What the reader gets |
+| --- | --- |
+| `nil, nil` | The page |
+| a `3xx` status and a `Location` | A redirect there, with no body. A zero status with a location is `303 See Other`. A request marked with `Collage-Fetch` gets `204` and the destination in `Collage-Location`, as an action's redirect does. |
+| a `4xx` or `5xx` status, no location | That status, with no body |
+
+Anything else — a redirect with nowhere to go, a `200` — is
+`ErrInvalidGuardDecision`, and the request fails with a 500, as it does when the
+guard returns an error. A guard that cannot say what it means is not guessed
+about: a redirect with no location would otherwise fall through to the very page
+it was meant to keep back.
+
+What the guard covers:
+
+- **The page's renders**, `GET` and `HEAD`. The guard runs after routing and
+  **before the page's cache is read**, so a blocked reader never reaches a cached
+  render, and a private page may be `Static()`. It also runs before
+  `PageResolvedHook`: a blocked request never reached the page, so plugins
+  watching pages are not told about it.
+- **The actions on the page's own URL.** A form posts to the page it sits on, and
+  a page a reader may not see is a page whose form they may not submit. The guard
+  runs before the body is read and before the forgery check.
+- **Not a fragment path.** A fragment opened at its own URL with
+  [`WithFragmentPath`](/docs/forms-and-actions#a-fragment-at-its-own-url) is a
+  route of its own, and its fragment's own guard is its whole policy: it inherits
+  nothing from the page that declared it. A fragment path on a private page is
+  public unless its fragment carries a guard too.
+- **Not an action registered at its own URL**, and not the page's not-found and
+  error pages — a private error page would otherwise redirect the reader who hit
+  the error.
+
+Readers the guard allows share the page's cache, which is the server's own. A CDN
+or proxy in front of the server runs no guard, so a guarded page goes out with
+`Cache-Control: private, no-cache` whatever its strategy says. A page whose
+content differs from one reader to the next is a personalisation question, not a
+guard question — see [Caching](/docs/caching#render-strategies). A
+[static export](/docs/static-export#what-is-skipped) does not write guarded pages
+at all.
+
+What a guard checks is not the framework's to know. `requireUser` above reads the
+session; a guard can as well read a header, a role, a feature flag — anything a
+request carries. `collage inspect` lists, for each page, the fragments that carry
+a guard.
 
 ## Paths
 
@@ -215,7 +343,7 @@ site-wide ones:
 
 ```go
 post := collage.NewPage("blog-post").
-	WithLayout(layout).
+	WithLayouts(layout).
 	WithContent(postContent).
 	WithPath("en", "/blog/{slug}").
 	WithNotFoundPage(postNotFound). // "no such post", with a search box
@@ -239,7 +367,7 @@ func NotFoundPage() *collage.Page {
 	content := collage.NewFragment("not-found-content", "pages/404.html").Build()
 
 	return collage.NewPage("not-found").
-		WithLayout(layouts.Layout()).
+		WithLayouts(layouts.Layout()).
 		WithContent(content).
 		Dynamic().
 		Build()
@@ -290,8 +418,9 @@ In order, it:
 2. refuses a page whose builder, or the builder of any fragment reachable from it
    or opened with [`WithFragmentPath`](/docs/forms-and-actions#a-fragment-at-its-own-url),
    recorded a mistake — what `BuildErr()` would have returned;
-3. copies the layout's slot table and binds the content fragment into its
-   `content` slot;
+3. copies the slot table of every layout in the chain, binds the content fragment
+   into the innermost one's `content` slot and each layout into the next outer
+   one's;
 4. validates the page and its whole fragment tree, fragment paths included:
    paths, strategy and TTL, redirects, required slots with nothing in them, a
    fragment reachable from itself;
@@ -311,9 +440,10 @@ recover from.
 ### Why the registered value matters
 
 Registration changes the page it is given. Step 3 replaces `page.LayoutFragment`
-with the page's private, bound copy of the layout, and that copy — with the
-content in its slot — is what renders. A page built again by calling the same
-constructor is a different value, whose layout has an empty `content` slot.
+with the page's private, bound copy of its outermost layout, and that copy — with
+the rest of the chain and the content inside it — is what renders. A page built
+again by calling the same constructor is a different value, whose layouts have
+empty `content` slots.
 
 So the value you passed to `RegisterPage` is the page from then on, and everything
 that refers to a page by value must use that one:
@@ -329,7 +459,7 @@ that refers to a page by value must use that one:
   ```go
   var page *collage.Page
   page = collage.NewPage("hello").
-  	WithLayout(layouts.Layout()).
+  	WithLayouts(layouts.Layout()).
   	WithContent(content).
   	WithPath("en", "/hello").
   	WithAction("POST", func(_ context.Context, rc *collage.RenderContext) (*collage.ActionResult, error) {

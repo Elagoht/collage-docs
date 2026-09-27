@@ -84,7 +84,7 @@ func HomePage() *collage.Page {
 
 	// No Static() needed: nothing here fetches per render, so the page is static.
 	return collage.NewPage("home").
-		WithLayout(layouts.Layout()).
+		WithLayouts(layouts.Layout()).
 		WithContent(content).
 		WithPath("en", "/").
 		Build()
@@ -196,7 +196,7 @@ func RecipePage() *collage.Page {
 		Build()
 
 	return collage.NewPage("recipe").
-		WithLayout(layouts.Layout()).
+		WithLayouts(layouts.Layout()).
 		WithContent(content).
 		WithPath("en", "/recipes/{slug}").
 		Build()
@@ -422,7 +422,7 @@ static files. Two lines in `pages/recipe.go` say so:
 
 ```go
 	return collage.NewPage("recipe").
-		WithLayout(layouts.Layout()).
+		WithLayouts(layouts.Layout()).
 		WithContent(content).
 		WithPath("en", "/recipes/{slug}").
 		Static().

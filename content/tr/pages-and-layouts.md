@@ -1,6 +1,6 @@
 ---
-description: Page nedir, layout'u ve içeriği nasıl bir araya gelir, ona hangi path'ler ulaşır, nasıl cache'lenir, başarısız olduğunda ne gösterir ve register edilmek onu nasıl değiştirir.
-reference: NewPage, PageBuilder, Page, RenderPage, DefaultContentSlot, StrategyAuto
+description: Page nedir, layout'ları ve içeriği nasıl bir araya gelir, onu kim görebilir, ona hangi path'ler ulaşır, nasıl cache'lenir, başarısız olduğunda ne gösterir ve register edilmek onu nasıl değiştirir.
+reference: NewPage, PageBuilder, PageBuilder.WithLayouts, Page, RenderPage, DefaultContentSlot, StrategyAuto, FragmentBuilder.WithGuard, GuardFunc, GuardDecision
 ---
 
 # Page'ler ve layout'lar
@@ -13,7 +13,7 @@ ya da verisi yoktur. Bunlar fragment'lerine aittir.
 
 ```go
 page := collage.NewPage("blog-post").
-	WithLayout(layout).
+	WithLayouts(layout).
 	WithContent(post).
 	WithPath("en", "/blog/{slug}").
 	Incremental(10 * time.Minute).
@@ -38,7 +38,7 @@ Builder'lar hata dönmek için zinciri hiçbir zaman kesmez. İstenen şeyi yapa
 çağrı hatayı kaydeder ve devam eder. `BuildErr()` kaydedilen bütün hataları döner:
 
 ```go
-builder := collage.NewPage("blog-post").WithLayout(layout).WithPath("en", "/blog/{slug}")
+builder := collage.NewPage("blog-post").WithLayouts(layout).WithPath("en", "/blog/{slug}")
 page := builder.Build()
 if err := builder.BuildErr(); err != nil {
 	return err // collage.ErrMissingContent: there is no WithContent
@@ -86,7 +86,7 @@ tanımın kendisidir. Çağırdığı diğer slot'lar için de durum aynıdır; 
 kullanan her page'e, içerideki bir şey daha iyisini belirtene kadar bir `<title>`
 verir.
 
-`WithLayout(layout)` ve `WithContent(post)` bu ikisini belirtir. **İçeriği
+`WithLayouts(layout)` ve `WithContent(post)` bu ikisini belirtir. **İçeriği
 layout'un `content` slot'una (`collage.DefaultContentSlot`) register işlemi
 yerleştirir.** Bu bağlamayı kendiniz yapmazsınız. Template'i hiç
 `{{slot "content"}}` çağırmayan bir layout ise register sırasında `ErrUnknownSlot`
@@ -117,6 +117,138 @@ register edildikten sonra ortak layout'a bağlanan bir fragment o page'de görü
 Scaffold, layout'unu her çağrıda yeni bir fragment dönen bir fonksiyon olarak
 yazar: `layouts.Layout()`. Bu yöntem de aynı şekilde çalışır. Tek bir değeri
 paylaşmak yalnızca izin verilen bir seçenektir.
+
+### Layout içinde layout
+
+Bir page birden fazla layout'un içinde durabilir: dışta `<head>`'iyle HTML
+iskeleti, onun içinde de giriş page'lerinin paylaştığı daha dar bir çerçeve.
+`WithLayouts` zincirin tamamını **en dıştakinden başlayarak** alır. v0.28.0'dan
+beri vardır ve `WithLayout`'un yerini almıştır; tek bir layout
+`WithLayouts(layout)` olarak yazılır:
+
+```go
+func Master() *collage.Fragment {
+	return collage.NewFragment("layout", "layouts/default.html").
+		WithTitle("My site").
+		Build()
+}
+
+func Auth() *collage.Fragment {
+	return collage.NewFragment("auth-layout", "layouts/auth.html").Build()
+}
+
+page := collage.NewPage("login").
+	WithLayouts(layouts.Master(), layouts.Auth()).
+	WithContent(login).
+	WithPath("en", "/login").
+	Build()
+```
+
+Tek bir layout içeriği nasıl render ediyorsa, zincirdeki her layout da
+içindekini `{{slot "content"}}` ile öyle render eder. Sarmalamanın tamamını
+register işlemi yapar. İçerik en içteki layout'un `content` slot'una, her layout
+da kendisini saran layout'un `content` slot'una girer. Bu yüzden içinde boşluk
+bırakan bir layout da bitmiş bir `*collage.Fragment`'tir. Onu oluşturan bir
+yardımcı fonksiyon, page'in tamamlaması gereken bir builder değil, build edilmiş
+fragment'i döner.
+
+Tek bir layout'ta olduğu gibi her page, zincirdeki her layout'un slot tablosunun
+kendine ait bir kopyasını alır. Bu yüzden zincirin layout'ları site genelinde
+paylaşılabilir. Zincirdeki bir layout'un `content` slot'u boş gelmelidir, çünkü onu
+register işlemi doldurur. Dolu gelen bir layout `ErrSlotOccupied` ile reddedilir.
+
+`WithLayouts`, hiç layout verilmeden çağrılırsa `ErrMissingLayout`, nil bir layout
+için `ErrNilFragment`, aynı layout iki kez verilirse `ErrFragmentCycle`, aynı
+builder'da ikinci kez çağrılırsa `ErrConflictingLayout` kaydeder.
+
+## Private page'ler: guard'lar
+
+Sitenin yalnızca giriş yapmış okuyucuların görebileceği bir bölümü, bunu söyleyen
+bir layout'tur. `WithGuard` (v0.28.0'dan beri) bir fragment'e bir fonksiyon
+verir. Page sunulmadan önce bu fonksiyona, bu request'in page'i alıp alamayacağı
+sorulur:
+
+```go
+func requireUser(ctx context.Context, r *http.Request) (*collage.GuardDecision, error) {
+	if session.FromContext(ctx).Get("user") != "" {
+		return nil, nil // allowed
+	}
+	return &collage.GuardDecision{
+		Status:   http.StatusSeeOther,
+		Location: "/login?next=" + url.QueryEscape(r.URL.RequestURI()),
+	}, nil
+}
+
+func Private() *collage.Fragment {
+	return collage.NewFragment("private", "layouts/private.html").
+		WithGuard(requireUser).
+		Build()
+}
+
+page := collage.NewPage("dashboard").
+	WithLayouts(layouts.Master(), layouts.Private()).
+	WithContent(dashboard).
+	WithPath("en", "/dashboard").
+	Build()
+```
+
+`Private()` ile sarılan her page private'tır; bir page'i public yapmak için
+`Private()`'ı zincirine eklememek yeterlidir. Route'larla senkron tutulacak bir
+korumalı path listesi yoktur. Guard, page'e hangi URL ulaşırsa ulaşsın, her locale'de ve her
+parametreyle çalışır.
+
+Bir guard, page'in **omurgasında** olduğunda o page için sorulur: page'in
+zincirindeki bir layout ya da page'in content fragment'i. Guard'lar en dıştakinden
+başlayarak çalışır, content fragment'inki en son sorulur ve ilk cevap veren karar
+verir. Başka bir fragment'teki guard yok sayılır: bir slot'a bağlanan, bir
+resolver'ın döndüğü ya da fallback olan fragment'lerdekiler. Bir page'i kimin
+görebileceği, onu oluşturan fragment'lerin değil, page'in kendi özelliğidir.
+
+Guard üç şekilde cevap verir:
+
+| Dönüş | Okuyucunun aldığı |
+| --- | --- |
+| `nil, nil` | Page |
+| bir `3xx` status ve bir `Location` | Oraya body'siz bir redirect. Location verilip status sıfır bırakılırsa `303 See Other` olur. `Collage-Fetch` ile işaretlenmiş bir request, bir action'ın redirect'inde olduğu gibi `204` alır; hedef `Collage-Location` içinde gelir. |
+| bir `4xx` ya da `5xx` status, location yok | O status, body'siz |
+
+Bunların dışındaki her şey (gidecek yeri olmayan bir redirect, bir `200`)
+`ErrInvalidGuardDecision`'dır. Guard'ın bir hata dönmesinde olduğu gibi request
+500 ile başarısız olur. Ne demek istediğini söyleyemeyen bir guard'ın niyeti
+tahmin edilmez: location'ı olmayan bir redirect, aksi hâlde tam da saklaması
+gereken page'e düşerdi.
+
+Guard'ın kapsadıkları:
+
+- **Page'in render'ları**, `GET` ve `HEAD`. Guard routing'den sonra ve **page'in
+  cache'i okunmadan önce** çalışır. Böylece engellenen bir okuyucu cache'lenmiş bir
+  render'a hiç ulaşmaz ve private bir page `Static()` olabilir. Guard
+  `PageResolvedHook`'tan da önce çalışır: engellenen request page'e hiç
+  ulaşmamıştır, bu yüzden page'leri izleyen plugin'lere haber verilmez.
+- **Page'in kendi URL'sindeki action'lar.** Bir form bulunduğu page'e post eder.
+  Okuyucunun göremediği bir page, form'unu da gönderemeyeceği bir page'dir. Guard,
+  body okunmadan ve forgery kontrolünden önce çalışır.
+- **Fragment path'ler kapsanmaz.**
+  [`WithFragmentPath`](/docs/forms-and-actions#a-fragment-at-its-own-url) ile kendi
+  URL'sinde açılan bir fragment başlı başına bir route'tur. Onun tek politikası
+  fragment'in kendi guard'ıdır ve onu tanımlayan page'den hiçbir şey devralmaz.
+  Private bir page'deki fragment path, fragment'i de bir guard taşımıyorsa
+  public'tir.
+- **Kendi URL'sinde register edilen bir action ve page'in not-found ile error
+  page'leri kapsanmaz.** Aksi hâlde private bir error page, hatayla karşılaşan
+  okuyucuyu redirect ederdi.
+
+Guard'ın izin verdiği okuyucular page'in cache'ini paylaşır; bu cache sunucunun
+kendi cache'idir. Sunucunun önündeki bir CDN ya da proxy guard çalıştırmaz. Bu
+yüzden guard'lı bir page, stratejisi ne derse desin `Cache-Control: private,
+no-cache` ile gönderilir. İçeriği okuyucudan okuyucuya değişen bir page ise guard
+değil kişiselleştirme konusudur; bkz. [Caching](/docs/caching#render-strategies).
+[Static export](/docs/static-export#what-is-skipped) guard'lı page'leri hiç yazmaz.
+
+Guard'ın neyi kontrol ettiği framework'ün bilebileceği bir şey değildir. Yukarıdaki
+`requireUser` session'ı okur; bir guard aynı şekilde bir header'ı, bir rolü, bir
+feature flag'i, kısacası request'in taşıdığı her şeyi okuyabilir.
+`collage inspect` her page için guard taşıyan fragment'leri listeler.
 
 ## Path'ler
 
@@ -229,7 +361,7 @@ geçerli olanları belirleyebilir:
 
 ```go
 post := collage.NewPage("blog-post").
-	WithLayout(layout).
+	WithLayouts(layout).
 	WithContent(postContent).
 	WithPath("en", "/blog/{slug}").
 	WithNotFoundPage(postNotFound). // "no such post", with a search box
@@ -254,7 +386,7 @@ func NotFoundPage() *collage.Page {
 	content := collage.NewFragment("not-found-content", "pages/404.html").Build()
 
 	return collage.NewPage("not-found").
-		WithLayout(layouts.Layout()).
+		WithLayouts(layouts.Layout()).
 		WithContent(content).
 		Dynamic().
 		Build()
@@ -311,8 +443,8 @@ fragment ise buradan görülemez. O fragment ilk render edildiğinde kontrol edi
    [`WithFragmentPath`](/docs/forms-and-actions#a-fragment-at-its-own-url) ile
    açılan herhangi bir fragment'in builder'ı için de aynısı geçerlidir. Bu hatalar,
    `BuildErr()`'ün döneceği hatalardır;
-3. layout'un slot tablosunu kopyalar ve content fragment'i bu kopyanın `content`
-   slot'una bağlar;
+3. zincirdeki her layout'un slot tablosunu kopyalar, content fragment'i en içteki
+   kopyanın `content` slot'una, her layout'u da kendisini saranınkine bağlar;
 4. page'i ve fragment path'leri dahil bütün fragment ağacını doğrular: path'ler,
    strateji ve TTL, redirect'ler, içi boş kalmış required slot'lar ve kendisinden
    yine kendisine ulaşılabilen bir fragment;
@@ -334,10 +466,10 @@ durum olmamasıdır. Bu, hiç başlamaması gereken bir programdır.
 ### Register edilen değer neden önemli
 
 Register işlemi kendisine verilen page'i değiştirir. 3. adım `page.LayoutFragment`'i,
-layout'un bu page'e ait ve içeriği bağlanmış kopyasıyla değiştirir. Render edilen
-şey, slot'unda içerik bulunan bu kopyadır. Aynı constructor tekrar çağrılarak
-oluşturulan bir page ise farklı bir değerdir. Onun layout'unun `content` slot'u
-boştur.
+en dıştaki layout'un bu page'e ait ve bağlanmış kopyasıyla değiştirir. Render
+edilen şey, içinde zincirin geri kalanı ve içerik bulunan bu kopyadır. Aynı
+constructor tekrar çağrılarak oluşturulan bir page ise farklı bir değerdir. Onun
+layout'larının `content` slot'ları boştur.
 
 Bu yüzden o andan itibaren page, `RegisterPage`'e verdiğiniz değerin ta kendisidir.
 Bir page'e değer üzerinden başvuran her şey o değeri kullanmalıdır:
@@ -354,7 +486,7 @@ Bir page'e değer üzerinden başvuran her şey o değeri kullanmalıdır:
   ```go
   var page *collage.Page
   page = collage.NewPage("hello").
-  	WithLayout(layouts.Layout()).
+  	WithLayouts(layouts.Layout()).
   	WithContent(content).
   	WithPath("en", "/hello").
   	WithAction("POST", func(_ context.Context, rc *collage.RenderContext) (*collage.ActionResult, error) {

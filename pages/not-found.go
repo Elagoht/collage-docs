@@ -21,7 +21,7 @@ func NotFoundPage(app *collage.App, docs func() (*site.Set, error)) *collage.Pag
 		Build()
 
 	return collage.NewPage("not-found").
-		WithLayout(layouts.Layout(app, docs)).
+		WithLayouts(layouts.Layout(app, docs)).
 		WithContent(content).
 		Dynamic().
 		Build()
