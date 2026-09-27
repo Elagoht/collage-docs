@@ -1,6 +1,6 @@
 ---
 description: Fragments, the slots they expose, what happens when one fails, and slots filled from content at render time.
-reference: NewFragment, NewInlineFragment, FragmentBuilder, Fragment, FragmentBuilder.WithFallback, FragmentBuilder.WithSlot, FragmentBuilder.WithData, FragmentBuilder.Static, FragmentBuilder.Shared, SlotResolverFunc, ErrUnknownSlot
+reference: NewFragment, NewInlineFragment, InlineHTML, FragmentBuilder, Fragment, FragmentBuilder.WithFallback, FragmentBuilder.WithSlot, FragmentBuilder.WithData, FragmentBuilder.Static, FragmentBuilder.Shared, SlotResolverFunc, ErrUnknownSlot
 ---
 
 # Fragments and slots
@@ -94,6 +94,20 @@ or a slot it never calls stops startup, naming the page and the fragment. Two
 fragments may share a name and still carry different templates; each renders its
 own. The development error panel names it as `inline template of fragment
 "post-row"`.
+
+A longer template can be a constant of its own, declared as `collage.InlineHTML`
+(since v0.30.0) — a name for `string` that the
+[VS Code extension](/docs/installation#editor-support) colours as HTML:
+
+```go
+const loginForm collage.InlineHTML = `
+  <form method="post">
+    {{csrfToken}}
+    <input type="email" name="email" required>
+  </form>`
+
+content := collage.NewInlineFragment("login", loginForm).Build()
+```
 
 Use it for the parts of a page that are a few lines of markup next to the handler
 that feeds them — a table row, a button, a form field. Layouts and whole pages

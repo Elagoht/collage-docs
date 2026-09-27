@@ -1,6 +1,6 @@
 ---
 description: Fragment'ler, sundukları slot'lar, bir fragment başarısız olduğunda ne olduğu ve render sırasında içerikten doldurulan slot'lar.
-reference: NewFragment, NewInlineFragment, FragmentBuilder, Fragment, FragmentBuilder.WithFallback, FragmentBuilder.WithSlot, FragmentBuilder.WithData, FragmentBuilder.Static, FragmentBuilder.Shared, SlotResolverFunc, ErrUnknownSlot
+reference: NewFragment, NewInlineFragment, InlineHTML, FragmentBuilder, Fragment, FragmentBuilder.WithFallback, FragmentBuilder.WithSlot, FragmentBuilder.WithData, FragmentBuilder.Static, FragmentBuilder.Shared, SlotResolverFunc, ErrUnknownSlot
 ---
 
 # Fragment'ler ve slot'lar
@@ -100,6 +100,21 @@ slot, page'i ve fragment'i adıyla belirterek startup'ı durdurur. İki fragment
 ismi paylaşıp farklı template'ler taşıyabilir; her biri kendi template'ini render
 eder. Development error panel'i onu `inline template of fragment "post-row"`
 olarak adlandırır.
+
+Daha uzun bir template, `collage.InlineHTML` olarak tanımlanmış ayrı bir sabit
+olabilir (v0.30.0'dan beri). Bu, `string` için bir addır ve
+[VS Code extension'ı](/docs/installation#editor-support) onu HTML olarak
+renklendirir:
+
+```go
+const loginForm collage.InlineHTML = `
+  <form method="post">
+    {{csrfToken}}
+    <input type="email" name="email" required>
+  </form>`
+
+content := collage.NewInlineFragment("login", loginForm).Build()
+```
 
 Inline template'i, bir page'in birkaç satırlık markup'tan oluşan ve onu besleyen
 handler'ın hemen yanında duran kısımları için kullanın: bir tablo satırı, bir

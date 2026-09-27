@@ -294,7 +294,7 @@ For VS Code there is the Collage Snippets & Highlighter extension. It adds:
 - **Highlighting** of `{{ … }}` inside HTML. Templates stay HTML files, so Emmet,
   tag completion and formatting keep working. In Go, the template of an
   [inline fragment](/docs/fragments-and-slots#inline-templates) is coloured as HTML
-  too.
+  too, and so is a constant declared as `collage.InlineHTML`.
 - **Completion and hover** for every template function — collage's, its published
   plugins' and Go's builtins — with its signature and documentation.
 - **Your project's names**: pages in `{{pageURL "…"}}` and their parameters,

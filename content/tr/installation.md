@@ -312,7 +312,8 @@ VS Code için Collage Snippets & Highlighter extension'ı vardır. Şunları ekl
   dosyası olarak kalır, bu yüzden Emmet, tag tamamlama ve biçimlendirme çalışmaya
   devam eder. Go'da
   [inline bir fragment](/docs/fragments-and-slots#inline-templates)'in template'i
-  de HTML olarak renklendirilir.
+  de HTML olarak renklendirilir; `collage.InlineHTML` olarak tanımlanmış bir sabit
+  de öyle.
 - **Completion ve hover**: collage'ın, yayımlanmış plugin'lerinin ve Go'nun
   builtin'leri olan her template fonksiyonu için, imzası ve dokümantasyonuyla.
 - **Projenizdeki adlar**: `{{pageURL "…"}}` içinde page'ler ve parametreleri,
