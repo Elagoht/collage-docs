@@ -238,8 +238,9 @@ at all.
 
 What a guard checks is not the framework's to know. `requireUser` above reads the
 session; a guard can as well read a header, a role, a feature flag — anything a
-request carries. `collage inspect` lists, for each page, the fragments that carry
-a guard.
+request carries. The [session plugin](/docs/plugins#elagohtsession) ships this one
+ready-made, as `session.RequireUser("/login")`. `collage inspect` lists, for each
+page, the fragments that carry a guard.
 
 ## Paths
 

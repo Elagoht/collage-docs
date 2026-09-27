@@ -248,7 +248,9 @@ değil kişiselleştirme konusudur; bkz. [Caching](/docs/caching#render-strategi
 Guard'ın neyi kontrol ettiği framework'ün bilebileceği bir şey değildir. Yukarıdaki
 `requireUser` session'ı okur; bir guard aynı şekilde bir header'ı, bir rolü, bir
 feature flag'i, kısacası request'in taşıdığı her şeyi okuyabilir.
-`collage inspect` her page için guard taşıyan fragment'leri listeler.
+[Session plugin'i](/docs/plugins#elagohtsession) bu guard'ı hazır olarak,
+`session.RequireUser("/login")` şeklinde sunar. `collage inspect` her page için
+guard taşıyan fragment'leri listeler.
 
 ## Path'ler
 

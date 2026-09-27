@@ -854,10 +854,19 @@ Plugins: []collage.Plugin{session.New(session.Options{Key: key})},
 ```go
 s := session.Get(rc)
 s.Regenerate()
-if err := s.Set("user", user.ID); err != nil {
+if err := s.Set(session.UserKey, user.ID); err != nil {
 	return nil, err
 }
 return collage.SeeOther("/account"), nil
+```
+
+`session.RequireUser` taşıyan bir layout, giriş yapmamış okuyucuları sardığı her
+page'den uzak tutar; bu bir [guard](/docs/pages-and-layouts#private-pages-guards)'dır:
+
+```go
+private := collage.NewFragment("private", "layouts/private.html").
+	WithGuard(session.RequireUser("/login")).
+	Build()
 ```
 
 ```json
@@ -872,8 +881,17 @@ return collage.SeeOther("/account"), nil
 }
 ```
 
-- collage v0.23.0 ya da sonrasını gerektirir. Template fonksiyonu eklemediği için
-  `RegisterPlugin` de onu kabul eder.
+- v0.2.0'dan beri collage v0.29.0 ya da sonrasını gerektirir (öncesinde v0.23.0).
+  Template fonksiyonu eklemediği için `RegisterPlugin` de onu kabul eder.
+- **`RequireUser(loginPath)`** (v0.2.0'dan beri), session'ında `session.UserKey`
+  (`"user"`) altında bir değer bulunan okuyucuyu içeri alır. Diğer herkesi `303`
+  ile `loginPath`'e gönderir; gitmek istedikleri yer `next` içinde taşınır:
+  `/login?next=%2Fdashboard`. Kendi query'si olan bir login path'i o query'yi
+  korur. `Require(key, loginPath)` aynı işi herhangi bir key için yapar:
+  `Require("admin", "/login")`. Plugin uygulamada yoksa guard, request'i
+  `ErrNoSession` ile başarısız kılar. Her okuyucuyu, onu asla içeri alamayacak bir
+  login'e göndermez. Login action'ı `next`'e redirect etmeden önce `next`'in kendi
+  sitenizde bir path olduğunu kontrol edin.
 - Metotları `Get`, `Set`, `Delete`, `Clear`, `Regenerate` ve `ID`'dir. Kendi
   handler'ınız session'ı `session.FromContext(r.Context())` ile okur.
 - **Geçerli bir session taşıyan request yeniden render edilir.** Page cache'ten

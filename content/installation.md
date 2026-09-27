@@ -287,9 +287,14 @@ an error page is exactly the response most likely to hand them to a stranger. Se
 For VS Code there is the Collage Snippets & Highlighter extension. It adds:
 
 - **Snippets** for Go (`cpage`, `cfragd`, `caction`, `cplugin` …) and for templates
-  (`clayout`, `cslot`, `cform` …).
+  (`clayout`, `cslot`, `cform` …). The ones that write a whole function —
+  `cpagef`, `cfragf`, `cinlinef`, `clayoutf`, `cguardf` — also add the file's
+  `package` clause when it has none (the package of the files beside it, `main`
+  beside `go.mod`, or the directory's name) and the imports the function needs.
 - **Highlighting** of `{{ … }}` inside HTML. Templates stay HTML files, so Emmet,
-  tag completion and formatting keep working.
+  tag completion and formatting keep working. In Go, the template of an
+  [inline fragment](/docs/fragments-and-slots#inline-templates) is coloured as HTML
+  too.
 - **Completion and hover** for every template function — collage's, its published
   plugins' and Go's builtins — with its signature and documentation.
 - **Your project's names**: pages in `{{pageURL "…"}}` and their parameters,

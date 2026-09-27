@@ -304,10 +304,15 @@ response da tam olarak error page'dir. [Hatalar](/docs/errors) sayfasına bakın
 VS Code için Collage Snippets & Highlighter extension'ı vardır. Şunları ekler:
 
 - **Snippet'ler**: Go için (`cpage`, `cfragd`, `caction`, `cplugin` …) ve
-  template'ler için (`clayout`, `cslot`, `cform` …).
+  template'ler için (`clayout`, `cslot`, `cform` …). Bütün bir fonksiyon yazanlar
+  (`cpagef`, `cfragf`, `cinlinef`, `clayoutf`, `cguardf`), dosyada `package`
+  satırı yoksa onu da ekler: yanındaki dosyaların package'ı, `go.mod`'un yanında
+  `main`, değilse dizinin adı. Fonksiyonun ihtiyaç duyduğu import'ları da ekler.
 - **Highlighting**: HTML içindeki `{{ … }}` renklendirilir. Template'ler HTML
   dosyası olarak kalır, bu yüzden Emmet, tag tamamlama ve biçimlendirme çalışmaya
-  devam eder.
+  devam eder. Go'da
+  [inline bir fragment](/docs/fragments-and-slots#inline-templates)'in template'i
+  de HTML olarak renklendirilir.
 - **Completion ve hover**: collage'ın, yayımlanmış plugin'lerinin ve Go'nun
   builtin'leri olan her template fonksiyonu için, imzası ve dokümantasyonuyla.
 - **Projenizdeki adlar**: `{{pageURL "…"}}` içinde page'ler ve parametreleri,

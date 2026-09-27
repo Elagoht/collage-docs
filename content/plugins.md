@@ -818,10 +818,19 @@ Plugins: []collage.Plugin{session.New(session.Options{Key: key})},
 ```go
 s := session.Get(rc)
 s.Regenerate()
-if err := s.Set("user", user.ID); err != nil {
+if err := s.Set(session.UserKey, user.ID); err != nil {
 	return nil, err
 }
 return collage.SeeOther("/account"), nil
+```
+
+A layout carrying `session.RequireUser` keeps signed-out readers off every page it
+wraps — a [guard](/docs/pages-and-layouts#private-pages-guards):
+
+```go
+private := collage.NewFragment("private", "layouts/private.html").
+	WithGuard(session.RequireUser("/login")).
+	Build()
 ```
 
 ```json
@@ -836,8 +845,16 @@ return collage.SeeOther("/account"), nil
 }
 ```
 
-- It needs collage v0.23.0 or later. It adds no template function, so
-  `RegisterPlugin` accepts it too.
+- It needs collage v0.29.0 or later since v0.2.0 (v0.23.0 before it). It adds no
+  template function, so `RegisterPlugin` accepts it too.
+- **`RequireUser(loginPath)`** (since v0.2.0) lets through a reader whose session
+  holds a value under `session.UserKey` (`"user"`), and sends everyone else `303` to
+  `loginPath` with where they were going in `next`: `/login?next=%2Fdashboard`. A
+  login path with a query of its own keeps it. `Require(key, loginPath)` is the
+  same for any key — `Require("admin", "/login")`. Without the plugin in the
+  application the guard fails the request with `ErrNoSession` rather than sending
+  every reader to a login that could never let them in. Check `next` is a path on
+  your own site before the login action redirects to it.
 - `Get`, `Set`, `Delete`, `Clear`, `Regenerate` and `ID`; a handler of your own
   reads it with `session.FromContext(r.Context())`.
 - **A request carrying a valid session is rendered fresh**, neither read from the
