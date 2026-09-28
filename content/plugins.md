@@ -757,6 +757,10 @@ Plugins: []collage.Plugin{honeypot.New(honeypot.Options{Key: key})},
 - The timestamp survives the page cache as collage's forgery token does: the
   cached page carries a placeholder, and the plugin's middleware signs the current
   time into it. Set a key of at least 32 random bytes, the same on every instance.
+- Since v0.1.3 a response written without a `Content-Type`, such as a handler
+  mounted with `app.Handle` writing `RenderPath` output, is stamped too: the type
+  is sniffed from the first bytes, as net/http does. Before, its placeholder went
+  out unchanged and the form was refused.
 - A refusal is a `400`; with `silent` it is a `303` back to the form, as an accepted
   form answers. It stops careless bots, not a determined one — pair it with
   elagoht/ratelimit.
@@ -1437,6 +1441,8 @@ Plugins: []collage.Plugin{
   before it.
 - On a server without `DevMode` and in a static build it does nothing at all. The
   panel is added after the page cache, so what collage caches never carries it.
+- Since v0.2.3 a page written without a `Content-Type` gets the panel too: the
+  type is sniffed from the first bytes, as net/http does.
 
 #### elagoht/accesslog
 

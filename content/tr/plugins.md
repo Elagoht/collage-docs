@@ -793,6 +793,10 @@ Plugins: []collage.Plugin{honeypot.New(honeypot.Options{Key: key})},
   page bir placeholder taşır, plugin'in middleware'i de o anki zamanı imzalayıp onun
   yerine koyar. En az 32 rastgele byte'lık, her instance'ta aynı olan bir key
   ayarlayın.
+- v0.1.3'ten beri `Content-Type` olmadan yazılan bir response da damgalanır.
+  Örneğin `app.Handle` ile bağlanıp `RenderPath` çıktısını yazan bir handler'ınki.
+  Tür, net/http'nin yaptığı gibi ilk byte'lardan tahmin edilir. Önceden bu
+  response'taki placeholder olduğu gibi gidiyor, form da reddediliyordu.
 - Ret bir `400`'dür. `silent` ile ise kabul edilmiş bir form'un cevabı gibi, form'a
   geri dönen bir `303`'tür. Dikkatsiz bot'ları durdurur, kararlı birini durdurmaz;
   onu elagoht/ratelimit ile birlikte kullanın.
@@ -1494,6 +1498,8 @@ Plugins: []collage.Plugin{
 - `DevMode` olmadan başlatılan bir sunucuda ve bir static build'de hiçbir şey
   yapmaz. Panel page cache'ten sonra eklenir, bu yüzden collage'ın cache'lediği
   içerik onu asla taşımaz.
+- v0.2.3'ten beri `Content-Type` olmadan yazılan bir page de paneli alır. Tür,
+  net/http'nin yaptığı gibi ilk byte'lardan tahmin edilir.
 
 #### elagoht/accesslog
 
