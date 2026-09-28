@@ -120,6 +120,15 @@ set to a loopback address of its own. That is how it can
 [show errors in the browser](#errors-in-the-browser) when there is no program to
 answer.
 
+Since v0.34.0 `collage dev` answers only a request whose `Host` names this machine
+— `localhost` or a name under it, an IP address — or the `HOST` it was started
+with, and refuses anything else with a `403`. A page on another site can make its
+own name resolve to `127.0.0.1` (DNS rebinding) and would then be same-origin with
+`collage dev`: it could read your pages, the development error pages with their
+stacks, and the program's output. The `Host` it sends is its own name, which it
+cannot change. To reach `collage dev` under another name, start it with `HOST` set
+to it.
+
 What the program prints still reaches the terminal, as the program printed it —
 with one change: its own address is replaced by `collage dev`'s, so its
 `collage: listening` line names the address to open (since v0.32.0). On a colour
@@ -351,6 +360,9 @@ It behaves like a static host rather than a file server:
 - A path that resolves to nothing is answered with the export's own `404.html` and
   a 404 status, or a plain 404 when there is none.
 - Only `GET` and `HEAD` are answered; anything else is a 405.
+- A dotfile — `.env`, `.git/config` — is never served (since v0.34.0). A file
+  whose extension names no type is typed from its content as a mount types it,
+  never into HTML or XML, and every file carries `nosniff` (since v0.34.2).
 - Every response is sent with `Cache-Control: no-store`, so re-exporting and
   reloading shows the new output rather than the old.
 

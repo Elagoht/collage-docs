@@ -40,7 +40,7 @@ Each page says how its output may be reused, with one call on its builder:
 | `Static()` | Rendered once, served until something invalidates it | `public, max-age=0, must-revalidate` |
 | `Incremental(ttl)` | Served from the cache until `ttl` has passed since the render | `public, max-age=<ttl in seconds>` |
 
-The last column has two exceptions. A
+The last column has exceptions. A
 [guarded page](/docs/pages-and-layouts#private-pages-guards) is one: its readers
 share this cache, because the guard runs before the cache is read, but a CDN or
 proxy in front of the server runs no guard. So the response goes out
@@ -51,6 +51,12 @@ A page carrying a form's `{{csrfToken}}` is the other: it is
 cached like any other, but each reader is sent their own token, so the response
 goes out `private, no-store` whatever the strategy — see
 [Forms and actions](/docs/forms-and-actions#pages-with-forms-are-still-cached).
+
+Since v0.34.0 there are two more. A degraded render (see
+[below](#what-is-cached-and-when)) goes out `no-store`: it is not kept by this
+server, so it must not be kept by a CDN in front of it for the page's TTL either.
+And in development every page and document goes out `no-store`, so the browser
+does not keep a page from before your edit.
 
 ```go
 page := collage.NewPage("blog-post").
@@ -181,9 +187,29 @@ A cached page is found by a key made from:
 - the resolved locale,
 - the captured path parameters,
 - the query string (see [below](#query-parameters-in-the-key)),
-- any value your middleware declared with `collage.Vary`.
+- any value your middleware declared with `collage.Vary`,
+- the request's host (since v0.34.0).
 
 Two requests with the same key are, as far as collage is concerned, the same page.
+
+The host is there because a render may build an absolute URL from `r.Host` — a
+canonical link, an `og:url` — and one request naming another host would otherwise
+write that URL into the copy every reader is served.
+
+### What a shared render sees
+
+A cached render is served to every reader whose request has its key, so since
+v0.34.0 it is handed only what the key holds: the path, the host, the query
+parameters in the key, and the headers your middleware declared with
+`collage.Vary`. Not the reader's cookies, `Authorization`, address or client
+certificate, and not a query parameter `WithCacheParams` left out.
+
+A handler on a static or incremental page that reads a cookie finds none — where
+it used to find the first reader's, and write it into the copy everyone after got.
+A page that needs the reader's own request is `Dynamic()`, and a dynamic page sees
+all of it. The request's context is passed whole, so a value your middleware put
+there still reaches the render; one that differs between readers belongs in
+`collage.Vary` too. Documents follow the same rule.
 
 ## Dependency tags
 
@@ -493,7 +519,11 @@ the stale author they were meant to replace.
 - **One fetch per key at a time.** Renders that ask for a key while it is being
   fetched wait for that fetch rather than starting their own.
 - **Errors are not stored.** Everyone waiting gets the error; the next render
-  tries again.
+  tries again. Since v0.34.0 two failures are not handed on: a fetch that failed
+  because the request that started it went away is fetched again by a waiter
+  still being served, and a fetch that panicked frees its key and answers its
+  waiters with `collage.ErrCachedFetchPanicked` — before, the key stayed taken
+  until a restart.
 - **An invalidated fetch is not stored.** If a key's tags are invalidated while its
   fetch is still running, the result goes to whoever was waiting but is not kept —
   it is exactly what the invalidation was meant to replace.

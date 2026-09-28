@@ -326,8 +326,12 @@ yapar: load balancer, reverse proxy, Cloudflare, Fly, Render.
 Binary'yi bunlardan birinin arkasına koyun ve proxy'nin `X-Forwarded-Proto: https`
 gönderdiğinden emin olun. collage bu header'a bakarak forgery token cookie'sini
 `Secure` olarak işaretler. Böylece HTTPS üzerinden sunulan bir site bu cookie'yi asla
-düz HTTP üzerinden göndermez. Sertifikayı da kendisi alan minimal bir Caddy config'i
-şöyledir:
+düz HTTP üzerinden göndermez. Header'ı değiştirmek yerine sonuna ekleyen bir proxy
+bir liste gönderir: `https, http`. v0.34.0'dan beri geçerli olan, okuyucunun kendi
+bağlantısını gösteren ilk entry'dir. Tarayıcının gönderdiği `Host`'u da iletin.
+Forgery kontrolü eski bir tarayıcının `Origin`'ini onunla karşılaştırır ve `Host`
+page cache'in key'inin bir parçasıdır. Sertifikayı da kendisi alan minimal bir Caddy
+config'i şöyledir:
 
 ```
 example.com {
@@ -412,7 +416,10 @@ OpenTelemetry trace'lerine dönüştürür.
 - Plugin'leri yapılandırıyorsanız `plugins-config.json` çalışma dizininde duruyor ya
   da gömülü.
 - `COLLAGE_DEV` ayarlı değil.
-- TLS proxy'de terminate ediliyor ve `X-Forwarded-Proto` iletiliyor.
+- TLS proxy'de terminate ediliyor; `X-Forwarded-Proto` ve tarayıcının `Host`'u
+  iletiliyor.
+- Form'ları buraya post eden diğer her origin (örneğin bir admin subdomain'i)
+  `Security.CSRFTrustedOrigins`'te belirtilmiş.
 - Platformun stop grace period'u `Server.ShutdownTimeout`'tan uzun.
 - Liveness check `/healthz`'ye bakıyor.
 - Build'den önce CI'da `go test ./...` çalışıyor. [Test yazmak](/docs/testing) sayfasına

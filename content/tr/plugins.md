@@ -290,8 +290,8 @@ meta.Set(rc, meta.Page{
 }
 ```
 
-- collage v0.23.0 ya da sonrasını gerektirir. `baseURL` zorunludur; bu ayar olmadan
-  uygulama başlamaz.
+- v0.1.2, collage v0.34.2 ya da sonrasını gerektirir (v0.1.1 v0.23.0'ı
+  gerektiriyordu). `baseURL` zorunludur; bu ayar olmadan uygulama başlamaz.
 - Register etmek her page'e şunları verir: `og:site_name`, `og:type`, canonical URL,
   `og:locale`, page'in path'i olan her locale için bir `hreflang` link'i, varsayılan
   görsel ve Twitter card'ı. Canonical URL ada göre oluşturulur, bu yüzden okuyucunun
@@ -533,8 +533,9 @@ app.RegisterPage(collage.NewPage("post").
 }
 ```
 
-- collage v0.24.0 ya da sonrasını gerektirir. `Config.Plugins` içinde ya da
-  `RegisterPlugin` ile register edilebilir: config'ini ve dosyalarını uygulama
+- v0.1.3, collage v0.34.2 ya da sonrasını gerektirir (v0.1.2 v0.24.0'ı
+  gerektiriyordu). `Config.Plugins` içinde ya da `RegisterPlugin` ile register
+  edilebilir: config'ini ve dosyalarını uygulama
   başlarken okur, static build de bunu yazacağı page'leri listelemeden önce yapar.
 - `md.Handler()`, template'e `slug`'ın adlandırdığı `Doc`'u verir (`Title`,
   `Description`, `Date`, `Tags`, `HTML`, `Text`, `Headings`) ya da

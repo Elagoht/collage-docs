@@ -1,6 +1,6 @@
 ---
 description: Every exported error value in collage, grouped by where it comes from, with what it means and what to do about it.
-reference: PanicError, ErrUnknownSlot, ErrConflictingData, ErrNoDocumentHandler, ErrRouteParams, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath, ErrInvalidGuardDecision, ErrGuardRefused, ErrGuarded
+reference: ErrCSRFCrossOrigin, ErrCachedFetchPanicked, PanicError, ErrUnknownSlot, ErrConflictingData, ErrNoDocumentHandler, ErrRouteParams, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath, ErrInvalidGuardDecision, ErrGuardRefused, ErrGuarded
 ---
 
 # Errors
@@ -112,7 +112,7 @@ before it serves anything.
 | `ErrInvalidTimeout` | `collage: invalid timeout` | A fragment's timeout is negative. |
 | `ErrMissingTTL` | `collage: missing cache ttl for incremental strategy` | `Incremental` was given a zero TTL. |
 | `ErrInvalidTTL` | `collage: invalid cache ttl` | A page's TTL is negative. |
-| `ErrInvalidPath` | `collage: invalid path` | A path pattern does not start with `/`. |
+| `ErrInvalidPath` | `collage: invalid path` | A path pattern does not start with `/` — or, since v0.34.0, a redirect's destination would leave the site: `//host`, `/\host`. |
 | `ErrInvalidRedirectStatus` | `collage: invalid redirect status code` | A redirect status other than `0`, `301`, `302`, `307` or `308`. |
 | `ErrSelfErrorPage` | `collage: page cannot reference itself as an error page` | A page is its own not-found or error page. |
 
@@ -178,6 +178,7 @@ See [Static assets](/docs/assets) and
 | `ErrPageNotFound` | `collage: no page at path` | `App.RenderPath` found no page at the path. | — |
 | `ErrOnceTypeMismatch` | `collage: once key fetched as two different types` | Two `collage.Once` calls asked for one key as different types in one render. | The keys collide; namespace them. |
 | `ErrCachedTypeMismatch` | `collage: Cached key holds a value of a different type` | Two `collage.Cached` calls asked for one key as different types. | As above. |
+| `ErrCachedFetchPanicked` | `collage: data fetch panicked` | A `collage.Cached` call waited on another render's fetch, and that fetch panicked (since v0.34.1). The panic itself goes to the render whose fetch it was. | The key is free again: the next render fetches. Fix what panicked. |
 | `ErrDictOddArgs` | `collage: dict requires an even number of arguments` | `{{dict}}` was given a key with no value. | Pair every key with a value. |
 | `ErrDictKeyNotString` | `collage: dict key must be a string` | A `{{dict}}` key is not a string. | Quote the key. |
 | `ErrCSRFDisabled` | `collage: csrfToken used but request-forgery protection is disabled` | A template calls `{{csrfToken}}` in an application with `Security.DisableCSRF` set. | Remove the call, or turn protection back on. |
@@ -257,6 +258,7 @@ action's handler runs, and error hooks receive the reason under the stage
 | `ErrCSRFMissing` | `collage: no csrf token` | The submission carried no token, or no cookie. |
 | `ErrCSRFMismatch` | `collage: csrf token does not match` | The token is not the one in the cookie. |
 | `ErrCSRFInvalid` | `collage: csrf token is not valid` | The token was not signed with this application's key. |
+| `ErrCSRFCrossOrigin` | `collage: cross-origin request` | The browser marked the submission as sent from another origin, by `Sec-Fetch-Site` or by an `Origin` that is not the `Host` — refused whatever token it carried (since v0.34.0; named since v0.34.1). |
 
 The usual causes are a form with no `{{csrfToken}}`, and a key generated per
 process — set `Security.CSRFKey` so tokens survive restarts and work across
@@ -279,14 +281,14 @@ apart without reading messages. See
 | `ErrNotFound` | see [Rendering](#rendering) | `render` | A required fragment's content does not exist — a content problem. |
 | `ErrMethodNotAllowed` | `collage: method not allowed` | `route` | The path exists but answers no such method: a 405, with an `Allow` header naming what it does answer. On a document's URL the 405 is plain text (since v0.11.0). |
 | `ErrEmptyRender` | `collage: page rendered no markup` | `render` | A page rendered successfully but produced no markup, served or answered by an action: a 500. The same sentinel a static build records. |
-| `ErrCSRFMissing`, `ErrCSRFMismatch`, `ErrCSRFInvalid` | see [above](#request-forgery) | `route` | A submission refused by the forgery check. |
+| `ErrCSRFMissing`, `ErrCSRFMismatch`, `ErrCSRFInvalid`, `ErrCSRFCrossOrigin` | see [above](#request-forgery) | `route` | A submission refused by the forgery check. |
 | `ErrInvalidGuardDecision` | `collage: invalid guard decision` | `guard` | A page's [guard](/docs/pages-and-layouts#private-pages-guards) answered with a decision that cannot be written — a redirect with no location, a `200` — and the request failed with a 500. A guard that returns an error is reported at the same stage, with its own error. |
 | `ErrGuardRefused` | `collage: the guard refused this reader` | — | Returned, not reported: `RenderFragment` asked for a fragment whose guard refuses the reader. A plugin streaming fragments sends that reader nothing. |
 | `ErrEmptyErrorPage` | `collage: error page rendered empty` | `error_page` | A registered error page rendered successfully but produced no markup, so the built-in page was served instead. |
 | `ErrPanic` | `collage: panic recovered while serving the request` | `panic` | Something panicked while serving — a `Cache`, `Metrics` or `Tracer` implementation, a router, a plugin hook — and was recovered into a 500. Panics in data handlers and templates are `PanicError` instead. |
 | `ErrAssetFailed` | `collage: asset request failed` | `asset` | A mounted file request answered with a status of 400 or above: one sentinel for every such status. |
 | `ErrHandlerFailed` | `collage: mounted handler failed` | `handler` | A handler mounted with `App.Handle` answered with a server error. |
-| `ErrUnsafeRedirectTarget` | `collage: unsafe redirect target` | `route` | A redirect's destination, after substitution, is not a single-slash relative path — `//host`, `/\host`, or one with a control character. Answered with a 500, not a `Location` header. |
+| `ErrUnsafeRedirectTarget` | `collage: unsafe redirect target` | `route` | A redirect's destination, after substitution, is not a single-slash relative path — `//host`, `/\host`, or one with a control character. Answered with a 500, not a `Location` header. Since v0.34.0 a destination written that way is refused at registration with `ErrInvalidPath`, and a captured value is escaped so it cannot make one. |
 
 `"error_page"` is the stage worth alerting on: the page that reports failures
 failed, and the reader still saw a plausible page, so nothing else would tell you.

@@ -255,7 +255,9 @@ gelen her request, handler çalışmadan önce bir forgery token'ı için kontro
 Geçerli bir token taşımayan request `403` alır ve handler onu hiç görmez. Error
 hook'ları nedenini de görür. Token ya da cookie yoksa `collage.ErrCSRFMissing`
 gelir. Token cookie'deki ile eşleşmiyorsa `collage.ErrCSRFMismatch`, token'ı bu
-uygulama imzalamamışsa `collage.ErrCSRFInvalid` gelir.
+uygulama imzalamamışsa `collage.ErrCSRFInvalid` gelir. v0.34.0'dan beri, tarayıcının
+başka bir origin'den geldiğini söylediği bir gönderim için de
+`collage.ErrCSRFCrossOrigin` gelir.
 
 ### Form içinde
 
@@ -273,6 +275,35 @@ Kullanılan yöntem imzalı bir double-submit cookie'dir. Token, rastgele bir de
 bu değerin `Security.CSRFKey` ile atılmış imzasından oluşur. Token hem bir cookie'de
 hem de form'da gönderilir. Kontrol etmek için key dışında hiçbir şey gerekmez. Session
 store yoktur, instance'lar arasında paylaşılan hiçbir şey yoktur.
+
+### Request nereden geldi
+
+İmzalı bir token, saldırgandan saklanan bir secret değildir: form içeren her page,
+onu yükleyen herkese bir token verir. Domain'iniz için cookie yazabilen biri (kardeş
+bir subdomain, düz HTTP üzerinde bir man-in-the-middle) bir ziyaretçinin
+tarayıcısına kendi token'ını yerleştirip onu gönderebilir. Bu yüzden v0.34.0'dan
+beri token tek başına kontrol edilmez. Tarayıcı bir request'in nereden geldiğini
+`Sec-Fetch-Site`'ta, eski bir tarayıcıysa `Origin`'de (`Host` ile karşılaştırılarak)
+söyler. Tarayıcının başka bir origin'den geldiğini işaretlediği bir request, ne
+taşırsa taşısın `403` ile reddedilir. Kardeş bir subdomain de başka bir origin
+sayılır, çünkü cookie'yi yerleştirebilecek olan tam da odur. İki header'ı da
+taşımayan bir request tarayıcıdan gelmemiştir ve token kontrolüne geçer.
+
+Başka bir origin'de olup buraya post etmesi amaçlanan bir form (kendi subdomain'inde
+duran bir admin paneli gibi) `Security.CSRFTrustedOrigins`'te belirtilir:
+
+```go
+Security: collage.SecurityConfig{
+	CSRFKey:            []byte(os.Getenv("COLLAGE_CSRF_KEY")),
+	CSRFTrustedOrigins: []string{"https://admin.example.com"},
+},
+```
+
+Her entry `scheme://host[:port]` biçimindedir. Büyük-küçük harf ve varsayılan port
+önemli değildir. Wildcard ise uygulama başlarken reddedilir; her origin'i tek tek
+belirtin. Token cookie'si `SameSite=Lax` olarak ayarlanır. Bu yüzden başka bir
+*site*'taki güvenilen bir origin onu hiçbir zaman göndermez. Bir origin'e güvenmek,
+aynı sitenin başka bir origin'i içindir.
 
 ### Form içeren page'ler yine de cache'lenir
 
@@ -372,10 +403,16 @@ Bir action'ın request body'si varsayılan olarak **4 MiB** ile sınırlıdır. 
 uygulamanın tamamı için `Server.MaxBodyBytes` ile, tek bir action için
 `WithMaxBodyBytes` ile değiştirin. Negatif bir değer limit olmadığı anlamına gelir.
 
-Limiti handler'ınız uygulamaz, limit handler'ınız çalışmadan önce uygulanır. Her
-handler'ın hatırlaması gereken bir limit, unutan handler'da yoktur. Anonim bir
-kullanıcının bulacağı handler da tam olarak o handler'dır. Limitin ötesini okuyan
-bir handler `*http.MaxBytesError` alır. Bu hatayı döndürürseniz response `413`
+Limiti handler'ınız uygulamaz, limit handler'ınız çalışmadan önce uygulanır.
+v0.34.0'dan beri [middleware](/docs/middleware-and-apis)'inizden de önce, request'in
+yönlendirildiği action'ın limitiyle uygulanır. Body'yi okuyan ya da parse eden bir
+middleware onu sınırlı olarak okur. Body'si limitine zaten ulaşmış bir action ise
+çalışmadan `413` ile cevap verir. `app.Handle` ile mount edilmiş bir handler'a
+dokunulmaz.
+
+Her handler'ın hatırlaması gereken bir limit, unutan handler'da yoktur.
+Anonim bir kullanıcının bulacağı handler da tam olarak o handler'dır. Limitin ötesini
+okuyan bir handler `*http.MaxBytesError` alır. Bu hatayı döndürürseniz response `413`
 olur:
 
 ```go
@@ -387,6 +424,10 @@ if err := rc.Request.ParseForm(); err != nil {
 Token form'dan kontrol edildiğinde kontrol önce body'yi okur. Bu yüzden limiti aşan
 bir form daha orada, handler'ınız çalışmadan önce reddedilir. Bu durumda da cevap
 `403` değil `413` olur, çünkü okunamayacak kadar büyük bir body forgery değildir.
+
+Parser'ın memory'de tuttuğu 32 MiB'tan büyük bir multipart body, dosyalarını diske
+taşır. v0.34.0'dan beri bu dosyalar, handler çalışmış da olsa request reddedilmiş de
+olsa, action cevap verdikten sonra silinir.
 
 ## Action'ın değiştirdiğini invalidate etmek
 
@@ -446,15 +487,18 @@ input.addEventListener("input", async () => {
 Tanımlanmamış hiçbir şeye erişilemez. Her fragment'i otomatik olarak dışarı açan bir
 framework, her page'in her iç parçasını public web'e açmış olurdu.
 
-Bir fragment path, page'in [guard](/docs/pages-and-layouts#private-pages-guards)'larını
-devralmaz. Başlı başına bir route'tur ve tek politikası fragment'in kendi
-guard'ıdır. Private bir page'de açılan bir fragment path, fragment'i de bir guard
-taşımıyorsa public'tir:
+Bir fragment path, onu açan page'in bir parçasıdır. v0.34.0'dan beri önce page'in
+[guard](/docs/pages-and-layouts#private-pages-guards)'larından geçer: en dıştaki
+layout'tan içe doğru, ardından content fragment'inin guard'ı. Sonra fragment'in kendi
+guard'ı çalışır. Private bir page'in fragment path'i de private'tır. v0.34.0'dan önce
+yalnızca fragment'in kendi guard'ı çalışıyordu. Bu yüzden içeriği kendi URL'sinde
+açılmış guard'lı bir layout, o içeriği herkese sunuyordu. Bir fragment, page'den daha
+sıkı olması gereken bir parça için hâlâ kendi guard'ını taşıyabilir:
 
 ```go
 results := collage.NewFragment("results", "fragments/results.html").
 	WithDataHandler(search).
-	WithGuard(requireUser). // the page's layout guard does not reach this URL
+	WithGuard(requireAdmin). // after the page's own guards
 	Build()
 ```
 

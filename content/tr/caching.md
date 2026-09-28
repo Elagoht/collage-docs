@@ -42,7 +42,7 @@ Her page, çıktısının nasıl yeniden kullanılabileceğini builder'ındaki t
 | `Static()` | Bir kez render edilir, bir şey onu invalidate edene kadar sunulur | `public, max-age=0, must-revalidate` |
 | `Incremental(ttl)` | Render'dan sonra `ttl` geçene kadar cache'ten sunulur | `public, max-age=<saniye cinsinden ttl>` |
 
-Son sütunun iki istisnası vardır. Biri
+Son sütunun istisnaları vardır. Biri
 [guard'lı bir page](/docs/pages-and-layouts#private-pages-guards)'dir. Guard cache
 okunmadan önce çalıştığı için okuyucuları bu cache'i paylaşır, ama sunucunun
 önündeki bir CDN ya da proxy guard çalıştırmaz. Bu yüzden response, strateji ne
@@ -56,6 +56,12 @@ Bu yüzden response, strateji ne olursa olsun `private, no-store` ile gider.
 Ayrıntılar için
 [Form'lar ve action'lar](/docs/forms-and-actions#pages-with-forms-are-still-cached)
 sayfasına bakın.
+
+v0.34.0'dan beri iki istisna daha vardır. Degraded bir render
+([aşağıya](#what-is-cached-and-when) bakın) `no-store` ile gider. Bu sunucu onu
+saklamaz; dolayısıyla önündeki bir CDN de onu page'in TTL'i boyunca saklamamalıdır.
+Development'ta ise her page ve document `no-store` ile gider. Böylece tarayıcı,
+düzenlemenizden önceki bir page'i tutmaz.
 
 ```go
 page := collage.NewPage("blog-post").
@@ -192,9 +198,31 @@ Cache'lenmiş bir page, şu parçalardan oluşan bir key ile bulunur:
 - çözümlenen locale,
 - yakalanan path parametreleri,
 - query string ([aşağıya](#query-parameters-in-the-key) bakın),
-- middleware'inizin `collage.Vary` ile bildirdiği her değer.
+- middleware'inizin `collage.Vary` ile bildirdiği her değer,
+- request'in host'u (v0.34.0'dan beri).
 
 Key'i aynı olan iki request, collage açısından aynı page'dir.
+
+Host key'de yer alır, çünkü bir render `r.Host`'tan mutlak bir URL oluşturabilir:
+bir canonical link, bir `og:url`. Host key'de olmasaydı, başka bir host adı veren
+tek bir request bu URL'yi her okuyucuya sunulan kopyaya yazardı.
+
+### Paylaşılan bir render neyi görür
+
+Cache'lenmiş bir render, request'i aynı key'e sahip her okuyucuya sunulur. Bu
+yüzden v0.34.0'dan beri render'a yalnızca key'in içerdikleri verilir: path, host,
+key'deki query parametreleri ve middleware'inizin `collage.Vary` ile bildirdiği
+header'lar. Okuyucunun cookie'leri, `Authorization`'ı, adresi ya da client
+sertifikası verilmez. `WithCacheParams`'ın dışarıda bıraktığı bir query parametresi
+de verilmez.
+
+Static ya da incremental bir page'deki bir handler cookie okumak istediğinde hiçbir
+cookie bulamaz. Eskiden ilk okuyucunun cookie'sini bulur ve onu, ondan sonra gelen
+herkesin aldığı kopyaya yazardı. Okuyucunun kendi request'ine ihtiyaç duyan bir page
+`Dynamic()` olmalıdır; dynamic bir page request'in tamamını görür. Request'in
+context'i olduğu gibi aktarılır. Bu yüzden middleware'inizin oraya koyduğu bir değer
+render'a yine ulaşır. Okuyucudan okuyucuya değişen bir değer ise `collage.Vary` ile
+de bildirilmelidir. Document'lar da aynı kurala uyar.
 
 ## Dependency tag'ler
 
@@ -520,7 +548,11 @@ yerine geçmeleri gereken stale yazar verisinden yeniden render edilir.
 - **Key başına aynı anda tek bir çekme işlemi.** Bir key çekilirken onu isteyen
   render'lar kendi çekme işlemlerini başlatmaz, süren işlemi bekler.
 - **Hatalar saklanmaz.** Bekleyen herkes hatayı alır. Bir sonraki render yeniden
-  dener.
+  dener. v0.34.0'dan beri iki başarısızlık bekleyenlere aktarılmaz. Onu başlatan
+  request ortadan kalktığı için başarısız olan bir çekme işlemini, hâlâ sunulmakta
+  olan bir bekleyen yeniden çeker. Panic'e düşen bir çekme işlemi ise key'ini serbest
+  bırakır ve bekleyenlerine `collage.ErrCachedFetchPanicked` ile cevap verir. Eskiden
+  key, bir restart'a kadar dolu kalırdı.
 - **Invalidate edilmiş bir çekme işlemi saklanmaz.** Bir key'in çekme işlemi hâlâ sürerken
   tag'leri invalidate edilirse, sonuç bekleyenlere iletilir ama saklanmaz. Çünkü bu
   sonuç, invalidation'ın yerine yenisini koymak istediği şeyin ta kendisidir.

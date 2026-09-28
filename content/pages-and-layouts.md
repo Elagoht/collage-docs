@@ -219,18 +219,21 @@ What the guard covers:
 - **The actions on the page's own URL.** A form posts to the page it sits on, and
   a page a reader may not see is a page whose form they may not submit. The guard
   runs before the body is read and before the forgery check.
-- **Not a fragment path.** A fragment opened at its own URL with
+- **The page's fragment paths.** A fragment opened at its own URL with
   [`WithFragmentPath`](/docs/forms-and-actions#a-fragment-at-its-own-url) is a
-  route of its own, and its fragment's own guard is its whole policy: it inherits
-  nothing from the page that declared it. A fragment path on a private page is
-  public unless its fragment carries a guard too.
+  part of the page, and since v0.34.0 meets the page's guards before the
+  fragment's own. Before it, a fragment path ran only its fragment's guard, and
+  one on a private page was public unless that fragment carried a guard too.
 - **Not an action registered at its own URL**, and not the page's not-found and
   error pages — a private error page would otherwise redirect the reader who hit
   the error.
 
 Readers the guard allows share the page's cache, which is the server's own. A CDN
 or proxy in front of the server runs no guard, so a guarded page goes out with
-`Cache-Control: private, no-cache` whatever its strategy says. A page whose
+`Cache-Control: private, no-cache` whatever its strategy says. The guard's own
+answer — a redirect to log in, a refusal — is sent `no-store` since v0.34.0, so a
+CDN that keeps a 404 or a 308 by default does not hand one reader's answer to the
+next. A page whose
 content differs from one reader to the next is a personalisation question, not a
 guard question — see [Caching](/docs/caching#render-strategies). A
 [static export](/docs/static-export#what-is-skipped) does not write guarded pages
@@ -264,8 +267,14 @@ A pattern is made of segments:
 | `{rest...}` | Everything that is left, captured as `rest`. Only as the last segment |
 
 A data handler reads what was captured with `rc.Param("slug")`, or
-`rc.PathParams["slug"]`. Values arrive percent-decoded, one segment at a time, so
-an encoded `/` inside a segment is part of the value rather than a new segment.
+`rc.PathParams["slug"]`. Values arrive percent-decoded, one segment at a time.
+
+A segment holding an encoded slash, `%2F`, is a 404 since v0.34.0. A middleware
+reads the decoded path, where `/public%2Fsecret` is two segments; a router that
+read it as one — as collage did before — would serve a request the middleware had
+judged as something else. A value that is itself a path, such as `guide/intro`,
+belongs in a catch-all: `{rest...}`. `{{pageURL}}` and `BuildPath` refuse a `/` in
+a single segment's value.
 
 At every level a static segment is tried before a `{param}`, and a `{param}` before
 a `{rest...}` — with backtracking, so `/blog/archive` beats `/blog/{slug}` even when
@@ -292,7 +301,11 @@ Locales, locale prefixes such as `/tr/hakkinda` — and the redirect that sends
 `/en/about` to `/about` — and building links from page names are covered in
 [Links and locales](/docs/links-and-locales). A page can also
 carry redirects from old URLs, with `WithRedirect(from, to, status)` and
-`WithPermanentRedirect(from, to)`.
+`WithPermanentRedirect(from, to)`. Since v0.34.0 a redirect carries the request's
+query string to its destination, a value it captured is escaped for where it
+lands — a path segment, or a query value after a `?`, so `/login?next={slug}`
+cannot be handed a second `next` — and a destination that would leave the site,
+`//host` or `/\host`, is `ErrInvalidPath` at registration.
 
 ## Render strategies
 

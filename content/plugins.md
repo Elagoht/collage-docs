@@ -272,8 +272,8 @@ meta.Set(rc, meta.Page{
 }
 ```
 
-- It needs collage v0.23.0 or later. `baseURL` is required; the application does
-  not start without it.
+- v0.1.2 needs collage v0.34.2 or later; v0.1.1 needed v0.23.0. `baseURL` is
+  required; the application does not start without it.
 - Registering it gives every page `og:site_name`, `og:type`, the canonical URL —
   built by name, so a query string a reader arrived with is never part of it —
   `og:locale`, an `hreflang` link for every locale the page has a path in, and the
@@ -506,9 +506,10 @@ app.RegisterPage(collage.NewPage("post").
 }
 ```
 
-- It needs collage v0.24.0 or later, and can go in `Config.Plugins` or
-  `RegisterPlugin`: it reads its configuration and files when the application
-  starts, which a static build does before it lists the pages to write.
+- v0.1.3 needs collage v0.34.2 or later; v0.1.2 needed v0.24.0. It can go in
+  `Config.Plugins` or `RegisterPlugin`: it reads its configuration and files when
+  the application starts, which a static build does before it lists the pages to
+  write.
 - `md.Handler()` hands the template the `Doc` its `slug` names — `Title`,
   `Description`, `Date`, `Tags`, `HTML`, `Text`, `Headings` — or
   `collage.ErrNotFound`. `md.IndexHandler()`, `md.List` and `md.Get` feed an index

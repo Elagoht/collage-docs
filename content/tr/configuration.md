@@ -137,7 +137,7 @@ action ise hangi yazıma post edildiyse o adreste cevap verir.
 | `WriteTimeout` | `time.Duration` | `30s` | Bir response'u yazmanın en fazla ne kadar sürebileceği. |
 | `IdleTimeout` | `time.Duration` | `60s` | Bir keep-alive bağlantısının en fazla ne kadar boşta bekleyebileceği. |
 | `ShutdownTimeout` | `time.Duration` | `10s` | Graceful shutdown'ın devam eden request'leri ne kadar beklediği. |
-| `MaxBodyBytes` | `int64` | 4 MiB | Action kendi sınırını koymadığında action'ın request body'sine uygulanan sınır. |
+| `MaxBodyBytes` | `int64` | 4 MiB | Request'in yönlendirildiği action kendi sınırını koymadığında request body'sine uygulanan sınır. v0.34.0'dan beri middleware'den önce uygulanır. |
 
 `Host`'un varsayılanı `localhost`'tur ve bu adrese makinenin dışından erişilemez.
 Container içinde bu alanı `0.0.0.0` yapın. Scaffold edilen bir proje `Host` ve
@@ -159,6 +159,7 @@ action'lar](/docs/forms-and-actions) sayfasına bakın.
 | `CSRFCookieName` | `string` | `"collage_csrf"` | Token'ı taşıyan cookie. |
 | `CSRFFieldName` | `string` | `"_csrf"` | Token'ın gönderildiği form alanı. |
 | `CSRFHeaderName` | `string` | `"X-CSRF-Token"` | Token'ın alternatif olarak gönderilebileceği header. |
+| `CSRFTrustedOrigins` | `[]string` | yok | Form'ları buraya post edebilecek diğer origin'ler. Her biri `scheme://host[:port]` biçimindedir (v0.34.0'dan beri). |
 | `DisableCSRF` | `bool` | `false` | Forgery kontrolünü bütün uygulama için kapatır. |
 
 **Form içeren herhangi bir şeyi deploy etmeden önce `CSRFKey`'i ayarlayın.** Key en
@@ -176,6 +177,11 @@ sunulmaz, yeniden render edilir. Ayrıntılar için
 [Caching](/docs/caching#the-namespace) sayfasına bakın. Scaffold edilmiş `main.go`
 key'i `COLLAGE_CSRF_KEY`'den okur. `openssl rand -hex 32` ile bir key
 üretebilirsiniz.
+
+`CSRFTrustedOrigins`, bu origin dışında form'ları buraya post edebilecek origin'leri
+belirtir. Diğer her origin, geçerli bir token taşısa bile reddedilir. Ayrıntılar için
+[Form'lar ve action'lar](/docs/forms-and-actions#where-the-request-came-from)
+sayfasına bakın.
 
 Yukarıdaki isim varsayılanlarını `ApplyDefaults` değil forgery guard uygular. Bu
 yüzden bu alanlar `Config`'inizde boş kalır. `CSRFFieldName` alanın adını iki tarafta

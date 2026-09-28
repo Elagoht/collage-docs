@@ -179,11 +179,12 @@ A mount is a thin layer over `fs.Open` and Go's `http.ServeContent`, not
 | | |
 | --- | --- |
 | Methods | `GET` and `HEAD`. Anything else is a `405` with `Allow: GET, HEAD` |
-| `Content-Type` | From the file extension, falling back to sniffing the first 512 bytes |
+| `Content-Type` | From the file extension. A file whose name says nothing is sniffed from its first 512 bytes, but never into a type that runs: one that looks like HTML or XML is `text/plain` (since v0.34.2). Always with `X-Content-Type-Options: nosniff` |
 | `ETag` | A strong hash of the file's content, computed on first request and remembered |
 | `Range` | Supported, with `If-Range` and `206 Partial Content` |
 | Directories | Never listed. A directory, or the bare prefix, is a 404 |
 | `index.html` | Never served implicitly |
+| Dotfiles | Never served, and never copied by an export: a path with an element starting with `.` — `.env`, `.git/`, an editor's swap file — is a 404. `.well-known` is the exception (since v0.34.0) |
 | A missing file | A plain-text `404`, `no-store` — never your HTML not-found page |
 
 **`Range` requests** are what let a browser seek in an audio or video file, or

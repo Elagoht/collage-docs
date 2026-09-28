@@ -243,8 +243,10 @@ Every request to an action with an unsafe method (anything but `GET`, `HEAD` and
 `OPTIONS`) is checked for a forgery token before the handler runs. A
 request without a valid one is a `403`, and the handler never sees it. Error hooks
 see why: `collage.ErrCSRFMissing` for no token or no cookie,
-`collage.ErrCSRFMismatch` for a token that is not the cookie's, and
-`collage.ErrCSRFInvalid` for one this application did not sign.
+`collage.ErrCSRFMismatch` for a token that is not the cookie's,
+`collage.ErrCSRFInvalid` for one this application did not sign, and — since
+v0.34.0 — `collage.ErrCSRFCrossOrigin` for a submission the browser says came
+from another origin.
 
 ### In a form
 
@@ -262,6 +264,33 @@ The scheme is a signed double-submit cookie: the token is a random value and its
 signature under `Security.CSRFKey`, sent both in a cookie and in the form, and
 checking it needs the key and nothing else. No session store, nothing shared
 between instances.
+
+### Where the request came from
+
+A signed token is not a secret from an attacker: any page with a form hands one to
+whoever loads it. Someone who can write a cookie for your domain — a sibling
+subdomain, a man-in-the-middle on plain HTTP — could plant their own token in a
+visitor's browser and submit it. So since v0.34.0 the token is not checked alone.
+The browser says where a request came from in `Sec-Fetch-Site`, or in `Origin`
+(compared with `Host`) when it is an older one, and a request it marks as coming
+from another origin is refused with a `403` whatever it carries. A sibling
+subdomain counts as another origin: it is exactly who can plant the cookie. A
+request with neither header is not from a browser, and goes on to the token check.
+
+A form on another origin that is meant to post here — an admin panel on its own
+subdomain — is named in `Security.CSRFTrustedOrigins`:
+
+```go
+Security: collage.SecurityConfig{
+	CSRFKey:            []byte(os.Getenv("COLLAGE_CSRF_KEY")),
+	CSRFTrustedOrigins: []string{"https://admin.example.com"},
+},
+```
+
+Each entry is `scheme://host[:port]`. Case and a default port do not matter; a
+wildcard is refused when the application starts — name each origin. The token
+cookie is `SameSite=Lax`, so a trusted origin on another *site* never sends it:
+trusting one is for another origin of the same site.
 
 ### Pages with forms are still cached
 
@@ -356,9 +385,14 @@ An action's request body is limited to **4 MiB** by default. Change it for the
 application with `Server.MaxBodyBytes`, or for one action with
 `WithMaxBodyBytes`; a negative value means no limit.
 
-The limit is applied before your handler runs, not by it. A limit every handler has
-to remember is a limit the one that forgot does not have — and that is the one an
-anonymous caller will find. A handler that reads past it gets an
+The limit is applied before your handler runs, not by it — and since v0.34.0
+before your [middleware](/docs/middleware-and-apis) runs too, at the limit of the
+action the request routes to. A middleware that reads or parses the body reads it
+bounded, and an action whose body already ran into its limit answers `413` without
+running. A handler mounted with `app.Handle` is left alone.
+
+A limit every handler has to remember is a limit the one that forgot does not
+have — and that is the one an anonymous caller will find. A handler that reads past it gets an
 `*http.MaxBytesError`, and returning that error answers `413`:
 
 ```go
@@ -370,6 +404,10 @@ if err := rc.Request.ParseForm(); err != nil {
 When the token is checked from the form, the check reads the body first, so an
 oversized form is refused there, before your handler runs — still with a `413`,
 not a `403`: a body too large to read is not a forgery.
+
+A multipart body larger than the 32 MiB the parser keeps in memory spills its files
+to disk. Since v0.34.0 they are removed once the action has answered, whether the
+handler ran or the request was refused.
 
 ## Invalidating what an action changed
 
@@ -429,15 +467,18 @@ Nothing is reachable unless it is declared. A framework that exposed every
 fragment automatically would put every internal part of every page on the public
 web.
 
-A fragment path does not inherit the page's
-[guards](/docs/pages-and-layouts#private-pages-guards). It is a route of its own,
-and the fragment's own guard is its whole policy. A fragment path opened on a
-private page is public unless its fragment carries a guard too:
+A fragment path is a part of the page that opened it, and since v0.34.0 it meets
+the page's [guards](/docs/pages-and-layouts#private-pages-guards) first —
+outermost layout inwards, then the content fragment's — and then the fragment's
+own. A private page's fragment path is private too. Before v0.34.0 it ran only the
+fragment's own guard, so a guarded layout whose content was opened at a URL of its
+own served that content to anyone. A fragment may still carry a guard of its own,
+for a part stricter than the page:
 
 ```go
 results := collage.NewFragment("results", "fragments/results.html").
 	WithDataHandler(search).
-	WithGuard(requireUser). // the page's layout guard does not reach this URL
+	WithGuard(requireAdmin). // after the page's own guards
 	Build()
 ```
 

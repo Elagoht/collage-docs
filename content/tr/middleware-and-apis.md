@@ -51,6 +51,24 @@ korunur (v0.24.0'dan beri). Bu yüzden `/_collage/`'ı atlayan ya da `/admin/`'i
 koruyan bir middleware `/_collage/../admin` ile hiç karşılaşmaz. Bir prefix kontrolü,
 router'ın route edeceği path'in kontrolüdür.
 
+Encode edilmiş bir slash router için bir ayırıcı değildir. Bu yüzden v0.34.0'dan beri
+`%2F` içeren bir path hiçbir route'a ulaşmaz ve router ona 404 ile cevap verir. Aynı
+zamanda temiz olmayan bir path (`/blog/%2Fhello`) `/blog/hello`'ya temizlenmez;
+middleware'iniz çalışmadan önce 404 ile cevaplanır. Middleware'iniz decode edilmiş
+`r.URL.Path`'i okur ve orada `/public%2Fsecret`, `/public/secret`'tir. Eskiden router
+orayı tek bir segment olarak okurdu. Böylece `/public/`'i geçiren bir middleware,
+request'i `/{slug}`'a geçirmiş olurdu.
+
+### Body middleware'den önce sınırlanır
+
+v0.34.0'dan beri bir request'in body'si, ilk middleware çalışmadan önce sınırlanır.
+Sınır, request'in yönlendirildiği
+[action](/docs/forms-and-actions#request-bodies-are-bounded)'ın limitidir; diğer her
+şey için `Server.MaxBodyBytes`'tır. Body'yi okuyan bir middleware (bir signature
+kontrolü, bir logger, form'u parse eden bir method override) onu sınırlı olarak okur.
+Body'si bir middleware tarafından limitinin ötesine kadar okunmuş bir action `413`
+ile cevap verir. `app.Handle` ile mount edilmiş bir handler'a dokunulmaz.
+
 ### Data handler'lara değer aktarmak
 
 Middleware'in request'in context'ine koyduğu değerleri data handler'lar `ctx`
@@ -85,6 +103,11 @@ cache'lenmemelidir. Aksi hâlde ilk okuyucunun gördüğü versiyon herkese gös
 Böyle bir page'i dynamic bırakın, yani ona `Static()` ya da `Incremental(ttl)`
 vermeyin (data handler'ı olan ve strateji tanımlamayan bir page zaten dynamic'tir).
 Ya da neye göre değiştiğini aşağıda anlatılan `collage.Vary` ile cache'e bildirin.
+v0.34.0'dan beri cache'lenmiş bir render okuyucunun cookie'lerini ya da
+credential'larını hiç görmez
+([paylaşılan bir render neyi görür](/docs/caching#what-a-shared-render-sees)).
+Ama context olduğu gibi aktarılır. Bu yüzden oraya konmuş bir kullanıcı, herkese
+sunulan bir kopyada da hâlâ bir kullanıcıdır.
 
 Static export request olmadan render eder, bu yüzden export sırasında hiçbir
 middleware çalışmaz. Context'ten değer okuyan bir data handler, bu değer olmadığında
@@ -121,7 +144,9 @@ app.Use(func(next http.Handler) http.Handler {
 - **Header'ın adı response'un `Vary` header'ına eklenir.** Böylece sizinle okuyucu
   arasındaki bir CDN ya da proxy de versiyonları birbirinden ayrı tutar. Bu header
   yalnızca public olarak cache'lenebilen response'larda set edilir. `no-store` bir
-  response'ta ayrı tutulacak bir şey yoktur.
+  response'ta ayrı tutulacak bir şey yoktur. v0.34.0'dan beri header'ın adı,
+  middleware'inizin yazdığı bir `Vary`'nin yanına eklenir. Eskiden onun yerine
+  geçerdi.
 - **`Vary`'yi middleware'den çağırın.** Middleware bittiğinde ve routing
   başladığında bildirimler kapanır. Bu, her route için geçerlidir: cache'lenen ya
   da cache'lenmeyen bir page, bir document, bir action, bir mount ya da bir `app.Handle`

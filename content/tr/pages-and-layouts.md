@@ -228,12 +228,12 @@ Guard'ın kapsadıkları:
 - **Page'in kendi URL'sindeki action'lar.** Bir form bulunduğu page'e post eder.
   Okuyucunun göremediği bir page, form'unu da gönderemeyeceği bir page'dir. Guard,
   body okunmadan ve forgery kontrolünden önce çalışır.
-- **Fragment path'ler kapsanmaz.**
+- **Page'in fragment path'leri.**
   [`WithFragmentPath`](/docs/forms-and-actions#a-fragment-at-its-own-url) ile kendi
-  URL'sinde açılan bir fragment başlı başına bir route'tur. Onun tek politikası
-  fragment'in kendi guard'ıdır ve onu tanımlayan page'den hiçbir şey devralmaz.
-  Private bir page'deki fragment path, fragment'i de bir guard taşımıyorsa
-  public'tir.
+  URL'sinde açılan bir fragment page'in bir parçasıdır. v0.34.0'dan beri
+  fragment'in kendi guard'ından önce page'in guard'larından geçer. Öncesinde bir
+  fragment path yalnızca fragment'inin guard'ını çalıştırırdı. Private bir
+  page'deki fragment path de, o fragment bir guard taşımıyorsa public'ti.
 - **Kendi URL'sinde register edilen bir action ve page'in not-found ile error
   page'leri kapsanmaz.** Aksi hâlde private bir error page, hatayla karşılaşan
   okuyucuyu redirect ederdi.
@@ -241,7 +241,10 @@ Guard'ın kapsadıkları:
 Guard'ın izin verdiği okuyucular page'in cache'ini paylaşır; bu cache sunucunun
 kendi cache'idir. Sunucunun önündeki bir CDN ya da proxy guard çalıştırmaz. Bu
 yüzden guard'lı bir page, stratejisi ne derse desin `Cache-Control: private,
-no-cache` ile gönderilir. İçeriği okuyucudan okuyucuya değişen bir page ise guard
+no-cache` ile gönderilir. v0.34.0'dan beri guard'ın kendi cevabı (giriş yapmaya
+yönlendiren bir redirect, bir ret) `no-store` ile gönderilir. Böylece varsayılan
+olarak bir 404'ü ya da 308'i saklayan bir CDN, bir okuyucuya verilen cevabı
+sonrakine vermez. İçeriği okuyucudan okuyucuya değişen bir page ise guard
 değil kişiselleştirme konusudur; bkz. [Caching](/docs/caching#render-strategies).
 [Static export](/docs/static-export#what-is-skipped) guard'lı page'leri hiç yazmaz.
 
@@ -274,9 +277,15 @@ Bir pattern segment'lerden oluşur:
 | `{rest...}` | Geriye kalan her şeyle, `rest` adıyla yakalanır. Yalnızca son segment olabilir |
 
 Bir data handler yakalanan değeri `rc.Param("slug")` ya da `rc.PathParams["slug"]`
-ile okur. Değerler percent-decode edilmiş olarak ve segment segment gelir. Bu yüzden
-bir segment'in içindeki encode edilmiş bir `/` yeni bir segment başlatmaz, değerin
-bir parçası olur.
+ile okur. Değerler percent-decode edilmiş olarak ve segment segment gelir.
+
+v0.34.0'dan beri encode edilmiş bir slash (`%2F`) içeren bir segment 404 döner.
+Middleware decode edilmiş path'i okur ve orada `/public%2Fsecret` iki segment'tir.
+Onu tek segment olarak okuyan bir router (collage'ın eskiden yaptığı gibi),
+middleware'in başka bir şey olarak değerlendirdiği bir request'i sunmuş olurdu.
+Kendisi bir path olan bir değer, örneğin `guide/intro`, bir catch-all'da yer
+almalıdır: `{rest...}`. `{{pageURL}}` ve `BuildPath`, tek bir segment'in
+değerindeki `/`'ı reddeder.
 
 Her seviyede static bir segment `{param}`'dan önce, `{param}` da `{rest...}`'ten
 önce denenir. Eşleştirme backtracking ile yapılır. Böylece iki route da
@@ -309,6 +318,11 @@ gönderen redirect ve page adlarından link üretmek
 [Link'ler ve locale'ler](/docs/links-and-locales) sayfasında anlatılıyor. Bir page
 ayrıca eski URL'lerden redirect'ler de taşıyabilir. Bunun için
 `WithRedirect(from, to, status)` ve `WithPermanentRedirect(from, to)` kullanılır.
+v0.34.0'dan beri bir redirect, request'in query string'ini hedefine taşır. Yakaladığı
+bir değer, düştüğü yere göre escape edilir: bir path segment'i ya da `?` işaretinden
+sonraki bir query değeri. Böylece `/login?next={slug}`'a ikinci bir `next`
+verilemez. Siteden çıkacak bir hedef (`//host` ya da `/\host`) ise register sırasında
+`ErrInvalidPath` olur.
 
 ## Render stratejileri
 

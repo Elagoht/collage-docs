@@ -219,6 +219,9 @@ builder := collage.NewPage("doc").
   a live request to that path would have.
 - **The map must fill the pattern exactly.** A name missing, or one the pattern does
   not have, fails that one file with `collage.ErrRouteParams`; the rest are built.
+  So does a `/` in a single `{param}`'s value since v0.34.0 — a value that is a
+  path belongs in a `{rest...}`. Before, a slug such as `../about`, from a CMS say,
+  wrote its page over another one inside the output directory.
 - **An error, or a panic, fails that page's locale** and is named in the report —
   a panic as `collage.ErrBuildPanic`. Returning no maps writes nothing, and is not
   an error.

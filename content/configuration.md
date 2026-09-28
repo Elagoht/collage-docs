@@ -129,7 +129,7 @@ spelling it was posted to.
 | `WriteTimeout` | `time.Duration` | `30s` | How long writing a response may take. |
 | `IdleTimeout` | `time.Duration` | `60s` | How long a keep-alive connection may sit idle. |
 | `ShutdownTimeout` | `time.Duration` | `10s` | How long graceful shutdown waits for in-flight requests. |
-| `MaxBodyBytes` | `int64` | 4 MiB | Bound on an action's request body when the action sets none. |
+| `MaxBodyBytes` | `int64` | 4 MiB | Bound on a request body when the action it routes to sets none — applied before middleware since v0.34.0. |
 
 `Host` defaults to `localhost`, which is unreachable from outside the machine — in
 a container, set it to `0.0.0.0`. A scaffolded project fills `Host` and `Port` from
@@ -150,6 +150,7 @@ set its own bound with `WithMaxBodyBytes`; see
 | `CSRFCookieName` | `string` | `"collage_csrf"` | Cookie a token is carried in. |
 | `CSRFFieldName` | `string` | `"_csrf"` | Form field a token is submitted in. |
 | `CSRFHeaderName` | `string` | `"X-CSRF-Token"` | Header a token may be submitted in instead. |
+| `CSRFTrustedOrigins` | `[]string` | none | Other origins whose forms may post here, each `scheme://host[:port]` (since v0.34.0). |
 | `DisableCSRF` | `bool` | `false` | Turns forgery checking off for the whole application. |
 
 **Set `CSRFKey` before deploying anything with a form.** It should be at least 32
@@ -164,6 +165,10 @@ of the disk cache's namespace, so the cache survives a new key; a cached page wi
 a form in it, stored under the old one, is rendered again rather than served — see
 [Caching](/docs/caching#the-namespace). The scaffolded `main.go` reads it from
 `COLLAGE_CSRF_KEY`; `openssl rand -hex 32` makes one.
+
+`CSRFTrustedOrigins` names the origins, other than this one, whose forms may post
+here; every other origin is refused even with a valid token. See
+[Forms and actions](/docs/forms-and-actions#where-the-request-came-from).
 
 The name defaults above are applied by the forgery guard, not by `ApplyDefaults`,
 so the fields stay empty in your `Config`. `CSRFFieldName` renames the field on

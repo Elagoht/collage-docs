@@ -185,11 +185,12 @@ Bir mount, `http.FileServer` üzerine değil, `fs.Open` ve Go'nun
 | | |
 | --- | --- |
 | Method'lar | `GET` ve `HEAD`. Diğer her method `Allow: GET, HEAD` ile birlikte `405` alır |
-| `Content-Type` | Dosya uzantısından belirlenir. Belirlenemezse ilk 512 byte sniff edilir |
+| `Content-Type` | Dosya uzantısından belirlenir. Adı bir tip belirtmeyen dosya ilk 512 byte'ından sniff edilir, ama hiçbir zaman çalıştırılabilen bir tipe dönüşmez: HTML ya da XML'e benzeyen bir dosya `text/plain` olur (v0.34.2'den beri). Her zaman `X-Content-Type-Options: nosniff` ile gider |
 | `ETag` | Dosya içeriğinin strong hash'idir. İlk request'te hesaplanır ve hatırlanır |
 | `Range` | `If-Range` ve `206 Partial Content` ile desteklenir |
 | Dizinler | Hiçbir zaman listelenmez. Bir dizin ya da yalnızca prefix 404 döner |
 | `index.html` | Hiçbir zaman örtük olarak sunulmaz |
+| Dotfile'lar | Hiçbir zaman sunulmaz ve export tarafından da kopyalanmaz. Bir elemanı `.` ile başlayan path (`.env`, `.git/`, bir editörün swap dosyası) 404 döner. Tek istisna `.well-known`'dur (v0.34.0'dan beri) |
 | Olmayan bir dosya | Düz metin bir `404`, `no-store` ile döner. Sizin HTML not-found page'iniz asla dönmez |
 
 **`Range` request'leri**, tarayıcının bir ses ya da video dosyasında dosyayı baştan

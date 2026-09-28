@@ -304,7 +304,11 @@ does it better than a framework flag could.
 
 Put the binary behind one, and make sure the proxy sends `X-Forwarded-Proto: https`.
 collage uses it to mark the forgery-token cookie `Secure`, so a site served over
-HTTPS never sends that cookie over plain HTTP. A minimal Caddy configuration, which
+HTTPS never sends that cookie over plain HTTP. A proxy that appends to the header
+rather than replacing it sends a list, `https, http`; since v0.34.0 its first
+entry, the reader's own connection, is what counts. Pass the `Host` the browser
+sent on as well: the forgery check compares an older browser's `Origin` with it,
+and it is part of the page cache's key. A minimal Caddy configuration, which
 also obtains the certificate:
 
 ```
@@ -388,7 +392,9 @@ OpenTelemetry traces.
 - `plugins-config.json` in the working directory, or embedded, if you configure
   plugins.
 - `COLLAGE_DEV` unset.
-- TLS at the proxy, with `X-Forwarded-Proto` passed on.
+- TLS at the proxy, with `X-Forwarded-Proto` and the browser's `Host` passed on.
+- Any other origin whose forms post here — an admin subdomain — named in
+  `Security.CSRFTrustedOrigins`.
 - The platform's stop grace period longer than `Server.ShutdownTimeout`.
 - The liveness check on `/healthz`.
 - `go test ./...` in CI before the build — see [Testing](/docs/testing).

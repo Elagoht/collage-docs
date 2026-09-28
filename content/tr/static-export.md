@@ -234,6 +234,10 @@ builder := collage.NewPage("doc").
 - **Map pattern'i tam olarak doldurmalıdır.** Eksik bir ad ya da pattern'de olmayan
   bir ad, yalnızca o dosyayı `collage.ErrRouteParams` ile başarısız kılar. Geri
   kalanlar build edilir.
+  v0.34.0'dan beri tek bir `{param}`'ın değerindeki bir `/` da aynı sonucu doğurur.
+  Path olan bir değer bir `{rest...}`'te yer almalıdır. Eskiden `../about` gibi bir slug
+  (örneğin bir CMS'ten gelen) kendi page'ini output dizininin içindeki başka bir
+  page'in üzerine yazardı.
 - **Bir hata ya da panic, o page'in o locale'ini başarısız kılar** ve raporda
   adıyla yer alır. Panic `collage.ErrBuildPanic` olarak raporlanır. Hiç map
   dönülmezse hiçbir şey yazılmaz. Bu bir hata sayılmaz.

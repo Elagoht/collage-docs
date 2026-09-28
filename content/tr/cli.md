@@ -128,6 +128,15 @@ kendine ait bir loopback adresine ayarlayarak başlatır. Cevap verecek bir
 program olmadığında [hataları tarayıcıda gösterebilmesi](#errors-in-the-browser)
 bu sayede mümkündür.
 
+v0.34.0'dan beri `collage dev` yalnızca `Host`'u bu makineyi adlandıran request'lere
+cevap verir: `localhost` ya da onun altındaki bir ad, bir IP adresi veya
+başlatıldığı `HOST`. Diğer her şeyi `403` ile reddeder. Başka bir sitedeki bir page,
+kendi adının `127.0.0.1`'e çözümlenmesini sağlayabilir (DNS rebinding) ve böylece
+`collage dev` ile same-origin olur. Bu durumda page'lerinizi, stack'leriyle birlikte
+development hata sayfalarını ve programın çıktısını okuyabilirdi. Gönderdiği `Host`
+ise kendi adıdır ve bunu değiştiremez. `collage dev`'e başka bir adla erişmek için
+onu `HOST` bu ada ayarlanmış olarak başlatın.
+
 Programın yazdıkları terminale programın yazdığı gibi ulaşır, tek bir farkla:
 programın kendi adresi `collage dev`'in adresiyle değiştirilir. Böylece
 `collage: listening` satırı açmanız gereken adresi gösterir (v0.32.0'dan beri).
@@ -373,6 +382,10 @@ Sıradan bir dosya sunucusu gibi değil, bir static host gibi davranır:
 - Hiçbir dosyaya karşılık gelmeyen bir path'e, export'un kendi `404.html`
   dosyası ve 404 status koduyla cevap verilir. Bu dosya yoksa sade bir 404 döner.
 - Yalnızca `GET` ve `HEAD` request'lerine cevap verilir. Diğer her şey 405 alır.
+- Bir dotfile (`.env`, `.git/config`) hiçbir zaman sunulmaz (v0.34.0'dan beri).
+  Uzantısı bir tip belirtmeyen bir dosyanın tipi, mount'ta olduğu gibi içeriğinden
+  belirlenir, ama hiçbir zaman HTML ya da XML olmaz. Her dosya `nosniff` ile gider
+  (v0.34.2'den beri).
 - Her response `Cache-Control: no-store` header'ıyla gönderilir. Böylece yeniden
   export edip sayfayı yenilediğinizde eski çıktıyı değil yenisini görürsünüz.
 

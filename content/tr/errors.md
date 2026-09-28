@@ -1,6 +1,6 @@
 ---
 description: collage'ın export ettiği bütün error değerleri, nereden geldiklerine göre gruplanmış hâlde; her birinin ne anlama geldiği ve ne yapmanız gerektiğiyle birlikte.
-reference: PanicError, ErrUnknownSlot, ErrConflictingData, ErrNoDocumentHandler, ErrRouteParams, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath, ErrInvalidGuardDecision, ErrGuardRefused, ErrGuarded
+reference: ErrCSRFCrossOrigin, ErrCachedFetchPanicked, PanicError, ErrUnknownSlot, ErrConflictingData, ErrNoDocumentHandler, ErrRouteParams, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath, ErrInvalidGuardDecision, ErrGuardRefused, ErrGuarded
 ---
 
 # Hatalar
@@ -115,7 +115,7 @@ reddedilir.
 | `ErrInvalidTimeout` | `collage: invalid timeout` | Bir fragment'in timeout'u negatiftir. |
 | `ErrMissingTTL` | `collage: missing cache ttl for incremental strategy` | `Incremental`'a sıfır bir TTL verilmiştir. |
 | `ErrInvalidTTL` | `collage: invalid cache ttl` | Bir page'in TTL'i negatiftir. |
-| `ErrInvalidPath` | `collage: invalid path` | Bir path pattern'i `/` ile başlamaz. |
+| `ErrInvalidPath` | `collage: invalid path` | Bir path pattern'i `/` ile başlamaz ya da, v0.34.0'dan beri, bir redirect'in hedefi siteden çıkacaktır: `//host`, `/\host`. |
 | `ErrInvalidRedirectStatus` | `collage: invalid redirect status code` | Redirect status'u `0`, `301`, `302`, `307` ya da `308` dışında bir değerdir. |
 | `ErrSelfErrorPage` | `collage: page cannot reference itself as an error page` | Bir page kendi not-found ya da error page'idir. |
 
@@ -181,6 +181,7 @@ Bkz. [Static asset'ler](/docs/assets) ve
 | `ErrPageNotFound` | `collage: no page at path` | `App.RenderPath` path'te hiçbir page bulamamıştır. | — |
 | `ErrOnceTypeMismatch` | `collage: once key fetched as two different types` | Tek bir render içinde iki `collage.Once` çağrısı aynı key'i farklı tiplerle istemiştir. | Key'ler çakışmaktadır; onlara namespace verin. |
 | `ErrCachedTypeMismatch` | `collage: Cached key holds a value of a different type` | İki `collage.Cached` çağrısı aynı key'i farklı tiplerle istemiştir. | Yukarıdakiyle aynı. |
+| `ErrCachedFetchPanicked` | `collage: data fetch panicked` | Bir `collage.Cached` çağrısı başka bir render'ın çekme işlemini beklemiştir ve o çekme işlemi panic'e düşmüştür (v0.34.1'den beri). Panic'in kendisi, çekme işlemi kendisine ait olan render'a gider. | Key yeniden serbesttir: bir sonraki render veriyi çeker. Panic'e neden olan şeyi düzeltin. |
 | `ErrDictOddArgs` | `collage: dict requires an even number of arguments` | `{{dict}}`'e değeri olmayan bir key verilmiştir. | Her key'i bir değerle eşleştirin. |
 | `ErrDictKeyNotString` | `collage: dict key must be a string` | Bir `{{dict}}` key'i string değildir. | Key'i tırnak içine alın. |
 | `ErrCSRFDisabled` | `collage: csrfToken used but request-forgery protection is disabled` | `Security.DisableCSRF` ayarlanmış bir uygulamada bir template `{{csrfToken}}` çağırır. | Çağrıyı kaldırın ya da korumayı yeniden açın. |
@@ -262,6 +263,7 @@ ismiyle wrap edilmiş olarak alır:
 | `ErrCSRFMissing` | `collage: no csrf token` | Gönderimde token ya da cookie yoktur. |
 | `ErrCSRFMismatch` | `collage: csrf token does not match` | Token, cookie'deki token değildir. |
 | `ErrCSRFInvalid` | `collage: csrf token is not valid` | Token bu uygulamanın key'iyle imzalanmamıştır. |
+| `ErrCSRFCrossOrigin` | `collage: cross-origin request` | Tarayıcı, gönderimi `Sec-Fetch-Site` ile ya da `Host` olmayan bir `Origin` ile başka bir origin'den gönderilmiş olarak işaretlemiştir. Gönderim, taşıdığı token ne olursa olsun reddedilir (v0.34.0'dan beri; v0.34.1'den beri bu adla). |
 
 Yaygın sebepler iki tanedir: `{{csrfToken}}` içermeyen bir form ve her process'te
 yeniden üretilen bir key. Token'ların restart'lardan sonra da geçerli kalması ve
@@ -284,14 +286,14 @@ plugin, mesajları okumadan hataları birbirinden ayırabilir. Bkz.
 | `ErrNotFound` | bkz. [Render](#rendering) | `render` | Required bir fragment'in içeriği yoktur; bu bir içerik sorunudur. |
 | `ErrMethodNotAllowed` | `collage: method not allowed` | `route` | Path vardır ama o method'a cevap vermez. Sonuç, cevap verdiği method'ları listeleyen bir `Allow` header'ıyla birlikte 405'tir. Bir document'ın URL'sinde bu 405 düz metindir (v0.11.0'dan beri). |
 | `ErrEmptyRender` | `collage: page rendered no markup` | `render` | Bir page başarıyla render edilmiş ama hiç markup üretmemiştir. Page ister serve edilsin ister bir action'ın cevabı olsun, sonuç 500'dür. Static build'in kaydettiği sentinel de budur. |
-| `ErrCSRFMissing`, `ErrCSRFMismatch`, `ErrCSRFInvalid` | bkz. [yukarıda](#request-forgery) | `route` | Forgery kontrolünün reddettiği bir gönderim. |
+| `ErrCSRFMissing`, `ErrCSRFMismatch`, `ErrCSRFInvalid`, `ErrCSRFCrossOrigin` | bkz. [yukarıda](#request-forgery) | `route` | Forgery kontrolünün reddettiği bir gönderim. |
 | `ErrInvalidGuardDecision` | `collage: invalid guard decision` | `guard` | Bir page'in [guard](/docs/pages-and-layouts#private-pages-guards)'ı yazılamayacak bir kararla cevap vermiştir (location'ı olmayan bir redirect, bir `200`) ve request 500 ile başarısız olmuştur. Hata dönen bir guard da aynı stage'de, kendi hatasıyla bildirilir. |
 | `ErrGuardRefused` | `collage: the guard refused this reader` | — | Bildirilmez, döndürülür: `RenderFragment`, guard'ı okuyucuyu reddeden bir fragment istemiştir. Fragment stream eden bir plugin o okuyucuya hiçbir şey göndermez. |
 | `ErrEmptyErrorPage` | `collage: error page rendered empty` | `error_page` | Register edilmiş bir error page başarıyla render edilmiş ama hiç markup üretmemiştir. Bu yüzden onun yerine built-in page serve edilmiştir. |
 | `ErrPanic` | `collage: panic recovered while serving the request` | `panic` | Serve sırasında bir şey panic etmiş ve bu panic recover edilip 500'e çevrilmiştir. Bu bir `Cache`, `Metrics` ya da `Tracer` implementasyonu, bir router veya bir plugin hook'u olabilir. Data handler'lardaki ve template'lerdeki panic'ler ise `PanicError` olur. |
 | `ErrAssetFailed` | `collage: asset request failed` | `asset` | Mount edilmiş bir dosya request'i 400 ya da üstü bir status ile cevaplanmıştır. Bu tür bütün status'lar için tek bir sentinel vardır. |
 | `ErrHandlerFailed` | `collage: mounted handler failed` | `handler` | `App.Handle` ile mount edilmiş bir handler server error ile cevap vermiştir. |
-| `ErrUnsafeRedirectTarget` | `collage: unsafe redirect target` | `route` | Bir redirect'in hedefi, substitution'dan sonra tek slash'le başlayan relative bir path değildir: `//host`, `/\host` ya da control character içeren bir path'tir. Bir `Location` header'ıyla değil, 500 ile cevaplanır. |
+| `ErrUnsafeRedirectTarget` | `collage: unsafe redirect target` | `route` | Bir redirect'in hedefi, substitution'dan sonra tek slash'le başlayan relative bir path değildir: `//host`, `/\host` ya da control character içeren bir path'tir. Bir `Location` header'ıyla değil, 500 ile cevaplanır. v0.34.0'dan beri böyle yazılmış bir hedef register sırasında `ErrInvalidPath` ile reddedilir. Yakalanan bir değer ise böyle bir hedef oluşturamaması için escape edilir. |
 
 Alarm kurmaya değer stage `"error_page"`'dir. Hataları bildiren page'in kendisi başarısız
 olmuştur, ama okuyucu yine de makul görünen bir page görmüştür. Bu yüzden size bunu

@@ -48,6 +48,22 @@ kept (since v0.24.0). A middleware that skips `/_collage/` or protects `/admin/`
 therefore never meets `/_collage/../admin`, and a prefix check is a check on the
 path the router will route.
 
+An encoded slash is not a separator to the router, so since v0.34.0 a path holding
+`%2F` reaches no route: the router answers it 404, and one that is also dirty —
+`/blog/%2Fhello` — is answered 404 before your middleware runs rather than cleaned
+into `/blog/hello`. Your middleware reads the decoded `r.URL.Path`, where
+`/public%2Fsecret` is `/public/secret`; before, the router read one segment there,
+and a middleware letting `/public/` through let the request through to `/{slug}`.
+
+### The body is bounded before it
+
+Since v0.34.0 a request's body is limited before the first middleware runs, at the
+limit of the [action](/docs/forms-and-actions#request-bodies-are-bounded) it routes
+to, or `Server.MaxBodyBytes` for anything else. A middleware that reads the body —
+a signature check, a logger, a method override parsing the form — reads it
+bounded, and an action whose body a middleware already read past its limit answers
+`413`. A handler mounted with `app.Handle` is left alone.
+
 ### Passing values to data handlers
 
 What middleware puts in the request's context is what data handlers receive as
@@ -81,7 +97,10 @@ Mind the cache. A page that renders differently per user must not be cached by U
 or the first reader's version is everyone's: keep it dynamic — as a page with a
 data handler and no declared strategy already is — rather than giving it `Static()`
 or `Incremental(ttl)`, or tell the cache what it varies on with `collage.Vary`
-below.
+below. A cached render does not see the reader's cookies or credentials at all
+since v0.34.0 ([what a shared render sees](/docs/caching#what-a-shared-render-sees)),
+but the context is passed whole, so a user put there is still a user in a copy
+everyone is served.
 
 A static export renders without a request, so no middleware runs during one. A data
 handler reading a context value must cope with its absence — which it has to anyway,
@@ -118,6 +137,8 @@ app.Use(func(next http.Handler) http.Handler {
 - **The header name goes into the response's `Vary` header**, so a CDN or proxy
   between you and the reader keeps the versions apart too. It is only set on
   publicly cacheable responses; a `no-store` response has nothing to keep apart.
+  Since v0.34.0 it is added beside a `Vary` your middleware wrote, where before it
+  replaced it.
 - **Call it from middleware.** Declarations close when middleware is done and
   routing begins, on every route — a page, cached or not, a document, an action, a
   mount, an `app.Handle` handler. Called after routing, from a data handler say,
