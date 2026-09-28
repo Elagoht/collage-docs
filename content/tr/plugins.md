@@ -726,6 +726,9 @@ return collage.SeeOther("/welcome"), nil
 ```html
 <input name="email" type="email" value="{{fieldValue "email"}}">
 {{with fieldError "email"}}<p class="error">{{.}}</p>{{end}}
+
+<!-- bir kayıttan başlayan form: kayıtlı ad ya da yazılan -->
+<input name="fullname" value="{{fieldValue "fullname" .User.FullName}}">
 ```
 
 ```json
@@ -738,8 +741,16 @@ return collage.SeeOther("/welcome"), nil
 }
 ```
 
-- collage v0.23.0 ya da sonrasını gerektirir ve `Config.Plugins` içinde olmalıdır:
-  `{{fieldError}}`, `{{fieldValue}}` ve `{{hasErrors}}`'ı ekler.
+- v0.1.2, collage v0.34.2 ya da sonrasını gerektirir (v0.1.1 v0.23.0'ı
+  gerektiriyordu). `Config.Plugins` içinde olmalıdır: `{{fieldError}}`,
+  `{{fieldValue}}` ve `{{hasErrors}}`'ı ekler.
+- `{{fieldValue "name" fallback}}`, reddedilen bir gönderimde gönderilen değeri,
+  form ilk kez gösterildiğinde ise fallback'i gösterir. Bir profil ya da düzenleme
+  form'u bu değerle başlar.
+- v0.1.2'den beri `validate.Form`, bir kontrol ya da `v.Value` form'a ihtiyaç
+  duyana kadar hiçbir şey okumaz. Body'yi okumadan reddeden bir action (örneğin
+  `Content-Length`'i sınırı aşan bir fotoğraf) `v.Fail` ve `validate.Refuse` için
+  bir validator kurar ve body hiç okunmaz.
 - collage'ın form kuralının ilk yarısıdır. Bkz.
   [Form'lar ve action'lar](/docs/forms-and-actions#the-validation-re-render). Kimsenin
   göndermediği bir page'de fonksiyonlar boştur. Bu yüzden tek bir template iki
@@ -750,6 +761,9 @@ return collage.SeeOther("/welcome"), nil
 - Mesajlar varsayılan olarak İngilizcedir. Kontrol başına, locale başına ya da her
   locale için değiştirilebilir. Adında `password` geçen bir alan asla geri
   doldurulmaz.
+- Alan adları render başına tek bir ad alanındadır: aynı page'de aynı alan adını
+  paylaşan iki form, o alanın mesajını ve değerini ikisinde de gösterir. Her
+  form'un alanlarına kendine ait adlar verin.
 
 #### elagoht/honeypot
 

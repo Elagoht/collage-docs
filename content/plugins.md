@@ -692,6 +692,9 @@ return collage.SeeOther("/welcome"), nil
 ```html
 <input name="email" type="email" value="{{fieldValue "email"}}">
 {{with fieldError "email"}}<p class="error">{{.}}</p>{{end}}
+
+<!-- a form that starts from a record: the stored name, or what was typed -->
+<input name="fullname" value="{{fieldValue "fullname" .User.FullName}}">
 ```
 
 ```json
@@ -704,8 +707,15 @@ return collage.SeeOther("/welcome"), nil
 }
 ```
 
-- It needs collage v0.23.0 or later, and must go in `Config.Plugins`: it adds
-  `{{fieldError}}`, `{{fieldValue}}` and `{{hasErrors}}`.
+- v0.1.2 needs collage v0.34.2 or later; v0.1.1 needed v0.23.0. It must go in
+  `Config.Plugins`: it adds `{{fieldError}}`, `{{fieldValue}}` and `{{hasErrors}}`.
+- `{{fieldValue "name" fallback}}` shows what was submitted when a submission was
+  refused, and the fallback when the form is shown for the first time — the value
+  a profile or an edit form starts with.
+- Since v0.1.2 `validate.Form` reads nothing until a check or `v.Value` needs the
+  form. An action refusing a body before reading it — a photo whose
+  `Content-Length` is over its size — builds a validator for `v.Fail` and
+  `validate.Refuse`, and the body is never read.
 - It is the first half of collage's rule for a form — see
   [Forms and actions](/docs/forms-and-actions#the-validation-re-render). On a page
   nobody submitted the functions are empty, so one template serves both renders
@@ -715,6 +725,9 @@ return collage.SeeOther("/welcome"), nil
   application knows. A field keeps its first message.
 - Messages are English by default, and are replaced per check, per locale or for
   every locale. A field whose name contains `password` is never typed back.
+- Field names are one space per render: two forms on one page sharing a field
+  name both show that field's message and value. Give each form's fields names of
+  their own.
 
 #### elagoht/honeypot
 
