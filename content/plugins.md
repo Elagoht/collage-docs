@@ -749,8 +749,12 @@ Plugins: []collage.Plugin{honeypot.New(honeypot.Options{Key: key})},
 }
 ```
 
-- It needs collage v0.24.0 or later, and must go in `Config.Plugins`: it adds
+- It needs collage v0.31.0 or later, and must go in `Config.Plugins`: it adds
   `{{honeypot}}`.
+- It has no say in how large a submission may be. It checks the form in
+  `BeforeActionHook`, through the action's own body limit, so a form that uploads
+  large files needs only the action's `WithMaxBodyBytes`. Only collage actions are
+  checked, not handlers mounted with `app.Handle`.
 - The forms say which paths are protected: once a page with a `{{honeypot}}` form
   has been served, a form body posted to that form's `action` is checked before it
   reaches the action. A form without `{{honeypot}}` is never checked, and nothing

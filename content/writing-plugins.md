@@ -1,6 +1,6 @@
 ---
 description: The plugin contract, what Host and ConfigHost expose, every hook and what it may change, and a complete plugin with its tests.
-reference: Plugin, Host, ConfigHost, Configurer, Command, BeforeRenderHook, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, RequestHook, RouteOf, RouteInfo, Route
+reference: Plugin, Host, ConfigHost, Configurer, Command, BeforeRenderHook, BeforeActionHook, BeforeActionEvent, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, RequestHook, RouteOf, RouteInfo, Route
 ---
 
 # Writing a plugin
@@ -207,6 +207,7 @@ take the connection over with `Hijack`, as it could on a bare `net/http` server.
 | `RequestHook` | `OnRequest` | the `*http.Request` | First on every request, before collage's request span, middleware and routing (since v0.25.0) | the request's context |
 | `PageResolvedHook` | `OnPageResolved` | `PageResolvedEvent` | Once per page request, right after routing and the page's guards — cache hits included | nothing |
 | `BeforeRenderHook` | `OnBeforeRender` | `BeforeRenderEvent` | Before a fresh page render | nothing on the event; may hoist through `ev.Context` |
+| `BeforeActionHook` | `OnBeforeAction` | `BeforeActionEvent` | Before an action's handler, after its guards, body limit and forgery check (since v0.31.0) | `ev.Result`, which answers in the handler's place |
 | `AfterRenderHook` | `OnAfterRender` | `AfterRenderEvent` | After a page render succeeded | `ev.HTML`; reports with `ev.Warn`, `ev.Error` |
 | `DocumentRenderedHook` | `OnDocumentRendered` | `DocumentRenderedEvent` | After a document handler produced its body | `ev.Body` |
 | `CacheWriteHook` | `OnCacheWrite` | `CacheWriteEvent` | Before a page or document is written to the cache | `ev.Skip`, `ev.TTL`, `ev.Tags` |
@@ -321,6 +322,50 @@ request with a 500, under `"before_render"`.
 `Static` (since v0.22.0) says the page is being rendered for a static build —
 through `App.RenderPath` — rather than for a request. It is on `AfterRenderEvent`
 too.
+
+### BeforeActionHook
+
+```go
+type BeforeActionEvent struct {
+	Action  *collage.Action
+	Page    *collage.Page // the page whose URL the action answers on, or nil
+	Locale  string
+	Request *http.Request
+	Result  *collage.ActionResult // set it to answer in the handler's place
+}
+
+func (ev *BeforeActionEvent) Form() (url.Values, error)
+```
+
+Fires once per action request, immediately before the handler: after the page's
+guards, after the action's body limit is in place, and after the forgery check
+(since v0.31.0). It is where a plugin checks a submission, a spam filter or a
+quota, because the body there is bounded by the action's own limit, and a plugin
+that read it earlier, in middleware, would need a limit of its own.
+
+`ev.Form()` parses the form, URL-encoded or multipart, and returns its fields.
+What it parsed stays parsed, so the handler reads the same form without the body
+being read twice. Use it rather than `ParseMultipartForm` alone, which for a
+URL-encoded body discards the error of reading it, a body past the limit among
+them.
+
+```go
+func (p *Plugin) OnBeforeAction(_ context.Context, ev *collage.BeforeActionEvent) error {
+	form, err := ev.Form()
+	if err != nil {
+		return err // past the action's limit: 413
+	}
+	if form.Get("website") != "" {
+		ev.Result = &collage.ActionResult{Status: http.StatusBadRequest}
+	}
+	return nil
+}
+```
+
+Setting `ev.Result` answers the request with it, exactly as if the handler had
+returned it, and stops dispatch: no later plugin and no handler runs. An error
+fails the request under `"before_action"`, with `413` when it wraps
+`*http.MaxBytesError` and `500` otherwise.
 
 ### AfterRenderHook
 
@@ -580,6 +625,8 @@ never fires on a server.
   error; it does not take the process down.
 - For `OnPageResolved`, `OnBeforeRender`, `OnAfterRender` and
   `OnDocumentRendered`, the **first error stops dispatch** and fails the request.
+- For `OnBeforeAction`, the first error stops dispatch and fails the request, and
+  so does the first plugin to set `ev.Result`, which answers it.
 - For `OnCacheWrite`, the first error stops dispatch and suppresses the write.
 - For `OnCacheInvalidate`, the first error stops dispatch and is returned from
   `InvalidateTags`.

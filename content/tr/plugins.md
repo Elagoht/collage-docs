@@ -785,8 +785,12 @@ Plugins: []collage.Plugin{honeypot.New(honeypot.Options{Key: key})},
 }
 ```
 
-- collage v0.24.0 ya da sonrasını gerektirir ve `Config.Plugins` içinde olmalıdır:
+- collage v0.31.0 ya da sonrasını gerektirir ve `Config.Plugins` içinde olmalıdır:
   `{{honeypot}}`'ı ekler.
+- Bir gönderimin ne kadar büyük olabileceğine karışmaz. Form'u `BeforeActionHook`'ta,
+  action'ın kendi body sınırıyla kontrol eder. Bu yüzden büyük dosya yükleyen bir
+  form için yalnızca action'ın `WithMaxBodyBytes`'ı yeter. Yalnızca collage
+  action'ları kontrol edilir, `app.Handle` ile bağlanan handler'lar edilmez.
 - Hangi path'lerin korunduğunu form'lar söyler. `{{honeypot}}` taşıyan bir form'un
   olduğu page servis edildikten sonra, o form'un `action`'ına gönderilen form
   body'si action'a ulaşmadan önce kontrol edilir. `{{honeypot}}` taşımayan bir form

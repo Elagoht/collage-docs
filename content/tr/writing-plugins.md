@@ -1,6 +1,6 @@
 ---
 description: Plugin sözleşmesi, Host ve ConfigHost'un sundukları, her hook ve neyi değiştirebileceği, testleriyle birlikte eksiksiz bir plugin.
-reference: Plugin, Host, ConfigHost, Configurer, Command, BeforeRenderHook, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, RequestHook, RouteOf, RouteInfo, Route
+reference: Plugin, Host, ConfigHost, Configurer, Command, BeforeRenderHook, BeforeActionHook, BeforeActionEvent, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, RequestHook, RouteOf, RouteInfo, Route
 ---
 
 # Plugin yazmak
@@ -220,6 +220,7 @@ sunucusunda da yapabilirdi.
 | `RequestHook` | `OnRequest` | `*http.Request` | Her request'te ilk olarak; collage'ın request span'inden, middleware'den ve routing'den önce (v0.25.0'dan beri) | request'in context'ini |
 | `PageResolvedHook` | `OnPageResolved` | `PageResolvedEvent` | Her page request'inde bir kez, routing'in ve page'in guard'larının hemen ardından; cache hit'ler dahil | hiçbir şeyi |
 | `BeforeRenderHook` | `OnBeforeRender` | `BeforeRenderEvent` | Yeni bir page render'ından önce | event'te hiçbir şeyi; `ev.Context` üzerinden hoist edebilir |
+| `BeforeActionHook` | `OnBeforeAction` | `BeforeActionEvent` | Bir action'ın handler'ından önce, guard'larından, body sınırından ve forgery kontrolünden sonra (v0.31.0'dan beri) | `ev.Result`; handler'ın yerine cevap verir |
 | `AfterRenderHook` | `OnAfterRender` | `AfterRenderEvent` | Bir page render'ı başarıyla bittikten sonra | `ev.HTML`; `ev.Warn` ve `ev.Error` ile raporlar |
 | `DocumentRenderedHook` | `OnDocumentRendered` | `DocumentRenderedEvent` | Bir document handler'ı body'sini ürettikten sonra | `ev.Body` |
 | `CacheWriteHook` | `OnCacheWrite` | `CacheWriteEvent` | Bir page ya da document cache'e yazılmadan önce | `ev.Skip`, `ev.TTL`, `ev.Tags` |
@@ -338,6 +339,50 @@ bir hata, request'i `"before_render"` altında 500 ile başarısız kılar.
 `Static` (v0.22.0'dan beri), page'in bir request için değil, `App.RenderPath`
 üzerinden bir static build için render edildiğini söyler. `AfterRenderEvent`'te de
 bulunur.
+
+### BeforeActionHook
+
+```go
+type BeforeActionEvent struct {
+	Action  *collage.Action
+	Page    *collage.Page // the page whose URL the action answers on, or nil
+	Locale  string
+	Request *http.Request
+	Result  *collage.ActionResult // set it to answer in the handler's place
+}
+
+func (ev *BeforeActionEvent) Form() (url.Values, error)
+```
+
+Her action request'inde bir kez, handler'dan hemen önce çalışır. Page'in guard'larından,
+action'ın body sınırı konduktan ve forgery kontrolünden sonra gelir (v0.31.0'dan
+beri). Bir plugin'in gönderimi kontrol ettiği yer burasıdır. Spam filtresi ya da
+kota bunun örnekleridir. Buradaki body action'ın kendi sınırıyla sınırlıdır.
+Body'yi daha önce, middleware'de okuyan bir plugin'in ise kendi sınırına ihtiyacı
+olurdu.
+
+`ev.Form()` form'u parse eder, URL-encoded ya da multipart fark etmez, ve alanlarını
+döndürür. Parse ettiği parse edilmiş kalır. Böylece handler aynı form'u okur ve body
+iki kez okunmaz. Tek başına `ParseMultipartForm` yerine bunu kullanın. O, URL-encoded
+bir body'de okuma hatasını, sınırı aşan bir body'ninkini de, yok sayar.
+
+```go
+func (p *Plugin) OnBeforeAction(_ context.Context, ev *collage.BeforeActionEvent) error {
+	form, err := ev.Form()
+	if err != nil {
+		return err // past the action's limit: 413
+	}
+	if form.Get("website") != "" {
+		ev.Result = &collage.ActionResult{Status: http.StatusBadRequest}
+	}
+	return nil
+}
+```
+
+`ev.Result` ayarlanırsa request, handler onu döndürmüş gibi onunla cevaplanır ve
+dispatch durur. Sonraki hiçbir plugin ve handler çalışmaz. Dönen bir hata,
+request'i `"before_action"` altında başarısız kılar. Hata `*http.MaxBytesError`
+sarıyorsa `413`, aksi halde `500` olur.
 
 ### AfterRenderHook
 
@@ -609,6 +654,8 @@ zaten yazılmış dosyalar yerinde kalır. Bir sunucuda hiçbir zaman çalışma
   gibi başarısız sayılır; process'i çökertmez.
 - `OnPageResolved`, `OnBeforeRender`, `OnAfterRender` ve `OnDocumentRendered` için
   **ilk hata dispatch'i durdurur** ve request'i başarısız kılar.
+- `OnBeforeAction` için ilk hata dispatch'i durdurur ve request'i başarısız kılar.
+  `ev.Result`'ı ilk ayarlayan plugin de dispatch'i durdurur ve request'i cevaplar.
 - `OnCacheWrite` için ilk hata dispatch'i durdurur ve yazmayı engeller.
 - `OnCacheInvalidate` için ilk hata dispatch'i durdurur ve `InvalidateTags`'ten
   döner.
