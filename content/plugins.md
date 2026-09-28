@@ -719,8 +719,8 @@ return collage.SeeOther("/welcome"), nil
 
 [github.com/Elagoht/collage-honeypot](https://github.com/Elagoht/collage-honeypot)
 stops form spam without a CAPTCHA: a decoy field people never see and bots fill
-in, and a signed timestamp that refuses a form sent back sooner than a person could
-have filled it in.
+in, and a signed timestamp that refuses a form that was never served, was served
+too long ago, or — when the form asks — came back too soon.
 
 ```go
 import "github.com/Elagoht/collage-honeypot"
@@ -741,19 +741,28 @@ Plugins: []collage.Plugin{honeypot.New(honeypot.Options{Key: key})},
 {
   "elagoht/honeypot": {
     "key": "hex-encoded, 32 bytes or more",
-    "minDelay": 2,
+    "minDelay": 0,
     "maxAge": 86400,
     "silent": false,
-    "protect": ["/"]
+    "protect": []
   }
 }
 ```
 
 - It needs collage v0.24.0 or later, and must go in `Config.Plugins`: it adds
   `{{honeypot}}`.
-- Every form body posted to a protected path is checked before it reaches the
-  action, so every such form must carry `{{honeypot}}`. A JSON body and every `GET`
-  pass unchecked.
+- The forms say which paths are protected: once a page with a `{{honeypot}}` form
+  has been served, a form body posted to that form's `action` is checked before it
+  reaches the action. A form without `{{honeypot}}` is never checked, and nothing
+  in the configuration has to name the forms. A JSON body and every `GET` pass
+  unchecked.
+- A process learns the paths from the pages it serves. After a restart or a new
+  release, until the form's page has gone out again, a bot posting straight to
+  the path is not checked. `protect` lists prefixes checked from the first request;
+  `["/"]` checks every form the site accepts. Before v0.2.0 that was the default.
+- No delay by default. `{{honeypot 0.3}}` asks a form to be open at least that
+  many seconds before it is sent, signed into the timestamp so a bot cannot
+  shorten it; `minDelay` sets one for every form that does not choose its own.
 - The timestamp survives the page cache as collage's forgery token does: the
   cached page carries a placeholder, and the plugin's middleware signs the current
   time into it. Set a key of at least 32 random bytes, the same on every instance.

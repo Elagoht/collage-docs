@@ -754,8 +754,9 @@ return collage.SeeOther("/welcome"), nil
 
 [github.com/Elagoht/collage-honeypot](https://github.com/Elagoht/collage-honeypot),
 form spam'ini CAPTCHA olmadan durdurur. İnsanların hiç görmediği ama bot'ların
-doldurduğu bir tuzak alan kullanır. İmzalı bir zaman damgası da bir insanın
-doldurabileceğinden daha çabuk geri gönderilen form'u reddeder.
+doldurduğu bir tuzak alan kullanır. İmzalı bir zaman damgası da hiç servis
+edilmemiş, çok önce servis edilmiş ya da, form isterse, çok çabuk geri gönderilmiş
+bir form'u reddeder.
 
 ```go
 import "github.com/Elagoht/collage-honeypot"
@@ -776,19 +777,30 @@ Plugins: []collage.Plugin{honeypot.New(honeypot.Options{Key: key})},
 {
   "elagoht/honeypot": {
     "key": "hex-encoded, 32 bytes or more",
-    "minDelay": 2,
+    "minDelay": 0,
     "maxAge": 86400,
     "silent": false,
-    "protect": ["/"]
+    "protect": []
   }
 }
 ```
 
 - collage v0.24.0 ya da sonrasını gerektirir ve `Config.Plugins` içinde olmalıdır:
   `{{honeypot}}`'ı ekler.
-- Korunan bir path'e gönderilen her form body'si action'a ulaşmadan önce kontrol
-  edilir. Bu yüzden böyle her form `{{honeypot}}` taşımalıdır. JSON body'ler ve her
-  `GET` kontrol edilmeden geçer.
+- Hangi path'lerin korunduğunu form'lar söyler. `{{honeypot}}` taşıyan bir form'un
+  olduğu page servis edildikten sonra, o form'un `action`'ına gönderilen form
+  body'si action'a ulaşmadan önce kontrol edilir. `{{honeypot}}` taşımayan bir form
+  hiç kontrol edilmez ve yapılandırmada form'ları tek tek yazmak gerekmez. JSON
+  body'ler ve her `GET` kontrol edilmeden geçer.
+- Process path'leri servis ettiği page'lerden öğrenir. Bir restart'tan ya da yeni
+  bir sürümden sonra, form'un page'i yeniden servis edilene kadar, path'e doğrudan
+  POST atan bir bot kontrol edilmez. `protect`, ilk request'ten itibaren kontrol
+  edilen prefix'leri listeler. `["/"]` sitenin kabul ettiği her form'u kontrol
+  eder. v0.2.0'dan önce varsayılan buydu.
+- Varsayılan olarak bekleme süresi yoktur. `{{honeypot 0.3}}`, form'un gönderilmeden
+  önce en az o kadar saniye açık kalmasını ister. Süre zaman damgasına imzalanır,
+  böylece bot onu kısaltamaz. `minDelay`, kendi süresini seçmeyen her form için bir
+  süre belirler.
 - Zaman damgası, collage'ın forgery token'ı gibi page cache'ten sağ çıkar: cache'lenen
   page bir placeholder taşır, plugin'in middleware'i de o anki zamanı imzalayıp onun
   yerine koyar. En az 32 rastgele byte'lık, her instance'ta aynı olan bir key
