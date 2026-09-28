@@ -16,13 +16,13 @@ You need Go and the `collage` CLI; see [Installation](/docs/installation).
 ## Start a project
 
 ```sh
-collage new cookbook --template minimal
+collage new cookbook
 cd cookbook
 go mod tidy
 collage dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) and leave `collage dev`
+Open [http://localhost:6060](http://localhost:6060) and leave `collage dev`
 running. From here on, every Go file you save is rebuilt and the browser reloads
 itself; every template you save shows up on the next render without a rebuild.
 
@@ -285,14 +285,14 @@ first visitor to find it.
 ## See it
 
 Save, and watch the terminal: `collage dev` rebuilds and restarts. Now open
-[localhost:3000/recipes/pancakes](http://localhost:3000/recipes/pancakes).
+[localhost:6060/recipes/pancakes](http://localhost:6060/recipes/pancakes).
 
 The page is the layout with your fragment in its `content` slot. Edit
 `templates/pages/recipe.html` — add a sentence, change a heading — and the browser
 reloads with the change; no rebuild happened, because templates are read from disk
 on every request in development.
 
-Now try [/recipes/lasagne](http://localhost:3000/recipes/lasagne). `recipes.Get`
+Now try [/recipes/lasagne](http://localhost:6060/recipes/lasagne). `recipes.Get`
 wrapped `collage.ErrNotFound`, the fragment is `Required()`, so the response is a
 404. The body is collage's own plain not-found page, because the project has not
 registered one; `app.RegisterNotFoundPage` gives the site its own — see

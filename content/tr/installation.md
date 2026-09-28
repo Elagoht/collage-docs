@@ -51,12 +51,11 @@ Scaffolded "mysite" in mysite
 Next steps:
   cd mysite
   go mod tidy
-  cp .env.example .env.development
   collage dev
 ```
 
-Minimal bir projede (aşağıda) `.env.example` yoktur, bu yüzden onun adımlarında `cp`
-satırı yer almaz. `go mod tidy` framework'ü indirir. Scaffold edilen `go.mod`
+Demo projesinde (aşağıda) bir de `.env.example` vardır, bu yüzden onun adımlarında
+`collage dev`'den önce `cp .env.example .env.development` satırı da yer alır. `go mod tidy` framework'ü indirir. Scaffold edilen `go.mod`
 yalnızca modülün adını ve Go sürümünü içerir. Bu yüzden projenin hangi collage
 sürümüyle build edildiğini kaydeden şey ilk `tidy` çalıştırmasıdır.
 
@@ -65,20 +64,20 @@ Birkaç flag, projenin nereye ve nasıl yazılacağını değiştirir. Flag'leri
 
 | Flag | Etkisi |
 | --- | --- |
-| `--template minimal` | Tek bir page'i saran bir layout ve bir stylesheet oluşturur, demo içermez. Varsayılan değer `--template demo`'dur |
+| `--template demo` | Demoları, testlerini ve bir `.env.example` oluşturur. v0.32.0'dan beri varsayılan `--template minimal`'dir: tek bir page'i saran bir layout ve bir stylesheet |
 | `-dir path` | Projeyi `./<name>` yerine `path` içine scaffold eder |
 | `-module path` | `go.mod`'daki module path'i belirler, örneğin `github.com/you/mysite`. Varsayılan değer proje adıdır |
 | `-force` | Boş olmayan bir dizine de scaffold eder |
 
 ```sh
 collage new mysite -module github.com/you/mysite
-collage new mysite --template minimal
+collage new mysite --template demo
 collage new mysite -dir . -force
 ```
 
 ### Demolarla ya da demolar olmadan
 
-Varsayılan template olan `demo`, bir ana sayfa ve canlı demolarla dolu bir
+`--template demo`, bir ana sayfa ve canlı demolarla dolu bir
 `/features` page'i oluşturur. Bu demolar şunlardır: bir API action'ına post
 edip cache'lenmiş bir page'i tag ile invalidate eden bir buton, kendi page'ine
 post edilen bir HTML form, kendi URL'sinde açılabilen bir saat fragment'i ve
@@ -86,7 +85,7 @@ post edilen bir HTML form, kendi URL'sinde açılabilen bir saat fragment'i ve
 en hızlı yolu budur. Her birinin arkasındaki kod da tek oturuşta okunacak kadar
 kısadır.
 
-`--template minimal` aynı `main.go`'yu ve aynı dizin yapısını oluşturur. İçinde
+Varsayılan template olan `minimal` aynı `main.go`'yu ve aynı dizin yapısını oluşturur. İçinde
 yalnızca "hello" diyen tek bir page'i saran bir layout ve dark mode'u olan bir
 stylesheet bulunur. Silmeniz gereken hiçbir şey yoktur. Gerçek bir siteye
 başlarken bunu kullanın. [İlk page'iniz](/docs/your-first-page) rehberi de minimal
@@ -157,11 +156,11 @@ zaman stale bir page'in arkasında kalmaz. [Caching](/docs/caching) sayfasına b
 
 ## Environment dosyası
 
-Scaffold, bir `.env.example` dosyasıyla gelir:
+Demo projesi bir `.env.example` dosyasıyla gelir. Minimal projede dosyayı kendiniz yazın:
 
 ```sh
 COLLAGE_CSRF_KEY=
-PORT=3000
+PORT=6060
 HOST=localhost
 ```
 
@@ -214,7 +213,7 @@ openssl rand -hex 32
 collage dev
 ```
 
-Site [http://localhost:3000](http://localhost:3000) adresinde açılır. Bu adres
+Site [http://localhost:6060](http://localhost:6060) adresinde açılır (v0.32.0'dan önce port 3000'di). Bu adres
 `collage dev`'in kendisidir: `HOST` ve `PORT`'u programınızın okuyacağı şekilde
 okuyup orada dinler. Her request'i, loopback bir adreste çalıştırdığı programa
 iletir. Program başlarken gelen bir request, programı bekler. `collage dev`
@@ -229,7 +228,7 @@ ve environment dosyasını. Bunlardan biri değiştiğinde projeyi yeniden build
 Önce yeni build alınır. Eski process ancak yeni build başarıyla derlendikten sonra
 düzgünce durdurulur ve yenisi başlatılır. Derlenmeyen bir değişiklikte son sağlam
 build serve etmeye devam eder ve compiler'ın hatası terminale yazılır. Böylece bir
-yazım hatası yüzünden `localhost:3000` hiçbir zaman boş kalmaz.
+yazım hatası yüzünden `localhost:6060` hiçbir zaman boş kalmaz.
 
 Art arda yapılan kayıtlar tek bir rebuild tetikler. Gizli dizinler, `bin`, `dist`,
 `node_modules`, `testdata` ve `vendor` hiçbir zaman izlenmez. Böylece çalışan

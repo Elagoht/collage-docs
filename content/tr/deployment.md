@@ -23,7 +23,7 @@ collage build
 yerinize çalıştırır:
 
 ```sh
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o bin/mysite .
+CGO_ENABLED=0 GOOS=<os> GOARCH=<arch> go build -trimpath -ldflags="-s -w" -o bin/mysite .
 ```
 
 - **CGO kapalıdır**, çünkü ne collage ne de standart kütüphane C'ye ihtiyaç duyar.
@@ -31,15 +31,15 @@ CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o bin
 - **`-trimpath`** sayesinde binary, kendisini build eden makinenin path'lerini
   taşımaz.
 - **`-s -w`** debug tablolarını atar. Boyutun büyük kısmı bu tablolardır.
-- **Varsayılan hedef bu makine değil, linux/amd64'tür.** Mac için build edilmiş bir
-  binary Linux container'ında çalışmaz. Bunu sunucuda bir `exec format error` ile
-  öğrenmek istemezsiniz.
+- **Varsayılan hedef bu makinedir** (v0.32.0'dan beri; öncesinde linux/amd64). Mac
+  için build edilmiş bir binary Linux container'ında çalışmaz. O yüzden sunucu için
+  hedefi belirtin: `collage build -os linux -arch amd64`.
 
 | Flag | Varsayılan | Anlamı |
 | --- | --- | --- |
 | `-o path` | `bin/<module name>` | Binary'nin yazılacağı yer. |
-| `-os name` | `linux` | Hedef işletim sistemi. |
-| `-arch name` | `amd64` | Hedef mimari. Graviton ya da Ampere makineler için `arm64` kullanın. |
+| `-os name` | bu makineninki | Hedef işletim sistemi. Çoğu sunucu için `linux`. |
+| `-arch name` | bu makineninki | Hedef mimari: `amd64`, Graviton ya da Ampere makineler için `arm64`. |
 | `-i` | kapalı | Binary'nin yanına bir Dockerfile ve bir systemd unit'i yazmayı önerir. |
 
 Binary `dist/`'e değil, `bin/`'e yazılır. `dist/` dizini `collage export`'a aittir
@@ -56,7 +56,7 @@ her açılışta yeniden derleme yapar.
 unit'i yazıp yazmayacağını sorar:
 
 ```sh
-$ collage build -i
+$ collage build -i -os linux -arch amd64
 Building mysite for linux/amd64.
 
   Write a Dockerfile? [y/N]: y
@@ -121,7 +121,7 @@ hiçbir şey yoktur, çünkü onlar `collage dev` içindir. Bu değişkenleri bi
 | Değişken | Varsayılan | Değeri |
 | --- | --- | --- |
 | `HOST` | `localhost` | Container'da `0.0.0.0`. `localhost` makinenin dışından gelen hiçbir bağlantıyı kabul etmez. Bu, yerel bir reverse proxy'nin arkasında doğrudur, başka her yerde yanlıştır. |
-| `PORT` | `3000` | Platformunuz hangi port'u atıyorsa o. Binary'nin `-port` flag'i bu değeri ezer. |
+| `PORT` | `6060` | Platformunuz hangi port'u atıyorsa o. Binary'nin `-port` flag'i bu değeri ezer. |
 | `COLLAGE_CSRF_KEY` | üretilir | En az 32 rastgele byte. **Bunu mutlaka ayarlayın.** |
 | `COLLAGE_DEV` | ayarlı değil | **Hiçbir şey; ayarlamadan bırakın.** `collage dev` bu değişkeni `1` yapar ve development mode'u açar. Bu modda template'ler ve static dosyalar diskten okunur, cache bellekte tutulur ama hiç okunmaz, error page'lerde hata zincirinin tamamı gösterilir. Bu değişkenle çalışan bir sunucu bir development sunucusudur. |
 
@@ -244,8 +244,8 @@ Platformunuzun liveness check'ini bu adrese yönlendirin. Bu check size process'
 ayakta olduğunu ve request'lere cevap verdiğini söyler. Veritabanınıza
 ulaşılamadığında da başarısız olması gereken bir readiness check istiyorsanız, onu aynı
 şekilde kendi document'ınız olarak yazarsınız. Document bir hata dönerse 500 ile
-cevap verir. `collage new --template minimal` ile oluşturulan projede `/healthz`
-yoktur. İsterseniz demo scaffold'undaki `documents/health.go` dosyasını kopyalayın.
+cevap verir. Minimal projede, yani `--template demo` olmadan `collage new` ile oluşturulan
+projede `/healthz` yoktur. İsterseniz demo scaffold'undaki `documents/health.go` dosyasını kopyalayın.
 
 ## Production'da page cache
 

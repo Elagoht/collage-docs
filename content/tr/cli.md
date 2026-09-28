@@ -50,21 +50,21 @@ kullanır: `-out dist` ile `-out=dist` aynıdır, `--out` da çalışır.
 ## collage new
 
 ```sh
-collage new <name> [--template demo|minimal] [--dir path] [--module path] [--force]
+collage new <name> [--template minimal|demo] [--dir path] [--module path] [--force]
 ```
 
 `<name>` adında, çalıştırılmaya hazır yeni bir proje scaffold eder.
 
 | Flag | Varsayılan | Anlamı |
 | --- | --- | --- |
-| `--template name` | `demo` | Scaffold edilecek proje: `demo` ya da `minimal` (v0.14.2'den beri; `-minimal`'in yerini alır) |
+| `--template name` | `minimal` | Scaffold edilecek proje: `minimal` ya da `demo` (v0.14.2'den beri; v0.32.0'dan beri varsayılan `minimal`, öncesinde `demo`) |
 | `-dir path` | `./<name>` | Projenin scaffold edileceği dizin |
 | `-module path` | `<name>` | `go.mod`'a yazılan module path |
 | `-force` | kapalı | Dizin boş olmasa da scaffold eder |
 
 ```sh
-collage new myblog                                   # into ./myblog, module "myblog"
-collage new myblog --template minimal                # one page, nothing to delete
+collage new myblog                                   # into ./myblog, module "myblog", one page
+collage new myblog --template demo                   # the demos, their tests, a .env.example
 collage new myblog -module github.com/me/myblog
 collage new myblog -dir . -force                     # into the current, non-empty directory
 ```
@@ -84,14 +84,14 @@ başlığının yerine geçer); template'ine proje adını `WithData` ile veren 
 sayfa (içinde hiçbir şey veri çekmediği için `Static()` demeden static'tir);
 `static/`, bir `.gitignore` ve bir README.
 
-**Demo projesi** varsayılan projedir. Buna canlı demolardan oluşan bir page ekler:
+**`--template demo`**, projeye canlı demolardan oluşan bir page ekler:
 JSON dönen bir action, kendi page'ine post eden bir form, kendi URL'si olan bir
 fragment ve bir JSON document. Bunlar `pages/`, `fragments/`, `actions/`,
 `documents/` ve `store/` dizinlerine dağıtılmıştır. Demo projesi ayrıca bir
 not-found page'i, her biri için testleri, `plugins-config.json`'ı, bir favicon'u
 ve bir `.env.example`'ı da ekler.
 
-**`--template minimal`** bir projenin olabileceği en yalın hâldir. İçinde tek bir
+**Minimal proje**, v0.32.0'dan beri varsayılan projedir ve bir projenin olabileceği en yalın hâldir. İçinde tek bir
 page'i saran layout vardır. Bu page `<h1>Hello from {{.Name}}</h1>` satırından
 ibarettir; `{{.Name}}`, template'e `WithData` ile verilen proje adıdır.
 Bunun yanında arka plan ve metin rengini dark mode dahil ayarlayan bir stylesheet
@@ -99,13 +99,13 @@ bulunur. Başka hiçbir şey yoktur: test yoktur, not-found page'i de yoktur. Si
 not-found page'i register edene kadar collage bilinmeyen adreslere kendi sade 404'üyle
 cevap verir.
 
-İş bittiğinde sonraki adımları yazdırır. `cp` satırı yalnızca demo projesinde,
-yani `.env.example` dosyası olan projede yazdırılır:
+İş bittiğinde sonraki adımları yazdırır. `.env.example` dosyası olan demo
+projesinde, `collage dev`'den önce bir de `cp .env.example .env.development` satırı
+yazdırılır:
 
 ```sh
 cd myblog
 go mod tidy
-cp .env.example .env.development
 collage dev
 ```
 
@@ -122,11 +122,27 @@ sinyali programa da ulaşır ve program production'da nasıl kapanıyorsa öyle
 kapanır.
 
 Tarayıcı programla değil, `collage dev` ile konuşur. `collage dev`, programınızın
-okuyacağı şekilde `HOST` ve `PORT` üzerinde dinler (varsayılan olarak
-`localhost:3000`). Her request'i programa iletir. Programı ise `HOST` ve `PORT`'u
+okuyacağı şekilde `HOST` ve `PORT` üzerinde dinler (v0.32.0'dan beri
+varsayılan olarak `localhost:6060`, öncesinde `localhost:3000`). Her request'i programa iletir. Programı ise `HOST` ve `PORT`'u
 kendine ait bir loopback adresine ayarlayarak başlatır. Cevap verecek bir
 program olmadığında [hataları tarayıcıda gösterebilmesi](#errors-in-the-browser)
 bu sayede mümkündür.
+
+Programın yazdıkları terminale programın yazdığı gibi ulaşır, tek bir farkla:
+programın kendi adresi `collage dev`'in adresiyle değiştirilir. Böylece
+`collage: listening` satırı açmanız gereken adresi gösterir (v0.32.0'dan beri).
+Renkli bir terminalde program `FORCE_COLOR=1` ile başlatılır ve
+[varsayılan logger](/docs/configuration#logger) bunu dikkate alır. Programın çıktısı
+`collage dev`'e bir pipe üzerinden ulaşsa da satırları saatini, renkli işaretlerini
+ve soluk attribute'larını korur. `collage dev`'in kendi satırları da aynı biçimdedir.
+`NO_COLOR` ikisini de kapatır.
+
+```text
+16:10:23 • collage dev: serving http://localhost:6060
+16:10:24 • collage: listening  addr=localhost:6060
+16:10:29 • collage dev: change detected, rebuilding
+16:10:29 ✗ collage dev: build failed; the last good build is still serving
+```
 
 Scaffold edilen `main.go`, `COLLAGE_DEV=1` ayarlı olduğunda development modunu açar
 ve kendisine verilen `HOST` ve `PORT` üzerinde dinler. Development modu template'leri
@@ -195,7 +211,7 @@ dosyasını kullanır. Her zaman tek bir dosya okunur, asla ikisi birden okunmaz
 
 ```sh
 # .env.development
-PORT=3000
+PORT=6060
 HOST=localhost
 export COLLAGE_CSRF_KEY="0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0"
 ```
@@ -205,7 +221,7 @@ export COLLAGE_CSRF_KEY="0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b
   da çift tırnak içine de alınabilir. Tırnaklar kaldırılır ve içlerindeki hiçbir
   şey yorumlanmaz.
 - Tırnaksız bir değer, boşluktan sonra gelen ilk `#` işaretinde biter. Yani
-  `PORT=3000 # dev` satırının değeri `3000`'dir.
+  `PORT=6060 # dev` satırının değeri `6060`'tır.
 - Key'ler harf, rakam ve alt çizgiden oluşur ve rakamla başlayamaz.
 - **Hatalı bir satır programın başlamasını engeller.** `collage dev` hatayı dosya
   adı ve satır numarasıyla (`.env.development:3`) bildirir. Satır düzeltilene
@@ -236,14 +252,14 @@ Bulunduğunuz dizindeki projeyi deploy edeceğiniz binary'ye derler. Çalıştı
 komut şudur:
 
 ```sh
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o bin/<name> .
+CGO_ENABLED=0 GOOS=<os> GOARCH=<arch> go build -trimpath -ldflags="-s -w" -o bin/<name> .
 ```
 
 | Flag | Varsayılan | Anlamı |
 | --- | --- | --- |
 | `-o path` | `bin/<name>` | Binary'nin yazılacağı yer |
-| `-os name` | `linux` | Hedef işletim sistemi (`GOOS`) |
-| `-arch name` | `amd64` | Hedef mimari (`GOARCH`) |
+| `-os name` | bu makineninki | Hedef işletim sistemi (`GOOS`) |
+| `-arch name` | bu makineninki | Hedef mimari (`GOARCH`) |
 | `-i` | kapalı | Binary'nin yanına hangi ek dosyaların yazılacağını sorar |
 
 `<name>`, `go.mod`'daki module path'in son parçasıdır. Dizinde `go.mod` yoksa ya da
@@ -258,9 +274,10 @@ Bu ayarların nedenleri:
 - **`-trimpath`** kullanılır, böylece binary onu derleyen makinedeki path'leri
   içermez.
 - **`-s -w`** debug tablolarını çıkarır. Boyutun büyük kısmı bu tablolardır.
-- **Varsayılan hedef**, üzerinde çalıştığınız makine değil **linux/amd64**'tür.
-  Mac'te derlenen bir binary Linux container'ında çalışmaz. Bunu sunucuda
-  "exec format error" alarak öğrenmek istemezsiniz.
+- **Varsayılan hedef üzerinde çalıştığınız makinedir** (v0.32.0'dan beri; öncesinde
+  linux/amd64). Böylece binary derlendiği yerde çalışır. Sunucu çoğu zaman başka bir
+  platformdur: Mac'te derlenen bir binary Linux container'ında çalışmaz. O yüzden
+  sunucu için hedefi belirtin: `collage build -os linux -arch amd64`.
 - **Binary `dist/` yerine `bin/` dizinine yazılır.** `dist/`, `collage export`'un
   yazdığı yerdir ve `export -clean` onu boşaltır.
 
@@ -345,7 +362,7 @@ sunar, projenizi çalıştırmaz.
 | `-host name` | `localhost` | Dinlenecek interface |
 | `-port n` | `4000` | Dinlenecek port |
 
-Port 3000 değil 4000'dir, böylece `collage dev` ile yan yana çalışabilir. İkisini
+Port 6060 değil 4000'dir, böylece `collage dev` ile yan yana çalışabilir. İkisini
 karşılaştırmak istediğiniz an da tam olarak budur.
 
 Sıradan bir dosya sunucusu gibi değil, bir static host gibi davranır:
@@ -444,7 +461,7 @@ func main() {
 	buildFlag := flag.Bool("collage-build", false, "render the app to static files instead of serving it")
 	outFlag := flag.String("out", "dist", "output directory for -collage-build")
 	cleanFlag := flag.Bool("clean", false, "remove -out's existing contents before building")
-	portFlag := flag.Int("port", envInt("PORT", 3000), "port to listen on (env PORT)")
+	portFlag := flag.Int("port", envInt("PORT", 6060), "port to listen on (env PORT)")
 	flag.Parse()
 
 	devMode := os.Getenv("COLLAGE_DEV") == "1"

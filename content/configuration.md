@@ -84,7 +84,9 @@ on the next render — rather than a copy loaded at startup — is up to your co
 `nil`, the default, lets the framework choose when it builds the application: on a
 terminal — and only when nothing has replaced slog's default handler — a compact
 handler meant for a person, one line per record with a coloured level marker.
-Anywhere else it is `slog.Default()`, unchanged. An application that called
+Anywhere else it is `slog.Default()`, unchanged — except where `FORCE_COLOR` is
+set, as [`collage dev`](/docs/cli#collage-dev) does for the program it runs on a
+colour terminal, and `NO_COLOR` is not (since v0.32.0). An application that called
 `slog.SetDefault` keeps its handler. Pass a logger to be certain, such as a JSON
 handler for logs a machine reads. `ApplyDefaults` leaves this field `nil`.
 
@@ -122,7 +124,7 @@ spelling it was posted to.
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `Host` | `string` | `"localhost"` | Address the server listens on. |
-| `Port` | `int` | `3000` | TCP port, `1`–`65535`. |
+| `Port` | `int` | `6060` (`3000` before v0.32.0) | TCP port, `1`–`65535`. |
 | `ReadTimeout` | `time.Duration` | `15s` | How long reading a request may take. |
 | `WriteTimeout` | `time.Duration` | `30s` | How long writing a response may take. |
 | `IdleTimeout` | `time.Duration` | `60s` | How long a keep-alive connection may sit idle. |
@@ -379,7 +381,7 @@ app, err := collage.New(&collage.Config{
 	DevMode: os.Getenv("COLLAGE_DEV") == "1",
 	Server: collage.ServerConfig{
 		Host: envString("HOST", "localhost"),
-		Port: envInt("PORT", 3000),
+		Port: envInt("PORT", 6060),
 	},
 	Template: collage.TemplateConfig{
 		FS:        templatesFS,

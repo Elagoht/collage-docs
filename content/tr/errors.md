@@ -39,7 +39,7 @@ ortaya çıkarlar. Bkz. [Config](/docs/configuration#validation).
 | Hata | Mesaj | Anlamı | Ne yapmalı |
 | --- | --- | --- | --- |
 | `ErrNilConfig` | `collage: nil config` | `New(nil)` çağrılmıştır. | Bir `*Config` verin; zero value'su da yeterlidir. |
-| `ErrInvalidPort` | `collage: invalid port` | `Server.Port`, `1`–`65535` aralığının dışındadır. | `3000` için sıfır bırakın ya da geçerli bir port verin. |
+| `ErrInvalidPort` | `collage: invalid port` | `Server.Port`, `1`–`65535` aralığının dışındadır. | `6060` için sıfır bırakın ya da geçerli bir port verin. |
 | `ErrEmptyTemplateRoot` | `collage: empty template root` | `Template.Root` boştur ve `Template.FS` nil'dir. | Bu hataya yalnızca `Validate`'i kendiniz çağırırsanız ulaşılır; `New` önce `Root` için varsayılan değeri atar. |
 | `ErrTemplateRootMissing` | `collage: template root missing` | `Template.Root` yoktur ya da bir dizin değildir. | En yaygın başlangıç hatasıdır. Çalışma dizinini kontrol edin ya da template'leri embed edin. |
 | `ErrTemplateEscapesRoot` | `collage: template escapes root` | `Template.Root` altındaki bir template, onun dışına çıkan bir yere çözülür. Bu, dizinin dışına giden bir symlink'tir. | Dosyaya link vermek yerine onu dizine kopyalayın. |

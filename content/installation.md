@@ -49,11 +49,11 @@ Scaffolded "mysite" in mysite
 Next steps:
   cd mysite
   go mod tidy
-  cp .env.example .env.development
   collage dev
 ```
 
-A minimal project (below) has no `.env.example`, so its steps leave out the `cp`.
+A demo project (below) also has a `.env.example`, so its steps add
+`cp .env.example .env.development` before `collage dev`.
 `go mod tidy` fetches the framework. The scaffolded `go.mod` names only the module
 and the Go version, so the first tidy is what records which collage release the
 project is built against.
@@ -63,26 +63,26 @@ come before or after the name:
 
 | Flag | Effect |
 | --- | --- |
-| `--template minimal` | One layout around one page and a stylesheet — no demos. The default is `--template demo` |
+| `--template demo` | The demos, their tests and a `.env.example`. The default, since v0.32.0, is `--template minimal`: one layout around one page and a stylesheet |
 | `-dir path` | Scaffold into `path` instead of `./<name>` |
 | `-module path` | The module path in `go.mod`, such as `github.com/you/mysite`. Defaults to the name |
 | `-force` | Scaffold into a directory that is not empty |
 
 ```sh
 collage new mysite -module github.com/you/mysite
-collage new mysite --template minimal
+collage new mysite --template demo
 collage new mysite -dir . -force
 ```
 
 ### With the demos, or without
 
-The default template, `demo`, gives you a home page and a `/features` page of live demos: a
+`--template demo` gives you a home page and a `/features` page of live demos: a
 button posting to an API action that invalidates a cached page by tag, an HTML
 form posting to its own page, a clock fragment opened at its own URL, and a JSON
 document at `/healthz`. It is the quickest way to see each of those working, and
 the code behind each is short enough to read in one sitting.
 
-`--template minimal` gives you the same `main.go` and directory layout, and in it
+The default, `minimal`, gives you the same `main.go` and directory layout, and in it
 only a layout around one page saying hello, with a stylesheet that has a dark
 mode — nothing to delete. Use it when you are starting a real site.
 [Your first page](/docs/your-first-page) starts from a minimal project.
@@ -149,11 +149,11 @@ stale page. See [Caching](/docs/caching).
 
 ## The environment file
 
-The scaffold ships `.env.example`:
+A demo project ships `.env.example`; in a minimal one, write the file yourself:
 
 ```sh
 COLLAGE_CSRF_KEY=
-PORT=3000
+PORT=6060
 HOST=localhost
 ```
 
@@ -202,7 +202,7 @@ openssl rand -hex 32
 collage dev
 ```
 
-The site is at [http://localhost:3000](http://localhost:3000). That address is
+The site is at [http://localhost:6060](http://localhost:6060) (port 3000 before v0.32.0). That address is
 `collage dev` itself: it listens on `HOST` and `PORT` as your program would read
 them, and passes each request on to the program, which it runs on a loopback
 address of its own. A request made while the program is starting waits for it.
@@ -217,7 +217,7 @@ environment file — and on a change it rebuilds.
 The new build is made first. Only once it compiles is the old process stopped,
 gracefully, and the new one started. A change that does not compile leaves the
 last good build serving and prints the compiler's error in the terminal, so a
-typo never leaves you with nothing at `localhost:3000`.
+typo never leaves you with nothing at `localhost:6060`.
 
 A burst of saves is one rebuild. Hidden directories, `bin`, `dist`,
 `node_modules`, `testdata` and `vendor` are never watched, so nothing the running

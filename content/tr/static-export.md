@@ -361,7 +361,7 @@ collage serve -dir public -port 8000
   görürsünüz.
 
 Flag'leri `-dir` (varsayılan `dist`), `-host` (varsayılan `localhost`) ve `-port`'tur.
-`-port`'un varsayılanı `4000`'dir, 3000 değildir. Böylece ikisini karşılaştırırken
+`-port`'un varsayılanı `4000`'dir, 6060 değildir. Böylece ikisini karşılaştırırken
 `collage dev` ile yan yana çalışabilir. `collage serve` yalnızca dosya sunar,
 projenizi çalıştırmaz.
 

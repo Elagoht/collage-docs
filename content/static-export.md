@@ -340,7 +340,7 @@ collage serve -dir public -port 8000
 - Nothing is cached, so exporting again and reloading shows the new output.
 
 Its flags are `-dir` (default `dist`), `-host` (default `localhost`) and `-port`
-(default `4000` — not 3000, so it can run next to `collage dev` while you compare
+(default `4000` — not 6060, so it can run next to `collage dev` while you compare
 them). It serves files; it does not run your project.
 
 ## Hosting

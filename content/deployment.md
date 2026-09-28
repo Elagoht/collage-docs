@@ -21,7 +21,7 @@ collage build
 `collage build` runs the `go build` you would otherwise have to remember:
 
 ```sh
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o bin/mysite .
+CGO_ENABLED=0 GOOS=<os> GOARCH=<arch> go build -trimpath -ldflags="-s -w" -o bin/mysite .
 ```
 
 - **CGO off**, because collage and the standard library need no C, and a static
@@ -29,15 +29,15 @@ CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o bin
 - **`-trimpath`**, so the binary does not carry the paths of the machine that built
   it.
 - **`-s -w`** drops the debug tables, which is most of the size.
-- **linux/amd64 by default, not this machine.** A binary built for a Mac does not run
-  in a Linux container, and `exec format error` on a server is the wrong place to
-  find that out.
+- **This machine by default** (since v0.32.0; linux/amd64 before). A binary built
+  for a Mac does not run in a Linux container, so for a server name the target:
+  `collage build -os linux -arch amd64`.
 
 | Flag | Default | Meaning |
 | --- | --- | --- |
 | `-o path` | `bin/<module name>` | Where the binary is written. |
-| `-os name` | `linux` | Target operating system. |
-| `-arch name` | `amd64` | Target architecture — `arm64` for Graviton or Ampere machines. |
+| `-os name` | this machine's | Target operating system — `linux` for most servers. |
+| `-arch name` | this machine's | Target architecture — `amd64`, or `arm64` for Graviton or Ampere machines. |
 | `-i` | off | Offer to write a Dockerfile and a systemd unit beside the binary. |
 
 The binary goes in `bin/`, not `dist/`: `dist/` belongs to `collage export`, whose
@@ -53,7 +53,7 @@ With `-i`, `collage build` asks whether to write a `Dockerfile` and a systemd un
 next to the binary:
 
 ```sh
-$ collage build -i
+$ collage build -i -os linux -arch amd64
 Building mysite for linux/amd64.
 
   Write a Dockerfile? [y/N]: y
@@ -116,7 +116,7 @@ production — those are for `collage dev` — so set them wherever the binary r
 | Variable | Default | Set it to |
 | --- | --- | --- |
 | `HOST` | `localhost` | `0.0.0.0` in a container. `localhost` accepts nothing from outside the machine, which is right behind a local reverse proxy and wrong everywhere else. |
-| `PORT` | `3000` | Whatever your platform assigns. The binary's `-port` flag overrides it. |
+| `PORT` | `6060` | Whatever your platform assigns. The binary's `-port` flag overrides it. |
 | `COLLAGE_CSRF_KEY` | generated | At least 32 random bytes. **Set this.** |
 | `COLLAGE_DEV` | unset | **Nothing — leave it unset.** `collage dev` sets it to `1`, which turns on development mode: templates and static files read from disk, an in-memory cache that is never read, full error chains on error pages. A server running with it is a development server. |
 
@@ -227,7 +227,7 @@ served from a cache would answer `ok` long after it stopped being true.
 Point your platform's liveness check at it. It tells you the process is up and
 serving. A readiness check that should also fail when your database is unreachable
 is a document of your own, written the same way; return an error and it answers 500.
-A project made with `collage new --template minimal` has no `/healthz`; copy the
+A minimal project — `collage new` without `--template demo` — has no `/healthz`; copy the
 demo scaffold's `documents/health.go` if you want one.
 
 ## The page cache in production

@@ -18,13 +18,13 @@ Go ve `collage` CLI kurulu olmalı; bkz. [Kurulum](/docs/installation).
 ## Bir proje başlatın
 
 ```sh
-collage new cookbook --template minimal
+collage new cookbook
 cd cookbook
 go mod tidy
 collage dev
 ```
 
-[http://localhost:3000](http://localhost:3000) adresini açın ve `collage dev`'i
+[http://localhost:6060](http://localhost:6060) adresini açın ve `collage dev`'i
 çalışır hâlde bırakın. Bundan sonra kaydettiğiniz her Go dosyası yeniden build
 edilir ve tarayıcı kendini yeniler. Kaydettiğiniz her template ise rebuild
 gerekmeden bir sonraki render'da görünür.
@@ -296,7 +296,7 @@ alır.
 
 Kaydedin ve terminali izleyin: `collage dev` projeyi yeniden build eder ve yeniden
 başlatır. Ardından
-[localhost:3000/recipes/pancakes](http://localhost:3000/recipes/pancakes)
+[localhost:6060/recipes/pancakes](http://localhost:6060/recipes/pancakes)
 adresini açın.
 
 Gördüğünüz page, `content` slot'una sizin fragment'iniz yerleştirilmiş layout'tur.
@@ -304,7 +304,7 @@ Gördüğünüz page, `content` slot'una sizin fragment'iniz yerleştirilmiş la
 bir başlığı değiştirin. Tarayıcı değişiklikle birlikte yenilenir. Bu sırada rebuild
 yapılmadı, çünkü development'ta template'ler her request'te diskten okunur.
 
-Şimdi [/recipes/lasagne](http://localhost:3000/recipes/lasagne) adresini deneyin.
+Şimdi [/recipes/lasagne](http://localhost:6060/recipes/lasagne) adresini deneyin.
 `recipes.Get`, `collage.ErrNotFound`'u sardı ve fragment `Required()` olduğu için
 response 404 olur. Proje kendi not-found page'ini register etmediği için response
 body'si, collage'ın built-in ve sade not-found page'idir. `app.RegisterNotFoundPage`

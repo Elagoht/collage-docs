@@ -39,7 +39,7 @@ application. See [Configuration](/docs/configuration#validation).
 | Error | Message | Means | What to do |
 | --- | --- | --- | --- |
 | `ErrNilConfig` | `collage: nil config` | `New(nil)`. | Pass a `*Config`; its zero value is fine. |
-| `ErrInvalidPort` | `collage: invalid port` | `Server.Port` is outside `1`–`65535`. | Leave it zero for `3000`, or set a valid port. |
+| `ErrInvalidPort` | `collage: invalid port` | `Server.Port` is outside `1`–`65535`. | Leave it zero for `6060`, or set a valid port. |
 | `ErrEmptyTemplateRoot` | `collage: empty template root` | `Template.Root` is empty and `Template.FS` is nil. | Only reachable by calling `Validate` yourself; `New` defaults `Root` first. |
 | `ErrTemplateRootMissing` | `collage: template root missing` | `Template.Root` does not exist or is not a directory. | The most common startup failure: check the working directory, or embed the templates. |
 | `ErrTemplateEscapesRoot` | `collage: template escapes root` | A template under `Template.Root` resolves outside it — a symlink leading out of the directory. | Copy the file in rather than linking to it. |

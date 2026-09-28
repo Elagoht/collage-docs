@@ -87,7 +87,9 @@ Varsayılan değer olan `nil`, seçimi framework'e bırakır ve framework uygula
 kurarken seçer. Terminalde, ve yalnızca slog'un varsayılan handler'ını hiçbir şey
 değiştirmemişse, insanların okuması için tasarlanmış kompakt bir handler kullanılır.
 Bu handler her kaydı tek satırda ve renkli bir level işaretiyle yazar. Diğer bütün
-ortamlarda `slog.Default()` olduğu gibi kullanılır. `slog.SetDefault`'u çağırmış bir
+ortamlarda `slog.Default()` olduğu gibi kullanılır. İstisnası, `NO_COLOR` ayarlı
+değilken `FORCE_COLOR`'ın ayarlı olmasıdır (v0.32.0'dan beri): [`collage dev`](/docs/cli#collage-dev)
+renkli bir terminalde çalıştırdığı program için bunu ayarlar. `slog.SetDefault`'u çağırmış bir
 uygulama kendi handler'ını korur. Sonuçtan emin olmak istiyorsanız bir logger verin,
 örneğin makinelerin okuyacağı loglar için bir JSON handler. `ApplyDefaults` bu alanı
 `nil` bırakır.
@@ -130,7 +132,7 @@ action ise hangi yazıma post edildiyse o adreste cevap verir.
 | Alan | Tip | Varsayılan | Anlamı |
 | --- | --- | --- | --- |
 | `Host` | `string` | `"localhost"` | Sunucunun dinlediği adres. |
-| `Port` | `int` | `3000` | TCP port'u, `1`–`65535`. |
+| `Port` | `int` | `6060` (v0.32.0'dan önce `3000`) | TCP port'u, `1`–`65535`. |
 | `ReadTimeout` | `time.Duration` | `15s` | Bir request'i okumanın en fazla ne kadar sürebileceği. |
 | `WriteTimeout` | `time.Duration` | `30s` | Bir response'u yazmanın en fazla ne kadar sürebileceği. |
 | `IdleTimeout` | `time.Duration` | `60s` | Bir keep-alive bağlantısının en fazla ne kadar boşta bekleyebileceği. |
@@ -404,7 +406,7 @@ app, err := collage.New(&collage.Config{
 	DevMode: os.Getenv("COLLAGE_DEV") == "1",
 	Server: collage.ServerConfig{
 		Host: envString("HOST", "localhost"),
-		Port: envInt("PORT", 3000),
+		Port: envInt("PORT", 6060),
 	},
 	Template: collage.TemplateConfig{
 		FS:        templatesFS,

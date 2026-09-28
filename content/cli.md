@@ -49,21 +49,21 @@ are the same, and `--out` works too.
 ## collage new
 
 ```sh
-collage new <name> [--template demo|minimal] [--dir path] [--module path] [--force]
+collage new <name> [--template minimal|demo] [--dir path] [--module path] [--force]
 ```
 
 Scaffolds a new, runnable project named `<name>`.
 
 | Flag | Default | Meaning |
 | --- | --- | --- |
-| `--template name` | `demo` | The project to scaffold: `demo` or `minimal` (since v0.14.2; it replaces `-minimal`) |
+| `--template name` | `minimal` | The project to scaffold: `minimal` or `demo` (since v0.14.2; the default is `minimal` since v0.32.0, `demo` before) |
 | `-dir path` | `./<name>` | Directory to scaffold into |
 | `-module path` | `<name>` | The module path written into `go.mod` |
 | `-force` | off | Scaffold into a non-empty directory anyway |
 
 ```sh
-collage new myblog                                   # into ./myblog, module "myblog"
-collage new myblog --template minimal                # one page, nothing to delete
+collage new myblog                                   # into ./myblog, module "myblog", one page
+collage new myblog --template demo                   # the demos, their tests, a .env.example
 collage new myblog -module github.com/me/myblog
 collage new myblog -dir . -force                     # into the current, non-empty directory
 ```
@@ -81,25 +81,24 @@ page's own title replaces the site's), a home page that hands its template the
 project's name with `WithData` — static without saying `Static()`, because nothing
 in it fetches — `static/`, a `.gitignore` and a README.
 
-**The demo project**, the default, adds a page of live demos — an action answering
+**`--template demo`** adds a page of live demos — an action answering
 JSON, a form posting to its own page, a fragment with its own URL, a JSON
 document — split into `pages/`, `fragments/`, `actions/`, `documents/` and
 `store/`, a not-found page, tests for each, `plugins-config.json`, a favicon and a
 `.env.example`.
 
-**`--template minimal`** is the least a project can be: the layout around one
+**The minimal project**, the default since v0.32.0, is the least a project can be: the layout around one
 page, `<h1>Hello from {{.Name}}</h1>` — the project's name, handed to the
 template with `WithData` — and a stylesheet that sets the background and text
 colour, dark mode included. Nothing else — no tests, and no not-found page:
 collage answers an unknown address with its own plain 404 until you register one.
 
-When it is done it prints the next steps — the `cp` line only for the demo
-project, the one with a `.env.example`:
+When it is done it prints the next steps. A demo project, the one with a
+`.env.example`, also gets `cp .env.example .env.development` before `collage dev`:
 
 ```sh
 cd myblog
 go mod tidy
-cp .env.example .env.development
 collage dev
 ```
 
@@ -115,11 +114,27 @@ no arguments. Press Ctrl-C to stop; the program receives the interrupt too and
 shuts down the way it would in production.
 
 The browser talks to `collage dev`, not to the program: `collage dev` listens on
-`HOST` and `PORT` as your program would read them (`localhost:3000` by default),
+`HOST` and `PORT` as your program would read them (`localhost:6060` by default since v0.32.0, `localhost:3000` before),
 and passes each request on to the program, which it starts with `HOST` and `PORT`
 set to a loopback address of its own. That is how it can
 [show errors in the browser](#errors-in-the-browser) when there is no program to
 answer.
+
+What the program prints still reaches the terminal, as the program printed it —
+with one change: its own address is replaced by `collage dev`'s, so its
+`collage: listening` line names the address to open (since v0.32.0). On a colour
+terminal the program is started with `FORCE_COLOR=1`, which the
+[default logger](/docs/configuration#logger) honours, so its lines keep their time,
+coloured markers and dimmed attributes although its output reaches `collage dev`
+through a pipe; `collage dev`'s own lines take the same shape. `NO_COLOR` turns
+both off.
+
+```text
+16:10:23 • collage dev: serving http://localhost:6060
+16:10:24 • collage: listening  addr=localhost:6060
+16:10:29 • collage dev: change detected, rebuilding
+16:10:29 ✗ collage dev: build failed; the last good build is still serving
+```
 
 The scaffolded `main.go` turns on development mode when `COLLAGE_DEV=1` is set,
 and listens on the `HOST` and `PORT` it is given.
@@ -185,7 +200,7 @@ it.
 
 ```sh
 # .env.development
-PORT=3000
+PORT=6060
 HOST=localhost
 export COLLAGE_CSRF_KEY="0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0"
 ```
@@ -193,8 +208,8 @@ export COLLAGE_CSRF_KEY="0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b
 - The format is `KEY=value` lines, blank lines and lines starting with `#`. An
   `export ` prefix is allowed, and so is a pair of matching single or double quotes
   around a value, which are removed with nothing inside interpreted.
-- An unquoted value ends at a `#` that follows whitespace, so `PORT=3000 # dev` is
-  `3000`.
+- An unquoted value ends at a `#` that follows whitespace, so `PORT=6060 # dev` is
+  `6060`.
 - Keys are letters, digits and underscores, not starting with a digit.
 - **A malformed line stops the program from starting**: `collage dev` reports it
   with the file and the line (`.env.development:3`) and starts or restarts nothing
@@ -222,14 +237,14 @@ collage build [-o path] [-os name] [-arch name] [-i]
 Compiles the current directory's project into the binary you deploy. It runs:
 
 ```sh
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o bin/<name> .
+CGO_ENABLED=0 GOOS=<os> GOARCH=<arch> go build -trimpath -ldflags="-s -w" -o bin/<name> .
 ```
 
 | Flag | Default | Meaning |
 | --- | --- | --- |
 | `-o path` | `bin/<name>` | Where to write the binary |
-| `-os name` | `linux` | Target operating system (`GOOS`) |
-| `-arch name` | `amd64` | Target architecture (`GOARCH`) |
+| `-os name` | this machine's | Target operating system (`GOOS`) |
+| `-arch name` | this machine's | Target architecture (`GOARCH`) |
 | `-i` | off | Ask which extra files to write beside the binary |
 
 `<name>` is the last element of the module path in `go.mod`; a directory with no
@@ -244,9 +259,10 @@ Why those settings:
 - **`-trimpath`**, so the binary does not carry the paths of the machine that built
   it.
 - **`-s -w`** drops the debug tables, which is most of the size.
-- **linux/amd64 by default** rather than the machine you are on: a binary built on
-  a Mac does not run in a Linux container, and "exec format error" on a server is
-  the wrong place to find that out.
+- **This machine by default** (since v0.32.0; linux/amd64 before), so the binary
+  runs where it was built. A server is often something else — a binary built on a
+  Mac does not run in a Linux container — so name it there:
+  `collage build -os linux -arch amd64`.
 - **`bin/`, not `dist/`**: `dist/` is where `collage export` writes, and
   `export -clean` empties it.
 
@@ -324,7 +340,7 @@ will get after deploying it. It serves files; it does not run your project.
 | `-host name` | `localhost` | Interface to listen on |
 | `-port n` | `4000` | Port to listen on |
 
-The port is 4000 rather than 3000 so it can run beside `collage dev` — which is
+The port is 4000 rather than 6060 so it can run beside `collage dev` — which is
 exactly when you compare the two.
 
 It behaves like a static host rather than a file server:
@@ -418,7 +434,7 @@ func main() {
 	buildFlag := flag.Bool("collage-build", false, "render the app to static files instead of serving it")
 	outFlag := flag.String("out", "dist", "output directory for -collage-build")
 	cleanFlag := flag.Bool("clean", false, "remove -out's existing contents before building")
-	portFlag := flag.Int("port", envInt("PORT", 3000), "port to listen on (env PORT)")
+	portFlag := flag.Int("port", envInt("PORT", 6060), "port to listen on (env PORT)")
 	flag.Parse()
 
 	devMode := os.Getenv("COLLAGE_DEV") == "1"
