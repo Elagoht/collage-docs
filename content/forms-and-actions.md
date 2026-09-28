@@ -172,26 +172,25 @@ func ContactPage() *collage.Page {
 		WithDataHandler(contactData).
 		Build()
 
-	var page *collage.Page
-	page = collage.NewPage("contact").
+	return collage.NewPage("contact").
 		WithLayouts(layouts.Layout()).
 		WithContent(form).
 		WithPath("en", "/contact").
-		WithAction("POST", func(ctx context.Context, rc *collage.RenderContext) (*collage.ActionResult, error) {
-			email := strings.TrimSpace(rc.Request.PostFormValue("email"))
-			if !strings.Contains(email, "@") {
-				rc.Set("contact:form", contactView{Error: "That does not look like an email address.", Email: email})
-				result := collage.RenderPage(page)
-				result.Status = http.StatusUnprocessableEntity
-				return result, nil
-			}
-			if err := messages.Send(ctx, email, rc.Request.PostFormValue("message")); err != nil {
-				return nil, err
-			}
-			return collage.SeeOther("/contact/thanks"), nil
-		}).
+		WithAction("POST", sendContact).
 		Build()
-	return page
+}
+
+func sendContact(ctx context.Context, rc *collage.RenderContext) (*collage.ActionResult, error) {
+	email := strings.TrimSpace(rc.Request.PostFormValue("email"))
+	if !strings.Contains(email, "@") {
+		rc.Set("contact:form", contactView{Error: "That does not look like an email address.", Email: email})
+		// rc.Page is the page this action answers on: the contact page.
+		return &collage.ActionResult{Status: http.StatusUnprocessableEntity, Page: rc.Page}, nil
+	}
+	if err := messages.Send(ctx, email, rc.Request.PostFormValue("message")); err != nil {
+		return nil, err
+	}
+	return collage.SeeOther("/contact/thanks"), nil
 }
 
 func contactData(_ context.Context, rc *collage.RenderContext) (any, []string, error) {
@@ -218,8 +217,15 @@ as it shapes the page a `GET` gets. See [Writing a plugin](/docs/writing-plugins
 The page you answer with must be **the value you registered** with
 `app.RegisterPage`. Registration is what puts a page's content into its layout, so
 a page built inside the handler would render as a layout around nothing; collage
-refuses it with `collage.ErrUnregisteredPage`, naming the page. The closure over
-`page` above is the simplest way to hand the action its own page.
+refuses it with `collage.ErrUnregisteredPage`, naming the page.
+
+In an action on a page's URL, `rc.Page` is that page, the registered value (since
+v0.33.0). So the action above needs nothing handed to it, and there is no
+`var page` for a closure to capture — the shape this took before. An action
+registered at a URL of its own has no page there and a `nil` `rc.Page`; it
+answers with the registered page it wants, built before the action. In dev mode a
+form post answered `422` with no body is logged as a warning, because the reader
+gets a blank page and a `nil` `rc.Page` is the usual cause.
 
 To redirect to a page by name rather than by path, use
 [`app.URL`](/docs/links-and-locales#links-from-go).

@@ -454,20 +454,18 @@ that refers to a page by value must use that one:
   `ErrUnregisteredErrorPage`, because it would render its layout around nothing.
 - **Actions that answer with a page.** `collage.RenderPage(p)` in an action must be
   given the registered value; an unregistered one is refused with
-  `ErrUnregisteredPage` rather than rendered empty. The usual shape is to build the
-  page once and let the action's closure capture it:
+  `ErrUnregisteredPage` rather than rendered empty. An action on the page's own URL
+  has it as `rc.Page` (since v0.33.0):
 
   ```go
-  var page *collage.Page
-  page = collage.NewPage("hello").
+  return collage.NewPage("hello").
   	WithLayouts(layouts.Layout()).
   	WithContent(content).
   	WithPath("en", "/hello").
   	WithAction("POST", func(_ context.Context, rc *collage.RenderContext) (*collage.ActionResult, error) {
-  		return collage.RenderPage(page), nil
+  		return collage.RenderPage(rc.Page), nil
   	}).
   	Build()
-  return page
   ```
 
 - **`rc.Page` is that value too**, shared by every request that renders the page

@@ -482,20 +482,18 @@ Bir page'e değer üzerinden başvuran her şey o değeri kullanmalıdır:
   içeriğin etrafında render ederdi.
 - **Page ile cevap veren action'lar.** Bir action'da `collage.RenderPage(p)`'ye
   register edilmiş değer verilmelidir. Register edilmemiş bir değer boş render
-  edilmez, `ErrUnregisteredPage` ile reddedilir. Genelde page bir kez oluşturulur ve
-  action'ın closure'ı onu yakalar:
+  edilmez, `ErrUnregisteredPage` ile reddedilir. Page'in kendi URL'sindeki bir
+  action o değeri `rc.Page` olarak alır (v0.33.0'dan beri):
 
   ```go
-  var page *collage.Page
-  page = collage.NewPage("hello").
+  return collage.NewPage("hello").
   	WithLayouts(layouts.Layout()).
   	WithContent(content).
   	WithPath("en", "/hello").
   	WithAction("POST", func(_ context.Context, rc *collage.RenderContext) (*collage.ActionResult, error) {
-  		return collage.RenderPage(page), nil
+  		return collage.RenderPage(rc.Page), nil
   	}).
   	Build()
-  return page
   ```
 
 - **`rc.Page` de aynı değerdir.** Bu değeri, page'i render eden bütün request'ler

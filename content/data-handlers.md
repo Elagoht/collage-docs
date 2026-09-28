@@ -222,7 +222,7 @@ rendered.
 | `rc.Request` | The `*http.Request` being answered. In a static export, a synthetic `GET` for the page's path |
 | `rc.Locale` | The locale the URL resolved to |
 | `rc.Param(name)`, `rc.PathParams` | What the route's `{name}` placeholders captured |
-| `rc.Page` | The page being rendered — **read only** |
+| `rc.Page` | The page being rendered; in an action, the page whose URL it answers on (since v0.33.0) — **read only** |
 | `rc.Get(key)`, `rc.Set(key, value)` | Values shared between the fragments of one render |
 | `rc.Context()` | The context the render context carries |
 | `rc.HoistTitle`, `rc.HoistMeta`, `rc.HoistProperty`, `rc.HoistLink`, `rc.HoistAlternate`, `rc.HoistStylesheet`, `rc.Hoist` | Declarations for the page's `<head>` — see [Head and SEO](/docs/head-and-seo) |

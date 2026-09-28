@@ -180,26 +180,25 @@ func ContactPage() *collage.Page {
 		WithDataHandler(contactData).
 		Build()
 
-	var page *collage.Page
-	page = collage.NewPage("contact").
+	return collage.NewPage("contact").
 		WithLayouts(layouts.Layout()).
 		WithContent(form).
 		WithPath("en", "/contact").
-		WithAction("POST", func(ctx context.Context, rc *collage.RenderContext) (*collage.ActionResult, error) {
-			email := strings.TrimSpace(rc.Request.PostFormValue("email"))
-			if !strings.Contains(email, "@") {
-				rc.Set("contact:form", contactView{Error: "That does not look like an email address.", Email: email})
-				result := collage.RenderPage(page)
-				result.Status = http.StatusUnprocessableEntity
-				return result, nil
-			}
-			if err := messages.Send(ctx, email, rc.Request.PostFormValue("message")); err != nil {
-				return nil, err
-			}
-			return collage.SeeOther("/contact/thanks"), nil
-		}).
+		WithAction("POST", sendContact).
 		Build()
-	return page
+}
+
+func sendContact(ctx context.Context, rc *collage.RenderContext) (*collage.ActionResult, error) {
+	email := strings.TrimSpace(rc.Request.PostFormValue("email"))
+	if !strings.Contains(email, "@") {
+		rc.Set("contact:form", contactView{Error: "That does not look like an email address.", Email: email})
+		// rc.Page, bu action'ın cevap verdiği page'dir: contact page'i.
+		return &collage.ActionResult{Status: http.StatusUnprocessableEntity, Page: rc.Page}, nil
+	}
+	if err := messages.Send(ctx, email, rc.Request.PostFormValue("message")); err != nil {
+		return nil, err
+	}
+	return collage.SeeOther("/contact/thanks"), nil
 }
 
 func contactData(_ context.Context, rc *collage.RenderContext) (any, []string, error) {
@@ -228,8 +227,16 @@ Cevap olarak verdiğiniz page, `app.RegisterPage` ile **register ettiğiniz değ
 kendisi** olmalıdır. Bir page'in içeriğini layout'una yerleştiren şey register
 işlemidir. Bu yüzden handler içinde oluşturulan bir page, içi boş bir layout olarak
 render edilirdi. collage böyle bir page'i, page'in adını vererek
-`collage.ErrUnregisteredPage` ile reddeder. Yukarıdaki örnekte `page` üzerinden
-kurulan closure, action'a kendi page'ini vermenin en basit yoludur.
+`collage.ErrUnregisteredPage` ile reddeder.
+
+Bir page'in URL'sindeki action'da `rc.Page`, o page'in register edilmiş değeridir
+(v0.33.0'dan beri). Bu yüzden yukarıdaki action'a hiçbir şey verilmesi gerekmez;
+bir closure'ın yakalayacağı `var page` de yoktur. Öncesinde bu iş böyle
+yapılıyordu. Kendi URL'sinde register edilmiş bir action'ın orada page'i yoktur ve
+`rc.Page`'i `nil`'dir. Böyle bir action, istediği page'in action'dan önce
+oluşturulmuş register edilmiş değeriyle cevap verir. Dev mode'da gövdesiz bir
+`422` ile cevaplanan form post'u uyarı olarak log'lanır, çünkü okuyucu boş bir
+sayfa görür ve bunun genel sebebi `nil` bir `rc.Page`'dir.
 
 Bir page'e path yerine adıyla redirect etmek için
 [`app.URL`](/docs/links-and-locales#links-from-go) kullanın.
