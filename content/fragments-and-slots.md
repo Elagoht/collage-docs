@@ -260,6 +260,12 @@ required fragment fails the whole page, the development error page names that
 fragment — where the failure started, not the layout it travelled up through.
 Outside development there is neither.
 
+In every mode, since v0.36.0, a failure the page is served without is logged as a
+warning through [`Config.Logger`](/docs/configuration):
+`collage: fragment failed; the page is served without it`, with the page, the
+fragment, the locale, whether a fallback covered for it, and the error. Such a
+page still answers 200, so in production the log is where a missing form shows.
+
 ### A slot the template skips
 
 A fragment's children start fetching before its template runs, so that they fetch

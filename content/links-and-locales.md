@@ -148,8 +148,8 @@ It works for [documents](/docs/documents) as well as pages.
   the pattern has no placeholder for fails the render. A link that cannot be built
   is a bug to find in development, not a 404 for a reader.
 - **Values are escaped**, and a value of `.` or `..` is refused.
-- **Values are strings.** Pass a number through `printf`:
-  `{{pageURL "user" "id" (printf "%d" .ID)}}`.
+- **Values are strings, integers or `fmt.Stringer`s** (the last two since
+  v0.36.0): `{{pageURL "user" "id" .ID}}`.
 - **It ends in `/` when [`TrailingSlash`](/docs/configuration#trailingslash) is
   on** — a page's link, not a document's: `/about/`, `/tr/`, but `/feed.xml`.
 
@@ -193,6 +193,9 @@ A switcher is for readers. Search engines learn a page's translations from
 (since v0.10.0) declares, one per language. Pair it with `app.URL` for each
 locale the page exists in — [Head and SEO](/docs/head-and-seo#canonical-and-alternate-links)
 has a layout that does it for every page.
+
+A form posting to an [action at its own URL](/docs/forms-and-actions#an-action-at-its-own-url)
+names the action the same way, with `{{actionURL "logout"}}` (since v0.36.0).
 
 ### Links from Go
 

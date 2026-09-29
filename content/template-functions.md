@@ -20,6 +20,7 @@ Templates are Go's `html/template`, so everything it provides is there: `if`,
 | [`pageURL`](#pageurl) | `pageURL name [param value]...` | a route's URL in this render's locale |
 | [`pageURLIn`](#pageurlin) | `pageURLIn locale name [param value]...` | a route's URL in exactly that locale |
 | [`localeURL`](#localeurl) | `localeURL locale` | this page's URL in another locale |
+| [`actionURL`](#actionurl) | `actionURL name [param value]...` | an action's URL in this render's locale |
 | [`fragmentURL`](#fragmenturl) | `fragmentURL page fragment [param value]...` | a fragment path's URL in this render's locale |
 | [`fragmentURLIn`](#fragmenturlin) | `fragmentURLIn locale page fragment [param value]...` | a fragment path's URL in exactly that locale |
 | [`safeHTML`](#safehtml) | `safeHTML string` | the string, trusted as HTML |
@@ -37,11 +38,12 @@ it — under the fragment's own failure policy: a required fragment fails the pa
 an optional one renders its fallback, or nothing when it has none. In development
 mode "nothing" is an HTML comment naming the fragment and its error, and the
 development panel on top of the page names every failed fragment, fallback or not.
+In every mode, since v0.36.0, the failure is also logged as a warning.
 See [Fragments and slots](/docs/fragments-and-slots).
 
 ## Bound per render
 
-The first ten functions need the render they are part of — the fragment, the
+The first eleven functions need the render they are part of — the fragment, the
 request, the locale, the application's routes and mounts. They are registered when
 templates are parsed as placeholders, so that a template may call them, and the
 render engine binds the real implementation on every render. A placeholder that
@@ -225,11 +227,13 @@ its path changes.
   arguments, a missing or empty parameter, or a parameter the pattern has no
   placeholder for (`ErrRouteParams`) fails the render. A link that cannot be built
   is a bug to find in development, not a 404 for a reader.
-- **Values are strings**, and are escaped. A value of `.` or `..`, which a browser
-  would resolve as a path step, is refused. Pass a number through `printf`:
+- **Values are strings, integers or `fmt.Stringer`s** (integers and Stringers
+  since v0.36.0), and are escaped. A value of `.` or `..`, which a browser would
+  resolve as a path step, is refused. So is a float, a bool or nil, with
+  `ErrRouteParams` naming its type, since none has one obvious spelling in a URL:
 
 ```html
-<a href="{{pageURL "user" "id" (printf "%d" .ID)}}">{{.Name}}</a>
+<a href="{{pageURL "user" "id" .ID}}">{{.Name}}</a>
 ```
 
 - A name registered as both a page and a document is refused rather than guessed.
@@ -267,6 +271,27 @@ a language switcher is made of.
 - For the `<link rel="alternate" hreflang>` search engines read, declare them from
   Go with `rc.HoistAlternate` — see
   [Head and SEO](/docs/head-and-seo#canonical-and-alternate-links).
+
+### actionURL
+
+```html
+<form method="post" action="{{actionURL "logout"}}">{{csrfToken}}…</form>
+<form method="post" action="{{actionURL "vote" "id" .ID}}">{{csrfToken}}…</form>
+```
+
+The URL of the [action](/docs/forms-and-actions#an-action-at-its-own-url)
+registered under `name` (since v0.36.0), built as `pageURL` builds a page's: the
+path is written once, in Go, and every form posting to it follows it.
+
+- **In this render's locale**, falling back to the default one, as `pageURL` does.
+- **As strict as `pageURL`.** An unknown name is `ErrUnknownRoute`, and
+  parameters that do not fill the pattern are `ErrRouteParams`.
+- **Actions have names of their own.** `actionURL "login"` is the action and
+  `pageURL "login"` the page, since a `login` page and a `login` action are the
+  usual pair. A page's own action is under the name it was registered with:
+  `"contact:POST"` for `WithAction("POST", …)` on a page named `contact`.
+
+From Go it is `app.ActionURL(name, locale, params)`.
 
 ### fragmentURL
 

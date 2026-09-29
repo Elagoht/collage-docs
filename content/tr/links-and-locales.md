@@ -157,8 +157,8 @@ alır. Page'lerin yanı sıra [document'lar](/docs/documents) için de çalış�
   link, okuyucuya gösterilecek bir 404 değil, development'ta yakalanması
   gereken bir bug'dır.
 - **Değerler escape edilir.** Değeri `.` ya da `..` olan bir parametre reddedilir.
-- **Değerler string'dir.** Bir sayıyı `printf` üzerinden geçirin:
-  `{{pageURL "user" "id" (printf "%d" .ID)}}`.
+- **Değerler string, tam sayı ya da `fmt.Stringer` olabilir** (son ikisi
+  v0.36.0'dan beri): `{{pageURL "user" "id" .ID}}`.
 - **[`TrailingSlash`](/docs/configuration#trailingslash) açıkken `/` ile biter.** Bu,
   document link'leri için değil, page link'leri için geçerlidir: `/about/`, `/tr/`,
   ama `/feed.xml`.
@@ -204,6 +204,10 @@ Dil seçici okuyucular içindir. Arama motorları bir page'in çevirilerini, hea
 tane. Bunu, page'in bulunduğu her locale için `app.URL` ile birlikte kullanın.
 [Head ve SEO](/docs/head-and-seo#canonical-and-alternate-links) sayfasında bunu her
 page için yapan bir layout var.
+
+[Kendi URL'sindeki bir action'a](/docs/forms-and-actions#an-action-at-its-own-url)
+post eden bir form da action'ı aynı şekilde adıyla belirtir:
+`{{actionURL "logout"}}` (v0.36.0'dan beri).
 
 ### Go'dan link'ler
 

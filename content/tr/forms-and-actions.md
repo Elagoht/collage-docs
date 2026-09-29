@@ -86,6 +86,19 @@ err := app.RegisterAction(collage.NewAction("like").
 	Build())
 ```
 
+Ona post eden bir form path'i yazmak yerine action'ı adıyla belirtir. Böylece
+action taşındığında form eski adrese post etmeye devam etmez (v0.36.0'dan beri):
+
+```html
+<form method="post" action="{{actionURL "like"}}">{{csrfToken}}…</form>
+```
+
+`actionURL` parametreleri `pageURL` gibi alır ve render'ın locale'ini takip eder.
+Go tarafındaki karşılığı `app.ActionURL("like", locale, params)`'tır. Bir page'in
+action'ı register edildiği adla bulunur (yukarıdaki `WithAction` için
+`"contact:POST"`), ama aynı URL'ye `pageURL` ile de ulaşılır. Ayrıntılar için
+[`actionURL`](/docs/template-functions#actionurl) bölümüne bakın.
+
 Bir action bir page ile aynı path'i paylaşabilir. `WithAction`'ın yaptığı da tam
 olarak budur. Ancak page'in cevap verdiği `GET` ve `HEAD` için bu geçerli değildir.
 v0.18.0'dan beri bir page'in ya da bir document'ın path'inde bu iki method'dan

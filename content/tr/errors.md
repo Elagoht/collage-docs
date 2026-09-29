@@ -209,7 +209,7 @@ yer alır. Production page'i değişmemiştir ve sebep hakkında hiçbir şey s�
 
 ## Link'ler ve URL'ler
 
-Bu hataları `App.URL` ve `App.FragmentURL` döner. `{{pageURL}}`, `{{pageURLIn}}`,
+Bu hataları `App.URL`, `App.ActionURL` ve `App.FragmentURL` döner. `{{pageURL}}`, `{{actionURL}}`, `{{pageURLIn}}`,
 `{{localeURL}}`, `{{fragmentURL}}` ve `{{fragmentURLIn}}` ise başarısız olan
 render'larla bildirir. Bkz. [Link'ler ve locale'ler](/docs/links-and-locales).
 
@@ -217,7 +217,7 @@ render'larla bildirir. Bkz. [Link'ler ve locale'ler](/docs/links-and-locales).
 | --- | --- | --- |
 | `ErrUnknownRoute` | `collage: no page or document by that name` | O isimle register edilmiş hiçbir page ya da document yoktur. Ya da ikisi birden vardır ve link belirsizdir. |
 | `ErrNoPathInLocale` | `collage: no path in that locale` | Route'un istenen locale'de bir path'i yoktur. `{{pageURL}}` bu durumda varsayılan locale'e fallback yapar, `{{localeURL}}` ise boş string render eder. |
-| `ErrRouteParams` | `collage: route parameters do not match the pattern` | Bir parametre eksik ya da boştur, hiçbir placeholder'a karşılık gelmez, `.` ya da `..`'dır, ya da template tek sayıda argüman vermiştir. |
+| `ErrRouteParams` | `collage: route parameters do not match the pattern` | Bir parametre eksik ya da boştur, hiçbir placeholder'a karşılık gelmez, `.` ya da `..`'dır, string, tam sayı ya da `fmt.Stringer` değildir (v0.36.0'dan beri; önceden yalnızca string kabul ediliyordu), ya da template tek sayıda argüman vermiştir. |
 | `ErrLocaleUnreachable` | `collage: no URL reaches that locale` | Locale `Locale.Supported`'da yoktur ya da varsayılan locale değildir ve path locale'leri kapalıdır. Böyle bir locale'de path register etmek de bu hatayı verir; bkz. [Register ve routing](#registration-and-routing). |
 | `ErrUnknownFragmentPath` | `collage: the page opened no fragment path by that name` | Page, `WithFragmentPath` ile o adda bir fragment açmamıştır (v0.18.0'dan beri). |
 | `ErrAmbiguousFragmentPath` | `collage: the fragment is opened at more than one path` | Page fragment'i o locale'de iki path'te açmıştır, bu yüzden link birini seçemez (v0.18.0'dan beri). |

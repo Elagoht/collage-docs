@@ -83,6 +83,19 @@ err := app.RegisterAction(collage.NewAction("like").
 	Build())
 ```
 
+A form posting to it names it rather than writing the path, so moving the action
+cannot leave a form posting to the old one (since v0.36.0):
+
+```html
+<form method="post" action="{{actionURL "like"}}">{{csrfToken}}…</form>
+```
+
+`actionURL` takes parameters as `pageURL` does and follows the render's locale.
+From Go it is `app.ActionURL("like", locale, params)`. An action on a page is
+named as it was registered — `"contact:POST"` for the `WithAction` above — though
+`pageURL` reaches the same URL. See
+[`actionURL`](/docs/template-functions#actionurl).
+
 An action may share a path with a page — that is exactly what `WithAction` does —
 but not for `GET` or `HEAD`, which the page answers. Since v0.18.0 an action
 answering either on the path of a page or a document is refused with

@@ -21,6 +21,7 @@ bunlara bu sayfadaki fonksiyonları ekler.
 | [`pageURL`](#pageurl) | `pageURL name [param value]...` | bir route'un bu render'ın locale'indeki URL'si |
 | [`pageURLIn`](#pageurlin) | `pageURLIn locale name [param value]...` | bir route'un tam olarak o locale'deki URL'si |
 | [`localeURL`](#localeurl) | `localeURL locale` | bu page'in başka bir locale'deki URL'si |
+| [`actionURL`](#actionurl) | `actionURL name [param value]...` | bir action'ın bu render'ın locale'indeki URL'si |
 | [`fragmentURL`](#fragmenturl) | `fragmentURL page fragment [param value]...` | bir fragment path'inin bu render'ın locale'indeki URL'si |
 | [`fragmentURLIn`](#fragmenturlin) | `fragmentURLIn locale page fragment [param value]...` | bir fragment path'inin tam olarak o locale'deki URL'si |
 | [`safeHTML`](#safehtml) | `safeHTML string` | HTML olarak güvenilir sayılan string |
@@ -39,12 +40,13 @@ bir fragment page'i başarısız kılar, optional bir fragment fallback'ini rend
 fallback'i yoksa hiçbir şey render etmez. Development mode'da bu "hiçbir şey",
 fragment'in adını ve hatasını içeren bir HTML yorumudur. Page'in üstündeki
 development paneli de fallback'i olsun olmasın, başarısız olan her fragment'i adıyla
-listeler. Ayrıntılar için
+listeler. v0.36.0'dan beri hata her mode'da ayrıca bir uyarı olarak log'lanır.
+Ayrıntılar için
 [Fragment'ler ve slot'lar](/docs/fragments-and-slots) sayfasına bakın.
 
 ## Her render'da bağlananlar
 
-İlk on fonksiyon, içinde çalıştıkları render'a ihtiyaç duyar: fragment'e,
+İlk on bir fonksiyon, içinde çalıştıkları render'a ihtiyaç duyar: fragment'e,
 request'e, locale'e, uygulamanın route'larına ve mount'larına. Template'ler parse
 edilirken bu fonksiyonlar placeholder olarak register edilir, böylece template'ler onları
 çağırabilir. Gerçek implementasyonu ise render engine her render'da bağlar. Bir
@@ -238,11 +240,14 @@ path'i değiştiğinde link'in de onu takip etmesini sağlar.
   olmayan bir parametre de (`ErrRouteParams`) aynı sonucu verir. Oluşturulamayan bir
   link, okuyucunun karşısına çıkan bir 404 değil, development'ta bulunması
   gereken bir bug'dır.
-- **Değerler string'dir** ve escape edilir. Tarayıcının bir path adımı olarak
-  yorumlayacağı `.` ya da `..` değeri reddedilir. Bir sayıyı `printf` ile geçirin:
+- **Değerler string, tam sayı ya da `fmt.Stringer` olabilir** (tam sayı ve
+  Stringer v0.36.0'dan beri) ve escape edilir. Tarayıcının bir path adımı olarak
+  yorumlayacağı `.` ya da `..` değeri reddedilir. Float, bool ya da nil de
+  reddedilir, çünkü hiçbirinin URL'de tek bir bariz yazımı yoktur. `ErrRouteParams`
+  hatası değerin tipini söyler:
 
 ```html
-<a href="{{pageURL "user" "id" (printf "%d" .ID)}}">{{.Name}}</a>
+<a href="{{pageURL "user" "id" .ID}}">{{.Name}}</a>
 ```
 
 - Hem page hem document olarak register edilmiş bir ad için tahmin yürütülmez, ad
@@ -282,6 +287,29 @@ Bir dil seçici bununla yapılır.
 - Arama motorlarının okuduğu `<link rel="alternate" hreflang>` etiketlerini Go
   tarafında `rc.HoistAlternate` ile tanımlayın. Ayrıntılar için
   [Head ve SEO](/docs/head-and-seo#canonical-and-alternate-links) sayfasına bakın.
+
+### actionURL
+
+```html
+<form method="post" action="{{actionURL "logout"}}">{{csrfToken}}…</form>
+<form method="post" action="{{actionURL "vote" "id" .ID}}">{{csrfToken}}…</form>
+```
+
+`name` adıyla register edilmiş [action'ın](/docs/forms-and-actions#an-action-at-its-own-url)
+URL'sini döner (v0.36.0'dan beri). URL, `pageURL`'in bir page'inkini oluşturduğu
+gibi oluşturulur: path bir kez, Go tarafında yazılır ve ona post eden her form onu
+takip eder.
+
+- **Bu render'ın locale'inde çalışır.** `pageURL` gibi varsayılan locale'e fallback
+  yapar.
+- **`pageURL` kadar katıdır.** Bilinmeyen bir ad `ErrUnknownRoute`, pattern'i tam
+  doldurmayan parametreler `ErrRouteParams` üretir.
+- **Action'ların kendi adları vardır.** `actionURL "login"` action'ı, `pageURL
+  "login"` ise page'i verir, çünkü bir `login` page'i ile bir `login` action'ı
+  olağan bir ikilidir. Bir page'in kendi action'ı register edildiği adla bulunur:
+  `contact` adlı bir page'de `WithAction("POST", …)` için bu ad `"contact:POST"`'tur.
+
+Go tarafındaki karşılığı `app.ActionURL(name, locale, params)`'tır.
 
 ### fragmentURL
 

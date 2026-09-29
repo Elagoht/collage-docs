@@ -205,14 +205,14 @@ unchanged, and says nothing about the cause.
 
 ## Links and URLs
 
-Returned by `App.URL` and `App.FragmentURL`, and failed renders from `{{pageURL}}`,
+Returned by `App.URL`, `App.ActionURL` and `App.FragmentURL`, and failed renders from `{{pageURL}}`, `{{actionURL}}`,
 `{{pageURLIn}}`, `{{localeURL}}`, `{{fragmentURL}}` and `{{fragmentURLIn}}`. See [Links and locales](/docs/links-and-locales).
 
 | Error | Message | Means |
 | --- | --- | --- |
 | `ErrUnknownRoute` | `collage: no page or document by that name` | No page or document is registered under the name — or both are, and the link is ambiguous. |
 | `ErrNoPathInLocale` | `collage: no path in that locale` | The route has no path in the locale asked for. `{{pageURL}}` falls back to the default locale instead, and `{{localeURL}}` renders the empty string. |
-| `ErrRouteParams` | `collage: route parameters do not match the pattern` | A parameter is missing or empty, names no placeholder, is `.` or `..`, or the template passed an odd number of arguments. |
+| `ErrRouteParams` | `collage: route parameters do not match the pattern` | A parameter is missing or empty, names no placeholder, is `.` or `..`, is neither a string, an integer nor a `fmt.Stringer` (since v0.36.0; before, only strings were taken), or the template passed an odd number of arguments. |
 | `ErrLocaleUnreachable` | `collage: no URL reaches that locale` | The locale is not in `Locale.Supported`, or it is not the default and path locales are disabled. Registering a path in one fails with it too; see [Registration and routing](#registration-and-routing). |
 | `ErrUnknownFragmentPath` | `collage: the page opened no fragment path by that name` | The page opened no fragment by that name with `WithFragmentPath` (since v0.18.0). |
 | `ErrAmbiguousFragmentPath` | `collage: the fragment is opened at more than one path` | The page opened the fragment at two paths in that locale, so the link cannot pick one (since v0.18.0). |

@@ -276,6 +276,13 @@ page'i başarısız kıldığında, development error page'i o fragment'in ismin
 Yani hatanın içinden geçerek yukarı çıktığı layout'u değil, başladığı yeri gösterir.
 Development dışında bunların hiçbiri yoktur.
 
+v0.36.0'dan beri, page'in onsuz sunulduğu bir hata her mode'da
+[`Config.Logger`](/docs/configuration) üzerinden bir uyarı olarak log'lanır:
+`collage: fragment failed; the page is served without it`. Log satırı page'i,
+fragment'i, locale'i, bir fallback'in yerini tutup tutmadığını ve hatayı söyler.
+Böyle bir page yine 200 döner; bu yüzden production'da kaybolan bir formun
+göründüğü yer log'dur.
+
 ### Template'in atladığı bir slot
 
 Bir fragment'in child'ları, template çalışmadan önce veri çekmeye başlar. Böylece
