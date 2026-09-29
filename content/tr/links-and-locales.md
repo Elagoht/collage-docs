@@ -1,6 +1,6 @@
 ---
 description: Bir siteyi birkaç dilde sunmak ve page'lere adlarıyla link vermek; böylece link'ler page'i her locale'de takip eder.
-reference: LocaleConfig, PageBuilder.WithPath, PageBuilder.WithFragmentPath, Vary, ErrNoPathInLocale, ErrUnknownRoute, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath
+reference: LocaleConfig, PageBuilder.WithPath, PageBuilder.WithFragmentPath, Vary, ErrLocaleUnreachable, ErrNoPathInLocale, ErrUnknownRoute, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath
 ---
 
 # Link'ler ve locale'ler
@@ -43,6 +43,22 @@ collage.NewPage("about").
 
 Path'ler buradaki gibi farklı olabilir ya da her locale'de aynı pattern olabilir.
 Yalnızca tek bir locale'de path'i olan bir page yalnızca o locale'de vardır.
+
+`WithPath`'teki locale bir etiket değildir. Path'in hangi locale'in route'larına
+ekleneceğini seçer ve bir istek yalnızca `Default` olan ya da `Supported`'da yer
+alan bir locale'e ulaşabilir. `Default` siz ayarlamadıkça `"en"`'dir; bu yüzden
+yalnızca Türkçe olan bir site onu ayarlar:
+
+```go
+Locale: collage.LocaleConfig{Default: "tr"},
+```
+
+ve `WithPath("tr", "/hakkinda")` yazar. v0.35.0'dan beri hiçbir URL'nin
+ulaşamadığı bir locale'deki path, kayıt sırasında `collage.ErrLocaleUnreachable`
+ile reddedilir. Hata, page'in adını ve locale ayarını söyler. Önceden site hiçbir
+uyarı vermeden açılıyor, sonra her URL'de 404 dönüyordu. `DisablePathLocale`
+açıkken `Default` dışındaki her locale ulaşılamaz sayılır. Aynı kural action'lar
+ve document'lar için de geçerlidir.
 
 ## Locale'i URL belirler
 

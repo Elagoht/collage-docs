@@ -1,6 +1,6 @@
 ---
 description: Serving a site in several languages, and linking between pages by name so links follow them in every locale.
-reference: LocaleConfig, PageBuilder.WithPath, PageBuilder.WithFragmentPath, Vary, ErrNoPathInLocale, ErrUnknownRoute, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath
+reference: LocaleConfig, PageBuilder.WithPath, PageBuilder.WithFragmentPath, Vary, ErrLocaleUnreachable, ErrNoPathInLocale, ErrUnknownRoute, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath
 ---
 
 # Links and locales
@@ -42,6 +42,21 @@ collage.NewPage("about").
 
 The paths may differ, as here, or be the same pattern in every locale. A page with
 a path in only one locale exists only in that one.
+
+The locale in `WithPath` is not a label. It picks which locale's routes the path
+joins, and a request only reaches a locale that is `Default` or in `Supported`.
+`Default` is `"en"` unless you set it, so a site in Turkish alone sets it:
+
+```go
+Locale: collage.LocaleConfig{Default: "tr"},
+```
+
+and declares `WithPath("tr", "/hakkinda")`. Since v0.35.0, a path in a locale no
+URL reaches is refused at registration with `collage.ErrLocaleUnreachable`, and
+the error names the page and the locale config. Before, the site started without
+complaint and then answered 404 at every URL. With `DisablePathLocale`, every
+locale but `Default` counts as unreachable. The same holds for actions and
+documents.
 
 ## The URL decides the locale
 
