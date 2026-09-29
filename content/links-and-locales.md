@@ -1,6 +1,6 @@
 ---
 description: Serving a site in several languages, and linking between pages by name so links follow them in every locale.
-reference: LocaleConfig, PageBuilder.WithPath, PageBuilder.WithFragmentPath, Vary, ErrLocaleUnreachable, ErrNoPathInLocale, ErrUnknownRoute, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath
+reference: LocaleConfig, PageBuilder.WithPath, PageBuilder.WithFragmentPath, RenderContext, App, Vary, ErrLocaleUnreachable, ErrNoPathInLocale, ErrUnknownRoute, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath
 ---
 
 # Links and locales
@@ -199,15 +199,35 @@ names the action the same way, with `{{actionURL "logout"}}` (since v0.36.0).
 
 ### Links from Go
 
-In Go — an action redirecting to a named page, a sitemap listing every page, the
-alternates in a page's head — use `app.URL`:
+In a data handler or an action — a redirect to a named page, a canonical URL —
+use `rc.URL`, and `rc.ActionURL` for an action (since v0.37.0). They build in the
+render's own locale and fall back to the default one, as `pageURL` and
+`actionURL` do, so nothing has to hand the `*App` to the code that needs a link:
 
 ```go
-target, err := app.URL("blog-post", "tr", map[string]string{"slug": post.Slug})
+target, err := rc.URL("blog-post", map[string]string{"slug": post.Slug})
 if err != nil {
 	return nil, err
 }
 return collage.SeeOther(target), nil
+```
+
+```go
+func (rc *RenderContext) URL(name string, params map[string]string) (string, error)
+func (rc *RenderContext) ActionURL(name string, params map[string]string) (string, error)
+```
+
+A value, even one straight from the request, is one escaped path segment: one
+holding `/`, or being `.` or `..`, is `collage.ErrRouteParams`, so it cannot turn
+the path into another site's URL. On a `RenderContext` collage did not make — one
+a test builds by hand — both return `collage.ErrUnknownRoute`.
+
+For a locale other than the render's own, or outside a render — a sitemap
+listing every page, the alternates in a page's head — use `app.URL`, which takes
+the locale:
+
+```go
+target, err := app.URL("blog-post", "tr", map[string]string{"slug": post.Slug})
 ```
 
 ```go

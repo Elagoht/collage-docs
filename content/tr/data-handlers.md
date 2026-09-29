@@ -240,6 +240,7 @@ her şeydir.
 | `rc.Context()` | Render context'inin taşıdığı context |
 | `rc.HoistTitle`, `rc.HoistMeta`, `rc.HoistProperty`, `rc.HoistLink`, `rc.HoistAlternate`, `rc.HoistStylesheet`, `rc.Hoist` | Page'in `<head>`'i için tanımlar. Bkz. [Head ve SEO](/docs/head-and-seo) |
 | `rc.Asset(path)` | Mount edilmiş bir dosyanın content-addressed URL'si. Bkz. [Static asset'ler](/docs/assets) |
+| `rc.URL(name, params)`, `rc.ActionURL(name, params)` | Bir page'in ya da action'ın adıyla bulunan, render'ın locale'indeki URL'si (v0.37.0'dan beri). Bkz. [Go'dan link'ler](/docs/links-and-locales#links-from-go) |
 
 Handler'ın içinde `rc.Context()`, `ctx` argümanıyla aynı context'tir ve
 fragment'in timeout'unu taşır. `ctx`'i kullanın, zaten elinizde olan odur.

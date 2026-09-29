@@ -1,6 +1,6 @@
 ---
 description: Bir siteyi birkaç dilde sunmak ve page'lere adlarıyla link vermek; böylece link'ler page'i her locale'de takip eder.
-reference: LocaleConfig, PageBuilder.WithPath, PageBuilder.WithFragmentPath, Vary, ErrLocaleUnreachable, ErrNoPathInLocale, ErrUnknownRoute, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath
+reference: LocaleConfig, PageBuilder.WithPath, PageBuilder.WithFragmentPath, RenderContext, App, Vary, ErrLocaleUnreachable, ErrNoPathInLocale, ErrUnknownRoute, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath
 ---
 
 # Link'ler ve locale'ler
@@ -211,16 +211,37 @@ post eden bir form da action'ı aynı şekilde adıyla belirtir:
 
 ### Go'dan link'ler
 
-Go kodunda `app.URL` kullanın. Adıyla belirtilen bir page'e redirect eden bir action,
-bütün page'leri listeleyen bir sitemap ve bir page'in head'indeki alternate link'ler
-bu duruma örnektir:
+Bir data handler'da ya da action'da page'ler için `rc.URL`, action'lar için
+`rc.ActionURL` kullanın (v0.37.0'dan beri). Adıyla belirtilen bir page'e redirect
+etmek ya da canonical URL üretmek bu duruma örnektir. İkisi de URL'yi render'ın
+kendi locale'inde üretir ve `pageURL` ile `actionURL` gibi varsayılan locale'e
+fallback yapar. Böylece link gereken koda `*App`'i taşımak gerekmez:
 
 ```go
-target, err := app.URL("blog-post", "tr", map[string]string{"slug": post.Slug})
+target, err := rc.URL("blog-post", map[string]string{"slug": post.Slug})
 if err != nil {
 	return nil, err
 }
 return collage.SeeOther(target), nil
+```
+
+```go
+func (rc *RenderContext) URL(name string, params map[string]string) (string, error)
+func (rc *RenderContext) ActionURL(name string, params map[string]string) (string, error)
+```
+
+Doğrudan request'ten gelen bir değer bile tek bir escape edilmiş path
+segment'idir. `/` içeren ya da `.` veya `..` olan bir değer
+`collage.ErrRouteParams` döner. Böylece bir değer path'i başka bir sitenin
+URL'sine çeviremez. Collage'ın oluşturmadığı bir `RenderContext`'te (örneğin bir testin
+elle kurduğu) ikisi de `collage.ErrUnknownRoute` döner.
+
+Render'ın kendi locale'i dışında bir locale için ya da render dışında (bütün
+page'leri listeleyen bir sitemap, bir page'in head'indeki alternate link'ler)
+locale'i parametre olarak alan `app.URL` kullanın:
+
+```go
+target, err := app.URL("blog-post", "tr", map[string]string{"slug": post.Slug})
 ```
 
 ```go

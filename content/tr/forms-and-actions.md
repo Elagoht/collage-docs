@@ -94,7 +94,9 @@ action taşındığında form eski adrese post etmeye devam etmez (v0.36.0'dan b
 ```
 
 `actionURL` parametreleri `pageURL` gibi alır ve render'ın locale'ini takip eder.
-Go tarafındaki karşılığı `app.ActionURL("like", locale, params)`'tır. Bir page'in
+Go tarafında render'ın locale'i için `rc.ActionURL("like", params)`
+(v0.37.0'dan beri), başka bir locale için
+`app.ActionURL("like", locale, params)` kullanılır. Bir page'in
 action'ı register edildiği adla bulunur (yukarıdaki `WithAction` için
 `"contact:POST"`), ama aynı URL'ye `pageURL` ile de ulaşılır. Ayrıntılar için
 [`actionURL`](/docs/template-functions#actionurl) bölümüne bakın.
@@ -252,7 +254,8 @@ oluşturulmuş register edilmiş değeriyle cevap verir. Dev mode'da gövdesiz b
 sayfa görür ve bunun genel sebebi `nil` bir `rc.Page`'dir.
 
 Bir page'e path yerine adıyla redirect etmek için
-[`app.URL`](/docs/links-and-locales#links-from-go) kullanın.
+[`rc.URL`](/docs/links-and-locales#links-from-go) kullanın (v0.37.0'dan beri).
+Bunun için de action'a `*App` taşımak gerekmez.
 
 Bir form'un bunun etrafında genellikle ihtiyaç duyduklarını üç plugin karşılar.
 [elagoht/validate](/docs/plugins#elagohtvalidate) alanları kontrol eder ve

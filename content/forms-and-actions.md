@@ -91,7 +91,8 @@ cannot leave a form posting to the old one (since v0.36.0):
 ```
 
 `actionURL` takes parameters as `pageURL` does and follows the render's locale.
-From Go it is `app.ActionURL("like", locale, params)`. An action on a page is
+From Go it is `rc.ActionURL("like", params)` in the render's locale (since
+v0.37.0), or `app.ActionURL("like", locale, params)` for another. An action on a page is
 named as it was registered — `"contact:POST"` for the `WithAction` above — though
 `pageURL` reaches the same URL. See
 [`actionURL`](/docs/template-functions#actionurl).
@@ -241,7 +242,8 @@ form post answered `422` with no body is logged as a warning, because the reader
 gets a blank page and a `nil` `rc.Page` is the usual cause.
 
 To redirect to a page by name rather than by path, use
-[`app.URL`](/docs/links-and-locales#links-from-go).
+[`rc.URL`](/docs/links-and-locales#links-from-go) (since v0.37.0); the action
+needs no `*App` handed to it for that either.
 
 Three plugins cover what a form usually needs around this:
 [elagoht/validate](/docs/plugins#elagohtvalidate) checks the fields and answers a

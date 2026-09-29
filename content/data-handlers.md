@@ -227,6 +227,7 @@ rendered.
 | `rc.Context()` | The context the render context carries |
 | `rc.HoistTitle`, `rc.HoistMeta`, `rc.HoistProperty`, `rc.HoistLink`, `rc.HoistAlternate`, `rc.HoistStylesheet`, `rc.Hoist` | Declarations for the page's `<head>` — see [Head and SEO](/docs/head-and-seo) |
 | `rc.Asset(path)` | A mounted file's content-addressed URL — see [Static assets](/docs/assets) |
+| `rc.URL(name, params)`, `rc.ActionURL(name, params)` | A page's or an action's URL by name, in the render's locale (since v0.37.0) — see [Links from Go](/docs/links-and-locales#links-from-go) |
 
 Inside a handler, `rc.Context()` is the same context as the `ctx` argument, with
 the fragment's timeout on it. Use `ctx`; it is the one already in hand.
