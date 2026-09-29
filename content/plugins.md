@@ -1176,7 +1176,11 @@ Plugins: []collage.Plugin{minimizer.New()},
   `text/template`, stays verbatim.
 - It is a scanner, not a parser, and removes only what cannot carry meaning:
   `<pre>` and `<textarea>` are kept verbatim, CSS strings are untouched,
-  JavaScript keeps every newline, and invalid JSON is returned as it was.
+  JavaScript keeps a line break wherever a semicolon may stand for it, and
+  invalid JSON is returned as it was. A JavaScript line is joined only after a
+  token no statement can end with — `{ ( [ , ;` or an operator such as `=`, `&&`
+  or `=>` — and kept after a name, a closing bracket, a string or `++` (since
+  v0.1.6; before, every newline was kept).
 - Mounted files are minified by wrapping the filesystem rather than the response,
   so `Range` requests against a mount keep returning the right bytes.
 

@@ -1228,7 +1228,12 @@ Plugins: []collage.Plugin{minimizer.New()},
   türde bir script, örneğin `text/template`, olduğu gibi kalır.
 - Bir parser değil, bir scanner'dır. Yalnızca anlam taşıyamayacak içeriği kaldırır.
   `<pre>` ve `<textarea>` olduğu gibi korunur, CSS string'lerine dokunulmaz,
-  JavaScript'teki her satır sonu korunur ve geçersiz JSON olduğu gibi döndürülür.
+  JavaScript'te noktalı virgülün yerini tutabileceği her satır sonu korunur ve
+  geçersiz JSON olduğu gibi döndürülür. Bir JavaScript satırı yalnızca hiçbir
+  statement'ın sonunda yer alamayacak bir token'dan sonra birleştirilir:
+  `{ ( [ , ;` ya da `=`, `&&`, `=>` gibi bir operatör. Bir isim, kapanan bir
+  parantez, bir string ya da `++` sonrasında ise satır sonu korunur (v0.1.6'dan
+  beri; öncesinde her satır sonu korunuyordu).
 - Mount edilen dosyalar, response değil dosya sistemi sarmalanarak minify edilir.
   Bu sayede bir mount'a yapılan `Range` request'leri doğru byte'ları döndürmeye
   devam eder.
