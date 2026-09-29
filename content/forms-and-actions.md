@@ -409,6 +409,13 @@ A multipart body larger than the 32 MiB the parser keeps in memory spills its fi
 to disk. Since v0.34.0 they are removed once the action has answered, whether the
 handler ran or the request was refused.
 
+A size rule of your own, like a photo over 5 MB refused with a message on the form,
+only works when the action's limit is above it. Otherwise collage answers the `413`
+first, and your message is never shown. A 4.5 MB photo under the default limit is
+then refused as too large for the server, even though the form says 5 MB is
+allowed. Give such an action room for the file and the rest of the form:
+`WithMaxBodyBytes(maxPhoto + 64<<10)`.
+
 ## Invalidating what an action changed
 
 An action that changes content usually makes some cached pages wrong. Say which,

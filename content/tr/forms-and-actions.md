@@ -429,6 +429,13 @@ Parser'ın memory'de tuttuğu 32 MiB'tan büyük bir multipart body, dosyaların
 taşır. v0.34.0'dan beri bu dosyalar, handler çalışmış da olsa request reddedilmiş de
 olsa, action cevap verdikten sonra silinir.
 
+Kendi boyut kuralınız (örneğin 5 MB'ı aşan bir fotoğrafı form'da bir mesajla
+reddetmek) ancak action'ın limiti bu kuralın üzerindeyse işler. Aksi halde collage
+önce `413` ile cevap verir ve mesajınız hiç gösterilmez. Varsayılan limitle 4,5
+MB'lık bir fotoğraf, form 5 MB'a izin verdiğini söylese bile sunucu için fazla büyük
+diye reddedilir. Böyle bir action'a dosya ve form'un geri kalanı için yer açın:
+`WithMaxBodyBytes(maxPhoto + 64<<10)`.
+
 ## Action'ın değiştirdiğini invalidate etmek
 
 İçeriği değiştiren bir action genellikle cache'lenmiş bazı page'leri yanlış hâle

@@ -290,7 +290,7 @@ meta.Set(rc, meta.Page{
 }
 ```
 
-- v0.1.2, collage v0.34.2 ya da sonrasını gerektirir (v0.1.1 v0.23.0'ı
+- v0.1.2 ve sonrası, collage v0.34.2 ya da sonrasını gerektirir (v0.1.1 v0.23.0'ı
   gerektiriyordu). `baseURL` zorunludur; bu ayar olmadan uygulama başlamaz.
 - Register etmek her page'e şunları verir: `og:site_name`, `og:type`, canonical URL,
   `og:locale`, page'in path'i olan her locale için bir `hreflang` link'i, varsayılan
@@ -750,7 +750,10 @@ return collage.SeeOther("/welcome"), nil
 - v0.1.2'den beri `validate.Form`, bir kontrol ya da `v.Value` form'a ihtiyaç
   duyana kadar hiçbir şey okumaz. Body'yi okumadan reddeden bir action (örneğin
   `Content-Length`'i sınırı aşan bir fotoğraf) `v.Fail` ve `validate.Refuse` için
-  bir validator kurar ve body hiç okunmaz.
+  bir validator kurar ve body hiç okunmaz. v0.1.3'ten beri böyle bir ret, geri
+  yazılacak bir şey olmadığı için her alanın fallback'ini gösterir. Action'ın
+  `WithMaxBodyBytes` değeri kontrol ettiği boyutun üzerinde olmalıdır. Aksi halde
+  önce collage'ın `413`'ü cevap verir.
 - collage'ın form kuralının ilk yarısıdır. Bkz.
   [Form'lar ve action'lar](/docs/forms-and-actions#the-validation-re-render). Kimsenin
   göndermediği bir page'de fonksiyonlar boştur. Bu yüzden tek bir template iki

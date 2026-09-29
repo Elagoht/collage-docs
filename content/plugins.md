@@ -272,7 +272,7 @@ meta.Set(rc, meta.Page{
 }
 ```
 
-- v0.1.2 needs collage v0.34.2 or later; v0.1.1 needed v0.23.0. `baseURL` is
+- v0.1.2 and later need collage v0.34.2 or later; v0.1.1 needed v0.23.0. `baseURL` is
   required; the application does not start without it.
 - Registering it gives every page `og:site_name`, `og:type`, the canonical URL —
   built by name, so a query string a reader arrived with is never part of it —
@@ -715,7 +715,10 @@ return collage.SeeOther("/welcome"), nil
 - Since v0.1.2 `validate.Form` reads nothing until a check or `v.Value` needs the
   form. An action refusing a body before reading it — a photo whose
   `Content-Length` is over its size — builds a validator for `v.Fail` and
-  `validate.Refuse`, and the body is never read.
+  `validate.Refuse`, and the body is never read. Since v0.1.3 such a refusal shows
+  each field's fallback, since there is nothing typed to show. The action's
+  `WithMaxBodyBytes` must be above the size it checks, or collage's `413` answers
+  first.
 - It is the first half of collage's rule for a form — see
   [Forms and actions](/docs/forms-and-actions#the-validation-re-render). On a page
   nobody submitted the functions are empty, so one template serves both renders
