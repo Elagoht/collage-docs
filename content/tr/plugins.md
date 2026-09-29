@@ -984,6 +984,11 @@ Plugins: []collage.Plugin{secure.New(secure.Options{
   her response'ta yenidir. Cache'lenen page bir placeholder taşır, plugin'in
   middleware'i de onun yerine taze bir nonce koyar. Nonce taşıyan bir page
   `Cache-Control: no-store` ile ve `ETag` olmadan gönderilir.
+- Static export'un yazdığı page'leri bu middleware hiç sunmaz ve bir dosya her
+  response'ta değişen bir nonce taşıyamaz. Bu yüzden static build'de `nonce`
+  attribute'u kaldırılır, script yerinde kalır ve bir kez uyarı verilir. Bu inline
+  script'lere host'un kendi policy'sinde izin verin (v0.1.2'den beri; öncesinde
+  placeholder export edilen HTML'de kalıyordu).
 - Development'ta policy report-only olarak gönderilir. Böylece collage'ın
   live-reload script'i çalışmaya devam eder.
 
@@ -1210,16 +1215,20 @@ Plugins: []collage.Plugin{minimizer.New()},
 }
 ```
 
-- collage v0.24.0 ya da sonrasını gerektirir ve `Config.Plugins` içinde olmalıdır.
+- collage v0.28.0 ya da sonrasını gerektirir ve `Config.Plugins` içinde olmalıdır.
   Mount edilen dosya sistemlerini sarmalar ve bu işlem uygulama kurulurken yapılır.
 - `New()` HTML, JSON ve CSS'i etkinleştirir. JavaScript varsayılan olarak
   kapalıdır, `{"js": true}` ile açabilirsiniz.
   `minimizer.NewWith(minimizer.Config{...})` ile her ayarı kendiniz belirlersiniz ve
   bu varsayılanlar devreye girmez.
+- Her key, kendi dilini geçtiği her yerde kapsar (v0.1.5'ten beri). `js` mount
+  edilen bir script'i ve JavaScript ya da module olan inline bir `<script>`'i,
+  `css` bir stylesheet'i ve bir `<style>`'ı, `json` bir JSON document'ı ve JSON
+  taşıyan bir `<script>`'i (`application/ld+json`, `importmap`) kapsar. Tanımadığı
+  türde bir script, örneğin `text/template`, olduğu gibi kalır.
 - Bir parser değil, bir scanner'dır. Yalnızca anlam taşıyamayacak içeriği kaldırır.
-  `<pre>`, `<textarea>`, `<script>` ve `<style>` olduğu gibi korunur, CSS
-  string'lerine dokunulmaz, JavaScript'teki her satır sonu korunur ve geçersiz JSON
-  olduğu gibi döndürülür.
+  `<pre>` ve `<textarea>` olduğu gibi korunur, CSS string'lerine dokunulmaz,
+  JavaScript'teki her satır sonu korunur ve geçersiz JSON olduğu gibi döndürülür.
 - Mount edilen dosyalar, response değil dosya sistemi sarmalanarak minify edilir.
   Bu sayede bir mount'a yapılan `Range` request'leri doğru byte'ları döndürmeye
   devam eder.

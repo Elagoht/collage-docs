@@ -941,6 +941,11 @@ Plugins: []collage.Plugin{secure.New(secure.Options{
   new on every response: the cached page carries a placeholder, and the plugin's
   middleware puts a fresh nonce in its place. A page carrying one is sent with
   `Cache-Control: no-store` and no `ETag`.
+- A static export writes pages this middleware never serves, and a file cannot
+  carry a per-response nonce. So in a static build the `nonce` attribute is
+  removed and the script kept, with one warning; allow those inline scripts in
+  the host's own policy (since v0.1.2 — before, the placeholder was left in the
+  exported HTML).
 - In development the policy is sent report-only, so collage's live-reload script
   keeps working.
 
@@ -1159,15 +1164,19 @@ Plugins: []collage.Plugin{minimizer.New()},
 }
 ```
 
-- It needs collage v0.24.0 or later, and must go in `Config.Plugins`: it wraps the
+- It needs collage v0.28.0 or later, and must go in `Config.Plugins`: it wraps the
   mounted filesystems, which happens while the application is built.
 - `New()` enables HTML, JSON and CSS. JavaScript is off by default; turn it on with
   `{"js": true}`. `minimizer.NewWith(minimizer.Config{...})` sets every switch
   yourself and bypasses those defaults.
+- Each key covers its language wherever it appears (since v0.1.5): `js` a mounted
+  script and an inline `<script>` of JavaScript or a module, `css` a stylesheet and
+  a `<style>`, `json` a JSON document and a `<script>` holding JSON —
+  `application/ld+json`, `importmap`. A script of a type it does not know, such as
+  `text/template`, stays verbatim.
 - It is a scanner, not a parser, and removes only what cannot carry meaning:
-  `<pre>`, `<textarea>`, `<script>` and `<style>` are kept verbatim, CSS strings are
-  untouched, JavaScript keeps every newline, and invalid JSON is returned as it
-  was.
+  `<pre>` and `<textarea>` are kept verbatim, CSS strings are untouched,
+  JavaScript keeps every newline, and invalid JSON is returned as it was.
 - Mounted files are minified by wrapping the filesystem rather than the response,
   so `Range` requests against a mount keep returning the right bytes.
 
