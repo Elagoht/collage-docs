@@ -647,7 +647,7 @@ Plugins: []collage.Plugin{i18n.New(i18n.Options{FS: locales})},
 ```
 
 ```json
-{ "elagoht/i18n": { "dir": "locales" } }
+{ "elagoht/i18n": { "dir": "locales", "strict": true } }
 ```
 
 - It needs collage v0.22.0 or later, and must go in `Config.Plugins`: it adds
@@ -660,6 +660,20 @@ Plugins: []collage.Plugin{i18n.New(i18n.Options{FS: locales})},
 - A missing key falls back to the default locale, then to the key, and is reported
   as `missing-translation` over the page in development and in a static build's
   report. In development the catalogs are read again on every request.
+- **Outside a render** (since v0.2.0), for an email or a background job, keep the
+  plugin's value: `tr.In(user.Locale)` returns a `Translator` whose `T`, `TN` and
+  `TH` follow the same catalogs, fallback and plurals, and whose `Funcs()` gives an
+  application's own `html/template` `t`, `tn` and `th`. A locale the application
+  does not support is the default one. A key it cannot find is logged, once per key
+  and locale. The catalogs are read when the application starts, not in
+  `collage.New`; a translation asked for before then is the key itself.
+- A key one catalog has and another lacks is logged at startup and listed as
+  `untranslated` in a build, in either direction since v0.2.0. A plural form a
+  locale's rule never picks is not counted; `zero` is. With `strict` the
+  application does not start while the catalogs differ.
+- A key written both dotted and nested, `{"nav.home": …}` beside
+  `{"nav": {"home": …}}`, refuses to start since v0.2.0; which text it showed
+  used to depend on map order.
 
 ### Forms and state
 

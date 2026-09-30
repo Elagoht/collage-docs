@@ -678,7 +678,7 @@ Plugins: []collage.Plugin{i18n.New(i18n.Options{FS: locales})},
 ```
 
 ```json
-{ "elagoht/i18n": { "dir": "locales" } }
+{ "elagoht/i18n": { "dir": "locales", "strict": true } }
 ```
 
 - collage v0.22.0 ya da sonrasını gerektirir ve `Config.Plugins` içinde olmalıdır:
@@ -693,6 +693,21 @@ Plugins: []collage.Plugin{i18n.New(i18n.Options{FS: locales})},
   Development'ta page'in üzerinde, static build'de ise build raporunda
   `missing-translation` olarak raporlanır. Development'ta kataloglar her
   request'te yeniden okunur.
+- **Render dışında** (v0.2.0'dan beri), örneğin bir e-posta ya da arka plan işi
+  için, plugin'in değerini saklayın: `tr.In(user.Locale)` bir `Translator` döndürür.
+  Bu değerin `T`, `TN` ve `TH` metotları aynı katalogları, fallback'i ve çoğul
+  biçimleri kullanır. `Funcs()` ise uygulamanın kendi `html/template`'ine `t`, `tn`
+  ve `th` verir. Uygulamanın desteklemediği bir locale varsayılan locale olur.
+  Bulunamayan bir key, her key ve locale için bir kez loglanır. Kataloglar
+  `collage.New`'da değil, uygulama başlarken okunur. Ondan önce istenen bir çeviri
+  key'in kendisini döndürür.
+- Bir katalogda olup diğerinde olmayan bir key başlangıçta loglanır ve build'de
+  `untranslated` olarak listelenir. v0.2.0'dan beri bu iki yönde de yapılır. Bir
+  locale'in kuralının hiç seçmediği çoğul biçim sayılmaz, `zero` sayılır. `strict`
+  açıkken kataloglar farklıysa uygulama başlamaz.
+- Hem noktalı hem iç içe yazılmış bir key (`{"nav": {"home": …}}` yanında
+  `{"nav.home": …}`), v0.2.0'dan beri uygulamanın başlamasını engeller. Önceden
+  hangi metnin gösterileceği map'in dolaşılma sırasına bağlıydı.
 
 ### Form'lar ve state
 
