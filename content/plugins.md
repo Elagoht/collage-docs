@@ -1062,7 +1062,7 @@ Plugins: []collage.Plugin{live.New()},
 ```
 
 - It must go in `Config.Plugins`: it adds `{{liveClient}}`, which the layout calls
-  to include the client. v0.2.1 needs collage v0.20.0 or later; v0.2.0 needed
+  to include the client. v0.3.0 and v0.2.1 need collage v0.20.0 or later; v0.2.0 needed
   v0.19.0, and v0.1.0 v0.18.0.
 - The page owns the container and the fragment owns what is inside it.
   `data-collage-interval` fetches on an interval, `data-collage-push` takes the
@@ -1080,6 +1080,17 @@ Plugins: []collage.Plugin{live.New()},
   backs off when a request fails, marking the element `data-collage-stale`. A
   pushed copy carries the same ETag a poll would get, so one the client already
   holds is not sent again.
+- **Holding an element still** (since v0.3.0). While the reader is in the middle
+  of something, a drag, a menu held open, `collageLive.pause(el)` holds the
+  element: polls, pushes and form answers keep arriving, but only the latest is
+  kept, and `collageLive.resume(el)` puts it in. An element inside a fragment names
+  that fragment, so the list a drag started from holds the board around it; pauses
+  nest, and a held element carries `data-collage-paused`. `collageLive.put(el, html)`
+  puts in an answer the page fetched itself, an action's fragment, the way a form's
+  answer is put in; patching the DOM directly would leave the client believing it
+  still shows what it last put in. The
+  [README](https://github.com/Elagoht/collage-live#holding-an-element-still) has a
+  drag-and-drop example.
 - **One connection per browser.** A browser holds at most six connections to one
   origin over HTTP/1.1, across all its tabs, so since v0.2.0 the client opens the
   stream from a shared worker that every tab of the site shares. Where there is no

@@ -1107,7 +1107,7 @@ Plugins: []collage.Plugin{live.New()},
 ```
 
 - `Config.Plugins` içinde olmalıdır, çünkü layout'un client'ı eklemek için çağırdığı
-  `{{liveClient}}`'ı ekler. v0.2.1, collage v0.20.0 ya da sonrasını gerektirir;
+  `{{liveClient}}`'ı ekler. v0.3.0 ve v0.2.1, collage v0.20.0 ya da sonrasını gerektirir;
   v0.2.0 v0.19.0'ı, v0.1.0 ise v0.18.0'ı gerektiriyordu.
 - Container'ın sahibi page'dir, içindekinin sahibi fragment'tir.
   `data-collage-interval` belli aralıklarla fetch eder, `data-collage-push`
@@ -1127,6 +1127,17 @@ Plugins: []collage.Plugin{live.New()},
   Bir request başarısız olduğunda element'i `data-collage-stale` ile işaretler ve
   beklemeyi artırır. Gönderilen bir kopya, polling'in alacağı ETag'in aynısını
   taşır. Bu yüzden client'ın zaten elinde olan bir kopya yeniden gönderilmez.
+- **Bir element'i sabit tutmak** (v0.3.0'dan beri). Okuyucu bir işin ortasındayken
+  (bir sürükleme, açık tutulan bir menü) `collageLive.pause(el)` element'i sabit
+  tutar. Poll'lar, push'lar ve form cevapları gelmeye devam eder, ama yalnızca en
+  sonuncusu saklanır ve `collageLive.resume(el)` onu yerine koyar. Bir fragment'in
+  içindeki element o fragment'i gösterir, yani sürüklemenin başladığı liste etrafındaki
+  board'u sabit tutar. Pause'lar iç içe geçebilir ve sabit tutulan element
+  `data-collage-paused` taşır. `collageLive.put(el, html)`, sayfanın kendi aldığı bir
+  cevabı (bir action'ın fragment'ini) bir form cevabı gibi yerine koyar. DOM'u
+  doğrudan patch etmek, client'ın element'te hâlâ en son koyduğu içeriğin durduğunu
+  sanmasına yol açardı. Sürükle-bırak örneği
+  [README](https://github.com/Elagoht/collage-live#holding-an-element-still)'de.
 - **Tarayıcı başına tek bağlantı.** Bir tarayıcı HTTP/1.1 üzerinden bir origin'e,
   tüm sekmeleri toplamında en fazla altı bağlantı açar. Bu yüzden v0.2.0'dan beri
   client stream'i, sitenin tüm sekmelerinin paylaştığı bir shared worker'dan açar.
