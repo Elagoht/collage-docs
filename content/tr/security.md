@@ -25,6 +25,12 @@ sayfasına bakın.
 Deploy etmeden önce `Security.CSRFKey`'i ayarlayın: üretilen bir key her process'te
 farklıdır.
 
+Bir token, üretildiği zamanı imzalı olarak taşır ve `Security.CSRFTokenTTL`'den daha
+eski olduğunda reddedilir. Varsayılan on iki saattir, böylece sızan bir token sonsuza
+kadar tekrar kullanılamaz. Uzun süredir açık bir form'u olan bir okuyucu reddedilmek
+yerine yeni bir token alır. Bir token'ı imzası geçerli olduğu sürece geçerli tutmak
+için `CSRFTokenTTL`'i negatif yapın.
+
 ## Redirect'ler sitede kalır
 
 collage'ın yazdığı hiçbir redirect, okuyucuyu başka bir siteye gönderemez:
@@ -108,20 +114,29 @@ okuyamaz. Bir log satırındaki request path'i control character içerdiğinde t
 içine alınır. Böylece sahte bir satır oluşturamaz ya da terminalinizi yeniden
 yazamaz.
 
+## Security header'ları
+
+Her response varsayılan olarak `X-Content-Type-Options: nosniff` ve
+`X-Frame-Options: SAMEORIGIN` taşır. Böylece bir site, hiçbir şey eklemeden
+form'larında MIME-sniff ve clickjacking korumasına sahip olur. `Security.FrameOptions`
+değeri belirler: `"-"` hiçbirini göndermez, başka her şey olduğu gibi gönderilir.
+`Security.NoSniff` ise `false`'a işaret ettiğinde nosniff'i kapatır. Tam bir
+`Content-Security-Policy`, HSTS ve geri kalanını
+[elagoht/secure](/docs/plugins#elagohtsecure) plugin'i ekler ve onun header'ları
+bunları geçersiz kılar. Production'daki bir page hiçbir framework script'i taşımadığı
+için sıkı bir policy nonce gerektirmez.
+
 ## Size kalanlar
 
-- **Security header'ları.** collage hiçbir `Content-Security-Policy`, HSTS ya da
-  `X-Frame-Options` ayarlamaz. [elagoht/secure](/docs/plugins#elagohtsecure)
-  plugin'i bunları ayarlar. Production'daki bir page hiçbir framework script'i
-  taşımadığı için sıkı bir policy nonce gerektirmez.
 - **TLS**, `X-Forwarded-Proto`'yu ve tarayıcının `Host`'unu ileten bir proxy'de.
   Ayrıntılar için [Deployment](/docs/deployment#tls-behind-a-proxy) sayfasına bakın.
 - **Rate limit'ler**: [elagoht/ratelimit](/docs/plugins#elagohtratelimit).
 - **`app.Handle` ile mount edilmiş bir handler** tamamen sizindir: forgery kontrolü,
   body limiti ve cache yoktur.
-- **Bir data handler'ın okudukları.** Middleware'in context'e koyduğu bir değer
-  cache'lenmiş bir render'a da ulaşır. Okuyucudan okuyucuya değişen bir değer
-  `collage.Vary` ile de bildirilmelidir.
+- **Bir data handler'ın okudukları.** Cache'lenebilir bir page'de, middleware'in
+  request context'ine koyduğu bir değer paylaşılan render'dan gizlenir, böylece bir
+  okuyucunun değeri başka bir okuyucunun page'ine ulaşamaz. Bu değeri `collage.Vary`
+  ile bildirin ve `collage.Varied` ile okuyun.
 
 Bir güvenlik açığını bildirmek için
 [collage repository'sinde](https://github.com/Elagoht/collage/security) GitHub'ın

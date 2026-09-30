@@ -141,11 +141,12 @@ cache'lenmemelidir. Aksi hâlde ilk okuyucunun gördüğü versiyon herkese gös
 Böyle bir page'i dynamic bırakın, yani ona `Static()` ya da `Incremental(ttl)`
 vermeyin (data handler'ı olan ve strateji tanımlamayan bir page zaten dynamic'tir).
 Ya da neye göre değiştiğini aşağıda anlatılan `collage.Vary` ile cache'e bildirin.
-v0.34.0'dan beri cache'lenmiş bir render okuyucunun cookie'lerini ya da
-credential'larını hiç görmez
-([paylaşılan bir render neyi görür](/docs/caching#what-a-shared-render-sees)).
-Ama context olduğu gibi aktarılır. Bu yüzden oraya konmuş bir kullanıcı, herkese
-sunulan bir kopyada da hâlâ bir kullanıcıdır.
+Cache'lenmiş bir render ne okuyucunun cookie'lerini ve credential'larını, ne de
+middleware'inizin context'e koyduğu değerleri görür
+([paylaşılan bir render neyi görür](/docs/caching#what-a-shared-render-sees)):
+v0.39.0'dan beri, yanlışlıkla cache'lediğiniz kullanıcıya özel bir page — `userKey`
+değeri gizlendiği için — ilk okuyucunun hesabını herkese göstermek yerine herkese
+oturum kapalıymış gibi render edilir. Onu dynamic bırakın.
 
 Static export request olmadan render eder, bu yüzden export sırasında hiçbir
 middleware çalışmaz. Context'ten değer okuyan bir data handler, bu değer olmadığında
@@ -159,8 +160,6 @@ page, ilk hangi versiyonu render edildiyse onu herkese sunar. Bu header
 çağrılan `collage.Vary`, cache key'ine yeni bir boyut ekler:
 
 ```go
-type langKey struct{}
-
 app.Use(func(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		lang := "en"
@@ -170,15 +169,31 @@ app.Use(func(next http.Handler) http.Handler {
 		if err := collage.Vary(r, "Accept-Language", lang); err != nil {
 			app.Logger().Error("vary", "error", err)
 		}
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), langKey{}, lang)))
+		next.ServeHTTP(w, r)
 	})
 })
+```
+
+Bir fragment'in data handler'ı değeri `collage.Varied` ile geri okur:
+
+```go
+func languageData(ctx context.Context, rc *collage.RenderContext) (string, []string, error) {
+	lang, _ := collage.Varied(rc, "Accept-Language") // "tr" or "en"
+	return greeting(lang), nil, nil
+}
 ```
 
 - **Key'e ham header değil, sizin çözümlediğiniz değer girer.** Tarayıcılar
   tercihlerini yüz farklı şekilde yazar: `tr-TR,tr;q=0.9`, `tr`, `tr-TR`. Bunların
   hepsi aynı page'dir. Header'ı, page'lerinizin gerçekten farklılaştığı birkaç
   değere indirin. Cache de o sayıda entry tutar.
+- **Değeri context'ten değil, `collage.Varied` ile okuyun.** Cache'lenebilir bir
+  page'de tek bir render birçok okuyucuya sunulur. Bu yüzden middleware'inizin
+  `context.WithValue` ile request context'ine koyduğu bir değer o render'dan
+  gizlenir: aksi hâlde ilk okuyucunun değeri olur ve geri kalan herkes için
+  donar. Bir `Vary` değeri okunabilir çünkü key'in içindedir ve her değerin kendi
+  cache'lenmiş page'i vardır. Bkz.
+  [paylaşılan bir render neyi görür](/docs/caching#what-a-shared-render-sees).
 - **Header'ın adı response'un `Vary` header'ına eklenir.** Böylece sizinle okuyucu
   arasındaki bir CDN ya da proxy de versiyonları birbirinden ayrı tutar. Bu header
   yalnızca public olarak cache'lenebilen response'larda set edilir. `no-store` bir

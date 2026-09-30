@@ -133,10 +133,11 @@ Mind the cache. A page that renders differently per user must not be cached by U
 or the first reader's version is everyone's: keep it dynamic — as a page with a
 data handler and no declared strategy already is — rather than giving it `Static()`
 or `Incremental(ttl)`, or tell the cache what it varies on with `collage.Vary`
-below. A cached render does not see the reader's cookies or credentials at all
-since v0.34.0 ([what a shared render sees](/docs/caching#what-a-shared-render-sees)),
-but the context is passed whole, so a user put there is still a user in a copy
-everyone is served.
+below. A cached render sees neither the reader's cookies and credentials nor the values
+your middleware put in the context ([what a shared render
+sees](/docs/caching#what-a-shared-render-sees)): since v0.39.0 a per-user page you
+cached by mistake renders signed-out for everyone — the `userKey` value hidden —
+rather than showing the first reader's account to all. Keep it dynamic.
 
 A static export renders without a request, so no middleware runs during one. A data
 handler reading a context value must cope with its absence — which it has to anyway,
@@ -150,8 +151,6 @@ was rendered first to everybody. `collage.Vary`, called from middleware, adds a
 dimension to the cache key:
 
 ```go
-type langKey struct{}
-
 app.Use(func(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		lang := "en"
@@ -161,15 +160,30 @@ app.Use(func(next http.Handler) http.Handler {
 		if err := collage.Vary(r, "Accept-Language", lang); err != nil {
 			app.Logger().Error("vary", "error", err)
 		}
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), langKey{}, lang)))
+		next.ServeHTTP(w, r)
 	})
 })
+```
+
+A fragment's data handler reads the value back with `collage.Varied`:
+
+```go
+func languageData(ctx context.Context, rc *collage.RenderContext) (string, []string, error) {
+	lang, _ := collage.Varied(rc, "Accept-Language") // "tr" or "en"
+	return greeting(lang), nil, nil
+}
 ```
 
 - **The value you resolved goes into the key, not the raw header.** Browsers spell
   their preferences a hundred ways — `tr-TR,tr;q=0.9`, `tr`, `tr-TR` — and all of them
   are one page. Reduce the header to the handful of values your pages actually
   differ by, and the cache holds that many entries.
+- **Read it with `collage.Varied`, not from the context.** On a cacheable page one
+  render is served to many readers, so a value your middleware puts in the request
+  context with `context.WithValue` is stripped from that render — it would
+  otherwise be the first reader's, frozen for the rest. A `Vary` value is safe to
+  read because it is in the key, so each value has its own cached page. See
+  [what a shared render sees](/docs/caching#what-a-shared-render-sees).
 - **The header name goes into the response's `Vary` header**, so a CDN or proxy
   between you and the reader keeps the versions apart too. It is only set on
   publicly cacheable responses; a `no-store` response has nothing to keep apart.

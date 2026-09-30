@@ -152,6 +152,9 @@ set its own bound with `WithMaxBodyBytes`; see
 | `CSRFHeaderName` | `string` | `"X-CSRF-Token"` | Header a token may be submitted in instead. |
 | `CSRFTrustedOrigins` | `[]string` | none | Other origins whose forms may post here, each `scheme://host[:port]` (since v0.34.0). |
 | `DisableCSRF` | `bool` | `false` | Turns forgery checking off for the whole application. |
+| `CSRFTokenTTL` | `time.Duration` | `12h` | How long a forgery token stays valid after it is issued; negative disables expiry (since v0.39.0). |
+| `FrameOptions` | `string` | `"SAMEORIGIN"` | `X-Frame-Options` sent on every response; `"-"` sends none (since v0.39.0). |
+| `NoSniff` | `*bool` | on | Sends `X-Content-Type-Options: nosniff` on every response unless it points at `false` (since v0.39.0). |
 
 **Set `CSRFKey` before deploying anything with a form.** It should be at least 32
 random bytes, kept with your other secrets and the same on every instance. Left
@@ -241,7 +244,7 @@ handler that never checks `ctx.Done()` can run past it.
 | `Store` | `Cache` | `nil` | Your own cache implementation. |
 | `Type` | `string` | `"memory"` when enabled | Built-in cache when `Store` is `nil`: `"memory"` or `"disk"`. |
 | `DefaultTTL` | `time.Duration` | `5m` | Entry lifetime when a page sets none. |
-| `MaxEntries` | `int` | `10000` | Cap on cache entries; negative means unlimited. |
+| `MaxEntries` | `int` | `10000` | Cap on cache entries, memory and disk alike; negative means unlimited (disk since v0.39.0). |
 | `Dir` | `string` | none | Where a disk cache stores entries. Required for `"disk"`. |
 | `Version` | `string` | derived from the binary | Identifies the build a disk cache's entries belong to. |
 | `MaxKeysPerTag` | `int` | `10000` | Cap on cache keys recorded under one tag; negative means unlimited. |

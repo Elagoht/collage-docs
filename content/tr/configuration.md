@@ -161,6 +161,9 @@ action'lar](/docs/forms-and-actions) sayfasına bakın.
 | `CSRFHeaderName` | `string` | `"X-CSRF-Token"` | Token'ın alternatif olarak gönderilebileceği header. |
 | `CSRFTrustedOrigins` | `[]string` | yok | Form'ları buraya post edebilecek diğer origin'ler. Her biri `scheme://host[:port]` biçimindedir (v0.34.0'dan beri). |
 | `DisableCSRF` | `bool` | `false` | Forgery kontrolünü bütün uygulama için kapatır. |
+| `CSRFTokenTTL` | `time.Duration` | `12h` | Bir forgery token'ının üretildikten sonra ne kadar geçerli kaldığı; negatif değer sona ermeyi kapatır (v0.39.0'dan beri). |
+| `FrameOptions` | `string` | `"SAMEORIGIN"` | Her response'ta gönderilen `X-Frame-Options`; `"-"` hiçbirini göndermez (v0.39.0'dan beri). |
+| `NoSniff` | `*bool` | açık | `false`'a işaret etmediği sürece her response'ta `X-Content-Type-Options: nosniff` gönderir (v0.39.0'dan beri). |
 
 **Form içeren herhangi bir şeyi deploy etmeden önce `CSRFKey`'i ayarlayın.** Key en
 az 32 byte rastgele veri olmalı, diğer secret'larınızla birlikte saklanmalı ve her
@@ -257,7 +260,7 @@ bu süreyi aşabilir.
 | `Store` | `Cache` | `nil` | Kendi cache implementasyonunuz. |
 | `Type` | `string` | açıksa `"memory"` | `Store` `nil` olduğunda kullanılan built-in cache: `"memory"` ya da `"disk"`. |
 | `DefaultTTL` | `time.Duration` | `5m` | Page bir süre koymadığında entry'nin ömrü. |
-| `MaxEntries` | `int` | `10000` | Cache entry sayısının üst sınırı. Negatif değer sınırsız demektir. |
+| `MaxEntries` | `int` | `10000` | Cache entry sayısının üst sınırı; memory ve disk için de geçerli. Negatif değer sınırsız demektir (disk için v0.39.0'dan beri). |
 | `Dir` | `string` | yok | Disk cache'in entry'leri sakladığı yer. `"disk"` için zorunludur. |
 | `Version` | `string` | binary'den türetilir | Disk cache'teki entry'lerin hangi build'e ait olduğunu belirler. |
 | `MaxKeysPerTag` | `int` | `10000` | Tek bir tag altında tutulan cache key sayısının üst sınırı. Negatif değer sınırsız demektir. |

@@ -22,6 +22,12 @@ An origin meant to post here is named in `Security.CSRFTrustedOrigins`. See
 
 Set `Security.CSRFKey` before deploying: a generated key differs in every process.
 
+A token carries the time it was issued, signed, and is refused once it is older
+than `Security.CSRFTokenTTL` — twelve hours by default, so a leaked token cannot
+be replayed forever. A reader with a long-open form is sent a fresh token rather
+than refused; set `CSRFTokenTTL` negative to keep a token valid for as long as its
+signature.
+
 ## Redirects stay on the site
 
 No redirect collage writes can send a reader to another site:
@@ -95,18 +101,26 @@ page on another site cannot read them through DNS rebinding. A request path in a
 log line is quoted when it holds a control character, so it cannot forge a line or
 rewrite your terminal.
 
-## What is left to you
+## Security headers
 
-- **Security headers.** collage sets no `Content-Security-Policy`, HSTS or
-  `X-Frame-Options`. The [elagoht/secure](/docs/plugins#elagohtsecure) plugin does;
-  a production page carries no framework script, so a strict policy needs no nonce.
+Every response carries `X-Content-Type-Options: nosniff` and
+`X-Frame-Options: SAMEORIGIN` by default, so a site has MIME-sniff and clickjacking
+protection on its forms without adding anything. `Security.FrameOptions` sets the
+value — `"-"` sends none, anything else is sent verbatim — and `Security.NoSniff`
+turns nosniff off when it points at `false`. A full `Content-Security-Policy`, HSTS
+and the rest are what the [elagoht/secure](/docs/plugins#elagohtsecure) plugin adds,
+and its headers override these; a production page carries no framework script, so a
+strict policy needs no nonce.
+
+## What is left to you
 - **TLS**, at a proxy that passes `X-Forwarded-Proto` and the browser's `Host` on.
   See [Deployment](/docs/deployment#tls-behind-a-proxy).
 - **Rate limits** — [elagoht/ratelimit](/docs/plugins#elagohtratelimit).
 - **A handler mounted with `app.Handle`** is your own: no forgery check, no body
   limit, no cache.
-- **What a data handler reads.** A value middleware put in the context reaches a
-  cached render too; one that differs between readers belongs in `collage.Vary`.
+- **What a data handler reads.** On a cacheable page, a value middleware put in the
+  request context is hidden from the shared render, so one reader's cannot reach
+  another's page; declare it with `collage.Vary` and read it with `collage.Varied`.
 
 To report a vulnerability, use GitHub's private reporting on the
 [collage repository](https://github.com/Elagoht/collage/security).

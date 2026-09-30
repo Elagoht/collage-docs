@@ -198,7 +198,8 @@ Cache'lenmiş bir page, şu parçalardan oluşan bir key ile bulunur:
 - çözümlenen locale,
 - yakalanan path parametreleri,
 - query string ([aşağıya](#query-parameters-in-the-key) bakın),
-- middleware'inizin `collage.Vary` ile bildirdiği her değer,
+- middleware'inizin `collage.Vary` ile bildirdiği her değer (bir handler'da
+  `collage.Varied` ile okunur),
 - request'in host'u (v0.34.0'dan beri).
 
 Key'i aynı olan iki request, collage açısından aynı page'dir.
@@ -218,11 +219,16 @@ de verilmez.
 
 Static ya da incremental bir page'deki bir handler cookie okumak istediğinde hiçbir
 cookie bulamaz. Eskiden ilk okuyucunun cookie'sini bulur ve onu, ondan sonra gelen
-herkesin aldığı kopyaya yazardı. Okuyucunun kendi request'ine ihtiyaç duyan bir page
-`Dynamic()` olmalıdır; dynamic bir page request'in tamamını görür. Request'in
-context'i olduğu gibi aktarılır. Bu yüzden middleware'inizin oraya koyduğu bir değer
-render'a yine ulaşır. Okuyucudan okuyucuya değişen bir değer ise `collage.Vary` ile
-de bildirilmelidir. Document'lar da aynı kurala uyar.
+herkesin aldığı kopyaya yazardı. Request'in context'i de aynı muameleyi görür:
+middleware'inizin oraya koyduğu bir değer, yani giriş yapmış bir kullanıcı, bir
+tenant ya da bir request id, cookie ile aynı nedenden ötürü paylaşılan bir render'dan
+gizlenir. Middleware'inizin `collage.Vary` ile bildirdiği bir değeri
+`collage.Varied(rc, header)` ile geri okuyun; orada güvenlidir, çünkü key'in içindedir
+ve her değerin kendi cache'lenmiş page'i vardır. Bir cache boyutu olmayan bir değerin
+paylaşılan bir render'da yeri yoktur: okuyucunun kendi request'ine ihtiyaç duyan bir
+page `Dynamic()` olmalıdır ve dynamic bir page request'in tamamını görür.
+Development'ta, bir handler'ın gerçekten okuduğu gizlenmiş bir context değeri
+log'lanır, böylece hata görünür olur. Document'lar da aynı kurala uyar.
 
 ## Dependency tag'ler
 
@@ -394,6 +400,13 @@ bir neden değildir. Salt okunur bir dosya sistemi ya da yazacak yeri olmayan bi
 container buna örnektir. collage bu durumda bir uyarı log'lar ve onun yerine
 memory'de cache'ler.
 
+v0.39.0'dan beri disk cache de en fazla `MaxEntries` kadar entry tutar. Varsayılan
+yine 10000'dir, sınırsız bırakmak istediğiniz bir cache için negatif bir değer verin.
+Dolduğunda dosya değiştirilme zamanına göre en eskisini atar. Cache key request'in
+host'unu ve varsayılan olarak query'sinin tamamını içerdiği için, bu sınır olmasa
+ikisinden birini değiştiren anonim bir çağıran, her seferinde hiç atılmayan bir dosya
+ekleyerek diski doldurabilirdi.
+
 ### Namespace
 
 Disk cache, onu dolduran process'ten daha uzun yaşar. Bu hem işin amacıdır hem de
@@ -465,8 +478,9 @@ bir şey yoktur.
 - **Bir okuyucunun vazgeçmesi diğerlerini başarısız kılmaz.** Bağlantısı kapanan bir
   request beklemeyi bırakır. Render'ın kendisi onu bekleyen request'lerin hiçbirine
   ait değildir. Bu yüzden ilk request vazgeçtiğinde render durmaz: v0.18.1'den beri
-  o request'in context değerleriyle ama iptali olmadan çalışır ve yalnızca
-  fragment'lerin kendi timeout'larıyla sınırlanır. Stop'a basan tek bir okuyucu,
+  o request'in iptalinden bağımsız, v0.39.0'dan beri de okuyucuya özgü context
+  değerleri olmadan çalışır ve yalnızca fragment'lerin kendi timeout'larıyla
+  sınırlanır. Stop'a basan tek bir okuyucu,
   aynı anda isteyen herkese parçaları "context canceled" ile başarısız olmuş bir
   page veremez.
 - **Bu durum görünürdür.** Bu şekilde sunulan bir request metriklerinize iki kez

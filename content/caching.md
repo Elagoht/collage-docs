@@ -187,7 +187,8 @@ A cached page is found by a key made from:
 - the resolved locale,
 - the captured path parameters,
 - the query string (see [below](#query-parameters-in-the-key)),
-- any value your middleware declared with `collage.Vary`,
+- any value your middleware declared with `collage.Vary` (read back in a handler
+  with `collage.Varied`),
 - the request's host (since v0.34.0).
 
 Two requests with the same key are, as far as collage is concerned, the same page.
@@ -206,10 +207,15 @@ certificate, and not a query parameter `WithCacheParams` left out.
 
 A handler on a static or incremental page that reads a cookie finds none — where
 it used to find the first reader's, and write it into the copy everyone after got.
-A page that needs the reader's own request is `Dynamic()`, and a dynamic page sees
-all of it. The request's context is passed whole, so a value your middleware put
-there still reaches the render; one that differs between readers belongs in
-`collage.Vary` too. Documents follow the same rule.
+The request's context is stripped the same way: a value your middleware stored in
+it — a signed-in user, a tenant, a request id — is hidden from a shared render,
+for the same reason the cookie is. Read a value your middleware declared with
+`collage.Vary` back with `collage.Varied(rc, header)`; it is safe there because it
+is in the key, so each value has its own cached page. A value that is not a cache
+dimension does not belong in a shared render — a page that needs the reader's own
+request is `Dynamic()`, and a dynamic page sees all of it. In development, a
+hidden context value a handler actually reads is logged, so the mistake is
+visible. Documents follow the same rule.
 
 ## Dependency tags
 
@@ -375,6 +381,12 @@ somewhere nobody looked. Add it to `.gitignore`. Since v0.11.0 a directory that
 cannot be created — a read-only filesystem, a container with nowhere to write — is
 not a reason not to start: collage logs a warning and caches in memory instead.
 
+Since v0.39.0 the disk cache holds at most `MaxEntries` too — the same default of
+10000, a negative value for a cache you mean to leave unbounded — and evicts the
+oldest by file modification time when it is full. The cache key includes the
+request's host and, by default, its whole query, so without the cap an anonymous
+caller varying either could fill the disk one never-evicted file at a time.
+
 ### The namespace
 
 A disk cache outlives the process that filled it, and that is a hazard as well as
@@ -441,8 +453,8 @@ nothing to configure.
 - **One reader giving up does not fail the others.** A request whose connection
   closes stops waiting. The render itself belongs to none of the requests waiting
   on it, so it does not stop when the first of them does: since v0.18.1 it runs
-  with that request's context values but not its cancellation, bounded by the
-  fragments' own timeouts. One reader pressing stop cannot hand everyone who asked
+  detached from that request's cancellation, and since v0.39.0 with its per-reader
+  context values stripped as well, bounded by the fragments' own timeouts. One reader pressing stop cannot hand everyone who asked
   at the same moment a page whose parts failed with "context canceled".
 - **It is visible.** A request served this way is reported to your metrics twice:
   as a `CacheMiss`, when its lookup found nothing, and then as `CacheCoalesced`,
