@@ -39,6 +39,42 @@ Two things about where it runs:
   instead of a dropped connection, and a request it answers itself is counted like
   any other.
 
+### Plugins' middleware and yours
+
+Since v0.38.0 a plugin's middleware counts as registered where the plugin was. The
+plugins in `Config.Plugins` are registered in `collage.New`, so their middleware is
+outside everything `app.Use` adds, and yours reads what they put in the request's
+context: the session, a flash message. Loading the signed-in user once per
+request is one middleware:
+
+```go
+app.Use(func(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := session.FromContext(r.Context()).Get(session.UserKey)
+		user, err := users.Active(r.Context(), id) // nil for a disabled account
+		if err != nil {
+			http.Error(w, "unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		next.ServeHTTP(w, r.WithContext(withUser(r.Context(), user)))
+	})
+})
+```
+
+A plugin that should read what your middleware put there, a rate limit keyed on
+that user, is registered after it with `app.RegisterPlugin`. Its middleware goes
+where the call is made: inside what `app.Use` added before it, outside what it adds
+after.
+
+```go
+app.Use(loadUser)
+app.RegisterPlugin(ratelimit.New(ratelimit.Options{KeyFunc: userID}))
+```
+
+`RegisterPlugin` refuses a plugin that adds template functions; that one has to be
+in `Config.Plugins`. Before v0.38.0 every plugin's middleware ran inside the
+application's, and `session.FromContext` was `nil` in `app.Use` middleware.
+
 ### Paths are cleaned first
 
 A path with dot segments or doubled slashes — `/a/../b`, `/a//b`, `/a/./b` — is

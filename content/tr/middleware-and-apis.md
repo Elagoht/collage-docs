@@ -42,6 +42,44 @@ Middleware'in nerede çalıştığıyla ilgili iki nokta var:
   hata yolunda sıradan bir 500'e dönüşür. Middleware'in kendisinin cevap verdiği
   bir request de diğer request'ler gibi sayılır.
 
+### Plugin'lerin middleware'i ve sizinki
+
+v0.38.0'dan beri bir plugin'in middleware'i, plugin'in register edildiği yerde
+register edilmiş sayılır. `Config.Plugins` içindeki plugin'ler `collage.New`'da
+register edilir. Bu yüzden onların middleware'i `app.Use` ile eklenen her şeyin
+dışındadır ve sizin middleware'iniz onların request context'ine koyduklarını
+okur: session'ı, bir flash mesajını. Giriş yapmış kullanıcıyı her request'te bir
+kez yüklemek tek bir middleware'dir:
+
+```go
+app.Use(func(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := session.FromContext(r.Context()).Get(session.UserKey)
+		user, err := users.Active(r.Context(), id) // devre dışı bir hesap için nil
+		if err != nil {
+			http.Error(w, "unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		next.ServeHTTP(w, r.WithContext(withUser(r.Context(), user)))
+	})
+})
+```
+
+Sizin middleware'inizin koyduğunu okuması gereken bir plugin, örneğin o
+kullanıcıya göre sınırlama yapan bir rate limit, ondan sonra `app.RegisterPlugin`
+ile register edilir. Middleware'i çağrının yapıldığı yere girer: kendisinden önce
+`app.Use` ile eklenenlerin içine, sonra eklenenlerin dışına.
+
+```go
+app.Use(loadUser)
+app.RegisterPlugin(ratelimit.New(ratelimit.Options{KeyFunc: userID}))
+```
+
+`RegisterPlugin`, template fonksiyonu ekleyen bir plugin'i reddeder. Böyle bir
+plugin `Config.Plugins` içinde olmalıdır. v0.38.0'dan önce her plugin'in
+middleware'i uygulamanınkinin içinde çalışıyordu ve `app.Use` middleware'inde
+`session.FromContext` `nil` dönüyordu.
+
 ### Path'ler önce temizlenir
 
 Dot segment'ler ya da çift slash içeren bir path (`/a/../b`, `/a//b`, `/a/./b`),

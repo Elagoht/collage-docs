@@ -121,7 +121,7 @@ ulaşabileceği bir cache olmazdı.
 | `Handle(prefix, handler) error` | `App.Handle` gibi, bir `http.Handler`'ı `/` ile biten bir URL prefix'i altında ya da sonunda `/` olmayan tek bir tam path'te (`/metrics`, v0.24.0'dan beri) sunar. Örneğin bir event stream ya da bir WebSocket (v0.18.0'dan beri). |
 | `RenderFragment(r, req) (*collage.FragmentRender, error)` | Bir page'in `WithFragmentPath` ile açtığı bir fragment'i parçalar hâlinde render eder. Bkz. [Fragment göndermek](#pushing-fragments) (v0.18.0'dan beri). |
 | `RegisterCommand(cmd) error` | Bir komut ekler. Bkz. [Komutlar](#commands). |
-| `Use(middleware) error` | Her request'i, uygulamanın kendi middleware'inden sonra sarmalar (v0.21.0'dan beri). |
+| `Use(middleware) error` | Her request'i sarmalar (v0.21.0'dan beri), plugin'in register edildiği yerde: `Config.Plugins` içindeki bir plugin için uygulamanın kendi middleware'inin dışında (v0.38.0'dan beri; önceden içindeydi). |
 | `URL(name, locale, params) (string, error)` | Bir page'in ya da document'ın path'ini `App.URL`'in oluşturduğu gibi döner (v0.21.0'dan beri). |
 | `FragmentURL(page, fragment, locale, params) (string, error)` | Bir fragment path'inin path'ini `App.FragmentURL`'in oluşturduğu gibi döner (v0.21.0'dan beri). |
 | `Locales() (default, supported)` | Varsayılan locale'i ve varsayılan dahil desteklenen her locale'i döner (v0.21.0'dan beri). |
@@ -745,9 +745,13 @@ page olmayan şeyler için, örneğin bir event stream ya da bir WebSocket için
 prefix altında düz bir `http.Handler` sunar. `/` ile biten bir prefix, altındaki her
 path'i üstlenir. v0.24.0'dan beri sonunda `/` olmayan bir prefix, örneğin
 `/metrics`, tek bir tam path'tir. `Host.Use` (v0.21.0'dan beri),
-`App.Use` gibi her request'i uygulamanın kendi middleware'inden sonra sarmalar.
-Böylece bir plugin'in header'ları ve cookie'leri, uygulamanın middleware'inin
-ürettiğini sarar.
+`App.Use` gibi her request'i, plugin'in register edildiği yerde sarmalar.
+v0.38.0'dan beri `Config.Plugins` içindeki bir plugin, uygulamanın kendi
+middleware'inin dışındadır. Böylece request context'ine koyduğu şey, örneğin bir
+session, uygulamanın middleware'i tarafından okunabilir; header'ları ve
+cookie'leri de o middleware'in ürettiğini sarar. `App.RegisterPlugin` ile
+register edilen bir plugin ise uygulamanın middleware'leri arasında, çağrının
+yapıldığı yerde durur.
 
 Page'lere link veren bir plugin, onların nerede olduğunu tahmin etmez, sorar.
 `Host.URL` ve `Host.FragmentURL`, bir path'i `App.URL` ve `App.FragmentURL` gibi

@@ -115,7 +115,7 @@ cache to reach.
 | `Handle(prefix, handler) error` | Serves an `http.Handler` under a URL prefix ending in `/`, or at one exact path without it (`/metrics`, since v0.24.0), as `App.Handle` does — an event stream, a WebSocket (since v0.18.0). |
 | `RenderFragment(r, req) (*collage.FragmentRender, error)` | Renders a fragment a page opened with `WithFragmentPath`, in parts — see [Pushing fragments](#pushing-fragments) (since v0.18.0). |
 | `RegisterCommand(cmd) error` | Contributes a command — see [Commands](#commands). |
-| `Use(middleware) error` | Wraps every request, after the application's own middleware (since v0.21.0). |
+| `Use(middleware) error` | Wraps every request (since v0.21.0), where the plugin was registered: for one in `Config.Plugins`, outside the application's own middleware (since v0.38.0; inside it before). |
 | `URL(name, locale, params) (string, error)` | The path of a page or document, as `App.URL` builds it (since v0.21.0). |
 | `FragmentURL(page, fragment, locale, params) (string, error)` | The path of a fragment path, as `App.FragmentURL` builds it (since v0.21.0). |
 | `Locales() (default, supported)` | The default locale and every supported one, the default included (since v0.21.0). |
@@ -710,8 +710,12 @@ application uses. `Host.Handle` serves a plain `http.Handler` under a prefix, fo
 what is not a page — an event stream, a WebSocket. A prefix ending in `/` claims
 every path beneath it; since v0.24.0 one without, `/metrics`, is a single exact
 path. `Host.Use` (since v0.21.0) wraps
-every request, as `App.Use` does, after the application's own middleware, so a
-plugin's headers and cookies wrap what the application's middleware produced.
+every request, as `App.Use` does, where the plugin was registered. Since v0.38.0 a
+plugin in `Config.Plugins` is outside the application's own middleware, so what it
+puts in the request's context, a session, is there for the application's
+middleware to read, and its headers and cookies wrap what that middleware
+produced. One registered with `App.RegisterPlugin` sits among the application's
+middleware where the call was made.
 
 A plugin that links to pages asks where they live rather than guessing:
 `Host.URL` and `Host.FragmentURL` build a path as `App.URL` and `App.FragmentURL`
