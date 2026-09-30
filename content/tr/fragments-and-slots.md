@@ -104,7 +104,7 @@ olarak adlandırır.
 Daha uzun bir template, `collage.InlineHTML` olarak tanımlanmış ayrı bir sabit
 olabilir (v0.30.0'dan beri). Bu, `string` için bir addır ve
 [VS Code extension'ı](/docs/installation#editor-support) onu HTML olarak
-renklendirir:
+renklendirir ve düzenler:
 
 ```go
 const loginForm collage.InlineHTML = `

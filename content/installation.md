@@ -287,14 +287,19 @@ an error page is exactly the response most likely to hand them to a stranger. Se
 For VS Code there is the Collage Snippets & Highlighter extension. It adds:
 
 - **Snippets** for Go (`cpage`, `cfragd`, `caction`, `cplugin` …) and for templates
-  (`clayout`, `cslot`, `cform` …). The ones that write a whole function —
-  `cpagef`, `cfragf`, `cinlinef`, `clayoutf`, `cguardf` — also add the file's
-  `package` clause when it has none (the package of the files beside it, `main`
-  beside `go.mod`, or the directory's name) and the imports the function needs.
+  (`clayout`, `cslot`, `cform`, `cformv` …). Many Go ones — `cpagef`, `cactionf`,
+  `cvalid`, `credirect`, `cdataf`, `cmeta` … — also add the file's `package` clause
+  when it has none (the package of the files beside it, `main` beside `go.mod`, or
+  the directory's name) and the imports they use, collage-validate's and
+  collage-flash's among them.
 - **Highlighting** of `{{ … }}` inside HTML. Templates stay HTML files, so Emmet,
   tag completion and formatting keep working. In Go, the template of an
   [inline fragment](/docs/fragments-and-slots#inline-templates) is coloured as HTML
-  too, and so is a constant declared as `collage.InlineHTML`.
+  too, its arguments on one line or several, and so is a constant declared as
+  `collage.InlineHTML`.
+- **HTML inside Go edited as HTML** (since 0.6.0): in an inline template, tag and
+  attribute completion, your HTML snippets, Emmet, hover, folding, the matching
+  tag and tags closed as you type — and all of the below inside its `{{ … }}`.
 - **Completion and hover** for every template function — collage's, its published
   plugins' and Go's builtins — with its signature and documentation.
 - **Your project's names**: pages in `{{pageURL "…"}}` and their parameters,

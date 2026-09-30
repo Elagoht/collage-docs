@@ -97,7 +97,7 @@ own. The development error panel names it as `inline template of fragment
 
 A longer template can be a constant of its own, declared as `collage.InlineHTML`
 (since v0.30.0) — a name for `string` that the
-[VS Code extension](/docs/installation#editor-support) colours as HTML:
+[VS Code extension](/docs/installation#editor-support) colours and edits as HTML:
 
 ```go
 const loginForm collage.InlineHTML = `

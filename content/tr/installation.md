@@ -303,16 +303,21 @@ response da tam olarak error page'dir. [Hatalar](/docs/errors) sayfasına bakın
 VS Code için Collage Snippets & Highlighter extension'ı vardır. Şunları ekler:
 
 - **Snippet'ler**: Go için (`cpage`, `cfragd`, `caction`, `cplugin` …) ve
-  template'ler için (`clayout`, `cslot`, `cform` …). Bütün bir fonksiyon yazanlar
-  (`cpagef`, `cfragf`, `cinlinef`, `clayoutf`, `cguardf`), dosyada `package`
-  satırı yoksa onu da ekler: yanındaki dosyaların package'ı, `go.mod`'un yanında
-  `main`, değilse dizinin adı. Fonksiyonun ihtiyaç duyduğu import'ları da ekler.
+  template'ler için (`clayout`, `cslot`, `cform`, `cformv` …). Birçok Go snippet'i
+  (`cpagef`, `cactionf`, `cvalid`, `credirect`, `cdataf`, `cmeta` …), dosyada
+  `package` satırı yoksa onu da ekler: yanındaki dosyaların package'ı, `go.mod`'un
+  yanında `main`, değilse dizinin adı. Kullandıkları import'ları da ekler;
+  collage-validate ve collage-flash import'ları da buna dahildir.
 - **Highlighting**: HTML içindeki `{{ … }}` renklendirilir. Template'ler HTML
   dosyası olarak kalır, bu yüzden Emmet, tag tamamlama ve biçimlendirme çalışmaya
   devam eder. Go'da
   [inline bir fragment](/docs/fragments-and-slots#inline-templates)'in template'i
-  de HTML olarak renklendirilir; `collage.InlineHTML` olarak tanımlanmış bir sabit
-  de öyle.
+  de HTML olarak renklendirilir; argümanlar tek satırda ya da birkaç satırda
+  olabilir. `collage.InlineHTML` olarak tanımlanmış bir sabit de öyle.
+- **Go içindeki HTML, HTML olarak düzenlenir** (0.6.0'dan beri): inline bir
+  template'te tag ve attribute tamamlama, HTML snippet'leriniz, Emmet, hover,
+  katlama, eşleşen tag ve yazarken kapanan tag'ler. `{{ … }}` içinde de aşağıdaki
+  her şey çalışır.
 - **Completion ve hover**: collage'ın, yayımlanmış plugin'lerinin ve Go'nun
   builtin'leri olan her template fonksiyonu için, imzası ve dokümantasyonuyla.
 - **Projenizdeki adlar**: `{{pageURL "…"}}` içinde page'ler ve parametreleri,
