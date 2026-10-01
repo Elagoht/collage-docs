@@ -1,6 +1,6 @@
 ---
 description: Page nedir, layout'ları ve içeriği nasıl bir araya gelir, onu kim görebilir, ona hangi path'ler ulaşır, nasıl cache'lenir, başarısız olduğunda ne gösterir ve register edilmek onu nasıl değiştirir.
-reference: NewPage, PageBuilder, PageBuilder.WithLayouts, Page, RenderPage, DefaultContentSlot, StrategyAuto, FragmentBuilder.WithGuard, GuardFunc, GuardDecision
+reference: Registrable, ErrNilRegistrable, NewPage, PageBuilder, PageBuilder.WithLayouts, Page, RenderPage, DefaultContentSlot, StrategyAuto, FragmentBuilder.WithGuard, GuardFunc, GuardDecision
 ---
 
 # Page'ler ve layout'lar
@@ -115,7 +115,7 @@ register edildikten sonra ortak layout'a bağlanan bir fragment o page'de görü
 Önce layout'u eksiksiz oluşturun, sonra page'leri onunla register edin.
 
 Scaffold, layout'unu her çağrıda yeni bir fragment dönen bir fonksiyon olarak
-yazar: `layouts.Layout()`. Bu yöntem de aynı şekilde çalışır. Tek bir değeri
+yazar: `layouts.Master()`. Bu yöntem de aynı şekilde çalışır. Tek bir değeri
 paylaşmak yalnızca izin verilen bir seçenektir.
 
 ### Layout içinde layout
@@ -402,7 +402,7 @@ func NotFoundPage() *collage.Page {
 	content := collage.NewFragment("not-found-content", "pages/404.html").Build()
 
 	return collage.NewPage("not-found").
-		WithLayouts(layouts.Layout()).
+		WithLayouts(layouts.Master()).
 		WithContent(content).
 		Dynamic().
 		Build()
@@ -479,6 +479,37 @@ alınmaz. Örneğin bir locale'de kabul edilen path, bir sonraki locale reddedil
 router'da kalır. Bunun sebebi, başarısız bir register işleminin toparlanılacak bir
 durum olmamasıdır. Bu, hiç başlamaması gereken bir programdır.
 
+### Birkaçını birden register etmek
+
+`app.Register` (v0.40.0'dan beri) page'leri, document'ları ve action'ları tek bir
+çağrıda alır ve her birini sırayla `RegisterPage`, `RegisterDocument` ya da
+`RegisterAction` üzerinden register eder. Scaffold'un oluşturduğu `routes.go`, ona
+yapılan tek bir çağrıdan ibarettir:
+
+```go
+func register(app *collage.App) error {
+	if err := app.Register(
+		landingpages.Home(),
+		blogpages.Post(),
+		documents.Health(),
+		actions.Logout(),
+	); err != nil {
+		return err
+	}
+	return app.RegisterNotFoundPage(errorspages.NotFound())
+}
+```
+
+Reddedilen ilk değerde durur ve onun hatasını türü ve adıyla sarmalayarak döner
+(`register page "post": collage: duplicate page ...`). Böylece `errors.Is` asıl
+nedeni yine bulur. Ondan önce register edilenler, tekil metotlarda olduğu gibi
+register edilmiş olarak kalır. Bir `nil`, `ErrNilRegistrable` olur. Not-found ve
+error page'lerine bir path üzerinden değil, eşleşmenin başarısız olmasıyla ulaşılır.
+Bu yüzden onlar `RegisterNotFoundPage` ve `RegisterErrorPage`'i kullanmaya devam
+eder. `Register` bir `collage.Registrable` alır ve bunu yalnızca `*Page`,
+`*Document` ve `*Action` karşılar. [`collage add`](/docs/cli#collage-add) yazdığı
+şeyi bu çağrıya ekler.
+
 ### Register edilen değer neden önemli
 
 Register işlemi kendisine verilen page'i değiştirir. 3. adım `page.LayoutFragment`'i,
@@ -501,7 +532,7 @@ Bir page'e değer üzerinden başvuran her şey o değeri kullanmalıdır:
 
   ```go
   return collage.NewPage("hello").
-  	WithLayouts(layouts.Layout()).
+  	WithLayouts(layouts.Master()).
   	WithContent(content).
   	WithPath("en", "/hello").
   	WithAction("POST", func(_ context.Context, rc *collage.RenderContext) (*collage.ActionResult, error) {

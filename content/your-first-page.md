@@ -1,6 +1,6 @@
 ---
 description: A hands-on tutorial — build a recipe page with a layout, a data handler and a template, add a second fragment in a slot, and export every recipe to static files.
-reference: New, NewPage, NewFragment, FragmentBuilder.WithData, FragmentBuilder.WithTitle, PageBuilder.WithStaticParams, DataHandler, Load, ErrNotFound, ErrUnknownSlot
+reference: New, NewPage, NewFragment, FragmentBuilder.WithData, FragmentBuilder.WithTitle, PageBuilder.WithStaticParams, Registrable, DataHandler, Load, ErrNotFound, ErrUnknownSlot
 ---
 
 # Your first page
@@ -32,7 +32,7 @@ A minimal project already has one layout, and every page uses it. It is two
 files. The fragment, in `fragments/layouts/main.go`:
 
 ```go
-func Layout() *collage.Fragment {
+func Master() *collage.Fragment {
 	return collage.NewFragment("layout", "layouts/default.html").
 		WithTitle("cookbook").
 		Build()
@@ -69,27 +69,40 @@ moment. See [Head and SEO](/docs/head-and-seo#keys-and-the-innermost-wins).
 
 ## Look at the home page
 
-The home page, in `pages/home.go`, shows the shortest way to give a template data:
+A page is two files, one beside the other by area: the page in `pages/<area>/`,
+and its content in `fragments/pages/<area>/`. The home page is in the `landing`
+area. Its content, `fragments/pages/landing/home.go`, shows the shortest way to
+give a template data:
 
 ```go
-// homeView is what templates/pages/home.html renders with, as ".".
+// Types data used on this page: what templates/pages/home.html renders as ".".
 type homeView struct {
 	Name string
 }
 
-func HomePage() *collage.Page {
-	content := collage.NewFragment("home-content", "pages/home.html").
+func Home() *collage.Fragment {
+	return collage.NewFragment("home", "pages/home.html").
 		WithData(homeView{Name: "cookbook"}).
 		Build()
+}
+```
 
-	// No Static() needed: nothing here fetches per render, so the page is static.
+And the page, `pages/landing/home.go`, puts that content in the layout at a path:
+
+```go
+// No Static() needed: nothing here fetches per render, so the page is static.
+func Home() *collage.Page {
 	return collage.NewPage("home").
-		WithLayouts(layouts.Layout()).
-		WithContent(content).
+		WithLayouts(layouts.Master()).
+		WithContent(fragments.Home()).
 		WithPath("en", "/").
 		Build()
 }
 ```
+
+`fragments` there is the content's package, imported as
+`fragments "cookbook/fragments/pages/landing"`: both packages are called after
+what they hold, `pages` and `fragments`, and the directory says which area.
 
 `WithData` hands the template the same value on every render, and in
 `templates/pages/home.html` that value is `.`:
@@ -112,8 +125,8 @@ takes a function.
 
 ## Where the content comes from
 
-A real site loads recipes from a database or a CMS. Here, a map will do. Create
-`recipes/recipes.go`:
+A real site loads recipes from a database or a CMS. Here, a map will do. State
+lives in `data/<domain>/`; create `data/recipes/recipes.go`:
 
 ```go
 // Package recipes is where this site's content comes from.
@@ -174,31 +187,41 @@ exist" (a 404) from "this broke" (a 500). And both functions take a
 ## The content fragment
 
 A fragment is a template plus, optionally, a function that fetches what the
-template renders. Create `pages/recipe.go`:
+template renders. `collage add` writes a page in the project's layout and registers
+it, so start there:
+
+```sh
+collage add page recipes/recipe --file --path '/recipes/{slug}'
+```
+
+```
+wrote  fragments/pages/recipes/recipe.go
+wrote  templates/pages/recipes/recipe.html
+wrote  pages/recipes/recipe.go
+edited routes.go
+page "recipe" at /recipes/{slug}
+```
+
+The page is `"recipe"`, in the `recipes` area, and `--file` keeps its markup in a
+template file rather than inline in Go. What it wrote renders a placeholder title.
+Replace the content, `fragments/pages/recipes/recipe.go`, with a recipe:
 
 ```go
-package pages
+package fragments
 
 import (
 	"context"
 
-	"github.com/Elagoht/collage/pkg/collage"
+	"cookbook/data/recipes"
 
-	"cookbook/fragments/layouts"
-	"cookbook/recipes"
+	"github.com/Elagoht/collage/pkg/collage"
 )
 
-// RecipePage is one recipe, at /recipes/{slug}.
-func RecipePage() *collage.Page {
-	content := collage.NewFragment("recipe-content", "pages/recipe.html").
+// Returns the recipe page's content.
+func Recipe() *collage.Fragment {
+	return collage.NewFragment("recipe", "pages/recipes/recipe.html").
 		WithDataHandler(loadRecipe).
 		Required().
-		Build()
-
-	return collage.NewPage("recipe").
-		WithLayouts(layouts.Layout()).
-		WithContent(content).
-		WithPath("en", "/recipes/{slug}").
 		Build()
 }
 
@@ -213,9 +236,21 @@ func loadRecipe(ctx context.Context, rc *collage.RenderContext) (any, []string, 
 }
 ```
 
+The page, `pages/recipes/recipe.go`, is as `collage add` wrote it:
+
+```go
+func Recipe() *collage.Page {
+	return collage.NewPage("recipe").
+		WithLayouts(layouts.Master()).
+		WithContent(fragments.Recipe()).
+		WithPath("en", "/recipes/{slug}").
+		Build()
+}
+```
+
 Take it a line at a time.
 
-- **`NewFragment("recipe-content", "pages/recipe.html")`** names the fragment and
+- **`NewFragment("recipe", "pages/recipes/recipe.html")`** names the fragment and
   its template. The template path is relative to `templates/`, extension included.
 - **`WithDataHandler(loadRecipe)`** gives the fragment its data handler: a function
   of exactly the shape `WithDataHandler` takes, no adapter in between.
@@ -225,7 +260,7 @@ Take it a line at a time.
   shows the pancakes recipe", which is what lets a cached copy be thrown away when
   that recipe changes. A loader you also call from elsewhere — a test, another
   page — can return its own type instead, through `collage.DataHandler`, or
-  `collage.Load` when it has no tags; see
+  `collage.Load` when it has no tags, as the one `collage add` wrote did; see
   [Data handlers](/docs/data-handlers#loaders-with-a-type-of-their-own).
 - **`rc.Param("slug")`** is the `{slug}` the URL matched.
 - **`rc.HoistTitle`** gives the page its own `<title>`. The content fragment sits
@@ -246,7 +281,7 @@ see [Export it](#export-it) below.
 
 ## The template
 
-Create `templates/pages/recipe.html`:
+Replace `templates/pages/recipes/recipe.html` with:
 
 ```html
 <main class="recipe">
@@ -266,16 +301,21 @@ every value is escaped for where it appears; a recipe titled
 
 ## Register the page
 
-A page does nothing until the application knows about it. Open `routes.go` and add
-`pages.RecipePage()` to the list:
+A page does nothing until the application knows about it. `collage add` already
+told it: `routes.go` now lists the recipe page beside the home page.
 
 ```go
-for _, page := range []*collage.Page{pages.HomePage(), pages.RecipePage()} {
-	if err := app.RegisterPage(page); err != nil {
-		return fmt.Errorf("register page %q: %w", page.Name, err)
-	}
+func register(app *collage.App) error {
+	return app.Register(
+		landingpages.Home(),
+		recipespages.Recipe(),
+	)
 }
 ```
+
+`app.Register` takes pages, documents and actions, and registers each in order. A
+page written by hand goes here the same way: one more line in the call, and its
+area's package in the imports under an alias like `recipespages`.
 
 Registration is where mistakes are caught. A template path with a typo, a required
 slot with nothing in it, two pages with one name, a malformed path — each one stops
@@ -288,7 +328,7 @@ Save, and watch the terminal: `collage dev` rebuilds and restarts. Now open
 [localhost:6060/recipes/pancakes](http://localhost:6060/recipes/pancakes).
 
 The page is the layout with your fragment in its `content` slot. Edit
-`templates/pages/recipe.html` — add a sentence, change a heading — and the browser
+`templates/pages/recipes/recipe.html` — add a sentence, change a heading — and the browser
 reloads with the change; no rebuild happened, because templates are read from disk
 on every request in development.
 
@@ -301,8 +341,8 @@ registered one; `app.RegisterNotFoundPage` gives the site its own — see
 Break something on purpose to see what failure looks like. Change `{{.Title}}` to
 `{{.Name}}` in the template, save, and reload: the field does not exist, the
 required fragment fails, and the page is a 500. In development the error page
-names `recipe-content` as the fragment where the failure started and prints the
-whole error chain, down to `pages/recipe.html:2:8` and the field it could not
+names `recipe` as the fragment where the failure started and prints the whole
+error chain, down to `pages/recipes/recipe.html:2:8` and the field it could not
 find. Put it back.
 
 That is also why the handler returns `any` rather than a `recipes.Recipe`. The
@@ -312,27 +352,34 @@ would not have caught `{{.Name}}` either.
 ## Add a second fragment in a slot
 
 A page is rarely one piece. Add a list of the other recipes, as its own fragment
-with its own data. Create `pages/more.go`:
+with its own data. `collage add fragment` writes a fragment beside the page's
+content, without a page of its own:
+
+```sh
+collage add fragment recipes/more --file
+```
+
+Replace `fragments/pages/recipes/more.go` with:
 
 ```go
-package pages
+package fragments
 
 import (
 	"context"
 
-	"github.com/Elagoht/collage/pkg/collage"
+	"cookbook/data/recipes"
 
-	"cookbook/recipes"
+	"github.com/Elagoht/collage/pkg/collage"
 )
 
-// moreView is what the "more recipes" fragment renders.
+// moreView is what the "more" fragment renders.
 type moreView struct {
 	Recipes []recipes.Recipe
 }
 
-// MoreRecipes lists every recipe but the one on the page.
-func MoreRecipes() *collage.Fragment {
-	return collage.NewFragment("more-recipes", "fragments/more-recipes.html").
+// Returns the list of every recipe but the one on the page.
+func More() *collage.Fragment {
+	return collage.NewFragment("more", "pages/recipes/more.html").
 		WithDataHandler(loadMore).
 		Build()
 }
@@ -355,7 +402,7 @@ func loadMore(ctx context.Context, rc *collage.RenderContext) (any, []string, er
 `rc.Param("slug")` works here too: parameters belong to the request, not to the
 fragment whose page declared the path.
 
-Its template, `templates/fragments/more-recipes.html`:
+Its template, `templates/pages/recipes/more.html`:
 
 ```html
 <aside class="more-recipes">
@@ -374,17 +421,17 @@ from its path, so it follows the page if `/recipes/{slug}` ever becomes
 
 The list is about the recipe on the page, so it belongs to the recipe page, not to
 the layout every page shares. Put it in a slot of the recipe fragment. In
-`pages/recipe.go`:
+`fragments/pages/recipes/recipe.go`, where both live in one package:
 
 ```go
-content := collage.NewFragment("recipe-content", "pages/recipe.html").
+return collage.NewFragment("recipe", "pages/recipes/recipe.html").
 	WithDataHandler(loadRecipe).
-	WithSlotFragment("more", MoreRecipes()).
+	WithSlotFragment("more", More()).
 	Required().
 	Build()
 ```
 
-And render the slot where it belongs, in `templates/pages/recipe.html`, before
+And render the slot where it belongs, in `templates/pages/recipes/recipe.html`, before
 `</main>`:
 
 ```html
@@ -401,7 +448,7 @@ own page.
 Three things are true of this page that were not written down anywhere.
 
 - **The list is optional.** A slot is optional unless `WithSlot` makes it
-  required, and `MoreRecipes` is not `Required()`. If `loadMore` fails, the page is
+  required, and `More` is not `Required()`. If `loadMore` fails, the page is
   served without the list — and, in development, with a panel saying which fragment
   failed and why. A broken sidebar is a missing sidebar, not a 500.
 - **The page's tags are both fragments' tags.** The page now depends on
@@ -418,12 +465,13 @@ Three things are true of this page that were not written down anywhere.
 
 The recipes do not change between requests: they change when you edit the map and
 deploy. So the page does not need to render per request, and the whole site can be
-static files. Two lines in `pages/recipe.go` say so:
+static files. Two lines in `pages/recipes/recipe.go` say so, with `recipes`
+imported from `cookbook/data/recipes` and `context` from the standard library:
 
 ```go
 	return collage.NewPage("recipe").
-		WithLayouts(layouts.Layout()).
-		WithContent(content).
+		WithLayouts(layouts.Master()).
+		WithContent(fragments.Recipe()).
 		WithPath("en", "/recipes/{slug}").
 		Static().
 		WithStaticParams(recipeParams).
@@ -485,50 +533,61 @@ remains a 404 either way.
 ## Test it
 
 A collage application is tested without a server: `app.Handler()` is an ordinary
-`http.Handler`, and `net/http/httptest` drives it. Create `main_test.go` with a
-helper that builds the application through the same `newApp` that `main` uses, and
-a test:
+`http.Handler`, and `pkg/collagetest` drives it the way a browser does — cookies
+kept, forms submitted with their hidden fields, redirects there to follow. Create
+`main_test.go` with a helper that builds the application through the same
+`newApp` that `main` uses, and a test:
 
 ```go
 package main
 
 import (
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/Elagoht/collage/pkg/collagetest"
 )
 
-func get(t *testing.T, target string) *httptest.ResponseRecorder {
+func client(t *testing.T) *collagetest.Client {
 	t.Helper()
 	cacheDir = t.TempDir() // a disk cache of its own, not the last run's
 	app, err := newApp(false, 0)
 	if err != nil {
 		t.Fatalf("newApp() = %v", err)
 	}
-	rec := httptest.NewRecorder()
-	app.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
-	return rec
+	return collagetest.New(t, app.Handler())
 }
 
 func TestRecipePage(t *testing.T) {
-	rec := get(t, "/recipes/pancakes")
-	if rec.Code != http.StatusOK {
-		t.Fatalf("GET /recipes/pancakes = %d, want 200", rec.Code)
+	c := client(t)
+	page := c.Get("/recipes/pancakes").WantStatus(http.StatusOK)
+	if !strings.Contains(page.Body, `href="/recipes/omelette"`) {
+		t.Errorf("the page does not link to the other recipes:\n%s", page.Body)
 	}
-	if !strings.Contains(rec.Body.String(), `href="/recipes/omelette"`) {
-		t.Errorf("the page does not link to the other recipes:\n%s", rec.Body.String())
-	}
-
-	if rec := get(t, "/recipes/lasagne"); rec.Code != http.StatusNotFound {
-		t.Errorf("GET /recipes/lasagne = %d, want 404", rec.Code)
-	}
+	c.Get("/recipes/lasagne").WantStatus(http.StatusNotFound)
 }
 ```
 
 ```sh
 go test ./...
 ```
+
+`WantStatus` fails the test with the body when the status is not the one asked
+for. One more check is worth having from the start: every `pageURL` in the
+templates names a page that exists. `collage check` finds the ones that do not,
+without rendering anything:
+
+```sh
+collage check
+```
+
+```
+collage: check: nothing found
+```
+
+See [Testing](/docs/testing) for forms, cookies and the rest of the client, and
+[the CLI](/docs/cli#collage-check) for what `check` reports.
 
 ## Where to go next
 

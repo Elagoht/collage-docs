@@ -1,18 +1,39 @@
 ---
-description: Gerçek uygulamayı app.Handler() ve net/http/httptest ile test edin. Page'leri, forgery token'ıyla birlikte form'ları, document'ları ve static export'u bu şekilde sınayabilirsiniz.
+description: Gerçek uygulamayı app.Handler() ve pkg/collagetest ile test edin. pkg/collagetest, cookie'leri saklayan ve form'ları bir tarayıcının yaptığı gibi gönderen bir client'tır. Page'leri, forgery token'ıyla birlikte form'ları, document'ları ve static export'u bu şekilde sınayabilirsiniz.
 reference: NewBuilder, BuildOptions, App
 ---
 
 # Test yazmak
 
 Bir collage uygulaması bir `http.Handler`'dır. `app.Handler()` bu handler'ı döndürür.
-Dinleyen bir sunucu yoktur, seçmeniz gereken bir port da yoktur. Bu yüzden
-`net/http/httptest`, sıradan bir Go testinden bütün siteyi çalıştırabilir. Routing,
-data handler'lar, template'ler, cache, form'lar, document'lar ve middleware testte de
-production'daki gibi çalışır.
+Dinleyen bir sunucu yoktur, seçmeniz gereken bir port da yoktur. Bu yüzden sıradan
+bir Go testi bütün siteyi çalıştırabilir. Routing, data handler'lar, template'ler,
+cache, form'lar, document'lar, plugin'ler ve middleware testte de production'daki gibi
+çalışır. `pkg/collagetest` (v0.40.0'dan beri) bunu bir tarayıcının yaptığı gibi yapan
+client'tır: bir response'un set ettiği cookie'leri saklar ve bir form'u, page'in
+içine koyduğu bütün gizli alanlarla birlikte gönderir.
 
-`collage new` komutunun scaffold ettiği proje, bu şekilde kurulmuş bir test dosyasıyla
-gelir. Bu sayfa o dosyadaki kalıbı adım adım anlatır.
+```go
+import "github.com/Elagoht/collage/pkg/collagetest"
+
+func TestLogin(t *testing.T) {
+	c := client(t) // below: a collagetest.Client on the application main builds
+
+	page := c.Get("/login").WantStatus(http.StatusOK)
+	res := c.Submit(page, "/login", url.Values{
+		"email":    {"ada@example.com"},
+		"password": {"correct horse"},
+	}).WantStatus(http.StatusSeeOther)
+
+	if res.Location() != "/panel" {
+		t.Errorf("Location = %q, want /panel", res.Location())
+	}
+	c.Follow(res).WantStatus(http.StatusOK) // the page the login's cookie opens
+}
+```
+
+`collage new --template demo` komutunun scaffold ettiği demo projesi, bu şekilde
+kurulmuş bir test dosyasıyla gelir. Bu sayfa o dosyadaki kalıbı adım adım anlatır.
 
 ## `main`'in kurduğu uygulamayı test edin
 
@@ -28,22 +49,15 @@ config'i, route'ları ve mount'larıyla birlikte sınar. Zamanla ondan uzaklaşa
 bir kurulumu sınamaz.
 
 ```go
-func handler(t *testing.T) http.Handler {
+// client returns a browser of its own on a fresh copy of the site.
+func client(t *testing.T) *collagetest.Client {
 	t.Helper()
 	cacheDir = t.TempDir()
 	app, err := newApp(false, 0)
 	if err != nil {
 		t.Fatalf("newApp() = %v, want nil", err)
 	}
-	return app.Handler()
-}
-
-// get returns the response to a GET of target, and its body.
-func get(t *testing.T, h http.Handler, target string) (*httptest.ResponseRecorder, string) {
-	t.Helper()
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
-	return rec, rec.Body.String()
+	return collagetest.New(t, app.Handler())
 }
 ```
 
@@ -55,32 +69,33 @@ Bundan sonra her test, bir request atmaktan ve response'a bakmaktan ibarettir:
 
 ```go
 func TestPagesRender(t *testing.T) {
-	h := handler(t)
+	c := client(t)
 	for target, want := range map[string]string{
 		"/":         "Explore the features",
 		"/features": "Four live demos",
 		"/hello":    "Hello, stranger!",
 	} {
-		rec, body := get(t, h, target)
-		if rec.Code != http.StatusOK {
-			t.Errorf("GET %s = %d, want 200", target, rec.Code)
+		res := c.Get(target)
+		if res.Status != http.StatusOK {
+			t.Errorf("GET %s = %d, want 200", target, res.Status)
 			continue
 		}
-		if !strings.Contains(body, want) {
+		if !strings.Contains(res.Body, want) {
 			t.Errorf("GET %s does not contain %q", target, want)
 		}
 		// Counted, not merely found: a layout writing one and a page hoisting
 		// another is two titles, which is a page that looks fine and is not.
-		if n := strings.Count(body, "<title>"); n != 1 {
+		if n := strings.Count(res.Body, "<title>"); n != 1 {
 			t.Errorf("GET %s has %d titles, want exactly 1", target, n)
 		}
 	}
 }
 ```
 
-`handler(t)`'nin yaptığı gibi her test için yeni bir handler kurun. `app.Handler()`'a
-yapılan ilk çağrı uygulamayı başlatır ve register aşamasını kapatır. Handler her test
-için yeniden kurulduğundan her test boş bir cache ile başlar.
+`client(t)`'nin yaptığı gibi her test için yeni bir client kurun. `app.Handler()`'a
+yapılan ilk çağrı uygulamayı başlatır ve register aşamasını kapatır. Client her test
+için yeniden kurulduğundan her test boş bir cache ve boş bir cookie jar ile başlar.
+İki okuyucu, iki client demektir.
 
 Başlatma başarısız olabilir. Örneğin bir plugin'in `Init`'i hata döner, bir page
 register edilmemiş bir error page'i belirtir ya da bir mount bir route'u gölgeler. Bu
@@ -93,9 +108,34 @@ if err := app.Start(); err != nil {
 }
 ```
 
+## Client
+
+| | |
+| --- | --- |
+| `collagetest.New(t, h)` | `h` için boş bir cookie jar'ı olan bir client |
+| `c.Get(target)` | Bir path'e ya da mutlak bir URL'ye `GET` |
+| `c.Submit(page, action, values)` | `page` içinde action'ı `action` olan form'u gönderir |
+| `c.Follow(res)` | Bir redirect'in belirttiği `Location`'a `GET` |
+| `c.Request(method, target, body)` / `c.Do(req)` | Diğer her request: bir JSON body, kendine ait bir header. `Do`, jar'daki cookie'leri ekler ve response'un set ettiklerini saklar |
+
+Bir `*Response`, `Status`, `Header`, `Body`, `URL` ve `Method` taşır.
+`WantStatus(code)`, status farklıysa testi body ile birlikte başarısız kılar ve
+response'u döner. Böylece bir request ve onun kontrolü tek bir satır gibi okunur.
+`Location()`, `Location` header'ıdır. `CSRFToken()` ise page'deki ilk gizli `_csrf`
+input'unun değeridir.
+
+Jar bir `net/http/cookiejar`'dır ve cookie'leri bir tarayıcının yaptığı gibi path'e
+ve süresine göre kapsar. Tek başına bir path, `net/http/httptest`'in kullandığı host
+olan `http://example.com`'a gönderilir. Cookie'lerini `Secure` olarak işaretleyen bir
+site mutlak `https://example.com/...` hedefleri kullanır. Bu request'ler TLS
+üzerinden gelmiş gibi ulaşır, böylece jar o cookie'leri geri gönderir.
+
+Redirect'ler takip edilmez: bir test genellikle `303`'ü ve nereyi gösterdiğini görmek
+ister. Test, arkasındaki page ile ilgiliyse redirect'i `Follow` takip eder.
+
 ## Disk cache'ini izole edin
 
-Scaffold'daki cache dizini bir package değişkenidir. `handler`, uygulamayı kurmadan
+Scaffold'daki cache dizini bir package değişkenidir. `client`, uygulamayı kurmadan
 önce bu değişkeni yeni bir dizine yönlendirir:
 
 ```go
@@ -115,90 +155,65 @@ Ayrıca package'ınızın içinde bir `.cache` dizini bırakırdı.
 çağırmaz. Paralel test istiyorsanız dizini bunun yerine `newApp`'e parametre olarak
 verin.
 
-Caching'i test eden bir test bu durumdan yararlanabilir. Aynı handler'a iki request
+Caching'i test eden bir test bu durumdan yararlanabilir. Aynı client ile iki request
 atın ve ikincisinin cache'ten sunulduğunu kontrol edin. Ya da iki request arasında
 `app.InvalidateTags`'i çağırın ve ikincisinin cache'ten sunulmadığını kontrol edin.
 
 ## Form'lar ve forgery token
 
 Güvenli olmayan bir HTTP method'unun arkasındaki her action, bir request forgery
-token'ı kontrol eder. Form post'ları da `fetch()` çağrıları da buna dahildir. Testin de
-bu token'ı bir tarayıcının yaptığı gibi göndermesi gerekir:
-
-1. Form'un bulunduğu page'e `GET` atın. Response `collage_csrf` cookie'sini set eder.
-   Page'deki `{{csrfToken}}` de aynı token'ı taşıyan gizli bir `_csrf` alanı render
-   eder.
-2. Token'ı page'in içinden okuyun.
-3. Form'u `POST` edin. Token'ı `_csrf` alanında ya da bir `fetch()`'in yaptığı gibi
-   `X-CSRF-Token` header'ında gönderin. 1. adımdaki cookie'yi de ekleyin.
-
-Scaffold'daki helper'lar şunlardır:
-
-```go
-// token reads the forgery token out of a rendered page, the way a browser does.
-func token(t *testing.T, body string) string {
-	t.Helper()
-	m := regexp.MustCompile(`name="_csrf" value="([^"]+)"`).FindStringSubmatch(body)
-	if m == nil {
-		t.Fatalf("no forgery token in the page:\n%s", body)
-	}
-	return m[1]
-}
-
-// post sends a POST to target, carrying the cookies from page.
-func post(t *testing.T, h http.Handler, target string, form url.Values, header http.Header, page *httptest.ResponseRecorder) *httptest.ResponseRecorder {
-	t.Helper()
-	req := httptest.NewRequest(http.MethodPost, target, strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	for name, values := range header {
-		req.Header[name] = values
-	}
-	if page != nil {
-		for _, c := range (&http.Response{Header: page.Header()}).Cookies() {
-			req.AddCookie(c)
-		}
-	}
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, req)
-	return rec
-}
-```
-
-`(&http.Response{Header: page.Header()}).Cookies()`, recorder'daki `Set-Cookie`
-header'larını standart kütüphanenin kendi cookie parser'ıyla parse eder. Böylece
-test, bir tarayıcının geri göndereceği şeyin aynısını gönderir.
-
-Token'ın form alanında gittiği bir form post'u:
+token'ı kontrol eder. Form post'ları da `fetch()` çağrıları da buna dahildir. Test bu
+token'ı bir tarayıcının yaptığı gibi gönderir: form'un bulunduğu page'e `GET` atar.
+Bu page `collage_csrf` cookie'sini set eder ve `{{csrfToken}}`'ı gizli bir `_csrf`
+alanı olarak render eder. Test ardından form'u bu alan ve bu cookie ile post eder.
+`Submit` bunların hepsini yapar:
 
 ```go
 func TestHelloGreetsTheSubmittedName(t *testing.T) {
-	h := handler(t)
-	page, body := get(t, h, "/features")
+	c := client(t)
 
-	rec := post(t, h, "/hello", url.Values{"_csrf": {token(t, body)}, "name": {"Ada"}}, nil, page)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("POST /hello = %d, want 200", rec.Code)
-	}
-	if !strings.Contains(rec.Body.String(), "Hello, Ada!") {
-		t.Errorf("the response does not greet the name:\n%s", rec.Body.String())
+	res := c.Submit(c.Get("/features"), "/hello", url.Values{"name": {"Ada"}}).WantStatus(http.StatusOK)
+	if !strings.Contains(res.Body, "Hello, Ada!") {
+		t.Errorf("the response does not greet the name:\n%s", res.Body)
 	}
 }
 ```
 
-Token'ın header'da gittiği bir JSON endpoint'i:
+`Submit` form'u bulur, içindeki **bütün gizli input'ları** taşır (forgery token'ı ve
+bir plugin'in form'a koyduğu her şeyi, örneğin bir honeypot'un imzalı zaman
+damgasını) ve `values`'u bunların üzerine koyar: `values` içindeki bir ad, aynı adlı
+gizli bir input'un yerine geçer. Görünür alanları doldurmak testin işidir. Bir bot'un
+dolduracağı tuzak alan boş kalır, böylece gönderim bir okuyucunun gönderimidir.
+
+- `action`, page'in URL'sine göre çözümlenir ve form'unki gibi decode edilmiş
+  hâliyle karşılaştırılır: `"/login"`, yanındaki bir page'den `"login"`, mutlak bir
+  URL ve action'ı `"/giri%c5%9f"` olan bir form için `"/giriş"` aynı form'u belirtir.
+  `action`'ı olmayan bir form kendi page'ine gönderilir. Boş bir `action`, page'in tek
+  form'u demektir. Hiç eşleşme olmaması ya da birden fazla eşleşme olması testi
+  başarısız kılar ve page'deki form'ların action'larını listeler.
+- Form'un `method`'u ve `enctype`'ı dikkate alınır: `GET` form'u değerlerini query'de
+  gönderir, `multipart/form-data` multipart olarak gönderilir, diğer her şey
+  `application/x-www-form-urlencoded` olarak gönderilir.
+- Form'lar bir HTML parser'ıyla değil, bir scanner ile bulunur: yorumlar ve
+  `<script>`, `<style>`, `<template>` ve `<textarea>` gövdeleri atlanır. Böylece
+  oralara metin olarak yazılmış markup form sanılmaz. Disabled bir gizli input,
+  bir tarayıcının göndermediği gibi gönderilmez.
+
+Bir JSON endpoint'i token'ı, bir `fetch()`'in gönderdiği gibi `X-CSRF-Token`
+header'ında alır:
 
 ```go
 func TestCountAnswersWithTheNewCount(t *testing.T) {
-	h := handler(t)
-	page, body := get(t, h, "/features")
+	c := client(t)
+	page := c.Get("/features")
 
-	rec := post(t, h, "/api/count", nil, http.Header{"X-Csrf-Token": {token(t, body)}}, page)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("POST /api/count = %d, want 200", rec.Code)
-	}
+	req := c.Request(http.MethodPost, "/api/count", nil)
+	req.Header.Set("X-CSRF-Token", page.CSRFToken())
+	res := c.Do(req).WantStatus(http.StatusOK)
+
 	var answer struct{ Count int64 }
-	if err := json.Unmarshal(rec.Body.Bytes(), &answer); err != nil {
-		t.Fatalf("body = %q, want JSON: %v", rec.Body.String(), err)
+	if err := json.Unmarshal([]byte(res.Body), &answer); err != nil {
+		t.Fatalf("body = %q, want JSON: %v", res.Body, err)
 	}
 	if answer.Count < 1 {
 		t.Errorf("count = %d, want at least 1 after a click", answer.Count)
@@ -212,10 +227,12 @@ Korumanın açık kalmasını güvenceye alan test de şudur:
 // Without a token a submission never reaches its handler. This is the test that
 // fails if the protection is ever turned off by accident.
 func TestASubmissionWithNoTokenIsRefused(t *testing.T) {
-	h := handler(t)
+	c := client(t)
 	for _, target := range []string{"/api/count", "/hello"} {
-		if rec := post(t, h, target, url.Values{"name": {"Ada"}}, nil, nil); rec.Code != http.StatusForbidden {
-			t.Errorf("POST %s with no token = %d, want 403", target, rec.Code)
+		req := c.Request(http.MethodPost, target, strings.NewReader(url.Values{"name": {"Ada"}}.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		if res := c.Do(req); res.Status != http.StatusForbidden {
+			t.Errorf("POST %s with no token = %d, want 403", target, res.Status)
 		}
 	}
 }
@@ -234,47 +251,42 @@ edin. Bir document'ı document yapan şeyin yarısı content type'ıdır:
 
 ```go
 func TestHealthCheck(t *testing.T) {
-	rec, body := get(t, handler(t), "/healthz")
+	res := client(t).Get("/healthz").WantStatus(http.StatusOK)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("GET /healthz = %d, want 200", rec.Code)
-	}
 	var health struct{ Status string }
-	if err := json.Unmarshal([]byte(body), &health); err != nil || health.Status != "ok" {
-		t.Errorf("body = %q, want a status of ok", body)
+	if err := json.Unmarshal([]byte(res.Body), &health); err != nil || health.Status != "ok" {
+		t.Errorf("body = %q, want a status of ok", res.Body)
 	}
-	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+	if ct := res.Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
 		t.Errorf("Content-Type = %q, want application/json", ct)
 	}
 }
 ```
 
 Not-found page, `Allow` header'ıyla dönen bir 405, bir redirect'in `Location`'ı ve
-bir `Cache-Control` header'ı recorder üzerinde birer alandır:
+bir `Cache-Control` header'ı response üzerinde birer alandır:
 
 ```go
 func TestNotFoundPage(t *testing.T) {
-	rec, body := get(t, handler(t), "/there-is-nothing-here")
+	res := client(t).Get("/there-is-nothing-here").WantStatus(http.StatusNotFound)
 
-	if rec.Code != http.StatusNotFound {
-		t.Fatalf("status = %d, want 404", rec.Code)
-	}
-	if !strings.Contains(body, "There is nothing at this address") {
-		t.Errorf("body = %q, want this site's own not-found page", body)
+	if !strings.Contains(res.Body, "There is nothing at this address") {
+		t.Errorf("body = %q, want this site's own not-found page", res.Body)
 	}
 }
 ```
 
 `app.Use` ile register edilen middleware handler'ın bir parçasıdır. Bu yüzden bu
 testlerde de çalışır. Bir preview'ı ya da bir `collage.Vary` boyutunu test etmek
-için `ServeHTTP`'den önce request'e cookie'yi ya da header'ı ekleyin.
+için `c.Do`'dan önce bir `c.Request`'e cookie'yi ya da header'ı ekleyin. Client bir
+kolaylıktır, zorunluluk değildir: `app.Handler()`, diğer her handler gibi bir
+`net/http/httptest` recorder'ı ile de çalışır.
 
 ## Her page render edilir
 
 Bütün page'leri ziyaret eden bir test, yalnızca birinde hata veren template'i
 yakalar. collage-docs içeriğini yükler ve her page'e request atar. Aşağıdaki örnek
-yukarıdaki `handler` ve `get` helper'larını kullanır ve bütün tur için tek bir
-uygulama kurar:
+bütün tur için tek bir client, dolayısıyla tek bir uygulama kullanır:
 
 ```go
 // Every page of the documentation renders, with its own title.
@@ -283,14 +295,14 @@ func TestEveryDocRenders(t *testing.T) {
 	if err != nil {
 		t.Fatalf("site.Load: %v", err)
 	}
-	h := handler(t)
+	c := client(t)
 	for _, page := range loaded.Pages() {
-		rec, body := get(t, h, page.URL())
-		if rec.Code != http.StatusOK {
-			t.Errorf("GET %s = %d", page.URL(), rec.Code)
+		res := c.Get(page.URL())
+		if res.Status != http.StatusOK {
+			t.Errorf("GET %s = %d", page.URL(), res.Status)
 			continue
 		}
-		if !strings.Contains(body, "<title>"+page.Title+" — collage</title>") {
+		if !strings.Contains(res.Body, "<title>"+page.Title+" — collage</title>") {
 			t.Errorf("GET %s has no title %q", page.URL(), page.Title)
 		}
 	}
@@ -386,8 +398,29 @@ if result.Degraded() {
 ```
 
 `app.RenderDocumentPath` aynı işi bir document için yapar. Çoğu test için
-`app.Handler()` daha iyi bir seçimdir, çünkü okuyucunun gerçekte ne aldığını test
-eder. Bu iki metot tek bir render'a ayrıntılı bakmak içindir.
+`app.Handler()` ve `collagetest` daha iyi bir seçimdir, çünkü okuyucunun gerçekte ne
+aldığını test ederler. Bu iki metot tek bir render'a ayrıntılı bakmak içindir.
+
+## Her link çözümlenir
+
+Adla kurulan bir link (`{{pageURL "post" "slug" .Slug}}`, `{{actionURL "logout"}}`)
+yalnızca template render edildiğinde ve yalnızca ona ulaşan page'de hata verir.
+`app.Check()` (v0.40.0'dan beri) hiçbir şey render etmeden her template'in link'lerini
+tek seferde kontrol eder. [`collage check`](/docs/cli#collage-check) komutunun
+çalıştırdığı da budur:
+
+```go
+func TestLinks(t *testing.T) {
+	cacheDir = t.TempDir()
+	app, err := newApp(false, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if findings := app.Check(); len(findings) > 0 {
+		t.Errorf("broken links: %v", findings)
+	}
+}
+```
 
 ## Testleri çalıştırmak
 

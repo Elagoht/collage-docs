@@ -1,6 +1,6 @@
 ---
 description: What a page is, how its layouts and content fit together, who may see it, the paths that reach it, how it is cached, what it shows when it fails, and what registration does to it.
-reference: NewPage, PageBuilder, PageBuilder.WithLayouts, Page, RenderPage, DefaultContentSlot, StrategyAuto, FragmentBuilder.WithGuard, GuardFunc, GuardDecision
+reference: Registrable, ErrNilRegistrable, NewPage, PageBuilder, PageBuilder.WithLayouts, Page, RenderPage, DefaultContentSlot, StrategyAuto, FragmentBuilder.WithGuard, GuardFunc, GuardDecision
 ---
 
 # Pages and layouts
@@ -109,7 +109,7 @@ means registration takes a snapshot of those bindings. A fragment bound into the
 shared layout after a page was registered does not appear on that page. Build the
 layout completely, then register pages with it.
 
-The scaffold writes its layout as a function, `layouts.Layout()`, which returns a
+The scaffold writes its layout as a function, `layouts.Master()`, which returns a
 new fragment each call. That works just as well; sharing one value is simply
 allowed.
 
@@ -381,7 +381,7 @@ func NotFoundPage() *collage.Page {
 	content := collage.NewFragment("not-found-content", "pages/404.html").Build()
 
 	return collage.NewPage("not-found").
-		WithLayouts(layouts.Layout()).
+		WithLayouts(layouts.Master()).
 		WithContent(content).
 		Dynamic().
 		Build()
@@ -451,6 +451,35 @@ path accepted in one locale stays in the router when the next is refused — bec
 a failed registration is a program that should not start, not a condition to
 recover from.
 
+### Registering several at once
+
+`app.Register` (since v0.40.0) takes pages, documents and actions in one call and
+registers each in order, through `RegisterPage`, `RegisterDocument` or
+`RegisterAction`. The scaffolded `routes.go` is a single call to it:
+
+```go
+func register(app *collage.App) error {
+	if err := app.Register(
+		landingpages.Home(),
+		blogpages.Post(),
+		documents.Health(),
+		actions.Logout(),
+	); err != nil {
+		return err
+	}
+	return app.RegisterNotFoundPage(errorspages.NotFound())
+}
+```
+
+It stops at the first one refused and returns its error wrapped with its kind and
+name — `register page "post": collage: duplicate page ...` — so `errors.Is` still
+finds the cause. What was registered before it stays registered, as with the
+single methods. A `nil` is `ErrNilRegistrable`. The not-found and error pages are
+reached by failing to match, not by a path, so they keep `RegisterNotFoundPage`
+and `RegisterErrorPage`. `Register` takes a `collage.Registrable`, which only
+`*Page`, `*Document` and `*Action` satisfy. [`collage add`](/docs/cli#collage-add)
+adds what it writes to this call.
+
 ### Why the registered value matters
 
 Registration changes the page it is given. Step 3 replaces `page.LayoutFragment`
@@ -472,7 +501,7 @@ that refers to a page by value must use that one:
 
   ```go
   return collage.NewPage("hello").
-  	WithLayouts(layouts.Layout()).
+  	WithLayouts(layouts.Master()).
   	WithContent(content).
   	WithPath("en", "/hello").
   	WithAction("POST", func(_ context.Context, rc *collage.RenderContext) (*collage.ActionResult, error) {

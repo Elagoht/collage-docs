@@ -99,9 +99,10 @@ mysite/
 ├── .gitignore
 ├── README.md
 ├── pages/
-│   └── home.go                 the home page: layout, content, path, and its data
+│   └── landing/home.go         the home page: its layout, content and path
 ├── fragments/
-│   └── layouts/main.go         the layout fragment every page shares, and the site's title
+│   ├── layouts/main.go         Master(), the layout every page shares, and the site's title
+│   └── pages/landing/home.go   the home page's content and its data
 ├── templates/
 │   ├── layouts/default.html    the layout's HTML, with {{slot "content"}}
 │   └── pages/home.html         <h1>Hello from {{.Name}}</h1>
@@ -109,10 +110,30 @@ mysite/
     └── app.css                 the background and text colour, light and dark
 ```
 
-The demo project adds `main_test.go`, whose tests drive `app.Handler()` with no
-server; a not-found page; `.env.example`, the variables for `collage dev` to copy;
-`plugins-config.json`, plugin settings keyed by plugin name; a favicon; and
-`actions/`, `documents/`, `store/` and `fragments/demo/`, with their templates and
+Code is laid out by area. A page is `pages/<area>/<name>.go`, and its content
+`fragments/pages/<area>/<name>.go` beside it, mirroring `pages/`. As a project
+grows, the rest goes where the demo project puts it:
+
+```text
+pages/<area>/<name>.go            a page: its layouts, content, path, actions
+fragments/layouts/main.go         Master(), the layout every page wraps itself in
+fragments/pages/<area>/<name>.go  each page's content, mirroring pages/
+actions/<area>.go                 action builders, one file per area
+actions/funcs/<area>.go           their handlers
+documents/<name>.go               routes that are not HTML
+data/<domain>/                    state, by domain
+templates/                        the HTML kept in files
+```
+
+`collage add page blog/post` writes a page there and registers it in `routes.go`,
+and `collage add` does the same for a fragment, an action or a document; see
+[the CLI](/docs/cli#collage-add).
+
+The demo project adds `main_test.go`, whose tests drive `app.Handler()` with
+[`collagetest`](/docs/testing) and no server; a not-found page; `.env.example`,
+the variables for `collage dev` to copy; `plugins-config.json`, plugin settings
+keyed by plugin name; a favicon; and pages in the `demo` and `errors` areas, with
+their actions, a document, a counter in `data/count/`, and their templates and
 scripts.
 
 A few things in it are worth knowing before you change them.
@@ -130,7 +151,7 @@ working, or those commands stop doing anything useful.
 **`newApp` is separate from `main`.** It builds the whole application — the
 configuration, the routes from `routes.go`, the `/static/` mount — and returns it
 without starting a server. The demo project's `main_test.go` calls the same function and drives
-`app.Handler()` with `net/http/httptest`, so the tests exercise the site that
+`app.Handler()` with `collagetest`, so the tests exercise the site that
 actually runs rather than a second wiring of it. See [Testing](/docs/testing).
 
 **Templates and static files are embedded.** `//go:embed all:templates` and

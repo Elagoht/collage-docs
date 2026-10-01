@@ -261,6 +261,7 @@ bu süreyi aşabilir.
 | `Type` | `string` | açıksa `"memory"` | `Store` `nil` olduğunda kullanılan built-in cache: `"memory"` ya da `"disk"`. |
 | `DefaultTTL` | `time.Duration` | `5m` | Page bir süre koymadığında entry'nin ömrü. |
 | `MaxEntries` | `int` | `10000` | Cache entry sayısının üst sınırı; memory ve disk için de geçerli. Negatif değer sınırsız demektir (disk için v0.39.0'dan beri). |
+| `MaxBytes` | `int64` | memory için 256 MiB, disk için 1 GiB | Built-in bir cache'in sakladığı toplam boyutun üst sınırı. Negatif değer sınırsız demektir (v0.40.0'dan beri). |
 | `Dir` | `string` | yok | Disk cache'in entry'leri sakladığı yer. `"disk"` için zorunludur. |
 | `Version` | `string` | binary'den türetilir | Disk cache'teki entry'lerin hangi build'e ait olduğunu belirler. |
 | `MaxKeysPerTag` | `int` | `10000` | Tek bir tag altında tutulan cache key sayısının üst sınırı. Negatif değer sınırsız demektir. |
@@ -289,8 +290,13 @@ Uygulama çalışırken başarısız olan bir yazma log'lanır ve page cache'len
 Development'ta disk cache hiç kullanılmaz, onun yerine bir memory cache devreye
 girer.
 
-**`MaxEntries`**, `collage.Cached`'in request'ler arasında tuttuğu değerleri de
-sınırlar. **`MaxKeysPerTag`** ise framework'ün dependency tracker'ını sınırlar. Bu
+**`MaxEntries`**, `collage.Cached`'in request'ler arasında tuttuğu değerleri ve
+built-in bir cache'le dependency tracker'ın toplamda tuttuğu key sayısını da
+sınırlar (v0.40.0'dan beri). **`MaxBytes`**, built-in bir cache'in ne kadar yer
+kapladığını sınırlar: sıfır, tipin varsayılanını seçer. Sınırın tamamından büyük bir
+page sunulur ama saklanmaz. Kendi `Store`'unuz bunu yok sayar. Bkz.
+[Caching](/docs/caching#bounded-in-bytes-too).
+**`MaxKeysPerTag`** ise framework'ün dependency tracker'ını sınırlar. Bu
 tracker, her process'te bir tag'i cache key'lerine eşleyen bir index'tir. Her farklı
 query string ayrı bir key'dir. Cache bir entry'yi evict ettiğinde ya da entry'nin
 süresi dolduğunda key tracker'dan silinmez. Bu yüzden bir üst sınır olmasa bir client

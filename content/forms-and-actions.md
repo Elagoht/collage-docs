@@ -187,7 +187,7 @@ func ContactPage() *collage.Page {
 		Build()
 
 	return collage.NewPage("contact").
-		WithLayouts(layouts.Layout()).
+		WithLayouts(layouts.Master()).
 		WithContent(form).
 		WithPath("en", "/contact").
 		WithAction("POST", sendContact).

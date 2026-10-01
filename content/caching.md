@@ -23,6 +23,7 @@ app, err := collage.New(&collage.Config{
 		Type:       "memory",
 		DefaultTTL: 5 * time.Minute,
 		MaxEntries: 10000,
+		MaxBytes:   256 << 20, // 0 means the type's default; negative, no limit
 	},
 })
 ```
@@ -320,6 +321,14 @@ implement `TaggedCache` has only collage's index to go by: a forgotten page stay
 it until it expires, and invalidating the tag no longer reaches it. Set the cap
 above the number of cached URLs one tag can really cover, or negative for no cap.
 
+**With a built-in cache the index is also capped as a whole** (since v0.40.0), at
+`MaxEntries` keys. Every cached path is a tag of its own, so a per-tag cap alone
+let the index reach that cap times the number of pages — 10000 keys for each page
+of a large site, flooded with invented queries, while the cache itself held
+10000 entries in all. No more keys than `MaxEntries` can still be live, so the
+oldest written go first; a negative `MaxEntries` leaves this off. A store of your
+own keeps the per-tag cap only, since collage cannot know its size.
+
 ## Query parameters in the key
 
 By default the whole raw query string is part of the key. That is the only safe
@@ -361,9 +370,9 @@ Documents have the same `WithCacheParams`.
 
 `Type: "memory"`, the default, keeps pages in the process. It is fast and it is
 empty after every restart. It holds at most `MaxEntries` pages (default 10000;
-negative for no limit) and, when full, drops the oldest by insertion — reading a
-page does not make it younger. An expired entry is dropped when it is next looked
-up.
+negative for no limit) and at most `MaxBytes` of them (default 256 MiB), and when
+either is full drops the oldest by insertion — reading a page does not make it
+younger. An expired entry is dropped when it is next looked up.
 
 `Type: "disk"` keeps pages as files, so a restart does not render everything
 again:
@@ -386,6 +395,33 @@ Since v0.39.0 the disk cache holds at most `MaxEntries` too — the same default
 oldest by file modification time when it is full. The cache key includes the
 request's host and, by default, its whole query, so without the cap an anonymous
 caller varying either could fill the disk one never-evicted file at a time.
+
+Since v0.40.0 the eviction scan runs outside the lock writes take, so a flood of
+new keys no longer makes every writer wait on a scan of the whole directory; a new
+entry that reaches a full cache while a scan is still making room is served and
+not stored, so the cap holds.
+
+### Bounded in bytes too
+
+`MaxEntries` counts entries, not what they weigh, and the key holds the query by
+default: one large page asked for under thousands of invented queries
+(`?utm=1`, `?utm=2`, ...) fills the cache with copies of it. Ten thousand copies of
+a 57 KB documentation page is over half a gigabyte of memory; of a 500 KB listing,
+five. `MaxBytes` (since v0.40.0) bounds the weight: past it the oldest entries are
+evicted, as at `MaxEntries`, and a page larger than the whole cap is served but not
+stored.
+
+| `MaxBytes` | Memory | Disk |
+| --- | --- | --- |
+| `0` | 256 MiB | 1 GiB |
+| negative | no limit | no limit |
+
+It counts the content a memory cache holds, and the size of the files on disk.
+Go's allocator rounds a large value up to whole pages, so a memory cache full of
+50 KB pages takes some 10% more heap than `MaxBytes` says. A store of your own
+bounds itself and ignores the field. Naming the query parameters a page reads with
+[`WithCacheParams`](#query-parameters-in-the-key) is the other half: a page that
+ignores the query stores one copy, not thousands.
 
 ### The namespace
 

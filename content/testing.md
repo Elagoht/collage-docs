@@ -1,17 +1,38 @@
 ---
-description: Test the real application through app.Handler() and net/http/httptest — pages, forms with their forgery token, documents and the static export.
+description: Test the real application through app.Handler() with pkg/collagetest — a client that keeps cookies and submits forms the way a browser does — pages, forms with their forgery token, documents and the static export.
 reference: NewBuilder, BuildOptions, App
 ---
 
 # Testing
 
 A collage application is an `http.Handler`. `app.Handler()` returns it, with no
-server listening and no port to choose, so `net/http/httptest` drives the whole site
-from an ordinary Go test: routing, data handlers, templates, the cache, forms,
-documents and middleware, exactly as they run in production.
+server listening and no port to choose, so an ordinary Go test drives the whole
+site: routing, data handlers, templates, the cache, forms, documents, plugins and
+middleware, exactly as they run in production. `pkg/collagetest` (since v0.40.0)
+is the client that does it the way a browser does: it keeps the cookies a response
+sets, and submits a form with every hidden field the page put in it.
 
-The project `collage new` scaffolds comes with a test file built this way. This page
-walks through its pattern.
+```go
+import "github.com/Elagoht/collage/pkg/collagetest"
+
+func TestLogin(t *testing.T) {
+	c := client(t) // below: a collagetest.Client on the application main builds
+
+	page := c.Get("/login").WantStatus(http.StatusOK)
+	res := c.Submit(page, "/login", url.Values{
+		"email":    {"ada@example.com"},
+		"password": {"correct horse"},
+	}).WantStatus(http.StatusSeeOther)
+
+	if res.Location() != "/panel" {
+		t.Errorf("Location = %q, want /panel", res.Location())
+	}
+	c.Follow(res).WantStatus(http.StatusOK) // the page the login's cookie opens
+}
+```
+
+The demo project `collage new --template demo` scaffolds comes with a test file
+built this way. This page walks through its pattern.
 
 ## Test the application `main` builds
 
@@ -27,22 +48,15 @@ with its real configuration, routes and mounts, not a second wiring that slowly
 drifts from it.
 
 ```go
-func handler(t *testing.T) http.Handler {
+// client returns a browser of its own on a fresh copy of the site.
+func client(t *testing.T) *collagetest.Client {
 	t.Helper()
 	cacheDir = t.TempDir()
 	app, err := newApp(false, 0)
 	if err != nil {
 		t.Fatalf("newApp() = %v, want nil", err)
 	}
-	return app.Handler()
-}
-
-// get returns the response to a GET of target, and its body.
-func get(t *testing.T, h http.Handler, target string) (*httptest.ResponseRecorder, string) {
-	t.Helper()
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
-	return rec, rec.Body.String()
+	return collagetest.New(t, app.Handler())
 }
 ```
 
@@ -53,32 +67,32 @@ A test is then a request and a look at the response:
 
 ```go
 func TestPagesRender(t *testing.T) {
-	h := handler(t)
+	c := client(t)
 	for target, want := range map[string]string{
 		"/":         "Explore the features",
 		"/features": "Four live demos",
 		"/hello":    "Hello, stranger!",
 	} {
-		rec, body := get(t, h, target)
-		if rec.Code != http.StatusOK {
-			t.Errorf("GET %s = %d, want 200", target, rec.Code)
+		res := c.Get(target)
+		if res.Status != http.StatusOK {
+			t.Errorf("GET %s = %d, want 200", target, res.Status)
 			continue
 		}
-		if !strings.Contains(body, want) {
+		if !strings.Contains(res.Body, want) {
 			t.Errorf("GET %s does not contain %q", target, want)
 		}
 		// Counted, not merely found: a layout writing one and a page hoisting
 		// another is two titles, which is a page that looks fine and is not.
-		if n := strings.Count(body, "<title>"); n != 1 {
+		if n := strings.Count(res.Body, "<title>"); n != 1 {
 			t.Errorf("GET %s has %d titles, want exactly 1", target, n)
 		}
 	}
 }
 ```
 
-Build a fresh handler per test, as `handler(t)` does. The first call to
+Build a fresh client per test, as `client(t)` does. The first call to
 `app.Handler()` starts the application and closes registration, and each test then
-starts from an empty cache.
+starts from an empty cache and an empty cookie jar. Two readers are two clients.
 
 If starting fails — a plugin's `Init` fails, a page names an unregistered error page,
 a mount shadows a route — `app.Handler()` answers every request with a 503 and logs
@@ -90,9 +104,34 @@ if err := app.Start(); err != nil {
 }
 ```
 
+## The client
+
+| | |
+| --- | --- |
+| `collagetest.New(t, h)` | A client for `h` with an empty cookie jar |
+| `c.Get(target)` | A `GET` of a path or an absolute URL |
+| `c.Submit(page, action, values)` | Submits the form of `page` whose action is `action` |
+| `c.Follow(res)` | A `GET` of the `Location` a redirect names |
+| `c.Request(method, target, body)` / `c.Do(req)` | Any other request — a JSON body, a header of its own. `Do` attaches the jar's cookies and keeps the ones the response sets |
+
+A `*Response` carries `Status`, `Header`, `Body`, `URL` and `Method`.
+`WantStatus(code)` fails the test with the body when the status differs, and
+returns the response, so a request and its check read as one line. `Location()` is
+the `Location` header, and `CSRFToken()` the value of the page's first hidden
+`_csrf` input.
+
+The jar is a `net/http/cookiejar`, scoped by path and expiry as a browser scopes
+cookies. A path alone is addressed to `http://example.com`, the host
+`net/http/httptest` uses. A site that marks its cookies `Secure` uses absolute
+`https://example.com/...` targets, which arrive as over TLS, so the jar sends those
+cookies back.
+
+Redirects are not followed: a test usually wants to see the `303` and where it
+points. `Follow` takes it when the page behind it is what the test is about.
+
 ## Isolate the disk cache
 
-The scaffold's cache directory is a package variable, and `handler` points it at a
+The scaffold's cache directory is a package variable, and `client` points it at a
 fresh directory before building the application:
 
 ```go
@@ -112,89 +151,64 @@ Because `cacheDir` is shared by the whole package, these tests do not call
 `t.Parallel()`. If you want parallel tests, pass the directory to `newApp` as a
 parameter instead.
 
-A test that is about caching can use this: make two requests to one handler and
+A test that is about caching can use this: make two requests with one client and
 check the second is served from the cache, or call `app.InvalidateTags` between
 them and check it is not.
 
 ## Forms and the forgery token
 
 Every action behind an unsafe method — a form post, a `fetch()` — checks a
-request-forgery token, and a test has to send one the way a browser does:
-
-1. `GET` the page with the form. The response sets the `collage_csrf` cookie, and
-   `{{csrfToken}}` in the page renders a hidden `_csrf` field carrying the same
-   token.
-2. Read the token out of the page.
-3. `POST` the form with the token in the `_csrf` field — or in the `X-CSRF-Token`
-   header, as a `fetch()` does — and the cookie from step 1.
-
-The scaffold's helpers:
-
-```go
-// token reads the forgery token out of a rendered page, the way a browser does.
-func token(t *testing.T, body string) string {
-	t.Helper()
-	m := regexp.MustCompile(`name="_csrf" value="([^"]+)"`).FindStringSubmatch(body)
-	if m == nil {
-		t.Fatalf("no forgery token in the page:\n%s", body)
-	}
-	return m[1]
-}
-
-// post sends a POST to target, carrying the cookies from page.
-func post(t *testing.T, h http.Handler, target string, form url.Values, header http.Header, page *httptest.ResponseRecorder) *httptest.ResponseRecorder {
-	t.Helper()
-	req := httptest.NewRequest(http.MethodPost, target, strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	for name, values := range header {
-		req.Header[name] = values
-	}
-	if page != nil {
-		for _, c := range (&http.Response{Header: page.Header()}).Cookies() {
-			req.AddCookie(c)
-		}
-	}
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, req)
-	return rec
-}
-```
-
-`(&http.Response{Header: page.Header()}).Cookies()` parses the recorder's
-`Set-Cookie` headers with the standard library's own cookie parser, so the test sends
-back exactly what a browser would.
-
-A form post, with the token in the field:
+request-forgery token, and a test sends one the way a browser does: it `GET`s the
+page with the form, which sets the `collage_csrf` cookie and renders
+`{{csrfToken}}` as a hidden `_csrf` field, and posts the form with that field and
+that cookie. `Submit` does all of it:
 
 ```go
 func TestHelloGreetsTheSubmittedName(t *testing.T) {
-	h := handler(t)
-	page, body := get(t, h, "/features")
+	c := client(t)
 
-	rec := post(t, h, "/hello", url.Values{"_csrf": {token(t, body)}, "name": {"Ada"}}, nil, page)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("POST /hello = %d, want 200", rec.Code)
-	}
-	if !strings.Contains(rec.Body.String(), "Hello, Ada!") {
-		t.Errorf("the response does not greet the name:\n%s", rec.Body.String())
+	res := c.Submit(c.Get("/features"), "/hello", url.Values{"name": {"Ada"}}).WantStatus(http.StatusOK)
+	if !strings.Contains(res.Body, "Hello, Ada!") {
+		t.Errorf("the response does not greet the name:\n%s", res.Body)
 	}
 }
 ```
 
-A JSON endpoint, with the token in the header:
+`Submit` finds the form, carries across **every hidden input** it holds — the
+forgery token, and whatever a plugin stamps into a form, such as a honeypot's signed
+timestamp — and puts `values` on top: a name in `values` replaces a hidden input of
+the same name. Visible fields are the test's to fill; a trap field a bot would fill
+stays empty, so the submission is a reader's.
+
+- `action` is resolved against the page's URL and compared decoded, as is the
+  form's: `"/login"`, `"login"` from a page beside it, an absolute URL, and
+  `"/giriş"` for a form whose action is `"/giri%c5%9f"` all name the same form. A
+  form with no `action` submits to its page. An empty `action` means the page's
+  only form. No match, or several, fails the test and lists the actions the page's
+  forms have.
+- The form's `method` and `enctype` are honoured: a `GET` form sends its values in
+  the query, `multipart/form-data` is sent as multipart, anything else as
+  `application/x-www-form-urlencoded`.
+- Forms are found by a scanner, not an HTML parser: comments and the bodies of
+  `<script>`, `<style>`, `<template>` and `<textarea>` are skipped, so markup
+  written out as text there is not taken for a form. A disabled hidden input is
+  not sent, as a browser does not send it.
+
+A JSON endpoint takes the token in the `X-CSRF-Token` header, as a `fetch()` sends
+it:
 
 ```go
 func TestCountAnswersWithTheNewCount(t *testing.T) {
-	h := handler(t)
-	page, body := get(t, h, "/features")
+	c := client(t)
+	page := c.Get("/features")
 
-	rec := post(t, h, "/api/count", nil, http.Header{"X-Csrf-Token": {token(t, body)}}, page)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("POST /api/count = %d, want 200", rec.Code)
-	}
+	req := c.Request(http.MethodPost, "/api/count", nil)
+	req.Header.Set("X-CSRF-Token", page.CSRFToken())
+	res := c.Do(req).WantStatus(http.StatusOK)
+
 	var answer struct{ Count int64 }
-	if err := json.Unmarshal(rec.Body.Bytes(), &answer); err != nil {
-		t.Fatalf("body = %q, want JSON: %v", rec.Body.String(), err)
+	if err := json.Unmarshal([]byte(res.Body), &answer); err != nil {
+		t.Fatalf("body = %q, want JSON: %v", res.Body, err)
 	}
 	if answer.Count < 1 {
 		t.Errorf("count = %d, want at least 1 after a click", answer.Count)
@@ -208,10 +222,12 @@ And the test that keeps the protection on:
 // Without a token a submission never reaches its handler. This is the test that
 // fails if the protection is ever turned off by accident.
 func TestASubmissionWithNoTokenIsRefused(t *testing.T) {
-	h := handler(t)
+	c := client(t)
 	for _, target := range []string{"/api/count", "/hello"} {
-		if rec := post(t, h, target, url.Values{"name": {"Ada"}}, nil, nil); rec.Code != http.StatusForbidden {
-			t.Errorf("POST %s with no token = %d, want 403", target, rec.Code)
+		req := c.Request(http.MethodPost, target, strings.NewReader(url.Values{"name": {"Ada"}}.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		if res := c.Do(req); res.Status != http.StatusForbidden {
+			t.Errorf("POST %s with no token = %d, want 403", target, res.Status)
 		}
 	}
 }
@@ -230,46 +246,42 @@ the content type is half of what a document is:
 
 ```go
 func TestHealthCheck(t *testing.T) {
-	rec, body := get(t, handler(t), "/healthz")
+	res := client(t).Get("/healthz").WantStatus(http.StatusOK)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("GET /healthz = %d, want 200", rec.Code)
-	}
 	var health struct{ Status string }
-	if err := json.Unmarshal([]byte(body), &health); err != nil || health.Status != "ok" {
-		t.Errorf("body = %q, want a status of ok", body)
+	if err := json.Unmarshal([]byte(res.Body), &health); err != nil || health.Status != "ok" {
+		t.Errorf("body = %q, want a status of ok", res.Body)
 	}
-	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+	if ct := res.Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
 		t.Errorf("Content-Type = %q, want application/json", ct)
 	}
 }
 ```
 
 The not-found page, a 405 with its `Allow` header, a redirect's `Location`, a
-`Cache-Control` header — each is a field on the recorder:
+`Cache-Control` header — each is a field on the response:
 
 ```go
 func TestNotFoundPage(t *testing.T) {
-	rec, body := get(t, handler(t), "/there-is-nothing-here")
+	res := client(t).Get("/there-is-nothing-here").WantStatus(http.StatusNotFound)
 
-	if rec.Code != http.StatusNotFound {
-		t.Fatalf("status = %d, want 404", rec.Code)
-	}
-	if !strings.Contains(body, "There is nothing at this address") {
-		t.Errorf("body = %q, want this site's own not-found page", body)
+	if !strings.Contains(res.Body, "There is nothing at this address") {
+		t.Errorf("body = %q, want this site's own not-found page", res.Body)
 	}
 }
 ```
 
 Middleware registered with `app.Use` runs in these tests too, since it is part of
 the handler. To test a preview or a `collage.Vary` dimension, set the cookie or
-header on the request before `ServeHTTP`.
+header on a `c.Request` before `c.Do`. The client is a convenience, not a
+requirement: `app.Handler()` takes a `net/http/httptest` recorder as well as any
+other handler does.
 
 ## Every page renders
 
 A test that visits every page catches the template that fails only on one of them.
-collage-docs loads its content and requests each page — here with the `handler` and
-`get` helpers above, one application for the whole walk:
+collage-docs loads its content and requests each page — here with one client, so
+one application, for the whole walk:
 
 ```go
 // Every page of the documentation renders, with its own title.
@@ -278,14 +290,14 @@ func TestEveryDocRenders(t *testing.T) {
 	if err != nil {
 		t.Fatalf("site.Load: %v", err)
 	}
-	h := handler(t)
+	c := client(t)
 	for _, page := range loaded.Pages() {
-		rec, body := get(t, h, page.URL())
-		if rec.Code != http.StatusOK {
-			t.Errorf("GET %s = %d", page.URL(), rec.Code)
+		res := c.Get(page.URL())
+		if res.Status != http.StatusOK {
+			t.Errorf("GET %s = %d", page.URL(), res.Status)
 			continue
 		}
-		if !strings.Contains(body, "<title>"+page.Title+" — collage</title>") {
+		if !strings.Contains(res.Body, "<title>"+page.Title+" — collage</title>") {
 			t.Errorf("GET %s has no title %q", page.URL(), page.Title)
 		}
 	}
@@ -379,8 +391,28 @@ if result.Degraded() {
 ```
 
 `app.RenderDocumentPath` does the same for a document. Most tests are better served
-by `app.Handler()`, which tests what a reader gets; these are for looking at one
+by `app.Handler()` and `collagetest`, which test what a reader gets; these are for looking at one
 render in detail.
+
+## Every link resolves
+
+A link built by name — `{{pageURL "post" "slug" .Slug}}`, `{{actionURL "logout"}}` —
+fails only when the template renders, and only on the page that reaches it.
+`app.Check()` (since v0.40.0) checks every template's links at once, with nothing
+rendered, and is what [`collage check`](/docs/cli#collage-check) runs:
+
+```go
+func TestLinks(t *testing.T) {
+	cacheDir = t.TempDir()
+	app, err := newApp(false, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if findings := app.Check(); len(findings) > 0 {
+		t.Errorf("broken links: %v", findings)
+	}
+}
+```
 
 ## Running them
 

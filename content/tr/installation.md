@@ -103,9 +103,10 @@ mysite/
 ├── .gitignore
 ├── README.md
 ├── pages/
-│   └── home.go                 the home page: layout, content, path, and its data
+│   └── landing/home.go         the home page: its layout, content and path
 ├── fragments/
-│   └── layouts/main.go         the layout fragment every page shares, and the site's title
+│   ├── layouts/main.go         Master(), the layout every page shares, and the site's title
+│   └── pages/landing/home.go   the home page's content and its data
 ├── templates/
 │   ├── layouts/default.html    the layout's HTML, with {{slot "content"}}
 │   └── pages/home.html         <h1>Hello from {{.Name}}</h1>
@@ -113,11 +114,33 @@ mysite/
     └── app.css                 the background and text colour, light and dark
 ```
 
-Demo projesi bunlara ek olarak şunları içerir: testleri `app.Handler()`'ı sunucu
-başlatmadan çalıştıran `main_test.go`, bir not-found page'i, `collage dev` için
-kopyalanacak değişkenleri tutan `.env.example`, plugin ayarlarını plugin adına göre
-tutan `plugins-config.json`, bir favicon ve template'leri ile script'leriyle
-birlikte `actions/`, `documents/`, `store/` ve `fragments/demo/` dizinleri.
+Kod, alanlara (area) göre düzenlenir. Bir page `pages/<area>/<name>.go`
+dosyasındadır, içeriği ise `pages/` yapısını aynen yansıtan
+`fragments/pages/<area>/<name>.go` dosyasında, onun karşılığında durur. Proje
+büyüdükçe geri kalan her şey demo projesinin koyduğu yere gider:
+
+```text
+pages/<area>/<name>.go            a page: its layouts, content, path, actions
+fragments/layouts/main.go         Master(), the layout every page wraps itself in
+fragments/pages/<area>/<name>.go  each page's content, mirroring pages/
+actions/<area>.go                 action builders, one file per area
+actions/funcs/<area>.go           their handlers
+documents/<name>.go               routes that are not HTML
+data/<domain>/                    state, by domain
+templates/                        the HTML kept in files
+```
+
+`collage add page blog/post` bir page'i oraya yazar ve `routes.go`'da register
+eder. `collage add` aynısını bir fragment, bir action ya da bir document için de
+yapar; bkz. [CLI](/docs/cli#collage-add).
+
+Demo projesi bunlara ek olarak şunları içerir: testleri `app.Handler()`'ı
+[`collagetest`](/docs/testing) ile ve sunucu başlatmadan çalıştıran `main_test.go`,
+bir not-found page'i, `collage dev` için kopyalanacak değişkenleri tutan
+`.env.example`, plugin ayarlarını plugin adına göre tutan `plugins-config.json`,
+bir favicon ve `demo` ile `errors` alanlarındaki page'ler. Bu page'lerle birlikte
+action'ları, bir document, `data/count/` içinde bir sayaç ve bunların template'leri
+ile script'leri de gelir.
 
 Bu dosyalardan birkaçını değiştirmeden önce bazı şeyleri bilmekte fayda var.
 
@@ -134,7 +157,7 @@ hiçbir şey yapmaz. Ayrıntılar [CLI referansında](/docs/cli) yer alır.
 **`newApp`, `main`'den ayrıdır.** `newApp` bütün uygulamayı kurar: config'i,
 `routes.go`'daki route'ları ve `/static/` mount'unu. Sonra bir sunucu başlatmadan
 uygulamayı döner. Demo projesindeki `main_test.go` aynı fonksiyonu çağırır ve
-`app.Handler()`'ı `net/http/httptest` ile çalıştırır. Böylece testler sitenin ayrıca
+`app.Handler()`'ı `collagetest` ile çalıştırır. Böylece testler sitenin ayrıca
 kurulmuş ikinci bir kopyasını değil, gerçekten çalışan siteyi test eder.
 [Test yazmak](/docs/testing) sayfasına bakın.
 

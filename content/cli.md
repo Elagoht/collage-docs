@@ -1,6 +1,6 @@
 ---
-description: Every command of the collage CLI — new, dev, build, export, serve, inspect, version and help — with its flags and exactly what it runs.
-reference: DispatchCommands, Command, ErrUnknownCommand, InspectCommand, Inspection
+description: Every command of the collage CLI — new, add, dev, build, export, serve, inspect, check, version and help — with its flags and exactly what it runs.
+reference: DispatchCommands, Command, ErrUnknownCommand, InspectCommand, Inspection, App, Registrable
 ---
 
 # The collage CLI
@@ -13,7 +13,7 @@ go install github.com/Elagoht/collage/cmd/collage@latest
 ```
 
 It never links your application into itself — it cannot, because your application
-is your code. `dev`, `build`, `export` and `inspect` run the `go` tool in the current
+is your code. `dev`, `build`, `export`, `inspect` and `check` run the `go` tool in the current
 directory, exactly as you would by hand, and the rest of this page says precisely
 what each one runs.
 
@@ -26,11 +26,13 @@ collage <command> [flags]
 | Command | What it does |
 | --- | --- |
 | `new` | Scaffold a new collage project |
+| `add` | Write a page, fragment, action or document into the current project (since v0.40.0) |
 | `dev` | Run the current directory's project in development mode |
 | `build` | Compile the current directory's project into the binary you deploy |
 | `export` | Render the current directory's project to static files |
 | `serve` | Serve a static export the way a static host would |
 | `inspect` | Print what the current directory's project is made of, as JSON |
+| `check` | Check the current directory's project's templates without rendering them (since v0.40.0) |
 | `version` | Print the collage CLI version |
 | `help` | Show help for a command, or list every command |
 
@@ -83,9 +85,31 @@ in it fetches — `static/`, a `.gitignore` and a README.
 
 **`--template demo`** adds a page of live demos — an action answering
 JSON, a form posting to its own page, a fragment with its own URL, a JSON
-document — split into `pages/`, `fragments/`, `actions/`, `documents/` and
-`store/`, a not-found page, tests for each, `plugins-config.json`, a favicon and a
+document — a not-found page, tests for each written with
+[`collagetest`](/docs/testing), `plugins-config.json`, a favicon and a
 `.env.example`.
+
+**The layout is by area** (since v0.40.0), the layout of a real application:
+
+```text
+pages/<area>/<name>.go            a page: its layouts, content, path, actions
+fragments/layouts/main.go         Master(), the layout every page wraps itself in
+fragments/pages/<area>/<name>.go  each page's content, mirroring pages/
+actions/<area>.go                 action builders, one file per area
+actions/funcs/<area>.go           their handlers
+documents/<name>.go               routes that are not HTML
+data/<domain>/                    state, by domain
+templates/                        the HTML kept in files
+```
+
+`pages/` and `fragments/pages/` mirror each other by area, and every package in
+them is called `pages` or `fragments`, so a page file imports its content as
+`fragments "<module>/fragments/pages/<area>"` and `routes.go` imports each area's
+pages under an alias, `demopages`. Small fragments keep their markup inline, as a
+`collage.InlineHTML` const beside their data handler; the layout and the larger
+pages keep theirs in `templates/`. An action a page attaches with `WithActionFor`
+shares the page's name and has no path of its own. `routes.go` registers
+everything with one [`app.Register`](/docs/pages-and-layouts#registration) call.
 
 **The minimal project**, the default since v0.32.0, is the least a project can be: the layout around one
 page, `<h1>Hello from {{.Name}}</h1>` — the project's name, handed to the
@@ -101,6 +125,66 @@ cd myblog
 go mod tidy
 collage dev
 ```
+
+## collage add
+
+```sh
+collage add <page|fragment|action|document> <[area/]name> [flags]
+```
+
+Writes a page, a fragment, an action or a document in the scaffold's layout, and
+registers it in `routes.go` (since v0.40.0):
+
+```sh
+collage add page blog/post          # pages/blog/post.go + fragments/pages/blog/post.go
+collage add page blog/post --file   # its template in templates/pages/blog/post.html
+collage add fragment blog/sidebar   # fragments/pages/blog/sidebar.go, for a slot
+collage add action blog/comment     # actions/blog.go + actions/funcs/blog.go
+collage add action blog/ping --path /api/ping
+collage add document feed --path /feed.xml --type application/xml
+```
+
+| Flag | Default | Meaning |
+| --- | --- | --- |
+| `--file` | off | Keep the template in a file under the template root, not inline |
+| `--path pattern` | `/<area>/<name>` | The URL; an action without one answers at the page it is attached to |
+| `--name name` | the last segment | The page's, action's or document's name |
+| `--locale code` | `Locale.Default`, or `en` | The locale its path is in |
+| `--type type` | `text/plain; charset=utf-8` | A document's content type |
+| `--dir path` | `.` | The project |
+
+- **A page** is `pages/<area>/<name>.go`, wrapped in `layouts.Master()` — or the
+  first layout in `fragments/layouts` that takes no arguments — with its content in
+  `fragments/pages/<area>/<name>.go`: a template, a view struct, and a typed
+  `collage.Load` handler that declares the page's title.
+- **An action** gets a builder appended to `actions/<area>.go` and a handler to
+  `actions/funcs/<area>.go`, either created when it is not there. With `--path` it
+  answers at a URL of its own and is registered; without one it answers at the
+  page it is attached to, and the command prints the `.WithActionFor(...)` to add.
+- **A document** is `documents/<name>.go`.
+- **A fragment** is a page's content without the page, for a slot; the command
+  prints the `.WithSlotFragment(...)` that binds it.
+
+A name is lowercase letters, digits and dashes. What the command writes is named
+after the last segment — `blog/post` is the page `"post"`, built by `Post()` —
+unless `--name` gives another. The locale of its path is `Locale.Default` as
+`main.go` writes it, `en` when it is not a literal there, or `--locale`; a template
+file goes under `Template.Root` with its `Extension`, read the same way. The
+command says which locale it used.
+
+It registers into the list `routes.go` already keeps: an `app.Register(...)` call,
+where the new item goes after the last one of its kind, or a
+`[]*collage.Page{...}` literal ranged over with `RegisterPage` — and the same for
+`Document` and `Action`. It edits the file in place, so its comments stay where
+they were, and imports the area's package under the same kind of alias the
+scaffold uses. With no such list it changes nothing there and prints the line to
+add. Constructors take no arguments: a page that needs a service gets it added by
+hand.
+
+**Nothing is overwritten.** Everything is worked out before anything is written,
+and a file that exists, a page, action or document name the project already
+declares, or an identifier already in the package a file goes into stops the
+command with nothing written.
 
 ## collage dev
 
@@ -399,6 +483,56 @@ It is what an editor's completion reads: the Collage Snippets & Highlighter
 extension for VS Code ([Editor support](/docs/installation#editor-support)) offers
 page names in `{{pageURL "…"}}`, slots in `{{slot "…"}}` and files in
 `{{asset "…"}}` from it.
+
+## collage check
+
+```sh
+collage check [-json]
+```
+
+Checks every template's links without rendering anything (since v0.40.0). A link
+built by name — `{{pageURL "post" "slug" .Slug}}`, `{{pageURLIn "en" "about"}}`,
+`{{actionURL "logout"}}`, `{{fragmentURL "home" "clock"}}`, `{{localeURL "en"}}` —
+fails when the template renders, and only on the page that reaches it. `check`
+finds them all at once:
+
+```text
+$ collage check
+error [unknown-route] inline template of fragment "hello":4:16: {{pageURL "featurs"}}: collage: no page or document by that name: "featurs"; did you mean "features"?
+```
+
+| Rule | What it means |
+| --- | --- |
+| `unknown-route` | No page, document, action or fragment path by that name; the closest registered name is suggested |
+| `route-params` | The parameters do not fill the route's pattern — one missing, one it has no placeholder for, or not in name and value pairs |
+| `unreachable-locale` | A locale no URL can carry: not `Locale.Default`, nor in `Locale.Supported` |
+| `no-path-in-locale` | The route has no path in the locale `pageURLIn` or `fragmentURLIn` names |
+
+It checks with the framework's own URL builders, so what it reports is exactly
+what a render would fail on. Only names written as string literals are checked: a
+name from a field, `{{pageURL .Name}}`, is known only when the template renders,
+and a parameter whose name is not a literal leaves the parameters unchecked. A
+link with no locale of its own passes when its route can be built in some locale,
+since a render falls back to the default one.
+
+It exits `1` when it finds anything, so it can stand in CI before `collage build`;
+`-json` prints the findings as an array of `{level, rule, message}` for an editor.
+It runs:
+
+```sh
+go run . collage-check
+```
+
+which `collage.DispatchCommands` answers by starting the application and calling
+`App.Check` — so a program that opens a database on start opens it here too. That
+needs the project's collage at v0.40.0 or later; an earlier one answers
+`unknown command: "collage-check"`. A test can call the same function:
+
+```go
+if findings := app.Check(); len(findings) > 0 {
+	t.Errorf("broken links: %v", findings)
+}
+```
 
 ## collage version
 

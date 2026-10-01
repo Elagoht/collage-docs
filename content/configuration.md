@@ -245,6 +245,7 @@ handler that never checks `ctx.Done()` can run past it.
 | `Type` | `string` | `"memory"` when enabled | Built-in cache when `Store` is `nil`: `"memory"` or `"disk"`. |
 | `DefaultTTL` | `time.Duration` | `5m` | Entry lifetime when a page sets none. |
 | `MaxEntries` | `int` | `10000` | Cap on cache entries, memory and disk alike; negative means unlimited (disk since v0.39.0). |
+| `MaxBytes` | `int64` | 256 MiB memory, 1 GiB disk | Cap on the total size a built-in cache stores; negative means unlimited (since v0.40.0). |
 | `Dir` | `string` | none | Where a disk cache stores entries. Required for `"disk"`. |
 | `Version` | `string` | derived from the binary | Identifies the build a disk cache's entries belong to. |
 | `MaxKeysPerTag` | `int` | `10000` | Cap on cache keys recorded under one tag; negative means unlimited. |
@@ -271,7 +272,11 @@ since v0.11.0, when the directory cannot be created, a read-only filesystem say:
 fails once the application is running is logged, and the page is served uncached.
 In development a disk cache is never used: an in-memory one stands in for it.
 
-**`MaxEntries`** also bounds the values `collage.Cached` keeps across requests.
+**`MaxEntries`** also bounds the values `collage.Cached` keeps across requests, and,
+with a built-in cache, the number of keys the dependency tracker holds in all
+(since v0.40.0). **`MaxBytes`** bounds what a built-in cache weighs: zero picks the
+type's default, and a page larger than the whole cap is served but not stored. A
+custom `Store` ignores it. See [Caching](/docs/caching#bounded-in-bytes-too).
 **`MaxKeysPerTag`** bounds the framework's dependency tracker, the per-process index
 that maps a tag back to cache keys. Every distinct query string is a distinct key,
 and nothing removes a key from the tracker when the cache evicts or expires its

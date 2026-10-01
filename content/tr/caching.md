@@ -24,6 +24,7 @@ app, err := collage.New(&collage.Config{
 		Type:       "memory",
 		DefaultTTL: 5 * time.Minute,
 		MaxEntries: 10000,
+		MaxBytes:   256 << 20, // 0 means the type's default; negative, no limit
 	},
 })
 ```
@@ -336,6 +337,15 @@ kalır ve tag'i invalidate etmek artık ona ulaşmaz. Sınırı, bir tag'in ger�
 kapsayabileceği cache'lenmiş URL sayısının üzerinde bir değere ayarlayın. Sınır
 istemiyorsanız negatif bir değer verin.
 
+**Built-in bir cache'le index bir bütün olarak da sınırlıdır** (v0.40.0'dan beri),
+`MaxEntries` kadar key'le. Cache'lenmiş her path kendi başına bir tag'dir. Bu yüzden
+yalnızca tag başına bir sınır, index'in bu sınırın page sayısıyla çarpımına
+ulaşmasına izin veriyordu: uydurma query'lerle doldurulan büyük bir sitede her page
+için 10000 key, oysa cache'in kendisi toplamda 10000 entry tutuyordu. Artık
+`MaxEntries`'ten fazla key yaşıyor olamaz, bu yüzden önce en eski yazılanlar gider.
+Negatif bir `MaxEntries` bunu kapatır. Kendi store'unuz yalnızca tag başına sınırı
+korur, çünkü collage onun boyutunu bilemez.
+
 ## Key'deki query parametreleri
 
 Varsayılan olarak ham query string'in tamamı key'e dahildir. Güvenli olan tek
@@ -378,8 +388,9 @@ Document'larda da aynı `WithCacheParams` bulunur.
 
 Varsayılan olan `Type: "memory"`, page'leri process içinde tutar. Hızlıdır, ama her
 restart'tan sonra boş başlar. En fazla `MaxEntries` kadar page tutar (varsayılan
-10000, limitsiz için negatif). Dolduğunda eklenme sırasına göre en eskisini atar.
-Bir page'in okunması onu daha yeni yapmaz. Expire olmuş bir entry, bir sonraki
+10000, limitsiz için negatif) ve bunların toplamı en fazla `MaxBytes` kadar olabilir
+(varsayılan 256 MiB). İkisinden biri dolduğunda eklenme sırasına göre en eskisini
+atar. Bir page'in okunması onu daha yeni yapmaz. Expire olmuş bir entry, bir sonraki
 lookup'ta atılır.
 
 `Type: "disk"` page'leri dosya olarak tutar. Böylece bir restart her şeyin yeniden
@@ -406,6 +417,34 @@ Dolduğunda dosya değiştirilme zamanına göre en eskisini atar. Cache key req
 host'unu ve varsayılan olarak query'sinin tamamını içerdiği için, bu sınır olmasa
 ikisinden birini değiştiren anonim bir çağıran, her seferinde hiç atılmayan bir dosya
 ekleyerek diski doldurabilirdi.
+
+v0.40.0'dan beri eviction taraması, yazmaların aldığı lock'un dışında çalışır.
+Böylece yeni key'lerden oluşan bir sel artık her yazanı dizinin tamamının
+taranmasını beklemeye zorlamaz. Bir tarama hâlâ yer açarken dolu bir cache'e ulaşan
+yeni bir entry sunulur ama saklanmaz, böylece sınır korunur.
+
+### Byte cinsinden de sınırlı
+
+`MaxEntries` entry'leri sayar, ne kadar yer kapladıklarını değil. Key de varsayılan
+olarak query'yi içerir: binlerce uydurma query altında (`?utm=1`, `?utm=2`, ...)
+istenen tek bir büyük page, cache'i onun kopyalarıyla doldurur. 57 KB'lık bir
+dokümantasyon page'inin on bin kopyası yarım gigabyte'tan fazla memory demektir;
+500 KB'lık bir listeleme page'inin ise beş gigabyte. `MaxBytes` (v0.40.0'dan beri)
+bu ağırlığı sınırlar: aşıldığında, `MaxEntries`'te olduğu gibi en eski entry'ler
+evict edilir. Sınırın tamamından büyük bir page ise sunulur ama saklanmaz.
+
+| `MaxBytes` | Memory | Disk |
+| --- | --- | --- |
+| `0` | 256 MiB | 1 GiB |
+| negatif | sınır yok | sınır yok |
+
+Memory cache'te tutulan içeriği, diskte ise dosyaların boyutunu sayar. Go'nun
+allocator'ı büyük bir değeri tam bellek sayfalarına yuvarlar. Bu yüzden 50 KB'lık page'lerle
+dolu bir memory cache, `MaxBytes`'ın söylediğinden yaklaşık %10 daha fazla heap
+kaplar. Kendi store'unuz kendini sınırlar ve bu alanı yok sayar. Page'in okuduğu
+query parametrelerini [`WithCacheParams`](#query-parameters-in-the-key) ile
+belirtmek işin diğer yarısıdır: query'yi yok sayan bir page binlerce değil, tek bir
+kopya saklar.
 
 ### Namespace
 

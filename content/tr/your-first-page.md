@@ -1,6 +1,6 @@
 ---
 description: Uygulamalı bir rehber. Bir layout, bir data handler ve bir template ile bir tarif page'i kurarsınız, bir slot'a ikinci bir fragment eklersiniz ve bütün tarifleri static dosyalara export edersiniz.
-reference: New, NewPage, NewFragment, FragmentBuilder.WithData, FragmentBuilder.WithTitle, PageBuilder.WithStaticParams, DataHandler, Load, ErrNotFound, ErrUnknownSlot
+reference: New, NewPage, NewFragment, FragmentBuilder.WithData, FragmentBuilder.WithTitle, PageBuilder.WithStaticParams, Registrable, DataHandler, Load, ErrNotFound, ErrUnknownSlot
 ---
 
 # İlk page'iniz
@@ -35,7 +35,7 @@ Minimal bir projede hazır bir layout vardır ve her page onu kullanır. Layout 
 dosyadan oluşur. Fragment'i `fragments/layouts/main.go` dosyasındadır:
 
 ```go
-func Layout() *collage.Fragment {
+func Master() *collage.Fragment {
 	return collage.NewFragment("layout", "layouts/default.html").
 		WithTitle("cookbook").
 		Build()
@@ -73,28 +73,42 @@ Birazdan tarif page'i de bunu yapacak. Bkz.
 
 ## Home page'e bakın
 
-`pages/home.go` dosyasındaki home page, bir template'e veri vermenin en kısa yolunu
-gösterir:
+Bir page, alanına (area) göre yan yana duran iki dosyadan oluşur: page
+`pages/<area>/` altında, içeriği ise `fragments/pages/<area>/` altındadır. Home page
+`landing` alanındadır. İçeriği olan `fragments/pages/landing/home.go`, bir
+template'e veri vermenin en kısa yolunu gösterir:
 
 ```go
-// homeView is what templates/pages/home.html renders with, as ".".
+// Types data used on this page: what templates/pages/home.html renders as ".".
 type homeView struct {
 	Name string
 }
 
-func HomePage() *collage.Page {
-	content := collage.NewFragment("home-content", "pages/home.html").
+func Home() *collage.Fragment {
+	return collage.NewFragment("home", "pages/home.html").
 		WithData(homeView{Name: "cookbook"}).
 		Build()
+}
+```
 
-	// No Static() needed: nothing here fetches per render, so the page is static.
+Page'in kendisi olan `pages/landing/home.go` ise bu içeriği bir path'te layout'un
+içine yerleştirir:
+
+```go
+// No Static() needed: nothing here fetches per render, so the page is static.
+func Home() *collage.Page {
 	return collage.NewPage("home").
-		WithLayouts(layouts.Layout()).
-		WithContent(content).
+		WithLayouts(layouts.Master()).
+		WithContent(fragments.Home()).
 		WithPath("en", "/").
 		Build()
 }
 ```
+
+Buradaki `fragments`, içeriğin package'ıdır ve
+`fragments "cookbook/fragments/pages/landing"` olarak import edilir. İki package da
+içerdikleri şeyin adını taşır, `pages` ve `fragments`; hangi alan olduğunu ise dizin
+söyler.
 
 `WithData`, template'e her render'da aynı değeri verir. `templates/pages/home.html`
 içinde bu değer `.` olarak kullanılır:
@@ -119,7 +133,8 @@ fonksiyon gerekir.
 ## İçerik nereden geliyor
 
 Gerçek bir site tarifleri bir veritabanından ya da bir CMS'ten yükler. Burada bir
-map yeterli. `recipes/recipes.go` dosyasını oluşturun:
+map yeterli. State `data/<domain>/` altında durur; `data/recipes/recipes.go`
+dosyasını oluşturun:
 
 ```go
 // Package recipes is where this site's content comes from.
@@ -181,31 +196,42 @@ sınırlanır.
 ## Content fragment'i
 
 Fragment, bir template'ten ve isteğe bağlı olarak o template'in render ettiği veriyi
-çeken bir fonksiyondan oluşur. `pages/recipe.go` dosyasını oluşturun:
+çeken bir fonksiyondan oluşur. `collage add`, projenin düzenine uygun bir page yazar
+ve onu register eder. Bu yüzden oradan başlayın:
+
+```sh
+collage add page recipes/recipe --file --path '/recipes/{slug}'
+```
+
+```
+wrote  fragments/pages/recipes/recipe.go
+wrote  templates/pages/recipes/recipe.html
+wrote  pages/recipes/recipe.go
+edited routes.go
+page "recipe" at /recipes/{slug}
+```
+
+Page `"recipe"`'dir ve `recipes` alanındadır. `--file`, markup'ını Go içinde inline
+tutmak yerine bir template dosyasında tutar. Yazılan kod, yer tutucu bir başlık
+render eder. İçeriği, yani `fragments/pages/recipes/recipe.go` dosyasını bir tarifle
+değiştirin:
 
 ```go
-package pages
+package fragments
 
 import (
 	"context"
 
-	"github.com/Elagoht/collage/pkg/collage"
+	"cookbook/data/recipes"
 
-	"cookbook/fragments/layouts"
-	"cookbook/recipes"
+	"github.com/Elagoht/collage/pkg/collage"
 )
 
-// RecipePage is one recipe, at /recipes/{slug}.
-func RecipePage() *collage.Page {
-	content := collage.NewFragment("recipe-content", "pages/recipe.html").
+// Returns the recipe page's content.
+func Recipe() *collage.Fragment {
+	return collage.NewFragment("recipe", "pages/recipes/recipe.html").
 		WithDataHandler(loadRecipe).
 		Required().
-		Build()
-
-	return collage.NewPage("recipe").
-		WithLayouts(layouts.Layout()).
-		WithContent(content).
-		WithPath("en", "/recipes/{slug}").
 		Build()
 }
 
@@ -220,9 +246,21 @@ func loadRecipe(ctx context.Context, rc *collage.RenderContext) (any, []string, 
 }
 ```
 
+Page, yani `pages/recipes/recipe.go`, `collage add`'in yazdığı hâliyle kalır:
+
+```go
+func Recipe() *collage.Page {
+	return collage.NewPage("recipe").
+		WithLayouts(layouts.Master()).
+		WithContent(fragments.Recipe()).
+		WithPath("en", "/recipes/{slug}").
+		Build()
+}
+```
+
 Kodu satır satır inceleyelim.
 
-- **`NewFragment("recipe-content", "pages/recipe.html")`** fragment'e ve template'ine
+- **`NewFragment("recipe", "pages/recipes/recipe.html")`** fragment'e ve template'ine
   isim verir. Template yolu `templates/` dizinine göredir ve uzantıyı da içerir.
 - **`WithDataHandler(loadRecipe)`** fragment'e data handler'ını verir. Bu,
   `WithDataHandler`'ın beklediği biçimde bir fonksiyondur, arada adapter yoktur.
@@ -232,7 +270,7 @@ Kodu satır satır inceleyelim.
   anlamına gelir. O tarif değiştiğinde cache'teki kopyanın atılabilmesini sağlayan
   budur. Başka yerlerden de (bir test'ten, başka bir page'den) çağırdığınız bir
   loader ise `collage.DataHandler` ile kendi tipini dönebilir. Tag'i yoksa
-  `collage.Load` kullanılır; bkz.
+  `collage.Load` kullanılır; `collage add`'in yazdığı loader da öyleydi. Bkz.
   [Data handler'lar](/docs/data-handlers#loaders-with-a-type-of-their-own).
 - **`rc.Param("slug")`**, URL'de eşleşen `{slug}` değeridir.
 - **`rc.HoistTitle`** page'e kendi `<title>`'ını verir. Content fragment'i layout'un
@@ -254,7 +292,7 @@ gereken de budur. Page çalışır hâle geldiğinde bunu kendisi söyleyecek; b
 
 ## Template
 
-`templates/pages/recipe.html` dosyasını oluşturun:
+`templates/pages/recipes/recipe.html` dosyasını şununla değiştirin:
 
 ```html
 <main class="recipe">
@@ -275,16 +313,22 @@ paketidir. Bu yüzden her değer, göründüğü yere uygun şekilde escape edil
 
 ## Page'i register edin
 
-Uygulama bir page'den haberdar olmadıkça o page hiçbir işe yaramaz. `routes.go`
-dosyasını açın ve listeye `pages.RecipePage()` ekleyin:
+Uygulama bir page'den haberdar olmadıkça o page hiçbir işe yaramaz. `collage add`
+uygulamaya bunu zaten bildirdi: `routes.go` artık tarif page'ini home page'in
+yanında listeliyor.
 
 ```go
-for _, page := range []*collage.Page{pages.HomePage(), pages.RecipePage()} {
-	if err := app.RegisterPage(page); err != nil {
-		return fmt.Errorf("register page %q: %w", page.Name, err)
-	}
+func register(app *collage.App) error {
+	return app.Register(
+		landingpages.Home(),
+		recipespages.Recipe(),
+	)
 }
 ```
+
+`app.Register` page'leri, document'ları ve action'ları alır ve her birini sırayla
+register eder. Elle yazılmış bir page de buraya aynı şekilde eklenir: çağrıya bir
+satır daha, import'lara da o alanın package'ı, `recipespages` gibi bir alias ile.
 
 Hatalar register sırasında yakalanır. Yazım hatası içeren bir template yolu, içi boş
 kalmış zorunlu bir slot, aynı isme sahip iki page ya da hatalı biçimlendirilmiş bir
@@ -300,7 +344,7 @@ başlatır. Ardından
 adresini açın.
 
 Gördüğünüz page, `content` slot'una sizin fragment'iniz yerleştirilmiş layout'tur.
-`templates/pages/recipe.html` dosyasını düzenleyin, örneğin bir cümle ekleyin ya da
+`templates/pages/recipes/recipe.html` dosyasını düzenleyin, örneğin bir cümle ekleyin ya da
 bir başlığı değiştirin. Tarayıcı değişiklikle birlikte yenilenir. Bu sırada rebuild
 yapılmadı, çünkü development'ta template'ler her request'te diskten okunur.
 
@@ -315,7 +359,7 @@ Bir hatanın nasıl göründüğünü görmek için bilerek bir şeyi bozun. Tem
 `{{.Title}}` ifadesini `{{.Name}}` olarak değiştirin, kaydedin ve tarayıcıyı
 yenileyin. Böyle bir alan olmadığı için zorunlu fragment başarısız olur ve page 500
 döner. Development'ta error page, hatanın başladığı fragment olarak
-`recipe-content`'i gösterir. Ayrıca hata zincirinin tamamını, `pages/recipe.html:2:8`
+`recipe`'yi gösterir. Ayrıca hata zincirinin tamamını, `pages/recipes/recipe.html:2:8`
 konumuna ve bulunamayan alana kadar yazdırır. Sonra değişikliği geri alın.
 
 Handler'ın `recipes.Recipe` yerine `any` dönmesinin nedeni de budur. Veriyi okuyan
@@ -325,27 +369,34 @@ yakalamazdı.
 ## Bir slot'a ikinci bir fragment ekleyin
 
 Bir page nadiren tek parçadan oluşur. Diğer tariflerin listesini, kendi verisi olan
-ayrı bir fragment olarak ekleyin. `pages/more.go` dosyasını oluşturun:
+ayrı bir fragment olarak ekleyin. `collage add fragment`, kendi page'i olmayan bir
+fragment'i page'in içeriğinin yanına yazar:
+
+```sh
+collage add fragment recipes/more --file
+```
+
+`fragments/pages/recipes/more.go` dosyasını şununla değiştirin:
 
 ```go
-package pages
+package fragments
 
 import (
 	"context"
 
-	"github.com/Elagoht/collage/pkg/collage"
+	"cookbook/data/recipes"
 
-	"cookbook/recipes"
+	"github.com/Elagoht/collage/pkg/collage"
 )
 
-// moreView is what the "more recipes" fragment renders.
+// moreView is what the "more" fragment renders.
 type moreView struct {
 	Recipes []recipes.Recipe
 }
 
-// MoreRecipes lists every recipe but the one on the page.
-func MoreRecipes() *collage.Fragment {
-	return collage.NewFragment("more-recipes", "fragments/more-recipes.html").
+// Returns the list of every recipe but the one on the page.
+func More() *collage.Fragment {
+	return collage.NewFragment("more", "pages/recipes/more.html").
 		WithDataHandler(loadMore).
 		Build()
 }
@@ -368,7 +419,7 @@ func loadMore(ctx context.Context, rc *collage.RenderContext) (any, []string, er
 `rc.Param("slug")` burada da çalışır: parametreler, path'i tanımlayan page'in
 fragment'ine değil, request'e aittir.
 
-Bu fragment'in template'i `templates/fragments/more-recipes.html` dosyasıdır:
+Bu fragment'in template'i `templates/pages/recipes/more.html` dosyasıdır:
 
 ```html
 <aside class="more-recipes">
@@ -386,19 +437,19 @@ Böylece `/recipes/{slug}` bir gün `/r/{slug}` olursa link de page'i takip eder
 [Link'ler ve locale'ler](/docs/links-and-locales).
 
 Liste, page'deki tarifle ilgilidir. Bu yüzden her page'in paylaştığı layout'a değil,
-tarif page'ine aittir. Listeyi tarif fragment'inin bir slot'una yerleştirin.
-`pages/recipe.go` dosyasında:
+tarif page'ine aittir. Listeyi tarif fragment'inin bir slot'una yerleştirin. İkisinin
+de aynı package'ta durduğu `fragments/pages/recipes/recipe.go` dosyasında:
 
 ```go
-content := collage.NewFragment("recipe-content", "pages/recipe.html").
+return collage.NewFragment("recipe", "pages/recipes/recipe.html").
 	WithDataHandler(loadRecipe).
-	WithSlotFragment("more", MoreRecipes()).
+	WithSlotFragment("more", More()).
 	Required().
 	Build()
 ```
 
 Ardından slot'u ait olduğu yerde render edin. Bunun için
-`templates/pages/recipe.html` dosyasında, `</main>`'den önce şunu ekleyin:
+`templates/pages/recipes/recipe.html` dosyasında, `</main>`'den önce şunu ekleyin:
 
 ```html
   {{slot "more"}}
@@ -415,7 +466,7 @@ veriyor.
 Bu page hakkında, hiçbir yerde açıkça yazılmamış üç şey geçerlidir.
 
 - **Liste isteğe bağlıdır.** `WithSlot` zorunlu kılmadıkça bir slot isteğe
-  bağlıdır. `MoreRecipes` de `Required()` değil. `loadMore` başarısız olursa page
+  bağlıdır. `More` de `Required()` değil. `loadMore` başarısız olursa page
   listesiz sunulur. Development'ta ayrıca hangi fragment'in neden başarısız olduğunu
   gösteren bir panel görünür. Bozuk bir sidebar, 500 hatası değil, yalnızca eksik
   bir sidebar olur.
@@ -434,12 +485,14 @@ Bu page hakkında, hiçbir yerde açıkça yazılmamış üç şey geçerlidir.
 
 Tarifler request'ten request'e değişmez. Map'i düzenleyip deploy ettiğinizde
 değişirler. Bu yüzden page'in her request'te render edilmesi gerekmez ve bütün site
-static dosyalardan oluşabilir. `pages/recipe.go` dosyasındaki iki satır bunu söyler:
+static dosyalardan oluşabilir. `pages/recipes/recipe.go` dosyasındaki iki satır bunu
+söyler; `recipes` `cookbook/data/recipes`'ten, `context` ise standart kütüphaneden
+import edilir:
 
 ```go
 	return collage.NewPage("recipe").
-		WithLayouts(layouts.Layout()).
-		WithContent(content).
+		WithLayouts(layouts.Master()).
+		WithContent(fragments.Recipe()).
 		WithPath("en", "/recipes/{slug}").
 		Static().
 		WithStaticParams(recipeParams).
@@ -502,50 +555,62 @@ da 404 olarak kalır.
 ## Test edin
 
 Bir collage uygulaması sunucu çalıştırmadan test edilir. `app.Handler()` sıradan bir
-`http.Handler`'dır ve onu `net/http/httptest` ile çalıştırırsınız. `main_test.go`
-dosyasını oluşturun. İçine, uygulamayı `main`'in kullandığı `newApp` fonksiyonuyla
-kuran bir yardımcı fonksiyon ve bir test yazın:
+`http.Handler`'dır ve `pkg/collagetest` onu bir tarayıcının yaptığı gibi çalıştırır:
+cookie'ler saklanır, form'lar gizli alanlarıyla gönderilir, redirect'ler takip
+edilmeye hazırdır. `main_test.go` dosyasını oluşturun. İçine, uygulamayı `main`'in
+kullandığı `newApp` fonksiyonuyla kuran bir yardımcı fonksiyon ve bir test yazın:
 
 ```go
 package main
 
 import (
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/Elagoht/collage/pkg/collagetest"
 )
 
-func get(t *testing.T, target string) *httptest.ResponseRecorder {
+func client(t *testing.T) *collagetest.Client {
 	t.Helper()
 	cacheDir = t.TempDir() // a disk cache of its own, not the last run's
 	app, err := newApp(false, 0)
 	if err != nil {
 		t.Fatalf("newApp() = %v", err)
 	}
-	rec := httptest.NewRecorder()
-	app.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
-	return rec
+	return collagetest.New(t, app.Handler())
 }
 
 func TestRecipePage(t *testing.T) {
-	rec := get(t, "/recipes/pancakes")
-	if rec.Code != http.StatusOK {
-		t.Fatalf("GET /recipes/pancakes = %d, want 200", rec.Code)
+	c := client(t)
+	page := c.Get("/recipes/pancakes").WantStatus(http.StatusOK)
+	if !strings.Contains(page.Body, `href="/recipes/omelette"`) {
+		t.Errorf("the page does not link to the other recipes:\n%s", page.Body)
 	}
-	if !strings.Contains(rec.Body.String(), `href="/recipes/omelette"`) {
-		t.Errorf("the page does not link to the other recipes:\n%s", rec.Body.String())
-	}
-
-	if rec := get(t, "/recipes/lasagne"); rec.Code != http.StatusNotFound {
-		t.Errorf("GET /recipes/lasagne = %d, want 404", rec.Code)
-	}
+	c.Get("/recipes/lasagne").WantStatus(http.StatusNotFound)
 }
 ```
 
 ```sh
 go test ./...
 ```
+
+`WantStatus`, status istenen değil ise testi body ile birlikte başarısız sayar.
+Baştan sahip olmaya değer bir kontrol daha var: template'lerdeki her `pageURL`, var
+olan bir page'i göstermelidir. `collage check` hiçbir şey render etmeden, var
+olmayanları bulur:
+
+```sh
+collage check
+```
+
+```
+collage: check: nothing found
+```
+
+Form'lar, cookie'ler ve client'ın geri kalanı için [Test yazmak](/docs/testing)
+sayfasına, `check`'in neleri raporladığı için [CLI](/docs/cli#collage-check)
+sayfasına bakın.
 
 ## Sırada ne var
 

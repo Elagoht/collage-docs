@@ -1,6 +1,6 @@
 ---
-description: collage CLI'ın bütün komutları (new, dev, build, export, serve, inspect, version ve help), flag'leri ve her birinin tam olarak neyi çalıştırdığı.
-reference: DispatchCommands, Command, ErrUnknownCommand, InspectCommand, Inspection
+description: collage CLI'ın bütün komutları (new, add, dev, build, export, serve, inspect, check, version ve help), flag'leri ve her birinin tam olarak neyi çalıştırdığı.
+reference: DispatchCommands, Command, ErrUnknownCommand, InspectCommand, Inspection, App, Registrable
 ---
 
 # collage CLI
@@ -14,7 +14,7 @@ go install github.com/Elagoht/collage/cmd/collage@latest
 ```
 
 CLI, uygulamanızı kendi içine asla link etmez. Zaten edemez de, çünkü uygulamanız
-sizin kodunuzdur. `dev`, `build`, `export` ve `inspect` komutları, `go` aracını bulunduğunuz
+sizin kodunuzdur. `dev`, `build`, `export`, `inspect` ve `check` komutları, `go` aracını bulunduğunuz
 dizinde tıpkı elle çalıştıracağınız gibi çalıştırır. Bu sayfanın geri kalanı her
 komutun tam olarak neyi çalıştırdığını anlatır.
 
@@ -27,11 +27,13 @@ collage <command> [flags]
 | Komut | Ne yapar |
 | --- | --- |
 | `new` | Yeni bir collage projesi scaffold eder |
+| `add` | Bulunduğunuz projeye bir page, fragment, action ya da document yazar (v0.40.0'dan beri) |
 | `dev` | Bulunduğunuz dizindeki projeyi development modunda çalıştırır |
 | `build` | Bulunduğunuz dizindeki projeyi deploy edeceğiniz binary'ye derler |
 | `export` | Bulunduğunuz dizindeki projeyi static dosyalara render eder |
 | `serve` | Bir static export'u, bir static host'un sunacağı şekilde sunar |
 | `inspect` | Bulunduğunuz dizindeki projenin nelerden oluştuğunu JSON olarak yazdırır |
+| `check` | Bulunduğunuz dizindeki projenin template'lerini render etmeden kontrol eder (v0.40.0'dan beri) |
 | `version` | collage CLI'ın sürümünü yazdırır |
 | `help` | Bir komutun yardımını gösterir ya da bütün komutları listeler |
 
@@ -86,10 +88,33 @@ sayfa (içinde hiçbir şey veri çekmediği için `Static()` demeden static'tir
 
 **`--template demo`**, projeye canlı demolardan oluşan bir page ekler:
 JSON dönen bir action, kendi page'ine post eden bir form, kendi URL'si olan bir
-fragment ve bir JSON document. Bunlar `pages/`, `fragments/`, `actions/`,
-`documents/` ve `store/` dizinlerine dağıtılmıştır. Demo projesi ayrıca bir
-not-found page'i, her biri için testleri, `plugins-config.json`'ı, bir favicon'u
-ve bir `.env.example`'ı da ekler.
+fragment ve bir JSON document. Demo projesi ayrıca bir not-found page'i,
+[`collagetest`](/docs/testing) ile yazılmış, her biri için testleri,
+`plugins-config.json`'ı, bir favicon'u ve bir `.env.example`'ı da ekler.
+
+**Yerleşim alana göredir** (v0.40.0'dan beri), yani gerçek bir uygulamanın
+yerleşimidir:
+
+```text
+pages/<area>/<name>.go            a page: its layouts, content, path, actions
+fragments/layouts/main.go         Master(), the layout every page wraps itself in
+fragments/pages/<area>/<name>.go  each page's content, mirroring pages/
+actions/<area>.go                 action builders, one file per area
+actions/funcs/<area>.go           their handlers
+documents/<name>.go               routes that are not HTML
+data/<domain>/                    state, by domain
+templates/                        the HTML kept in files
+```
+
+`pages/` ve `fragments/pages/` alan alan birbirini yansıtır. İçlerindeki her
+package'ın adı `pages` ya da `fragments`'tır. Bu yüzden bir page dosyası kendi
+içeriğini `fragments "<module>/fragments/pages/<area>"` olarak import eder;
+`routes.go` da her alanın page'lerini `demopages` gibi bir alias ile import eder.
+Küçük fragment'lar markup'larını inline tutar: data handler'larının yanında bir
+`collage.InlineHTML` const'u olarak. Layout ve daha büyük page'ler ise markup'larını
+`templates/` içinde tutar. Bir page'in `WithActionFor` ile eklediği bir action,
+page'le aynı adı taşır ve kendine ait bir path'i yoktur. `routes.go` her şeyi tek
+bir [`app.Register`](/docs/pages-and-layouts#registration) çağrısıyla register eder.
 
 **Minimal proje**, v0.32.0'dan beri varsayılan projedir ve bir projenin olabileceği en yalın hâldir. İçinde tek bir
 page'i saran layout vardır. Bu page `<h1>Hello from {{.Name}}</h1>` satırından
@@ -108,6 +133,67 @@ cd myblog
 go mod tidy
 collage dev
 ```
+
+## collage add
+
+```sh
+collage add <page|fragment|action|document> <[area/]name> [flags]
+```
+
+Scaffold'un yerleşimine uygun bir page, fragment, action ya da document yazar ve
+onu `routes.go` içinde register eder (v0.40.0'dan beri):
+
+```sh
+collage add page blog/post          # pages/blog/post.go + fragments/pages/blog/post.go
+collage add page blog/post --file   # its template in templates/pages/blog/post.html
+collage add fragment blog/sidebar   # fragments/pages/blog/sidebar.go, for a slot
+collage add action blog/comment     # actions/blog.go + actions/funcs/blog.go
+collage add action blog/ping --path /api/ping
+collage add document feed --path /feed.xml --type application/xml
+```
+
+| Flag | Varsayılan | Anlamı |
+| --- | --- | --- |
+| `--file` | kapalı | Template'i inline değil, template kökü altındaki bir dosyada tutar |
+| `--path pattern` | `/<area>/<name>` | URL. Path'i olmayan bir action, eklendiği page'de cevap verir |
+| `--name name` | son parça | Page'in, action'ın ya da document'ın adı |
+| `--locale code` | `Locale.Default` ya da `en` | Path'in ait olduğu locale |
+| `--type type` | `text/plain; charset=utf-8` | Bir document'ın content type'ı |
+| `--dir path` | `.` | Proje |
+
+- **Bir page**, `layouts.Master()` ile (ya da `fragments/layouts` içinde argüman
+  almayan ilk layout ile) sarılmış bir `pages/<area>/<name>.go` dosyasıdır. İçeriği
+  `fragments/pages/<area>/<name>.go` içindedir: bir template, bir view struct'ı ve
+  page'in başlığını belirten, tipli bir `collage.Load` handler'ı.
+- **Bir action** için `actions/<area>.go` dosyasının sonuna bir builder,
+  `actions/funcs/<area>.go` dosyasının sonuna da bir handler eklenir. Bu dosyalar
+  yoksa oluşturulur. `--path` verildiğinde action kendine ait bir URL'de cevap verir
+  ve register edilir. Verilmediğinde ise eklendiği page'de cevap verir ve komut,
+  eklemeniz gereken `.WithActionFor(...)` satırını yazdırır.
+- **Bir document**, `documents/<name>.go` dosyasıdır.
+- **Bir fragment**, bir slot için page'i olmayan bir page içeriğidir. Komut, onu
+  bağlayan `.WithSlotFragment(...)` satırını yazdırır.
+
+Bir ad küçük harflerden, rakamlardan ve tirelerden oluşur. `--name` başka bir ad
+vermedikçe komutun yazdığı her şey son parçanın adını alır: `blog/post`, `Post()`
+ile kurulan `"post"` page'idir. Path'in locale'i, `main.go` onu nasıl yazıyorsa
+`Locale.Default`'tur; orada bir literal değilse `en`'dir; ya da `--locale` ile
+verilendir. Bir template dosyası `Template.Root` altına, `Extension`'ıyla birlikte
+yazılır; bunlar da aynı şekilde okunur. Komut hangi locale'i kullandığını söyler.
+
+Komut, `routes.go`'nun zaten tuttuğu listeye register eder. Bu liste bir
+`app.Register(...)` çağrısı olabilir; yeni öğe kendi türündeki son öğeden sonra
+gelir. Ya da `RegisterPage` ile üzerinde dolaşılan bir `[]*collage.Page{...}`
+literal'i olabilir; `Document` ve `Action` için de aynısı geçerlidir. Komut dosyayı
+yerinde düzenler, böylece yorumlar oldukları yerde kalır. Alanın package'ını da
+scaffold'un kullandığı türden bir alias ile import eder. Böyle bir liste yoksa orada
+hiçbir şeyi değiştirmez ve eklenmesi gereken satırı yazdırır. Constructor'lar
+argüman almaz: bir servise ihtiyaç duyan bir page'e o servis elle eklenir.
+
+**Hiçbir şeyin üzerine yazılmaz.** Hiçbir şey yazılmadan önce her şey hesaplanır.
+Var olan bir dosya, projenin zaten tanımladığı bir page, action ya da document adı
+ya da bir dosyanın gireceği package'da zaten bulunan bir identifier, komutu hiçbir
+şey yazmadan durdurur.
 
 ## collage dev
 
@@ -426,6 +512,58 @@ Bir editörün completion'ı da bunu okur. VS Code için Collage Snippets & High
 extension'ı ([Editör desteği](/docs/installation#editor-support)),
 `{{pageURL "…"}}` içindeki page adlarını, `{{slot "…"}}` içindeki slot'ları ve
 `{{asset "…"}}` içindeki dosyaları buradan önerir.
+
+## collage check
+
+```sh
+collage check [-json]
+```
+
+Hiçbir şeyi render etmeden her template'in link'lerini kontrol eder (v0.40.0'dan
+beri). Adla kurulan bir link (`{{pageURL "post" "slug" .Slug}}`,
+`{{pageURLIn "en" "about"}}`, `{{actionURL "logout"}}`, `{{fragmentURL "home" "clock"}}`,
+`{{localeURL "en"}}`) template render edildiğinde ve yalnızca ona ulaşan page'de
+hata verir. `check` hepsini tek seferde bulur:
+
+```text
+$ collage check
+error [unknown-route] inline template of fragment "hello":4:16: {{pageURL "featurs"}}: collage: no page or document by that name: "featurs"; did you mean "features"?
+```
+
+| Kural | Anlamı |
+| --- | --- |
+| `unknown-route` | Bu adda bir page, document, action ya da fragment path'i yoktur; register edilmiş en yakın ad önerilir |
+| `route-params` | Parametreler route'un pattern'ini doldurmaz: biri eksiktir, biri için placeholder yoktur ya da ad-değer çiftleri hâlinde değildir |
+| `unreachable-locale` | Hiçbir URL'nin taşıyamayacağı bir locale: ne `Locale.Default`'tur ne de `Locale.Supported` içindedir |
+| `no-path-in-locale` | Route'un, `pageURLIn` ya da `fragmentURLIn`'in belirttiği locale'de bir path'i yoktur |
+
+Kontrolü framework'ün kendi URL builder'larıyla yapar. Bu yüzden bildirdiği şey,
+tam olarak bir render'ın hata vereceği şeydir. Yalnızca string literal olarak
+yazılmış adlar kontrol edilir: bir alandan gelen ad (`{{pageURL .Name}}`) ancak
+template render edildiğinde bilinir. Adı literal olmayan bir parametre de
+parametrelerin kontrol edilmemesine yol açar. Kendine ait bir locale'i olmayan bir
+link, route'u herhangi bir locale'de kurulabiliyorsa geçer, çünkü bir render
+varsayılan locale'e geri döner.
+
+Bir şey bulduğunda `1` ile çıkar. Bu yüzden CI'da `collage build`'den önce yer
+alabilir. `-json`, bulguları bir editör için `{level, rule, message}` dizisi olarak
+yazdırır. Çalıştırdığı komut şudur:
+
+```sh
+go run . collage-check
+```
+
+`collage.DispatchCommands` bu komuta uygulamayı başlatıp `App.Check`'i çağırarak
+cevap verir. Yani açılışta bir veritabanı açan bir program onu burada da açar. Bunun
+için projenin collage'ının v0.40.0 ya da daha yeni olması gerekir; daha eski bir
+sürüm `unknown command: "collage-check"` cevabını verir. Bir test de aynı fonksiyonu
+çağırabilir:
+
+```go
+if findings := app.Check(); len(findings) > 0 {
+	t.Errorf("broken links: %v", findings)
+}
+```
 
 ## collage version
 
