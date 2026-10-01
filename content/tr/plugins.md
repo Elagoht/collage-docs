@@ -1,5 +1,5 @@
 ---
-description: Bir plugin'in neler yapabildiği, bir plugin'in nasıl register edilip yapılandırıldığı ve ne işe yaradıklarına göre gruplanmış, yayımlanmış otuz dört plugin.
+description: Bir plugin'in neler yapabildiği, bir plugin'in nasıl register edilip yapılandırıldığı ve ne işe yaradıklarına göre gruplanmış, yayımlanmış otuz beş plugin.
 reference: Plugin, LoadPluginConfig, ErrUnknownPluginConfig, ErrAppStarted
 ---
 
@@ -174,14 +174,14 @@ beklediği yerde bir string varsa, plugin bu bölümü okuduğunda hata oluşur.
 
 ## Yayımlanmış plugin'ler
 
-Framework ile birlikte otuz dört plugin yayımlanmıştır. Aşağıda ne işe
+Framework ile birlikte otuz beş plugin yayımlanmıştır. Aşağıda ne işe
 yaradıklarına göre gruplanmışlardır. Her biri ayrı bir modüldür ve her birinin tam
 referans niteliğinde kendi README'si vardır. Aşağıdaki bilgiler bir plugin'i
 kurmanız için yeterlidir.
 
 | Grup | Plugin'ler |
 | --- | --- |
-| [SEO ve keşfedilebilirlik](#seo-and-discovery) | jsonld, meta, sitemap, robots, feed, redirects, indexnow |
+| [SEO ve keşfedilebilirlik](#seo-and-discovery) | jsonld, meta, ogimage, sitemap, robots, feed, redirects, indexnow |
 | [İçerik](#content) | markdown, highlight, toc, search, i18n |
 | [Form'lar ve state](#forms-and-state) | validate, honeypot, flash, session |
 | [Güvenlik](#security) | secure, ratelimit, basicauth |
@@ -301,6 +301,58 @@ meta.Set(rc, meta.Page{
   alır, daha derindeki bir fragment'inki de üst fragment'inkinin yerini alır.
 - `<title>` bunlardan biri değildir: plugin yokken olduğu gibi `rc.HoistTitle` ya da
   `WithTitle`'dır. Layout'ta `{{hoist "head"}}` gerektirir.
+
+#### elagoht/ogimage
+
+[github.com/Elagoht/collage-ogimage](https://github.com/Elagoht/collage-ogimage),
+her page'in paylaşım kartını — bir link'in gösterildiği 1200×630 görseli — bir HTML
+template'inden saf Go ile çizer ve içeriğinden üretilen bir URL'de sunar.
+
+```go
+import "github.com/Elagoht/collage-ogimage"
+
+Plugins: []collage.Plugin{
+	meta.New(meta.Options{SiteName: "The blog"}),
+	ogimage.NewWith(ogimage.Config{
+		Templates: templatesFS,
+		Root:      "templates",
+		Default:   "og/default.html",
+		Dir:       ".cache/ogimage",
+	}),
+},
+```
+
+```html
+<!-- templates/og/post.html -->
+<div style="display:flex; flex-direction:column; justify-content:space-between;
+            width:1200px; height:630px; padding:72px; background:#0f172a; color:#fff">
+  <span style="font-size:28px">{{.Site.Name}}</span>
+  <h1 data-fit style="font-size:72px">{{.Title}}</h1>
+  <span style="font-size:28px">{{.Label}}</span>
+</div>
+```
+
+```go
+if err := ogimage.Set(rc, "og/post.html", ogimage.Card{Title: post.Title, Label: post.Category}); err != nil {
+	return view{}, nil, err
+}
+```
+
+- v0.1.0, collage v0.40.0 ya da sonrasını ve uygulamanın `Config.BaseURL`'ünü
+  gerektirir. elagoht/meta'dan sonra register edin ve meta'nın `DefaultImage`'ını
+  boş bırakın.
+- Bir kart, HTML ve CSS'in bir alt kümesiyle yazılmış, `og/` altındaki bir
+  `html/template` dosyasıdır: kutu içeren bir element `display:flex` der, metin
+  içeren bir element run'lardan oluşan bir paragraftır. Çizemeyeceği bir şey
+  uygulamayı başlangıçta template, satır ve sütun bilgisiyle durdurur.
+- Kart tanımlamayan bir page `Default`'u alır; kart, page'in başlığından ve
+  açıklamasından çizilir.
+- URL, çizilenin hash'idir ve immutable sunulur; hiçbir şey invalidate edilmez,
+  değişen bir page'in yeni bir kartı olur. Bir kart ilk istendiğinde ve yalnızca bir
+  render onu kaydettiyse çizilir; `collage export` kartları yazar. `Dir` kartları
+  restart'lar arasında saklar; disk page cache'i bunu gerektirir.
+- Development'ta `/_og-preview/` kartları listeler; `go run . ogimage og/post.html
+  card.json > card.png` siteye gerek olmadan bir kart çizer.
 
 #### elagoht/sitemap
 
@@ -1749,7 +1801,7 @@ HTML içinde `</head>`'i arayıp kendini araya ekleyen bir plugin, layout'unuzu
 ilgilendiren bir kararı sizin yerinize vermiş olurdu. `collage new` ile oluşturulan
 layout'larda marker zaten vardır. Elle yazdığınız bir layout'ta olmayabilir.
 Hoist mekanizmasının genel anlatımı için [Head ve SEO](/docs/head-and-seo) sayfasına
-bakın. Yayımlanmış plugin'lerden jsonld, meta, feed, favicon ve analytics head'e bu
+bakın. Yayımlanmış plugin'lerden jsonld, meta, ogimage, feed, favicon ve analytics head'e bu
 yolla yazar.
 
 ## Plugin'ler nerede çalışır

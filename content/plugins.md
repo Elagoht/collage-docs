@@ -1,5 +1,5 @@
 ---
-description: What a plugin can do, how to register and configure one, and the thirty-four published plugins, grouped by what they are for.
+description: What a plugin can do, how to register and configure one, and the thirty-five published plugins, grouped by what they are for.
 reference: Plugin, LoadPluginConfig, ErrUnknownPluginConfig, ErrAppStarted
 ---
 
@@ -160,13 +160,13 @@ a boolean — is also an error, raised when the plugin reads it.
 
 ## The published plugins
 
-Thirty-four plugins are published alongside the framework, grouped below by what
+Thirty-five plugins are published alongside the framework, grouped below by what
 they are for. Each is its own module, with its own README that is the full
 reference; what follows is enough to set one up.
 
 | Group | Plugins |
 | --- | --- |
-| [SEO and discovery](#seo-and-discovery) | jsonld, meta, sitemap, robots, feed, redirects, indexnow |
+| [SEO and discovery](#seo-and-discovery) | jsonld, meta, ogimage, sitemap, robots, feed, redirects, indexnow |
 | [Content](#content) | markdown, highlight, toc, search, i18n |
 | [Forms and state](#forms-and-state) | validate, honeypot, flash, session |
 | [Security](#security) | secure, ratelimit, basicauth |
@@ -283,6 +283,56 @@ meta.Set(rc, meta.Page{
   tag, and a deeper fragment's replaces its parent's.
 - The `<title>` is not among them: it is `rc.HoistTitle` or `WithTitle`, as without
   the plugin. It needs `{{hoist "head"}}` in the layout.
+
+#### elagoht/ogimage
+
+[github.com/Elagoht/collage-ogimage](https://github.com/Elagoht/collage-ogimage)
+draws each page's share card — the 1200×630 image a link is shown with — from an
+HTML template, in pure Go, and serves it at a URL made from its content.
+
+```go
+import "github.com/Elagoht/collage-ogimage"
+
+Plugins: []collage.Plugin{
+	meta.New(meta.Options{SiteName: "The blog"}),
+	ogimage.NewWith(ogimage.Config{
+		Templates: templatesFS,
+		Root:      "templates",
+		Default:   "og/default.html",
+		Dir:       ".cache/ogimage",
+	}),
+},
+```
+
+```html
+<!-- templates/og/post.html -->
+<div style="display:flex; flex-direction:column; justify-content:space-between;
+            width:1200px; height:630px; padding:72px; background:#0f172a; color:#fff">
+  <span style="font-size:28px">{{.Site.Name}}</span>
+  <h1 data-fit style="font-size:72px">{{.Title}}</h1>
+  <span style="font-size:28px">{{.Label}}</span>
+</div>
+```
+
+```go
+if err := ogimage.Set(rc, "og/post.html", ogimage.Card{Title: post.Title, Label: post.Category}); err != nil {
+	return view{}, nil, err
+}
+```
+
+- v0.1.0 needs collage v0.40.0 or later, and the application's `Config.BaseURL`.
+  Register it after elagoht/meta, and leave meta's `DefaultImage` unset.
+- A card is an `html/template` file under `og/` in a subset of HTML and CSS: an
+  element holding boxes says `display:flex`, one holding text is a paragraph of
+  runs. What it cannot draw stops the application at startup, with the template,
+  line and column.
+- A page that sets no card gets `Default`, drawn from its title and description.
+- The URL is a hash of what is drawn, served immutable; nothing is invalidated, a
+  changed page has a new card. A card is drawn on its first request, only if a
+  render recorded it; `collage export` writes them. `Dir` keeps them across
+  restarts, which a disk page cache needs.
+- In development `/_og-preview/` lists them; `go run . ogimage og/post.html
+  card.json > card.png` draws one without the site.
 
 #### elagoht/sitemap
 
@@ -1679,8 +1729,8 @@ block, and the block has nowhere to go. That is deliberate: a plugin that search
 the HTML for `</head>` and spliced itself in would be deciding a layout question
 on your layout's behalf. A layout from `collage new` already has the marker; a
 layout you wrote by hand may not. See [Head and SEO](/docs/head-and-seo) for
-hoisting in general. Among the published plugins, jsonld, meta, feed, favicon and
-analytics write to the head this way.
+hoisting in general. Among the published plugins, jsonld, meta, ogimage, feed,
+favicon and analytics write to the head this way.
 
 ## Where plugins run
 
