@@ -1076,7 +1076,7 @@ Plugins: []collage.Plugin{live.New()},
 ```
 
 - It must go in `Config.Plugins`: it adds `{{liveClient}}`, which the layout calls
-  to include the client. v0.3.0 and v0.2.1 need collage v0.20.0 or later; v0.2.0 needed
+  to include the client. v0.4.0, v0.3.0 and v0.2.1 need collage v0.20.0 or later; v0.2.0 needed
   v0.19.0, and v0.1.0 v0.18.0.
 - The page owns the container and the fragment owns what is inside it.
   `data-collage-interval` fetches on an interval, `data-collage-push` takes the
@@ -1105,6 +1105,19 @@ Plugins: []collage.Plugin{live.New()},
   still shows what it last put in. The
   [README](https://github.com/Elagoht/collage-live#holding-an-element-still) has a
   drag-and-drop example.
+- **Animating a swap** (since v0.4.0). A view transition has to begin before the
+  DOM changes, and `collage:swap` fires after. `data-collage-transition` puts every
+  answer in inside `document.startViewTransition` — pushes, polls, form answers and
+  `put` alike — so cards that keep their `view-transition-name` from one answer to
+  the next slide to their new places; without the API, or under
+  `prefers-reduced-motion: reduce`, the answer goes in at once. For more control,
+  `collage:before-swap` fires on the element just before it changes: a listener
+  that calls `preventDefault` runs `e.detail.swap()` itself, inside its own
+  transition, naming the elements that should move before and after. A late
+  `swap()` after a newer answer does nothing, and one called while the element is
+  held waits for the resume. The
+  [README](https://github.com/Elagoht/collage-live#animating-a-swap) has the
+  example.
 - **One connection per browser.** A browser holds at most six connections to one
   origin over HTTP/1.1, across all its tabs, so since v0.2.0 the client opens the
   stream from a shared worker that every tab of the site shares. Where there is no

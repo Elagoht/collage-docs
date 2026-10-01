@@ -1122,7 +1122,7 @@ Plugins: []collage.Plugin{live.New()},
 ```
 
 - `Config.Plugins` içinde olmalıdır, çünkü layout'un client'ı eklemek için çağırdığı
-  `{{liveClient}}`'ı ekler. v0.3.0 ve v0.2.1, collage v0.20.0 ya da sonrasını gerektirir;
+  `{{liveClient}}`'ı ekler. v0.4.0, v0.3.0 ve v0.2.1, collage v0.20.0 ya da sonrasını gerektirir;
   v0.2.0 v0.19.0'ı, v0.1.0 ise v0.18.0'ı gerektiriyordu.
 - Container'ın sahibi page'dir, içindekinin sahibi fragment'tir.
   `data-collage-interval` belli aralıklarla fetch eder, `data-collage-push`
@@ -1153,6 +1153,19 @@ Plugins: []collage.Plugin{live.New()},
   doğrudan patch etmek, client'ın element'te hâlâ en son koyduğu içeriğin durduğunu
   sanmasına yol açardı. Sürükle-bırak örneği
   [README](https://github.com/Elagoht/collage-live#holding-an-element-still)'de.
+- **Swap'e animasyon eklemek** (v0.4.0'dan beri). Bir view transition DOM
+  değişmeden önce başlamalıdır, `collage:swap` ise değişiklikten sonra tetiklenir.
+  `data-collage-transition` her cevabı `document.startViewTransition` içinde yerine
+  koyar: push'lar, poll'lar, form cevapları ve `put` da dahil. Böylece bir cevaptan
+  diğerine `view-transition-name`'ini koruyan kartlar yeni yerlerine kayar. API
+  yoksa ya da `prefers-reduced-motion: reduce` açıksa cevap hemen yerine konur. Daha
+  fazla kontrol için `collage:before-swap`, element değişmeden hemen önce element
+  üzerinde tetiklenir. `preventDefault` çağıran bir listener `e.detail.swap()`'i
+  kendisi, kendi transition'ı içinde çalıştırır ve hareket edecek element'lere
+  swap'ten önce ve sonra isim verir. Daha yeni bir cevaptan sonra geç çağrılan
+  `swap()` hiçbir şey yapmaz. Element sabit tutulurken çağrılan bir `swap()` ise
+  element resume edilene kadar bekler. Örnek
+  [README](https://github.com/Elagoht/collage-live#animating-a-swap)'de.
 - **Tarayıcı başına tek bağlantı.** Bir tarayıcı HTTP/1.1 üzerinden bir origin'e,
   tüm sekmeleri toplamında en fazla altı bağlantı açar. Bu yüzden v0.2.0'dan beri
   client stream'i, sitenin tüm sekmelerinin paylaştığı bir shared worker'dan açar.
