@@ -499,6 +499,14 @@ collage.NewPage("search").
 failure policy'si uygulanır. Bu aynı render'dır, sadece daha aşağıdan başlar.
 Etrafında bir layout yoktur ve response'u framework tarafından asla cache'lenmez.
 
+"Yok" ile "bozuk" burada da page'deki gibi birbirinden ayrı kalır. Data handler'ı
+`collage.ErrNotFound`'u wrap eden required bir fragment `404` ile cevap verir.
+Başka her hatanın cevabı `500`'dür. Fragment path bir action gibi cevaplandığı için
+hatası düz metindir, asla cache'lenmez ve içinde page'den hiçbir şey yoktur. Onu
+çeken bir script'in okuyabileceği de budur. v0.39.2'den önce fragment path ikisinde
+de `500` ile cevap veriyordu. Bu yüzden bir script "görme yetkiniz yok" ile
+"bozuk"u birbirinden ayıramıyordu.
+
 ```js
 const input = document.querySelector('input[name="q"]');
 input.addEventListener("input", async () => {

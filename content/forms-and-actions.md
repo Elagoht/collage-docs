@@ -477,6 +477,13 @@ data handler runs, its own slots are filled and its failure policy applies — i
 is the same render, started lower down. There is no layout around it, and its
 response is never cached by the framework.
 
+Missing and broken stay apart here, as on the page. A required fragment whose data
+handler wraps `collage.ErrNotFound` answers `404`, and any other failure `500`. A
+fragment path is answered like an action, so its failure is plain text, never
+cached, with nothing of the page in it, which is what a script fetching it can
+read. Before v0.39.2 a fragment path answered `500` for both, so a script could not
+tell "not yours to see" from "broken".
+
 ```js
 const input = document.querySelector('input[name="q"]');
 input.addEventListener("input", async () => {
