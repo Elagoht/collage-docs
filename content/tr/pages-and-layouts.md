@@ -274,7 +274,8 @@ Bir pattern segment'lerden oluşur:
 | --- | --- |
 | `blog` | Tam olarak bu metinle |
 | `{slug}` | Tam olarak bir segment'le, `slug` adıyla yakalanır |
-| `{rest...}` | Geriye kalan her şeyle, `rest` adıyla yakalanır. Yalnızca son segment olabilir |
+| `{slug}.md`, `post-{id}`, `v{version}.json` | Önünde ve arkasında bu metni taşıyan, arada en az bir karakter olan bir segment'le. Yakalanan, aradaki kısımdır (v0.41.0'dan beri): `/blog/hello.md` için `slug` = `hello` |
+| `{rest...}` | Geriye kalan her şeyle, `rest` adıyla yakalanır. Yalnızca son segment olabilir ve etrafında metin olamaz |
 
 Bir data handler yakalanan değeri `rc.Param("slug")` ya da `rc.PathParams["slug"]`
 ile okur. Değerler percent-decode edilmiş olarak ve segment segment gelir.
@@ -287,10 +288,46 @@ Kendisi bir path olan bir değer, örneğin `guide/intro`, bir catch-all'da yer
 almalıdır: `{rest...}`. `{{pageURL}}` ve `BuildPath`, tek bir segment'in
 değerindeki `/`'ı reddeder.
 
-Her seviyede static bir segment `{param}`'dan önce, `{param}` da `{rest...}`'ten
-önce denenir. Eşleştirme backtracking ile yapılır. Böylece iki route da
+Her seviyede önce static bir segment denenir. Ardından etrafında metin olan
+placeholder'lar gelir, en özelinden başlayarak. Sonra düz bir `{param}`, en son da
+`{rest...}` denenir. Eşleştirme backtracking ile yapılır. Böylece iki route da
 eşleşebilecek olsa bile `/blog/archive`, `/blog/{slug}`'a karşı kazanır. `/blog` ve
 `/blog/` aynı route'tur.
+
+### Placeholder'ın etrafında metin
+
+Bir yazı ile onun Markdown'ı ya da kategori başına bir feed yan yana durabilir:
+
+```go
+collage.NewPage("post").WithPath("en", "/blog/{slug}")            // /blog/hello
+collage.NewDocument("post-md", "text/markdown; charset=utf-8").
+	WithPath("en", "/blog/{slug}.md")                               // /blog/hello.md
+collage.NewDocument("feed", "application/rss+xml").
+	WithPath("en", "/feeds/{category}.xml")                         // /feeds/go.xml
+```
+
+Bir segment'in hangi route'a gittiği, route'ların kayıt sırasına hiçbir zaman
+bağlı değildir. Aynı konumdaki iki placeholder üç durumdan birindedir:
+
+| | Örnek | Sonuç |
+| --- | --- | --- |
+| Ayrık: hiçbir segment ikisine birden uymaz | `{slug}.md` ve `{slug}.json` | İkisi de kaydedilir, metin karar verir |
+| İç içe: biri diğerinin daha özel hâlidir | `{slug}.min.md`, `{slug}.md`'nin içinde; ikisi de `{slug}`'ın içinde | İkisi de kaydedilir, daha özel olan kazanır |
+| Kesişen: bir segment ikisine de uyar ama hiçbiri daha özel değildir | `a{x}` ve `{x}b`, ikisi de `aXb`'ye uyar | `ErrOverlappingPattern`, böyle bir segment'i örnek vererek |
+
+Yani yukarıdaki route'larla `/blog/hello.md` document'e, `/blog/hello` sayfaya
+gider. Static bir `/blog/index.md` ikisini de geçer. Metnin arasında hiçbir şey
+olmayan `/blog/.md` ise sayfanındır ve `slug` = `.md` olur. Etrafında metin olan
+bir placeholder `.` ya da `..` yakalamaz: `/blog/...md` de sayfaya gider,
+document'e `..` slug'ını vermez. Link kurulurken yalnızca değer escape edilir:
+`{{pageURL "post-md" "slug" "çay"}}`, `/blog/%C3%A7ay.md` olur. Export de
+`blog/hello.md` dosyasını `blog/hello/index.html`'in yanına yazar.
+
+Bir segment tek bir placeholder taşır. `{name}.{ext}` için `a.b.c`'nin tek bir
+cevabı yoktur, bu yüzden `{name}.md` ve `{name}.json`'u iki ayrı route olarak
+kaydedin. Regex de yoktur. Bir değeri handler'ı kontrol eder ve tanımadığı bir
+değer için `collage.ErrNotFound` döner. Bu sayede her çakışma route kaydedilirken
+kesin olarak belirlenebilir.
 
 Pattern'lerdeki hatalar request anında sürpriz olarak çıkmaz. Register sırasında
 hata verirler:
@@ -298,14 +335,19 @@ hata verirler:
 - Bir pattern `/` ile başlamalıdır. Boş segment ve boş placeholder adı içeremez,
   catch-all'u da yalnızca en sona koyabilir. Aksi hâlde `ErrInvalidPath` ya da
   `ErrInvalidPattern` alırsınız.
-- Bir placeholder bütün bir segment'i kaplar. v0.11.0'dan itibaren bir segment'in
-  içine yazılmış bir placeholder, örneğin `/feeds/{category}.xml` ya da `/post-{id}`,
-  `ErrInvalidPattern` verir. Bunun yerine `/feeds/{category}/rss.xml` yazın.
+- Bir segment en fazla bir placeholder taşır, catch-all'un etrafında da metin
+  olamaz: `/{name}.{ext}` ve `/files/{path...}.md` `ErrInvalidPattern` verir.
+  (v0.11.0'dan v0.40.0'a kadar placeholder'ın etrafındaki her metin
+  reddediliyordu. v0.41.0'dan beri `/feeds/{category}.xml` ve `/post-{id}` birer
+  route'tur.)
+- Etrafında metin olan iki placeholder kesişirse, örneğin `/a{x}` ve `/{x}b`,
+  `ErrOverlappingPattern` alırsınız.
 - Bir locale'de aynı path'te iki route olursa `ErrDuplicateRoute` alırsınız. Bir
   page ile bir [document](/docs/documents)'ın çakışması da buna dahildir, çünkü
   ikisi aynı ağacı kullanır.
 - Aynı konumda iki farklı parametre adı, örneğin `/blog/{slug}` ve
-  `/blog/{id}/edit`, `ErrAmbiguousParameterName` verir.
+  `/blog/{id}/edit` ya da `{slug}.md` ve `{id}.md`, `ErrAmbiguousParameterName`
+  verir.
 
 Bir page `GET` ve `HEAD` request'lerine cevap verir. `OPTIONS` request'ine de
 `204` ile cevap verir. Bu response'un `Allow` header'ı, URL'nin kabul ettiği

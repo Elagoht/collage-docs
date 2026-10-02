@@ -46,7 +46,7 @@ Bu yüzden document hiçbir şey render etmez. Body'yi formatı bilen bir encode
 | --- | --- |
 | `collage.NewDocument(name, contentType)` | Builder'ı başlatır. İki argüman da zorunludur. |
 | `AtRoot(pattern)` | Document'a bütün locale'lerin dışından ulaşan URL pattern'i. Locale config'i ne olursa olsun prefix almaz. Sitenin kendi dosyaları içindir: `/robots.txt`, `/llms.txt`. v0.14.1'den beri vardır. |
-| `WithPath(locale, pattern)` | Document'a `locale` içinde ulaşan URL pattern'i. `{param}` segment'leri page'lerdeki gibi çalışır. Placeholder bütün bir segment olmalıdır: `/feeds/{category}/rss.xml` yazılabilir, ama `/feeds/{category}.xml` register sırasında `collage.ErrInvalidPattern` ile reddedilir (v0.11.0'dan beri). |
+| `WithPath(locale, pattern)` | Document'a `locale` içinde ulaşan URL pattern'i. Placeholder'lar page'lerdeki gibi çalışır, etraflarında metin de olabilir (v0.41.0'dan beri): `/feeds/{category}.xml` ya da `/blog/{slug}` sayfasının yanında `/blog/{slug}.md`. Bkz. [placeholder'ın etrafında metin](/docs/pages-and-layouts#text-around-a-placeholder). |
 | `WithHandler(fn)` | Body'yi üreten fonksiyon. |
 | `WithBody(b)` | Handler yerine, program başlarken sabitlenen bir body. Document'ın fallback olarak kullanabileceği bir template'i olmadığı için ikisinden biri gerekir, ikisi birden olamaz. v0.16.0'dan beri vardır. |
 | `Dynamic()` | Handler'ı her request'te çalıştırır. Handler'ı olan ve strateji tanımlamayan bir document'ın stratejisi budur. |

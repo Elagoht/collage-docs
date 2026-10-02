@@ -264,7 +264,8 @@ A pattern is made of segments:
 | --- | --- |
 | `blog` | Exactly that text |
 | `{slug}` | Exactly one segment, captured as `slug` |
-| `{rest...}` | Everything that is left, captured as `rest`. Only as the last segment |
+| `{slug}.md`, `post-{id}`, `v{version}.json` | One segment carrying that text before and after, with at least one character between — what is captured (since v0.41.0): `/blog/hello.md` gives `slug` = `hello` |
+| `{rest...}` | Everything that is left, captured as `rest`. Only as the last segment, with no text around it |
 
 A data handler reads what was captured with `rc.Param("slug")`, or
 `rc.PathParams["slug"]`. Values arrive percent-decoded, one segment at a time.
@@ -276,21 +277,59 @@ judged as something else. A value that is itself a path, such as `guide/intro`,
 belongs in a catch-all: `{rest...}`. `{{pageURL}}` and `BuildPath` refuse a `/` in
 a single segment's value.
 
-At every level a static segment is tried before a `{param}`, and a `{param}` before
-a `{rest...}` — with backtracking, so `/blog/archive` beats `/blog/{slug}` even when
-both could match. `/blog` and `/blog/` are the same route.
+At every level a static segment is tried first, then a placeholder with text
+around it — the most specific first — then a bare `{param}`, then a `{rest...}`,
+with backtracking, so `/blog/archive` beats `/blog/{slug}` even when both could
+match. `/blog` and `/blog/` are the same route.
+
+### Text around a placeholder
+
+A post and its Markdown, or a feed per category, sit side by side:
+
+```go
+collage.NewPage("post").WithPath("en", "/blog/{slug}")            // /blog/hello
+collage.NewDocument("post-md", "text/markdown; charset=utf-8").
+	WithPath("en", "/blog/{slug}.md")                               // /blog/hello.md
+collage.NewDocument("feed", "application/rss+xml").
+	WithPath("en", "/feeds/{category}.xml")                         // /feeds/go.xml
+```
+
+Which route a segment reaches never depends on the order of registration. Two
+placeholders at one position are one of three things:
+
+| | Example | Result |
+| --- | --- | --- |
+| Disjoint: no segment matches both | `{slug}.md` and `{slug}.json` | Both register; the text decides |
+| Nested: one is the other made more specific | `{slug}.min.md` within `{slug}.md`, both within `{slug}` | Both register; the more specific wins |
+| Crossing: a segment matches both, neither is more specific | `a{x}` and `{x}b`, both matching `aXb` | `ErrOverlappingPattern`, naming such a segment |
+
+So with the routes above, `/blog/hello.md` is the document, `/blog/hello` the page,
+a static `/blog/index.md` beats both, and `/blog/.md` — nothing between the text —
+is the page's, with `slug` = `.md`. A placeholder with text around it never
+captures `.` or `..`: `/blog/...md` is the page's too, rather than handing the
+document the slug `..`. A link escapes only the value:
+`{{pageURL "post-md" "slug" "çay"}}` is `/blog/%C3%A7ay.md`, and an export writes
+`blog/hello.md` beside `blog/hello/index.html`.
+
+A segment holds one placeholder — `{name}.{ext}` has no single answer for `a.b.c`,
+so register `{name}.md` and `{name}.json` as two routes — and there is no regex. A
+value is checked by its handler, which returns `collage.ErrNotFound` for one it
+does not know; that keeps every collision decidable when the route is registered.
 
 Mistakes in patterns are errors at registration, not surprises at request time:
 
 - A pattern must start with `/`, have no empty segment and no empty placeholder
   name, and put a catch-all only last — `ErrInvalidPath` or `ErrInvalidPattern`.
-- A placeholder is a whole segment. Since v0.11.0 one written inside a segment,
-  such as `/feeds/{category}.xml` or `/post-{id}`, is `ErrInvalidPattern`; write
-  `/feeds/{category}/rss.xml` instead.
+- A segment holds at most one placeholder, and a catch-all takes no text around
+  it: `/{name}.{ext}` and `/files/{path...}.md` are `ErrInvalidPattern`. (From
+  v0.11.0 to v0.40.0 any text around a placeholder was refused; since v0.41.0
+  `/feeds/{category}.xml` and `/post-{id}` are routes.)
+- Two placeholders with text around them that cross, such as `/a{x}` and `/{x}b` —
+  `ErrOverlappingPattern`.
 - Two routes at one path in one locale — `ErrDuplicateRoute`. That includes a
   page and a [document](/docs/documents) colliding, since they share one tree.
 - Two parameter names at one position, such as `/blog/{slug}` and
-  `/blog/{id}/edit` — `ErrAmbiguousParameterName`.
+  `/blog/{id}/edit`, or `{slug}.md` and `{id}.md` — `ErrAmbiguousParameterName`.
 
 A page answers `GET` and `HEAD`, and `OPTIONS` with a `204` whose `Allow` header
 lists what the URL accepts. Any other method is a 405 with that same `Allow`

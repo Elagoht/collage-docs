@@ -45,7 +45,7 @@ want a template. The framework serves what you return, byte for byte.
 | --- | --- |
 | `collage.NewDocument(name, contentType)` | Starts the builder. Both are required. |
 | `AtRoot(pattern)` | The URL pattern that reaches the document outside every locale: no prefix, whatever the locale configuration. For the site's own files — `/robots.txt`, `/llms.txt`. Since v0.14.1. |
-| `WithPath(locale, pattern)` | The URL pattern that reaches the document in `locale`. `{param}` segments work as they do for pages. A placeholder is a whole segment: `/feeds/{category}/rss.xml`, not `/feeds/{category}.xml`, which is refused at registration with `collage.ErrInvalidPattern` (since v0.11.0). |
+| `WithPath(locale, pattern)` | The URL pattern that reaches the document in `locale`. Placeholders work as they do for pages, text around them included (since v0.41.0): `/feeds/{category}.xml`, or `/blog/{slug}.md` beside a page at `/blog/{slug}` — see [text around a placeholder](/docs/pages-and-layouts#text-around-a-placeholder). |
 | `WithHandler(fn)` | The function that produces the body. |
 | `WithBody(b)` | A body fixed when the program starts, in place of a handler. A document has no template to fall back on, so it needs one of the two, and not both. Since v0.16.0. |
 | `Dynamic()` | Run the handler on every request. What a document with a handler and no strategy resolves to. |
