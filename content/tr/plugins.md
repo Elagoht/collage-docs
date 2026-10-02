@@ -1352,8 +1352,16 @@ Plugins: []collage.Plugin{optiimage.New()},
 ```
 
 - collage v0.24.0 ya da sonrasını gerektirir ve `Config.Plugins` içinde olmalıdır.
-- **`allowedOrigins` boşsa plugin devre dışı kalır.** Listelemediğiniz bir host'tan
-  hiçbir zaman görsel çekmez. Scheme de origin'in bir parçasıdır.
+- **`allowedOrigins` boşsa ve `Files` da yoksa plugin devre dışı kalır.**
+  Listelemediğiniz bir host'tan hiçbir zaman görsel çekmez. Scheme de origin'in
+  bir parçasıdır.
+- **Sitenin kendi görselleri kendi dosyalarından okunur** (v0.3.0'dan beri):
+  `optiimage.NewWith(optiimage.Config{Files: map[string]fs.FS{"/static/": staticFS}})`
+  ile `<img src="/static/avatar.png" width="256" height="256">`, hiçbir istek
+  atılmadan `staticFS`'ten okunan, yeniden boyutlandırılmış bir kopya olur. Böylece
+  site kendi public adresinden görsel çekmez, bir test ya da export da ağa ihtiyaç
+  duymaz. Dosyanın içeriği görselin adının bir parçasıdır, yani değişen bir dosya
+  yeni bir ad alır. `Files`'ın JSON karşılığı yoktur.
 - Yalnızca hem `width` hem de `height` değeri piksel sayısı olarak verilmiş
   görseller yeniden yazılır. Hedef boyut olarak güvenilebilecek tek değer, bu
   belirtilen boyuttur.

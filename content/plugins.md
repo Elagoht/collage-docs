@@ -1294,8 +1294,15 @@ Plugins: []collage.Plugin{optiimage.New()},
 ```
 
 - It needs collage v0.24.0 or later, and must go in `Config.Plugins`.
-- **An empty `allowedOrigins` disables it.** It never fetches from a host you did
-  not list, and the scheme is part of the origin.
+- **An empty `allowedOrigins`, with no `Files`, disables it.** It never fetches
+  from a host you did not list, and the scheme is part of the origin.
+- **The site's own images come from its files** (since v0.3.0):
+  `optiimage.NewWith(optiimage.Config{Files: map[string]fs.FS{"/static/": staticFS}})`
+  makes `<img src="/static/avatar.png" width="256" height="256">` a resized copy
+  read from `staticFS`, with no request made — so the site does not fetch from its
+  own public address, and a test or an export needs no network. The file's content
+  is part of the image's name, so a changed file is a new name. `Files` has no
+  JSON form.
 - Only images with both `width` and `height` as pixel counts are rewritten; that
   declared size is the only honest target size there is.
 - Nothing is fetched during the render. The page links a content-addressed name
