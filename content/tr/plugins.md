@@ -1050,7 +1050,10 @@ Plugins: []collage.Plugin{secure.New(secure.Options{
 - Policy'deki `{nonce}` ile inline bir script'teki `{{cspNonce}}` aynı nonce'tur ve
   her response'ta yenidir. Cache'lenen page bir placeholder taşır, plugin'in
   middleware'i de onun yerine taze bir nonce koyar. Nonce taşıyan bir page
-  `Cache-Control: no-store` ile ve `ETag` olmadan gönderilir.
+  `Cache-Control: no-store` ile ve `ETag` olmadan gönderilir. Diğer her response
+  conditional request'lere her zamanki gibi cevap verir: bir feed, bir document ya
+  da mount edilmiş bir dosya `304`'ünü yine alır (v0.1.5'ten beri; öncesinde
+  bir policy tanımlıysa plugin'in arkasındaki hiçbir şey alamıyordu).
 - Static export'un yazdığı page'leri bu middleware hiç sunmaz ve bir dosya her
   response'ta değişen bir nonce taşıyamaz. Bu yüzden static build'de `nonce`
   attribute'u kaldırılır, script yerinde kalır ve bir kez uyarı verilir. Bu inline

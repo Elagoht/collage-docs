@@ -1004,7 +1004,9 @@ Plugins: []collage.Plugin{secure.New(secure.Options{
 - `{nonce}` in the policy and `{{cspNonce}}` on an inline script are one nonce,
   new on every response: the cached page carries a placeholder, and the plugin's
   middleware puts a fresh nonce in its place. A page carrying one is sent with
-  `Cache-Control: no-store` and no `ETag`.
+  `Cache-Control: no-store` and no `ETag`. Every other response answers
+  conditional requests as usual: a feed, a document or a mounted file still gets
+  its `304` (since v0.1.5; before, with a policy set, nothing behind the plugin could).
 - A static export writes pages this middleware never serves, and a file cannot
   carry a per-response nonce. So in a static build the `nonce` attribute is
   removed and the script kept, with one warning; allow those inline scripts in
