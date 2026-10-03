@@ -172,7 +172,7 @@ reference; what follows is enough to set one up.
 | [Security](#security) | secure, ratelimit, basicauth |
 | [Live updates](#live-updates) | live, websocket |
 | [Assets and delivery](#assets-and-delivery) | minimizer, opti-image, bundle, favicon, compress, cdnpurge, offline |
-| [Operations and development](#operations-and-development) | htmlcheck, devtoolbar, accesslog, prometheus, otel, analytics |
+| [Operations and development](#operations-and-development) | htmlcheck, devtoolbar, accesslog, prometheus, otel, analytics, tenant |
 
 ### SEO and discovery
 
@@ -1718,6 +1718,49 @@ Plugins: []collage.Plugin{analytics.New(analytics.Options{
   under Do Not Track or Global Privacy Control, or until the page calls
   `window.collageAnalyticsConsent()`.
 - `exclude` names pages that get no snippet.
+
+#### elagoht/tenant
+
+[github.com/Elagoht/collage-tenant](https://github.com/Elagoht/collage-tenant)
+serves one site to many customers, each on a host of its own: `acme.app.com`,
+`globex.app.com` or a customer's own domain. A cached page is kept per tenant, and
+every absolute URL the site writes follows the host.
+
+```go
+import "github.com/Elagoht/collage-tenant"
+
+Plugins: []collage.Plugin{tenant.NewWith(tenant.Options{
+	Tenants: []tenant.Static{
+		{ID: "acme", Origin: "https://acme.app.com", Hosts: []string{"acme.app.com", "acme.localhost"}},
+	},
+	Resolve: lookupCustomDomain, // or a database, for hosts added at run time
+})},
+```
+
+```json
+{
+  "elagoht/tenant": {
+    "tenants": [
+      { "id": "acme", "origin": "https://acme.app.com", "hosts": ["acme.app.com"] }
+    ],
+    "bypass": ["app.com"],
+    "ttl": "1m"
+  }
+}
+```
+
+- It needs collage v0.42.0 or later, and `tenants` or a `Resolve` function (Go only).
+- A host that is no tenant's is answered 404 with the site's own 404 page. A
+  resolver that fails or panics is answered 503 with a `Retry-After`, and that is
+  not cached. A "no tenant" answer is, for `ttl` (`"1m"`); `maxHosts` (10000)
+  bounds how many hosts are remembered. `bypass` hosts are served without a tenant.
+- A handler reads the tenant with `tenant.ID(rc)`, and code that holds only a
+  context, such as a page's `StaticParams`, with `tenant.IDFromContext(ctx)`. Both
+  are safe in a cached page. `collage.BaseURL(rc)` is the tenant's origin.
+- `elagoht/sitemap`, `feed`, `meta`, `ogimage`, `indexnow`, `cdnpurge` and `robots`
+  follow the host from v0.2.0.
+- `acme.localhost` works through `collage dev`. A static build has no host, so it
+  renders without a tenant and warns `tenant/no-host`.
 
 ## Plugins that write to the head
 

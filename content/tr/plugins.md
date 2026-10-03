@@ -187,7 +187,7 @@ kurmanız için yeterlidir.
 | [Güvenlik](#security) | secure, ratelimit, basicauth |
 | [Canlı güncellemeler](#live-updates) | live, websocket |
 | [Asset'ler ve teslimat](#assets-and-delivery) | minimizer, opti-image, bundle, favicon, compress, cdnpurge, offline |
-| [Operasyon ve development](#operations-and-development) | htmlcheck, devtoolbar, accesslog, prometheus, otel, analytics |
+| [Operasyon ve development](#operations-and-development) | htmlcheck, devtoolbar, accesslog, prometheus, otel, analytics, tenant |
 
 ### SEO ve keşfedilebilirlik
 
@@ -1791,6 +1791,50 @@ Plugins: []collage.Plugin{analytics.New(analytics.Options{
   da Global Privacy Control altında hiçbir şey yüklenmez. `requireConsent` ile de
   page `window.collageAnalyticsConsent()` çağırana kadar hiçbir şey yüklenmez.
 - `exclude`, snippet almayan page'leri adlandırır.
+
+#### elagoht/tenant
+
+[github.com/Elagoht/collage-tenant](https://github.com/Elagoht/collage-tenant),
+tek bir site'ı birçok müşteriye, her birine kendi host'unda sunar: `acme.app.com`,
+`globex.app.com` ya da müşterinin kendi domain'i. Cache'lenen page tenant başına
+tutulur ve site'ın yazdığı her mutlak URL host'u izler.
+
+```go
+import "github.com/Elagoht/collage-tenant"
+
+Plugins: []collage.Plugin{tenant.NewWith(tenant.Options{
+	Tenants: []tenant.Static{
+		{ID: "acme", Origin: "https://acme.app.com", Hosts: []string{"acme.app.com", "acme.localhost"}},
+	},
+	Resolve: lookupCustomDomain, // ya da çalışma anında eklenen host'lar için bir veritabanı
+})},
+```
+
+```json
+{
+  "elagoht/tenant": {
+    "tenants": [
+      { "id": "acme", "origin": "https://acme.app.com", "hosts": ["acme.app.com"] }
+    ],
+    "bypass": ["app.com"],
+    "ttl": "1m"
+  }
+}
+```
+
+- collage v0.42.0 ya da sonrasını ister; `tenants` ya da bir `Resolve` fonksiyonu
+  (yalnızca Go) gerekir.
+- Hiçbir tenant'a ait olmayan host, site'ın kendi 404 page'iyle 404 alır. Başarısız
+  olan ya da panic eden bir resolver `Retry-After` ile 503 alır ve bu cache'lenmez.
+  "Tenant yok" cevabı `ttl` (`"1m"`) boyunca cache'lenir; `maxHosts` (10000) kaç
+  host'un hatırlanacağını sınırlar. `bypass` host'ları tenant'sız sunulur.
+- Bir handler tenant'ı `tenant.ID(rc)` ile okur; yalnızca context'i olan kod, örneğin
+  bir page'in `StaticParams`'ı, `tenant.IDFromContext(ctx)` ile. İkisi de cache'lenen
+  bir page'de güvenlidir. `collage.BaseURL(rc)` tenant'ın origin'idir.
+- `elagoht/sitemap`, `feed`, `meta`, `ogimage`, `indexnow`, `cdnpurge` ve `robots`
+  v0.2.0'dan itibaren host'u izler.
+- `acme.localhost` `collage dev` ile çalışır. Static build'in host'u yoktur; tenant'sız
+  render eder ve `tenant/no-host` uyarısı verir.
 
 ## Head'e yazan plugin'ler
 
