@@ -229,7 +229,9 @@ ve her değerin kendi cache'lenmiş page'i vardır. Bir cache boyutu olmayan bir
 paylaşılan bir render'da yeri yoktur: okuyucunun kendi request'ine ihtiyaç duyan bir
 page `Dynamic()` olmalıdır ve dynamic bir page request'in tamamını görür.
 Development'ta, bir handler'ın gerçekten okuduğu gizlenmiş bir context değeri
-log'lanır, böylece hata görünür olur. Document'lar da aynı kurala uyar.
+log'lanır, böylece hata görünür olur. Document'lar da aynı kurala uyar
+(v0.41.1'den beri; öncesinde cacheable bir document'ın render'ı ilk okuyucunun
+context değerlerini hâlâ görüyordu).
 
 ## Dependency tag'ler
 

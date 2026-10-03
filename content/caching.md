@@ -216,7 +216,8 @@ is in the key, so each value has its own cached page. A value that is not a cach
 dimension does not belong in a shared render — a page that needs the reader's own
 request is `Dynamic()`, and a dynamic page sees all of it. In development, a
 hidden context value a handler actually reads is logged, so the mistake is
-visible. Documents follow the same rule.
+visible. Documents follow the same rule (since v0.41.1; before it, a cacheable
+document's render still saw the first reader's context values).
 
 ## Dependency tags
 
