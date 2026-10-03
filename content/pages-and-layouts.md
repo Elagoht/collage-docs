@@ -270,12 +270,16 @@ A pattern is made of segments:
 A data handler reads what was captured with `rc.Param("slug")`, or
 `rc.PathParams["slug"]`. Values arrive percent-decoded, one segment at a time.
 
-A segment holding an encoded slash, `%2F`, is a 404 since v0.34.0. A middleware
-reads the decoded path, where `/public%2Fsecret` is two segments; a router that
-read it as one — as collage did before — would serve a request the middleware had
-judged as something else. A value that is itself a path, such as `guide/intro`,
-belongs in a catch-all: `{rest...}`. `{{pageURL}}` and `BuildPath` refuse a `/` in
-a single segment's value.
+A segment holding an encoded slash, `%2F`, is a 404 since v0.34.0. By the URL
+standard `%2F` is not a separator: `/public%2Fsecret` is one segment whose value is
+`public/secret`. But Go decodes the path into `r.URL.Path` before any middleware
+reads it, and there `/public%2Fsecret` has become `/public/secret`, which no longer
+tells an encoded slash from a real one. So a middleware sees two segments where the
+router sees one. A router that matched the one — as collage did before — would serve
+a request the middleware had judged as something else, so collage serves neither
+reading. A value that is itself a path, such as `guide/intro`, belongs in a
+catch-all: `{rest...}`. `{{pageURL}}` and `BuildPath` refuse a `/` in a single
+segment's value.
 
 At every level a static segment is tried first, then a placeholder with text
 around it — the most specific first — then a bare `{param}`, then a `{rest...}`,

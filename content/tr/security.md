@@ -56,8 +56,9 @@ arasında bir fark çıkabilecek her yerde request hiçbir yere ulaşmaz:
 - Dot segment'ler ya da çift slash içeren bir path, middleware çalışmadan önce temiz
   yazımına redirect edilir. Böylece `/admin/` üzerindeki bir kontrol `/x/../admin`
   ile hiç karşılaşmaz.
-- Encode edilmiş bir slash (`%2F`) içeren bir path 404 döner. `/public%2Fsecret`,
-  bir middleware için iki segment'tir, router için ise tek segment'ti.
+- Encode edilmiş bir slash (`%2F`) içeren bir path 404 döner. `%2F` bir ayırıcı
+  değildir, ama middleware decode edilmiş path'i okur ve orada `/public%2Fsecret`,
+  `/public/secret`'tir: middleware için iki segment, router için tek segment.
 - Bozuk bir escape 500 değil 400 döner.
 
 Ayrıntılar için

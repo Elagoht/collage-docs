@@ -50,8 +50,9 @@ the two could disagree, the request reaches nothing:
 
 - A path with dot segments or doubled slashes is redirected to its clean spelling
   before middleware runs, so a check on `/admin/` never meets `/x/../admin`.
-- A path holding an encoded slash, `%2F`, is a 404. `/public%2Fsecret` is two
-  segments to a middleware and was one to the router.
+- A path holding an encoded slash, `%2F`, is a 404. `%2F` is not a separator, but
+  a middleware reads the decoded path, where `/public%2Fsecret` is `/public/secret`:
+  two segments to the middleware, one to the router.
 - A malformed escape is a 400, not a 500.
 
 See [Paths are cleaned first](/docs/middleware-and-apis#paths-are-cleaned-first).

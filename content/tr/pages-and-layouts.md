@@ -281,9 +281,14 @@ Bir data handler yakalanan değeri `rc.Param("slug")` ya da `rc.PathParams["slug
 ile okur. Değerler percent-decode edilmiş olarak ve segment segment gelir.
 
 v0.34.0'dan beri encode edilmiş bir slash (`%2F`) içeren bir segment 404 döner.
-Middleware decode edilmiş path'i okur ve orada `/public%2Fsecret` iki segment'tir.
-Onu tek segment olarak okuyan bir router (collage'ın eskiden yaptığı gibi),
-middleware'in başka bir şey olarak değerlendirdiği bir request'i sunmuş olurdu.
+URL standardına göre `%2F` bir ayırıcı değildir: `/public%2Fsecret`, değeri
+`public/secret` olan tek bir segment'tir. Ama Go, path'i hiçbir middleware okumadan
+önce decode edip `r.URL.Path`'e yazar. Orada `/public%2Fsecret` artık
+`/public/secret` olmuştur ve encode edilmiş slash gerçek bir slash'ten ayırt
+edilemez. Yani router'ın tek segment gördüğü yerde middleware iki segment görür.
+Tek segment'i eşleyen bir router (collage'ın eskiden yaptığı gibi), middleware'in
+başka bir şey olarak değerlendirdiği bir request'i sunmuş olurdu. Bu yüzden collage
+iki okumadan hiçbirini sunmaz.
 Kendisi bir path olan bir değer, örneğin `guide/intro`, bir catch-all'da yer
 almalıdır: `{rest...}`. `{{pageURL}}` ve `BuildPath`, tek bir segment'in
 değerindeki `/`'ı reddeder.
