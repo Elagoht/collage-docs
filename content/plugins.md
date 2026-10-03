@@ -272,8 +272,11 @@ meta.Set(rc, meta.Page{
 }
 ```
 
-- v0.1.2 and later need collage v0.34.2 or later; v0.1.1 needed v0.23.0. `baseURL` is
-  required; the application does not start without it.
+- v0.1.2 and later need collage v0.34.2 or later; v0.1.1 needed v0.23.0. `baseURL`
+  may be left empty since v0.2.0 (collage v0.42.0): the canonical and `og:` URLs then
+  follow the request's origin, `Config.BaseURL` or, per host, what an
+  `OriginResolver` plugin such as elagoht/tenant gives. The application does not
+  start with none of the three.
 - Registering it gives every page `og:site_name`, `og:type`, the canonical URL —
   built by name, so a query string a reader arrived with is never part of it —
   `og:locale`, an `hreflang` link for every locale the page has a path in, and the
@@ -320,8 +323,10 @@ if err := ogimage.Set(rc, "og/post.html", ogimage.Card{Title: post.Title, Label:
 }
 ```
 
-- v0.1.0 needs collage v0.40.0 or later, and the application's `Config.BaseURL`.
-  Register it after elagoht/meta, and leave meta's `DefaultImage` unset.
+- v0.1.0 needs collage v0.40.0 or later, and the application's `Config.BaseURL`;
+  since v0.2.0 (collage v0.42.0) a card's URL follows the request's origin on a site
+  served on several hosts, so `Config.BaseURL` is not required when an
+  `OriginResolver` plugin is registered. Register it after elagoht/meta, and leave meta's `DefaultImage` unset.
 - A card is an `html/template` file under `og/` in a subset of HTML and CSS: an
   element holding boxes says `display:flex`, one holding text is a paragraph of
   runs. What it cannot draw stops the application at startup, with the template,
@@ -358,8 +363,11 @@ Plugins: []collage.Plugin{sitemap.New(sitemap.Options{
 }
 ```
 
-- It needs collage v0.21.0 or later. `baseURL` is required — a sitemap lists
-  absolute URLs — and the application does not start without it.
+- It needs collage v0.21.0 or later. A sitemap lists absolute URLs, so it needs an
+  origin: `baseURL`, else `Config.BaseURL` (collage v0.39.0), and since
+  v0.2.0 (collage v0.42.0) the request's own origin on a site served on several
+  hosts, as an `OriginResolver` plugin names it. The application does not start with
+  none of them.
 - It lists every page with a path, in every locale, as `App.URL` spells it, with
   its other locales as `hreflang` alternates. A `{param}` pattern is listed once
   for each value its `WithStaticParams` returns, the URLs a static build writes;
@@ -399,6 +407,11 @@ Plugins: []collage.Plugin{robots.New(robots.Options{
   sends every response with `X-Robots-Tag: noindex, nofollow`. Set it in the
   configuration of a staging deployment, so one binary is open in production and
   closed elsewhere.
+- A sitemap may be given as a path (`"/sitemap.xml"`), which is made absolute per
+  request against the request's origin: `Config.BaseURL` or, on a multi-host site,
+  an `OriginResolver` plugin's (v0.2.0, collage v0.42.0). A scheme-relative
+  `//host/path` is refused, and with no origin to resolve a path against the
+  application does not start.
 - The body is fixed at startup, and a static build writes it to `robots.txt`.
 
 #### elagoht/feed
@@ -428,6 +441,9 @@ Plugins: []collage.Plugin{feed.New(feed.Feed{
   `{{hoist "head"}}` in the layout; `NoDiscovery` keeps a feed out of the heads.
 - It is a static document: cached, exported, and made again when one of its
   `Tags` is invalidated.
+- Without a `BaseURL` of its own, a feed's links follow the request's origin,
+  `Config.BaseURL` or an `OriginResolver` plugin's, so one feed serves each host its
+  own links (v0.2.0, collage v0.42.0). A `BaseURL` set on the feed always wins.
 
 #### elagoht/redirects
 
@@ -501,7 +517,10 @@ Plugins: []collage.Plugin{indexnow.New(indexnow.Options{
 }
 ```
 
-- It needs collage v0.23.0 or later. `key` and `baseURL` are required.
+- It needs collage v0.23.0 or later. `key` is required. `baseURL` may be left empty
+  to take `Config.BaseURL`; on a site served on several hosts (v0.2.0, collage
+  v0.42.0) one submission is sent per origin, and an origin two hosts share is sent
+  once. With `baseURL` set it is used for every entry.
 - What it sends is what the cache let go of: the
   [paths an invalidation dropped](/docs/caching#invalidating-by-path). A page that
   was not cached when its tag was invalidated is not sent.
@@ -1461,10 +1480,12 @@ Plugins: []collage.Plugin{cdnpurge.New(cdnpurge.Options{
 }
 ```
 
-- It needs collage v0.23.0 or later. `baseURL` and at least one of `cloudflare` and
-  `webhook` are required.
+- It needs collage v0.23.0 or later. At least one of `cloudflare` and `webhook` is
+  required, and an origin: `baseURL`, `Config.BaseURL` or an origin resolver.
 - It purges exactly the [paths an invalidation dropped](/docs/caching#invalidating-by-path),
-  under `baseURL`. A page the origin had not cached is not named, so make sure what
+  under `baseURL`. Without one it falls back to `Config.BaseURL`, and since v0.2.0
+  (collage v0.42.0) purges each entry under its own host's origin, as an
+  `OriginResolver` plugin names it; two hosts of one origin purge the URL once. A page the origin had not cached is not named, so make sure what
   the CDN caches, collage caches too.
 - Purges are batched for `window`, sent off the goroutine that invalidated, retried
   on a `429` or `5xx`, and flushed on shutdown. A development server purges nothing

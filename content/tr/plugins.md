@@ -291,7 +291,10 @@ meta.Set(rc, meta.Page{
 ```
 
 - v0.1.2 ve sonrası, collage v0.34.2 ya da sonrasını gerektirir (v0.1.1 v0.23.0'ı
-  gerektiriyordu). `baseURL` zorunludur; bu ayar olmadan uygulama başlamaz.
+  gerektiriyordu). v0.2.0'dan (collage v0.42.0) beri `baseURL` boş bırakılabilir:
+  canonical ve `og:` URL'leri o zaman request'in origin'ini izler; yani
+  `Config.BaseURL`'ü ya da host başına, elagoht/tenant gibi bir `OriginResolver`
+  plugin'inin verdiğini. Üçü de yoksa uygulama başlamaz.
 - Register etmek her page'e şunları verir: `og:site_name`, `og:type`, canonical URL,
   `og:locale`, page'in path'i olan her locale için bir `hreflang` link'i, varsayılan
   görsel ve Twitter card'ı. Canonical URL ada göre oluşturulur, bu yüzden okuyucunun
@@ -339,7 +342,9 @@ if err := ogimage.Set(rc, "og/post.html", ogimage.Card{Title: post.Title, Label:
 ```
 
 - v0.1.0, collage v0.40.0 ya da sonrasını ve uygulamanın `Config.BaseURL`'ünü
-  gerektirir. elagoht/meta'dan sonra register edin ve meta'nın `DefaultImage`'ını
+  gerektirir. v0.2.0'dan (collage v0.42.0) beri birden fazla host'a hizmet veren bir
+  sitede kartın URL'si request'in origin'ini izler; bu yüzden bir `OriginResolver`
+  plugin'i register edilmişse `Config.BaseURL` gerekmez. elagoht/meta'dan sonra register edin ve meta'nın `DefaultImage`'ını
   boş bırakın.
 - Bir kart, HTML ve CSS'in bir alt kümesiyle yazılmış, `og/` altındaki bir
   `html/template` dosyasıdır: kutu içeren bir element `display:flex` der, metin
@@ -378,8 +383,11 @@ Plugins: []collage.Plugin{sitemap.New(sitemap.Options{
 }
 ```
 
-- collage v0.21.0 ya da sonrasını gerektirir. `baseURL` zorunludur, çünkü bir
-  sitemap mutlak URL'ler listeler. Bu ayar olmadan uygulama başlamaz.
+- collage v0.21.0 ya da sonrasını gerektirir. Bir sitemap mutlak URL'ler listelediği
+  için bir origin'e ihtiyaç duyar: `baseURL`, o yoksa `Config.BaseURL` (collage
+  v0.39.0), birden fazla host'a hizmet veren bir sitede ise v0.2.0'dan (collage
+  v0.42.0) beri bir `OriginResolver` plugin'inin adlandırdığı, request'in kendi
+  origin'i. Hiçbiri yoksa uygulama başlamaz.
 - Path'i olan her page'i, her locale'de, `App.URL`'in yazdığı biçimde listeler.
   Page'in diğer locale'leri `hreflang` alternate'leri olarak eklenir. Bir
   `{param}` pattern'i, `WithStaticParams`'ının döndürdüğü her değer için bir kez
@@ -423,6 +431,11 @@ Plugins: []collage.Plugin{robots.New(robots.Options{
   response'u `X-Robots-Tag: noindex, nofollow` ile gönderir. Bunu bir staging
   deploy'unun config'inde açın. Böylece aynı binary production'da açık, başka
   yerlerde kapalı olur.
+- Bir sitemap path olarak verilebilir (`"/sitemap.xml"`); o zaman request'in
+  origin'ine göre request başına mutlak hâle getirilir: `Config.BaseURL`'e ya da
+  birden fazla host'lu bir sitede bir `OriginResolver` plugin'inin verdiğine
+  (v0.2.0, collage v0.42.0). Scheme-relative `//host/path` reddedilir; bir path'i
+  karşısında çözeceği origin yoksa uygulama başlamaz.
 - Body uygulama başlarken sabitlenir ve static build onu `robots.txt` olarak
   yazar.
 
@@ -455,6 +468,10 @@ Plugins: []collage.Plugin{feed.New(feed.Feed{
   dışında tutar.
 - Static bir document'tır: cache'lenir, export edilir ve `Tags`'inden biri
   invalidate edildiğinde yeniden üretilir.
+- Kendi `BaseURL`'ü yoksa feed'in link'leri request'in origin'ini izler:
+  `Config.BaseURL`'ü ya da bir `OriginResolver` plugin'inin verdiğini. Böylece tek
+  bir feed her host'a kendi link'lerini sunar (v0.2.0, collage v0.42.0). Feed'e
+  verilen bir `BaseURL` her zaman kazanır.
 
 #### elagoht/redirects
 
@@ -530,7 +547,11 @@ Plugins: []collage.Plugin{indexnow.New(indexnow.Options{
 }
 ```
 
-- collage v0.23.0 ya da sonrasını gerektirir. `key` ve `baseURL` zorunludur.
+- collage v0.23.0 ya da sonrasını gerektirir. `key` zorunludur. `baseURL` boş
+  bırakılırsa `Config.BaseURL` alınır; birden fazla host'a hizmet veren bir sitede
+  (v0.2.0, collage v0.42.0) origin başına bir submission gönderilir ve iki host'un
+  paylaştığı bir origin bir kez gönderilir. `baseURL` verilmişse her entry için o
+  kullanılır.
 - Gönderdiği, cache'in bıraktıklarıdır: yani
   [bir invalidation'ın düşürdüğü path'ler](/docs/caching#invalidating-by-path). Tag'i
   invalidate edildiğinde cache'te olmayan bir page gönderilmez.
@@ -1524,10 +1545,14 @@ Plugins: []collage.Plugin{cdnpurge.New(cdnpurge.Options{
 }
 ```
 
-- collage v0.23.0 ya da sonrasını gerektirir. `baseURL` ve `cloudflare` ile
-  `webhook`'tan en az biri zorunludur.
+- collage v0.23.0 ya da sonrasını gerektirir. `cloudflare` ile `webhook`'tan en az
+  biri ve bir origin zorunludur: `baseURL`, `Config.BaseURL` ya da bir origin
+  resolver.
 - Tam olarak [bir invalidation'ın düşürdüğü path'leri](/docs/caching#invalidating-by-path)
-  `baseURL` altında purge eder. Origin'in cache'lemediği bir page adlandırılmaz. Bu
+  `baseURL` altında purge eder. O yoksa `Config.BaseURL`'e döner; v0.2.0'dan (collage
+  v0.42.0) beri de her entry'yi, bir `OriginResolver` plugin'inin adlandırdığı kendi
+  host'unun origin'i altında purge eder. Bir origin'i paylaşan iki host için URL bir
+  kez purge edilir. Origin'in cache'lemediği bir page adlandırılmaz. Bu
   yüzden CDN'in cache'lediği her şeyi collage'ın da cache'lediğinden emin olun.
 - Purge'ler `window` boyunca toplanır, invalidate eden goroutine'in dışında
   gönderilir, bir `429` ya da `5xx` gelirse yeniden denenir ve shutdown'da gönderilir.

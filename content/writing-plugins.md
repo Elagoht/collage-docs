@@ -123,6 +123,11 @@ cache to reach.
 | `BuildID() string` | The build serving — `Config.Cache.Version`, or a fingerprint of the executable — for versioning what a browser keeps across deploys: a service worker's caches, an asset's query string (since v0.24.0). |
 | `ServeStatus(w, r, status)` | Answers the request with the status and the site's own page for it — the not-found page for 404 and 410, the error page otherwise — for a plugin answering a request itself that should look like the site (since v0.24.0). |
 
+`Host` also offers an optional capability, `collage.Origins`, reached by type
+assertion rather than as a method, so a test double that implements `Host` still
+compiles: see [Which origin a host has](#which-origin-a-host-has-originresolver)
+(since v0.42.0).
+
 What `Init` receives is not the `*App`. It is a narrow value that forwards these
 methods and nothing else, so a plugin cannot assert its way to `ListenAndServe`,
 `Shutdown`, the router, the cache or the template set. `Handle` and
@@ -212,6 +217,7 @@ take the connection over with `Hijack`, as it could on a bare `net/http` server.
 | `DocumentRenderedHook` | `OnDocumentRendered` | `DocumentRenderedEvent` | After a document handler produced its body | `ev.Body` |
 | `CacheWriteHook` | `OnCacheWrite` | `CacheWriteEvent` | Before a page or document is written to the cache | `ev.Skip`, `ev.TTL`, `ev.Tags` |
 | `CacheInvalidateHook` | `OnCacheInvalidate` | `CacheInvalidateEvent` | After entries were invalidated by tag | nothing |
+| `OriginResolver` | `Origin` | the host, as a string | When `collage.BaseURL` or `Origins` names a host's origin (since v0.42.0) | the origin returned |
 | `ErrorHook` | `OnError` | `ErrorEvent` | On a failure while serving a request | nothing |
 | `BuildFinishedHook` | `OnBuildFinished` | `BuildFinishedEvent` | Once, when a static build has written every file (since v0.21.0) | reports with `ev.Warn`, `ev.Error` |
 
@@ -537,7 +543,13 @@ problem into a 500. The error is reported to error hooks under `"cache_write"`.
 ```go
 type CacheInvalidateEvent struct {
 	Tags  []string
-	Paths []string // the URL paths of the cached entries dropped, sorted
+	Paths   []string           // the URL paths of the cached entries dropped, sorted
+	Entries []InvalidatedEntry // the same, with each one's host (since v0.42.0)
+}
+
+type InvalidatedEntry struct {
+	Host string
+	Path string
 }
 ```
 
@@ -553,6 +565,55 @@ Every cached entry also depends on the tag `collage.PathTag(path)`, so a plugin
 that knows a path rather than a tag drops what is cached there with
 `host.InvalidateTags(ctx, collage.PathTag("/blog"))`. See
 [Caching](/docs/caching#invalidating-by-path).
+
+`Entries` (since v0.42.0) is the same list with the host of each entry, sorted by
+host and then path. A path cached under two hosts is two entries, and the host keeps
+its port if the request had one. A plugin that purges a CDN or pings a search engine
+reads it to build each URL against the right origin; `Paths` is unchanged. The host
+is recorded as a `collage:host:<host>` dependency tag beside `collage:path:`; host
+tags are exempt from the tracker's `MaxKeysPerTag`, and `MaxKeys` still bounds
+memory.
+
+### Which origin a host has: `OriginResolver`
+
+A plugin that serves several sites from one process, a host per customer, says
+which public origin absolute URLs for a host are built against by implementing
+`OriginResolver` (since v0.42.0):
+
+```go
+func (p *Plugin) Origin(ctx context.Context, host string) (string, bool) {
+	origin, ok := p.origins[host]
+	return origin, ok
+}
+```
+
+The host arrives lower-cased with its port stripped, and an IPv6 literal without its
+brackets (`::1`). The first plugin in registration order that returns `ok` wins. An
+origin must be a bare `scheme://host[:port]` with scheme `http` or `https`, which
+`collage.ParseOrigin` checks and normalizes, and must name a host (`https://:8080`
+does not); an invalid one counts as not known, and dev mode logs it once per plugin
+and origin. A host no plugin knows gets `Config.BaseURL`, and a resolver that panics
+is logged and skipped. Application code reads the result with `collage.BaseURL(rc)`,
+which is safe in a cached render because the host is in the cache key, and a static
+build, which has no request, gets `Config.BaseURL`. A site without a resolver sees no
+change.
+
+A plugin that builds absolute URLs itself reaches the same answer through the
+`Origins` capability, by type assertion on the `Host` it was given. `Host` gains no
+method for it:
+
+```go
+if o, ok := host.(collage.Origins); ok {
+	origin := o.OriginFor(ctx, "acme.test") // a resolver's, else Config.BaseURL
+	varies := o.Dynamic()                   // is a resolver registered?
+}
+```
+
+A plugin that takes origins in its own configuration validates them with
+`collage.ParseOrigin` rather than a copy of the rule. `collage.ErrInvalidBaseURL` is
+the same error as `plugin.ErrInvalidOrigin`, so `errors.Is` matches either. Code that
+holds only a context reads a header declared with `collage.Vary` through
+`collage.VariedContext(ctx, header)`.
 
 ### ErrorHook
 
@@ -630,6 +691,8 @@ never fires on a server.
 - For `OnCacheWrite`, the first error stops dispatch and suppresses the write.
 - For `OnCacheInvalidate`, the first error stops dispatch and is returned from
   `InvalidateTags`.
+- For `OriginResolver`, the first plugin that returns `ok` with a valid origin wins;
+  a resolver that panics is logged and skipped.
 - For `OnError`, errors are logged and dispatch continues.
 - `OnRequest` returns no error. A panicking one is logged and skipped, and the
   request goes on under the context before it.

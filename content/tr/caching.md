@@ -224,7 +224,9 @@ herkesin aldığı kopyaya yazardı. Request'in context'i de aynı muameleyi gö
 middleware'inizin oraya koyduğu bir değer, yani giriş yapmış bir kullanıcı, bir
 tenant ya da bir request id, cookie ile aynı nedenden ötürü paylaşılan bir render'dan
 gizlenir. Middleware'inizin `collage.Vary` ile bildirdiği bir değeri
-`collage.Varied(rc, header)` ile geri okuyun; orada güvenlidir, çünkü key'in içindedir
+`collage.Varied(rc, header)` ile, elinizde yalnızca bir context varsa (bir page'in
+`StaticParams`'ı, bir sitemap'in `LastMod`'u, bir document handler'ın `ctx`'i)
+`collage.VariedContext(ctx, header)` ile (v0.42.0'dan beri) geri okuyun; orada güvenlidir, çünkü key'in içindedir
 ve her değerin kendi cache'lenmiş page'i vardır. Bir cache boyutu olmayan bir değerin
 paylaşılan bir render'da yeri yoktur: okuyucunun kendi request'ine ihtiyaç duyan bir
 page `Dynamic()` olmalıdır ve dynamic bir page request'in tamamını görür.
@@ -232,6 +234,16 @@ Development'ta, bir handler'ın gerçekten okuduğu gizlenmiş bir context değe
 log'lanır, böylece hata görünür olur. Document'lar da aynı kurala uyar
 (v0.41.1'den beri; öncesinde cacheable bir document'ın render'ı ilk okuyucunun
 context değerlerini hâlâ görüyordu).
+
+### Origin'ler
+
+`collage.BaseURL(rc)` paylaşılan bir render'da güvenlidir (v0.42.0'dan beri). Host
+cache key'in içindedir; bu yüzden bir kopyanın sunulduğu her okuyucu aynı host'u
+istemiştir ve render'ın mutlak URL'leri kurduğu origin de onlarındır. Static build'in
+request'i yoktur, o `Config.BaseURL`'ü alır. `OriginResolver` plugin'i olmayan bir
+site hiçbir fark görmez; bkz. [Bir host'un origin'i](/docs/writing-plugins#which-origin-a-host-has-originresolver).
+Bir invalidation entry düşürdüğünde `CacheInvalidateEvent.Entries` her birinin
+path'ine ek olarak host'unu da adlandırır.
 
 ## Dependency tag'ler
 
@@ -641,6 +653,21 @@ Bir page'in iki kez çektiği şey için `Once`'ı, birçok page'in çektiği ş
 `Cached`'i, page'in kendisi için de page cache'i kullanın. Üçü birlikte çalışır.
 Cache'lenmiş bir page render edilmez, bu yüzden veri çekme işlemlerinin hiçbiri
 çalışmaz. `Once` için [Data handler'lar](/docs/data-handlers) sayfasına bakın.
+
+Page cache host başınadır; `collage.Cached` değildir. Store'u process başına tektir
+ve yalnızca verdiğiniz key ile anahtarlanır. Bu yüzden birden fazla müşteriye hizmet
+veren bir sitede (örneğin elagoht/tenant) `Cached(rc, "posts", ...)` acme'nin
+post'larını bir kez çeker ve globex'e de verir. Müşteriyi key'e ve tag'lere koyun;
+böylece bir müşterinin verisini invalidate etmek ötekilere dokunmaz:
+
+```go
+func posts(ctx context.Context, rc *collage.RenderContext) ([]Post, []string, error) {
+	id, _ := tenant.ID(rc)
+	list, err := collage.Cached(rc, "posts:"+id, time.Hour, []string{"posts:" + id},
+		func(ctx context.Context) ([]Post, error) { return db.Posts(ctx, id) })
+	return list, nil, err
+}
+```
 
 [Fragment path'leri](/docs/forms-and-actions#a-fragment-at-its-own-url) üzerinden
 parça parça yenilenen bir page, her fragment path'i için bir tane olmak üzere birkaç

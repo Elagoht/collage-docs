@@ -211,13 +211,25 @@ it used to find the first reader's, and write it into the copy everyone after go
 The request's context is stripped the same way: a value your middleware stored in
 it — a signed-in user, a tenant, a request id — is hidden from a shared render,
 for the same reason the cookie is. Read a value your middleware declared with
-`collage.Vary` back with `collage.Varied(rc, header)`; it is safe there because it
+`collage.Vary` back with `collage.Varied(rc, header)`, or, where only a context is at hand (a page's
+`StaticParams`, a sitemap's `LastMod`, a document handler's `ctx`),
+`collage.VariedContext(ctx, header)` (since v0.42.0); it is safe there because it
 is in the key, so each value has its own cached page. A value that is not a cache
 dimension does not belong in a shared render — a page that needs the reader's own
 request is `Dynamic()`, and a dynamic page sees all of it. In development, a
 hidden context value a handler actually reads is logged, so the mistake is
 visible. Documents follow the same rule (since v0.41.1; before it, a cacheable
 document's render still saw the first reader's context values).
+
+### Origins
+
+`collage.BaseURL(rc)` is safe in a shared render (since v0.42.0). The host is in the
+cache key, so every reader served a copy asked for the same host, and the origin
+the render built absolute URLs against is theirs too. A static build has no request
+and gets `Config.BaseURL`. A site with no `OriginResolver` plugin sees no
+difference; see [Which origin a host has](/docs/writing-plugins#which-origin-a-host-has-originresolver).
+When an invalidation drops entries, `CacheInvalidateEvent.Entries` names each one's
+host as well as its path.
 
 ## Dependency tags
 
@@ -604,6 +616,21 @@ Use `Once` for what one page fetches twice, `Cached` for what many pages fetch,
 and the page cache for the page itself. They combine: a cached page is not
 rendered, so none of its fetches run at all. See
 [Data handlers](/docs/data-handlers) for `Once`.
+
+The page cache is kept per host; `collage.Cached` is not. Its store is one per
+process, keyed only by the key you give it, so on a site serving several customers
+(elagoht/tenant, say) `Cached(rc, "posts", ...)` fetches acme's posts once and hands
+them to globex too. Put the customer in the key, and in the tags, so invalidating
+one customer's data leaves the others' alone:
+
+```go
+func posts(ctx context.Context, rc *collage.RenderContext) ([]Post, []string, error) {
+	id, _ := tenant.ID(rc)
+	list, err := collage.Cached(rc, "posts:"+id, time.Hour, []string{"posts:" + id},
+		func(ctx context.Context) ([]Post, error) { return db.Posts(ctx, id) })
+	return list, nil, err
+}
+```
 
 A page refreshed part by part through its
 [fragment paths](/docs/forms-and-actions#a-fragment-at-its-own-url) is several

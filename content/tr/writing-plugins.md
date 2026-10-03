@@ -129,6 +129,11 @@ ulaşabileceği bir cache olmazdı.
 | `BuildID() string` | Sunan build'i adlandırır: `Config.Cache.Version` ya da executable'ın bir parmak izi. Tarayıcının deploy'lar boyunca sakladıklarını sürümlemek içindir; örneğin bir service worker'ın cache'leri ya da bir asset'in query string'i (v0.24.0'dan beri). |
 | `ServeStatus(w, r, status)` | Request'e status'la ve sitenin o status için kendi page'iyle cevap verir: 404 ve 410 için not-found page'i, diğerleri için error page'i. Bir request'e kendisi cevap veren ve cevabı sitenin geri kalanı gibi görünmesi gereken bir plugin içindir (v0.24.0'dan beri). |
 
+`Host` ayrıca isteğe bağlı bir capability sunar: `collage.Origins`. Ona metot olarak
+değil type assertion ile ulaşılır; böylece `Host`'u implement eden bir test double'ı
+derlenmeye devam eder. Bkz. [Bir host'un origin'i](#which-origin-a-host-has-originresolver)
+(v0.42.0'dan beri).
+
 `Init`'e gelen değer `*App` değildir. Yalnızca bu metotları ileten dar bir değerdir.
 Bu yüzden bir plugin, type assertion ile `ListenAndServe`'e, `Shutdown`'a,
 router'a, cache'e ya da template kümesine ulaşamaz. `Handle` ve `RenderFragment`
@@ -225,6 +230,7 @@ sunucusunda da yapabilirdi.
 | `DocumentRenderedHook` | `OnDocumentRendered` | `DocumentRenderedEvent` | Bir document handler'ı body'sini ürettikten sonra | `ev.Body` |
 | `CacheWriteHook` | `OnCacheWrite` | `CacheWriteEvent` | Bir page ya da document cache'e yazılmadan önce | `ev.Skip`, `ev.TTL`, `ev.Tags` |
 | `CacheInvalidateHook` | `OnCacheInvalidate` | `CacheInvalidateEvent` | Entry'ler tag ile invalidate edildikten sonra | hiçbir şeyi |
+| `OriginResolver` | `Origin` | string olarak host | `collage.BaseURL` ya da `Origins` bir host'un origin'ini sorduğunda (v0.42.0'dan beri) | dönen origin |
 | `ErrorHook` | `OnError` | `ErrorEvent` | Bir request sunulurken bir hata oluştuğunda | hiçbir şeyi |
 | `BuildFinishedHook` | `OnBuildFinished` | `BuildFinishedEvent` | Bir static build her dosyayı yazdığında, bir kez (v0.21.0'dan beri) | `ev.Warn` ve `ev.Error` ile raporlar |
 
@@ -564,7 +570,13 @@ iyidir. Hata, error hook'larına `"cache_write"` altında raporlanır.
 ```go
 type CacheInvalidateEvent struct {
 	Tags  []string
-	Paths []string // the URL paths of the cached entries dropped, sorted
+	Paths   []string           // the URL paths of the cached entries dropped, sorted
+	Entries []InvalidatedEntry // the same, with each one's host (since v0.42.0)
+}
+
+type InvalidatedEntry struct {
+	Host string
+	Path string
 }
 ```
 
@@ -581,6 +593,56 @@ yer almaz, çünkü ondan düşürülen bir şey yoktur. Cache'lenen her entry a
 `collage.PathTag(path)` tag'ine de bağlıdır. Bu yüzden tag'i değil path'i bilen bir
 plugin, oradaki cache'i `host.InvalidateTags(ctx, collage.PathTag("/blog"))` ile
 düşürür. Bkz. [Caching](/docs/caching#invalidating-by-path).
+
+`Entries` (v0.42.0'dan beri) aynı listedir, ama her entry'nin host'uyla birlikte ve
+önce host'a, sonra path'e göre sıralıdır. İki host altında cache'lenmiş bir path iki
+entry'dir ve request bir port içeriyorsa host portunu korur. Bir CDN'i purge eden ya
+da bir arama motoruna haber veren plugin, her URL'yi doğru origin'e göre kurmak için
+bunu okur; `Paths` değişmedi. Host, `collage:path:`'in yanında bir
+`collage:host:<host>` dependency tag'i olarak kaydedilir. Host tag'leri tracker'ın
+`MaxKeysPerTag` sınırından muaftır; `MaxKeys` hâlâ belleği sınırlar.
+
+### Bir host'un origin'i: `OriginResolver`
+
+Tek bir process'ten birden fazla siteye hizmet veren, yani müşteri başına bir host
+kullanan bir plugin, `OriginResolver`'ı implement ederek bir host için mutlak
+URL'lerin hangi public origin'e göre kurulacağını söyler (v0.42.0'dan beri):
+
+```go
+func (p *Plugin) Origin(ctx context.Context, host string) (string, bool) {
+	origin, ok := p.origins[host]
+	return origin, ok
+}
+```
+
+Host küçük harfe çevrilmiş, portu atılmış olarak gelir; bir IPv6 literal'i köşeli
+parantezsiz (`::1`) gelir. Register sırasında `ok` dönen ilk plugin kazanır. Bir
+origin, şeması `http` ya da `https` olan yalın bir `scheme://host[:port]` olmalıdır;
+bunu `collage.ParseOrigin` denetler ve normalize eder. Origin bir host da
+adlandırmalıdır (`https://:8080` adlandırmaz). Geçersiz bir origin bilinmiyor sayılır
+ve development modu bunu plugin ve origin başına bir kez log'lar. Hiçbir plugin'in
+tanımadığı host `Config.BaseURL`'ü alır; panic eden bir resolver log'lanır ve
+atlanır. Uygulama kodu sonucu `collage.BaseURL(rc)` ile okur. Host cache key'in
+içinde olduğu için bu, cache'lenmiş bir render'da güvenlidir; request'i olmayan bir
+static build de `Config.BaseURL`'ü alır. Resolver'ı olmayan bir site hiçbir değişiklik
+görmez.
+
+Mutlak URL'leri kendisi kuran bir plugin aynı cevaba, aldığı `Host` üzerinde type
+assertion ile `Origins` capability'si üzerinden ulaşır. `Host`'a bunun için bir
+metot eklenmez:
+
+```go
+if o, ok := host.(collage.Origins); ok {
+	origin := o.OriginFor(ctx, "acme.test") // a resolver's, else Config.BaseURL
+	varies := o.Dynamic()                   // is a resolver registered?
+}
+```
+
+Origin'leri kendi config'inde alan bir plugin, kuralın bir kopyası yerine bunları
+`collage.ParseOrigin` ile doğrular. `collage.ErrInvalidBaseURL`, `plugin.ErrInvalidOrigin`
+ile aynı hatadır, dolayısıyla `errors.Is` ikisini de eşler. Yalnızca bir context'i
+olan kod, `collage.Vary` ile bildirilmiş bir header'ı `collage.VariedContext(ctx, header)`
+üzerinden okur.
 
 ### ErrorHook
 
@@ -659,6 +721,8 @@ zaten yazılmış dosyalar yerinde kalır. Bir sunucuda hiçbir zaman çalışma
 - `OnCacheWrite` için ilk hata dispatch'i durdurur ve yazmayı engeller.
 - `OnCacheInvalidate` için ilk hata dispatch'i durdurur ve `InvalidateTags`'ten
   döner.
+- `OriginResolver` için, geçerli bir origin'le `ok` dönen ilk plugin kazanır; panic
+  eden bir resolver log'lanır ve atlanır.
 - `OnError` için hatalar log'lanır ve dispatch devam eder.
 - `OnRequest` hata dönmez. Panic'e düşen bir `OnRequest` log'lanır ve atlanır;
   request ondan önceki context ile devam eder.
