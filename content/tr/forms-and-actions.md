@@ -245,17 +245,14 @@ render edilirdi. collage böyle bir page'i, page'in adını vererek
 `collage.ErrUnregisteredPage` ile reddeder.
 
 Bir page'in URL'sindeki action'da `rc.Page`, o page'in register edilmiş değeridir
-(v0.33.0'dan beri). Bu yüzden yukarıdaki action'a hiçbir şey verilmesi gerekmez;
-bir closure'ın yakalayacağı `var page` de yoktur. Öncesinde bu iş böyle
-yapılıyordu. Kendi URL'sinde register edilmiş bir action'ın orada page'i yoktur ve
-`rc.Page`'i `nil`'dir. Böyle bir action, istediği page'in action'dan önce
-oluşturulmuş register edilmiş değeriyle cevap verir. Dev mode'da gövdesiz bir
-`422` ile cevaplanan form post'u uyarı olarak log'lanır, çünkü okuyucu boş bir
-sayfa görür ve bunun genel sebebi `nil` bir `rc.Page`'dir.
+(v0.33.0'dan beri). Kendi URL'sinde register edilmiş bir action'ın orada page'i
+yoktur ve `rc.Page`'i `nil`'dir. Böyle bir action, istediği page'in action'dan
+önce oluşturulmuş register edilmiş değeriyle cevap verir. Dev mode'da gövdesiz
+bir `422` ile cevaplanan form post'u uyarı olarak log'lanır, çünkü okuyucu boş
+bir sayfa görür ve bunun genel sebebi `nil` bir `rc.Page`'dir.
 
 Bir page'e path yerine adıyla redirect etmek için
 [`rc.URL`](/docs/links-and-locales#links-from-go) kullanın (v0.37.0'dan beri).
-Bunun için de action'a `*App` taşımak gerekmez.
 
 Okuyucuyu geldiği yere geri gönderen bir login, o yeri `next` query parametresinden
 okur ve bu parametre okuyucunun girdisidir. `Location` olmadan önce

@@ -215,7 +215,7 @@ Bir data handler'da ya da action'da page'ler için `rc.URL`, action'lar için
 `rc.ActionURL` kullanın (v0.37.0'dan beri). Adıyla belirtilen bir page'e redirect
 etmek ya da canonical URL üretmek bu duruma örnektir. İkisi de URL'yi render'ın
 kendi locale'inde üretir ve `pageURL` ile `actionURL` gibi varsayılan locale'e
-fallback yapar. Böylece link gereken koda `*App`'i taşımak gerekmez:
+fallback yapar:
 
 ```go
 target, err := rc.URL("blog-post", map[string]string{"slug": post.Slug})

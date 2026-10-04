@@ -202,7 +202,7 @@ names the action the same way, with `{{actionURL "logout"}}` (since v0.36.0).
 In a data handler or an action — a redirect to a named page, a canonical URL —
 use `rc.URL`, and `rc.ActionURL` for an action (since v0.37.0). They build in the
 render's own locale and fall back to the default one, as `pageURL` and
-`actionURL` do, so nothing has to hand the `*App` to the code that needs a link:
+`actionURL` do:
 
 ```go
 target, err := rc.URL("blog-post", map[string]string{"slug": post.Slug})

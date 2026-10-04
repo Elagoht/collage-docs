@@ -234,16 +234,13 @@ a page built inside the handler would render as a layout around nothing; collage
 refuses it with `collage.ErrUnregisteredPage`, naming the page.
 
 In an action on a page's URL, `rc.Page` is that page, the registered value (since
-v0.33.0). So the action above needs nothing handed to it, and there is no
-`var page` for a closure to capture — the shape this took before. An action
-registered at a URL of its own has no page there and a `nil` `rc.Page`; it
-answers with the registered page it wants, built before the action. In dev mode a
-form post answered `422` with no body is logged as a warning, because the reader
-gets a blank page and a `nil` `rc.Page` is the usual cause.
+v0.33.0). An action registered at a URL of its own has no page there and a `nil`
+`rc.Page`; it answers with the registered page it wants, built before the action.
+In dev mode a form post answered `422` with no body is logged as a warning,
+because the reader gets a blank page and a `nil` `rc.Page` is the usual cause.
 
 To redirect to a page by name rather than by path, use
-[`rc.URL`](/docs/links-and-locales#links-from-go) (since v0.37.0); the action
-needs no `*App` handed to it for that either.
+[`rc.URL`](/docs/links-and-locales#links-from-go) (since v0.37.0).
 
 A login that sends the reader back to where they came from reads that place from
 a `next` query parameter, and the parameter is the reader's input. Pass it through
