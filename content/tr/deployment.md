@@ -384,9 +384,21 @@ olduğunu söyler: `RemoteAddr`'in host'u; ta ki o güvenilen bir proxy olana ka
 istemcidir (hepsi güvenilense en soldaki). Boşken, yani varsayılanda, hiçbir header'a
 güvenilmez ve `ClientIP` her zaman `RemoteAddr`'dir.
 
-Yalnızca kendi işlettiğiniz proxy'leri ya da platformunuzun belgelediği aralıkları
-yazın. İstemcinin request gönderebildiği bir aralığa güvenmek, o istemcinin istediği
-adresi kendine vermesine izin vermektir.
+Header'daki bir girdi, bazı proxy'lerin yazdığı gibi port (`9.9.9.9:4567`,
+`[2001:db8::1]:443`) ya da köşeli parantez (`[2001:db8::1]`) taşıyabilir; adres olarak
+okunur. Yine de adres olmayan bir girdi, örneğin bazı proxy'lerin gönderdiği
+`unknown`, okumayı bitirir. Ondan önce güvenilmeyen bir adres bulunmadıysa istemci
+bilinmez ve `ClientIP` sıfır `netip.Addr`'dir: asla proxy değil, çünkü o her
+ziyaretçiyi aynı istemci yapardı. İstemciye göre iş yapan bir plugin böyle bir
+request'i atlar.
+
+İstemciyle sunucu arasındaki her hop'u yazın: kendi proxy'lerinizi ve bir CDN'in
+arkasındaysanız CDN'in yayımladığı aralıkları da. Unutulan bir hop istemci sanılır ve
+onun üzerinden gelen her ziyaretçi tek bir istemci olur. Yalnızca kendi işlettiğiniz
+proxy'leri ya da platformunuzun belgelediği aralıkları yazın: istemcinin request
+gönderebildiği bir aralığa güvenmek, o istemcinin istediği adresi kendine vermesine
+izin vermektir. Sıfır bitlik bir girdi (`0.0.0.0/0`, `::/0`) herkese güvenir;
+`collage.New` onu kabul eder ama bunu söyleyen bir Warn log'lar.
 
 ## Timeout'lar
 

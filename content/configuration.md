@@ -157,8 +157,13 @@ Server: collage.ServerConfig{
 
 A request from a trusted proxy names its client in `X-Forwarded-For`, read from the
 right: the first address that is not a trusted proxy is the client, or the leftmost
-when every one is. List only proxies you run, or your platform's documented ranges.
-Trusting a range a client can send from lets that client name any address it likes.
+when every one is. An entry may carry a port (`9.9.9.9:4567`, `[2001:db8::1]:443`) or
+brackets (`[2001:db8::1]`). An entry that is not an address (`unknown`), met before
+any untrusted one, leaves the client unknown: `ClientIP` is the zero `netip.Addr`,
+never the proxy. List every hop, a CDN's published ranges included, and only proxies
+you run or your platform's documented ranges. Trusting a range a client can send from
+lets that client name any address it likes; a range with zero bits (`0.0.0.0/0`,
+`::/0`) trusts everyone, and `collage.New` logs a Warn for it.
 See [Deployment](/docs/deployment#behind-a-proxy-trustedproxies).
 
 ## SecurityConfig

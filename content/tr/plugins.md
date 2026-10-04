@@ -1281,8 +1281,15 @@ süresi boyunca düz bir `403` alır.
 ```go
 import "github.com/Elagoht/collage-fail2ban"
 
+bans := make(chan fail2ban.Ban, 100) // uyarıları toplayan kendi goroutine'iniz okur
+
 f2b := fail2ban.New(fail2ban.Options{
-	OnBan: func(b fail2ban.Ban) { notifyAdmin(b.Prefix, b.Jail, b.Until) },
+	OnBan: func(b fail2ban.Ban) {
+		select {
+		case bans <- b:
+		default: // dolu: request'i bekletmek yerine bırak
+		}
+	},
 })
 
 Plugins: []collage.Plugin{f2b /* , diğerleri */},
@@ -1306,22 +1313,34 @@ Plugins: []collage.Plugin{f2b /* , diğerleri */},
   diğer plugin'lerin middleware'inden önce çalışır.
 - **Bir reverse proxy ya da CDN'in arkasında `Server.TrustedProxies`'i ayarlayın.**
   Ayarlanmazsa istemci proxy'nin kendisi olur: tek bir tarayıcı bot proxy'nizin
-  banlanmasına, onunla birlikte her ziyaretçinin banlanmasına yol açar. Bir istemci
-  bir IPv4 adresidir, IPv6'da ise bir `/64`.
+  banlanmasına, onunla birlikte her ziyaretçinin banlanmasına yol açar. Bir CDN'in
+  yayımladığı aralıklar dahil her hop'u yazın. Unutursanız, loopback ya da private
+  bir adresten gelen, `X-Forwarded-For` taşıyan ama `ClientIP`'si yine o adres olan
+  bir request sayılmaz ve tek bir Warn `TrustedProxies`'in muhtemelen eksik olduğunu
+  söyler. Bir istemci bir IPv4 adresidir, IPv6'da ise bir `/64`.
 - `probe` jail'i (`10m` içinde 3 strike, `1h` ban) bir probe path'i isteyen
-  (`/.env`, `/.git/`, `/wp-login.php` gibi; kendinizinkini `probePaths` ile ekleyin)
-  ya da collage'ın encoded slash ya da `.` / `..` segment'i yüzünden erkenden
-  reddettiği request'e strike verir. `notfound` jail'i (`1m` içinde 50, `10m` ban)
-  diğer her `404`'e strike verir. Kendi jail'iniz yalnızca `Report`'ta strike verir;
-  herhangi birini adıyla override edebilir ya da `"off": true` ile kapatabilirsiniz.
+  (`/.env`, `/.git/`, `/wp-login.php` gibi, ayrıca herhangi bir yerde `.env` ile
+  başlayan ya da `.git` olan bir segment; kendinizinkini `probePaths` ile ekleyin) ya da collage'ın
+  encoded slash ya da `.` / `..` segment'i yüzünden erkenden reddettiği request'e
+  strike verir. Sitenizin gerçekten page, document ya da action olarak sunduğu bir
+  probe path'i sayılmaz. `notfound` jail'i (`1m` içinde 50, `10m` ban) diğer her
+  `404`'e strike verir, bir mount'unki hariç. Tarayıcının bir alt kaynak request'i
+  (`image` ya da `script` gibi bir `Sec-Fetch-Dest`) asla strike vermez; böylece
+  `/.env`'i gösteren bir `<img>` okurlarınızı banlatamaz. Kendi jail'iniz yalnızca
+  `Report`'ta strike verir; herhangi birini adıyla override edebilir ya da
+  `"off": true` ile kapatabilirsiniz.
 - Tekrarlanan ban iki katına çıkar, `maxBanTime`'a (`24h`) kadar. Banlı istemci düz bir
   `403 Forbidden` alır, sitenin error page'ini asla. Encoded slash'li ya da kirli
   path'li bir request için collage'ın kendi `404`'ü ya da redirect'i yine de ona
   ulaşır.
-- Başarısız bir login'de `Report(r, "login")`, başarılısında `Forgive(r, "login")`
-  çağırın. `allow`, hiç sayılmayan ve banlanmayan adresleri ve aralıkları listeler.
-  `Ban`, `Unban` ve `Bans` elle kullanılan API'dir; `OnBan` (yalnızca Go) her ban'dan
-  sonra çağrılır.
+- Başarısız bir login'de `Report(r, "login")` çağırın. `Forgive(r, "login")`
+  strike'ları siler, ama yalnızca başarı, şifresi tahmin edilen hesabın kendisi
+  içinse güvenlidir: her başarıyı affetmek, kendi hesabı olan bir saldırganın
+  sınırsız tahmin yapmasına izin verir. Başarısız denemeler zaten `findTime` sonunda
+  düşer. `allow`, hiç sayılmayan ve banlanmayan adresleri ve aralıkları listeler.
+  `Ban`, `Unban` ve `Bans` elle kullanılan API'dir (`Ban` bir ban'ı asla kısaltmaz);
+  `OnBan` (yalnızca Go) her ban'dan sonra çağrılır, dağıtık bir taramada belki
+  binlerce kez, bu yüzden her ban için senkron bildirim göndermeyin.
 - Ban'lar process başınadır ve memory'de tutulur: instance'lar paylaşmaz, restart
   hepsini siler. Dev modunda `inDevelopment` ayarlanmadıkça hiçbir şey olmaz. Strike'lardan
   sonra tepki verir; `elagoht/ratelimit`'in yerine geçmez.

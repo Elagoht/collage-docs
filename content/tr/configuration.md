@@ -167,10 +167,15 @@ Server: collage.ServerConfig{
 
 Güvenilen bir proxy'den gelen request, istemcisini `X-Forwarded-For`'da bildirir ve
 header sağdan okunur: güvenilen proxy olmayan ilk adres istemcidir; hepsi güvenilense
-en soldaki. Yalnızca kendi işlettiğiniz proxy'leri ya da platformunuzun belgelediği
-aralıkları yazın. İstemcinin request gönderebildiği bir aralığa güvenmek, o istemcinin
-istediği adresi kendine vermesine izin vermektir. Bkz.
-[Deployment](/docs/deployment#behind-a-proxy-trustedproxies).
+en soldaki. Bir girdi port (`9.9.9.9:4567`, `[2001:db8::1]:443`) ya da köşeli
+parantez (`[2001:db8::1]`) taşıyabilir. Güvenilmeyen bir adresten önce gelen ve adres
+olmayan bir girdi (`unknown`) istemciyi bilinmez kılar: `ClientIP` sıfır
+`netip.Addr`'dir, asla proxy değil. Her hop'u, bir CDN'in yayımladığı aralıklar dahil,
+yazın; yalnızca kendi işlettiğiniz proxy'leri ya da platformunuzun belgelediği
+aralıkları. İstemcinin request gönderebildiği bir aralığa güvenmek, o istemcinin
+istediği adresi kendine vermesine izin vermektir; sıfır bitlik bir aralık
+(`0.0.0.0/0`, `::/0`) herkese güvenir ve `collage.New` bunun için bir Warn log'lar.
+Bkz. [Deployment](/docs/deployment#behind-a-proxy-trustedproxies).
 
 ## SecurityConfig
 

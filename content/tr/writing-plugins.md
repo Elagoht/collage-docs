@@ -249,8 +249,9 @@ type RequestHook interface {
 Bir request'te her şeyden önce çalışır (v0.25.0'dan beri): collage kendi request
 span'ini başlatmadan, middleware'den ve routing'den önce. Request'in sunulacağı
 context'i döner; bu context `r.Context()`'ten türetilir. Bir de response yazıldıktan
-sonra collage'ın status ile çağırdığı bir fonksiyon döner. Bu fonksiyon `nil`
-olabilir ve response'a yazmamalıdır.
+sonra collage'ın status ile çağırdığı bir fonksiyon döner: request sunulurken bir
+panic olmadıkça bir kez çağrılır. Bu fonksiyon `nil` olabilir ve response'a
+yazmamalıdır.
 
 Bir tracing plugin'inin ihtiyaç duyduğu şey budur. Çağırandan gelen bir trace,
 collage'ın kendi `collage.http` span'inin parent'ı olmalıdır. `Host.Use` ile eklenen
@@ -295,8 +296,8 @@ v0.47.0'dan beri hook'lar, collage'ın routing'den önce yanıtladığı request
 görür: encoded slash içeren bir path (`/a%2f..%2fb`) 404 ile, kirli bir path
 (`/a/../b`) ise 301 ile yanıtlanır (`GET` ve `HEAD` dışındaki bir metotta 308).
 Bunlar çoğu zaman bir tarayıcı botunun yoklamalarıdır. Böyle bir request için finish
-fonksiyonu, yazılan status ile bir kez çağrılır, `collage.RouteOf` boştur ve `r.URL`
-ham path'tir. `collage.ClientIP(r)` `OnRequest` içinde çalışır; bu yüzden istemcileri
+fonksiyonu yazılan status ile çağrılır (request sunulurken bir panic olmadıkça bir
+kez), `collage.RouteOf` boştur ve `r.URL` ham path'tir. `collage.ClientIP(r)` `OnRequest` içinde çalışır; bu yüzden istemcileri
 sayan ya da banlayan bir plugin bu request'leri görebilir. `Metrics.HTTPResponse` ve
 collage'ın kendi request span'i bu request'leri hâlâ atlar.
 
@@ -304,8 +305,10 @@ collage'ın kendi request span'i bu request'leri hâlâ atlar.
 `netip.Addr`'dir: `RemoteAddr`'in host'u ya da uygulamanın `Server.TrustedProxies`'te
 listelediği proxy'lerin arkasında proxy'nin bildirdiği istemci (bkz.
 [Deployment](/docs/deployment#behind-a-proxy-trustedproxies)). Adres unmapped'dır,
-zone taşımaz ve verilecek bir adres olmadığında, örneğin `RemoteAddr`'i olmayan
-paylaşılan bir page render'ında, sıfır `netip.Addr`'dir: onu asla saymayın.
+zone taşımaz ve verilecek bir adres olmadığında sıfır `netip.Addr`'dir: `RemoteAddr`'i
+olmayan paylaşılan bir page render'ında ve `X-Forwarded-For`'u kullanılabilir bir
+istemci bildirmeyen (`unknown`) güvenilen bir proxy'nin arkasında. Onu asla
+saymayın.
 
 ### PageResolvedHook
 

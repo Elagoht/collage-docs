@@ -1225,8 +1225,15 @@ the ban.
 ```go
 import "github.com/Elagoht/collage-fail2ban"
 
+bans := make(chan fail2ban.Ban, 100) // read by a goroutine of yours that batches alerts
+
 f2b := fail2ban.New(fail2ban.Options{
-	OnBan: func(b fail2ban.Ban) { notifyAdmin(b.Prefix, b.Jail, b.Until) },
+	OnBan: func(b fail2ban.Ban) {
+		select {
+		case bans <- b:
+		default: // full: drop it rather than block the request
+		}
+	},
 })
 
 Plugins: []collage.Plugin{f2b /* , the rest */},
@@ -1250,19 +1257,31 @@ Plugins: []collage.Plugin{f2b /* , the rest */},
   middleware.
 - **Behind a reverse proxy or a CDN, set `Server.TrustedProxies`.** Without it the
   proxy is the client: one scanner gets your proxy banned, and with it every
-  visitor. A client is an IPv4 address, or an IPv6 `/64`.
+  visitor. List every hop, a CDN's published ranges included. If you forget, a
+  request from a loopback or private address that carries `X-Forwarded-For` but
+  whose `ClientIP` is still that address is not counted, and one Warn says
+  `TrustedProxies` is probably missing. A client is an IPv4 address, or an IPv6
+  `/64`.
 - The `probe` jail (3 strikes in `10m`, banned for `1h`) strikes on a request for a
-  probe path (`/.env`, `/.git/`, `/wp-login.php` and the like; add your own with
-  `probePaths`) or one collage rejects early, with an encoded slash or a `.` / `..`
-  segment. The `notfound` jail (50 in `1m`, `10m`) strikes on any other `404`. A jail
-  of your own strikes only on `Report`; override any by name, or turn it off with
+  probe path (`/.env`, `/.git/`, `/wp-login.php` and the like, and anywhere a
+  segment starting with `.env` or a `.git` segment; add your own with `probePaths`) or one collage rejects
+  early, with an encoded slash or a `.` / `..` segment. A probe path your site
+  really serves as a page, document or action is not counted. The `notfound` jail
+  (50 in `1m`, `10m`) strikes on any other `404`, except a mount's. A browser's
+  subresource request (`Sec-Fetch-Dest` such as `image` or `script`) never strikes,
+  so an `<img>` pointing at `/.env` cannot get your readers banned. A jail of your
+  own strikes only on `Report`; override any by name, or turn it off with
   `"off": true`.
 - A repeat ban doubles, up to `maxBanTime` (`24h`). A banned client gets a plain
   `403 Forbidden`, never the site's error page. Collage's own `404` or redirect for
   an encoded-slash or dirty-path request still reaches it.
-- Call `Report(r, "login")` on a failed login and `Forgive(r, "login")` on a good
-  one. `allow` lists addresses and ranges never counted or banned. `Ban`, `Unban` and
-  `Bans` are the manual API, and `OnBan` (Go only) is called after each ban.
+- Call `Report(r, "login")` on a failed login. `Forgive(r, "login")` clears the
+  strikes, but is only safe when the success is for the account whose password was
+  being guessed: forgiving any success lets an attacker with their own account guess
+  without limit. Failures age out after `findTime` anyway. `allow` lists addresses
+  and ranges never counted or banned. `Ban`, `Unban` and `Bans` are the manual API
+  (`Ban` never shortens a ban); `OnBan` (Go only) is called after each ban, maybe
+  thousands of times in a distributed scan, so never notify per ban synchronously.
 - Bans are per process and in memory: instances do not share them and a restart
   clears them. In dev mode nothing happens unless `inDevelopment` is set. It reacts
   after strikes; it does not replace `elagoht/ratelimit`.

@@ -236,8 +236,8 @@ type RequestHook interface {
 Runs before anything else on a request (since v0.25.0): before collage starts its
 request span, before middleware, before routing. It returns the context the request
 is served under — derived from `r.Context()` — and a function collage calls with
-the status once the response is written. The function may be `nil`, and it must not
-write to the response.
+the status when the response is written: once, unless serving the request panics.
+The function may be `nil`, and it must not write to the response.
 
 It is what a tracing plugin needs. A trace carried in from the caller has to be the
 parent of collage's own `collage.http` span, and middleware added with `Host.Use`
@@ -279,7 +279,8 @@ Since v0.47.0 the hooks also see a request collage answers before routing: a pat
 with an encoded slash (`/a%2f..%2fb`), answered with a 404, and a dirty path
 (`/a/../b`), redirected with 301 (308 for a method other than `GET` and `HEAD`).
 These are a scanner's probes more often than not. For such a request the finish
-function is called once with the status written, `collage.RouteOf` is empty, and
+function is called with the status written (once, unless serving the request
+panics), `collage.RouteOf` is empty, and
 `r.URL` is the raw path. `collage.ClientIP(r)` works inside `OnRequest`, so a plugin
 that bans or counts clients can see them. `Metrics.HTTPResponse` and collage's own
 request span still skip these requests.
@@ -288,8 +289,9 @@ Use `collage.ClientIP(r)` rather than `r.RemoteAddr` for the client's address. I
 a `netip.Addr`: `RemoteAddr`'s host, or, behind the proxies the application lists in
 `Server.TrustedProxies` (see [Deployment](/docs/deployment#behind-a-proxy-trustedproxies)),
 the client the proxy reports. It is unmapped and has no zone, and is the zero
-`netip.Addr` when there is no address to give, as in a shared page render, whose
-request has no `RemoteAddr`: never count that one.
+`netip.Addr` when there is no address to give: in a shared page render, whose
+request has no `RemoteAddr`, and behind a trusted proxy whose `X-Forwarded-For`
+names no usable client (`unknown`). Never count that one.
 
 ### PageResolvedHook
 
