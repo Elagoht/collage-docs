@@ -1061,8 +1061,12 @@ Plugins: []collage.Plugin{secure.New(secure.Options{
 }
 ```
 
-- collage v0.22.0 ya da sonrasını gerektirir ve `Config.Plugins` içinde olmalıdır:
-  `{{cspNonce}}`'ı ekler.
+- collage v0.43.0 ya da sonrasını gerektirir (plugin'in v0.2.0'ı) ve
+  `Config.Plugins` içinde olmalıdır: `{{cspNonce}}`'ı ekler. Listedeki yeri fark
+  etmez: nonce, `PersonaliseHook` ile cache'ten sonra ve sıkıştırmadan önce
+  yerleştirilir; bu yüzden elagoht/compress'ten önce de sonra da listelenebilir.
+  (v0.2.0'dan önce compress'ten önce listelenirse marker gzip'li body'de kalıyor ve
+  CSP her inline script'i engelliyordu.)
 - Varsayılan olarak `X-Content-Type-Options`, `X-Frame-Options`,
   `Referrer-Policy` ve `Cross-Origin-Opener-Policy` gönderir.
   `Strict-Transport-Security`'yi ise TLS üzerinden ya da `X-Forwarded-Proto: https`
@@ -1070,8 +1074,9 @@ Plugins: []collage.Plugin{secure.New(secure.Options{
   ayarlandıklarında gönderilir. `"-"` bir header'ı dışarıda bırakır.
 - Policy'deki `{nonce}` ile inline bir script'teki `{{cspNonce}}` aynı nonce'tur ve
   her response'ta yenidir. Cache'lenen page bir placeholder taşır, plugin'in
-  middleware'i de onun yerine taze bir nonce koyar. Nonce taşıyan bir page
-  `Cache-Control: no-store` ile ve `ETag` olmadan gönderilir. Diğer her response
+  hook'u da onun yerine taze bir nonce koyar. Nonce taşıyan bir page
+  `Cache-Control: private, no-store` (collage ayarlar) ile ve gönderilen body'nin
+  `ETag`'i ile gönderilir. Diğer her response
   conditional request'lere her zamanki gibi cevap verir: bir feed, bir document ya
   da mount edilmiş bir dosya `304`'ünü yine alır (v0.1.5'ten beri; öncesinde
   bir policy tanımlıysa plugin'in arkasındaki hiçbir şey alamıyordu).
@@ -1505,8 +1510,9 @@ Plugins: []collage.Plugin{
 ```
 
 - collage v0.23.0 ya da sonrasını gerektirir. **Onu response body'lerini yeniden
-  yazan her plugin'den önce register edin.** elagoht/secure da bunlardan biridir.
-  İlk register edilen plugin en dıştaki middleware'dir.
+  yazan her plugin'den önce register edin.** İlk register edilen plugin en dıştaki
+  middleware'dir. elagoht/secure artık buna ihtiyaç duymaz (v0.2.0, collage v0.43.0):
+  `PersonaliseHook` ile, her middleware'in içinde yeniden yazar.
 - En az `minSize` byte'lık metin türleri, request'in kabul ettiği en iyi encoding ile
   sıkıştırılır. `text/event-stream`, bir WebSocket ve bir `Range` request'ine
   dokunulmaz.

@@ -227,6 +227,7 @@ sunucusunda da yapabilirdi.
 | `BeforeRenderHook` | `OnBeforeRender` | `BeforeRenderEvent` | Yeni bir page render'ından önce | event'te hiçbir şeyi; `ev.Context` üzerinden hoist edebilir |
 | `BeforeActionHook` | `OnBeforeAction` | `BeforeActionEvent` | Bir action'ın handler'ından önce, guard'larından, body sınırından ve forgery kontrolünden sonra (v0.31.0'dan beri) | `ev.Result`; handler'ın yerine cevap verir |
 | `AfterRenderHook` | `OnAfterRender` | `AfterRenderEvent` | Bir page render'ı başarıyla bittikten sonra | `ev.HTML`; `ev.Warn` ve `ev.Error` ile raporlar |
+| `PersonaliseHook` | `OnPersonalise` | `PersonaliseEvent` | Cache'ten sonra, bir okuyucuya giden her HTML response'u için (v0.43.0'dan beri) | `ev.Body`, `ev.Header`, `ev.Personal` |
 | `DocumentRenderedHook` | `OnDocumentRendered` | `DocumentRenderedEvent` | Bir document handler'ı body'sini ürettikten sonra | `ev.Body` |
 | `CacheWriteHook` | `OnCacheWrite` | `CacheWriteEvent` | Bir page ya da document cache'e yazılmadan önce | `ev.Skip`, `ev.TTL`, `ev.Tags` |
 | `CacheInvalidateHook` | `OnCacheInvalidate` | `CacheInvalidateEvent` | Entry'ler tag ile invalidate edildikten sonra | hiçbir şeyi |
@@ -509,6 +510,53 @@ da build'in yazmadığı bir page'e giden bir link,
 [elagoht/htmlcheck](/docs/plugins#elagohthtmlcheck) ikisinin üzerine kurulmuş,
 denetleyen bir plugin'dir.
 
+### Her response'u yeniden yazmak: `PersonaliseHook`
+
+`OnAfterRender` cache'ten önce, yalnızca bir kez çalışır; bu yüzden her okuyucuya
+kendine özel bir şey veremez. Bunu yapması gereken bir plugin, örneğin bir
+Content-Security-Policy nonce'u ya da ziyaretçiye özel bir token ekleyen,
+`PersonaliseHook`'u implement eder (v0.43.0'dan beri). Hook, bir okuyucuya giden her
+HTML response'u için çağrılır:
+
+```go
+func (p *Plugin) OnPersonalise(_ context.Context, ev *collage.PersonaliseEvent) error {
+	if !bytes.Contains(ev.Body, []byte(p.marker)) {
+		return nil
+	}
+	nonce, err := newNonce()
+	if err != nil {
+		return err
+	}
+	ev.Body = bytes.ReplaceAll(ev.Body, []byte(p.marker), []byte(nonce))
+	ev.Header.Set("Content-Security-Policy", "script-src 'nonce-"+nonce+"'")
+	ev.Personal = true
+	return nil
+}
+```
+
+Event şunları taşır:
+
+- `ev.Request`: okuyucunun kendi request'i; paylaşılan bir render'ın sadeleştirilmiş
+  request'i değil.
+- `ev.Header`: response header'ı; body ile uyuşması gereken her şeyi burada ayarlayın.
+- `ev.Body`: yazılacak olan body; okuyucunun forgery token'ı zaten içindedir. Hook
+  onu değiştirebilir; cache'in tuttuğu içerik ise asla değişmez.
+- `ev.Personal`: body bu okuyucuya özel hale geldiğinde ayarlayın.
+
+Forgery token paylaşılan body'ye girdikten sonra, her middleware'in içinde, yani
+sıkıştırmadan önce, dev overlay'inden ve reload script'inden de önce çalışır.
+Plugin'ler register sırasına göre çalışır ve her biri öncekinin body'sini görür. Bir
+page'i (cache'ten ya da yeni), bir fragment path'ini ya da fragment read'ini, bir
+action'ın HTML cevabını ve bir hata sayfasını kapsar; document'ı asla.
+
+`Personal`, response'u bir forgery token'ın yaptığı gibi ele alır: ETag'i gönderilen
+body'den yeniden hesaplanır, page `private, no-store`, fragment read ise yeniden
+hesaplanan ETag ile `private, no-cache` cevabı verir. `Personal` olmadan değişen bir
+body da gönderilen byte'ları adlandıran bir ETag alır. Hata dönen ya da panic eden
+bir hook log'lanır; page, fragment ya da action 500 cevabı verir, hata sayfasında ise
+o status'un yerleşik sayfası gönderilir. Böyle bir plugin'i olmayan bir site eskisiyle
+aynı response'ları gönderir.
+
 ### DocumentRenderedHook
 
 ```go
@@ -716,6 +764,8 @@ zaten yazılmış dosyalar yerinde kalır. Bir sunucuda hiçbir zaman çalışma
   gibi başarısız sayılır; process'i çökertmez.
 - `OnPageResolved`, `OnBeforeRender`, `OnAfterRender` ve `OnDocumentRendered` için
   **ilk hata dispatch'i durdurur** ve request'i başarısız kılar.
+- `OnPersonalise` için ilk hata dispatch'i durdurur; page, fragment ya da action 500
+  cevabı verir, hata sayfası ise o status'un yerleşik sayfasına döner.
 - `OnBeforeAction` için ilk hata dispatch'i durdurur ve request'i başarısız kılar.
   `ev.Result`'ı ilk ayarlayan plugin de dispatch'i durdurur ve request'i cevaplar.
 - `OnCacheWrite` için ilk hata dispatch'i durdurur ve yazmayı engeller.

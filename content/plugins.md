@@ -1014,16 +1014,20 @@ Plugins: []collage.Plugin{secure.New(secure.Options{
 }
 ```
 
-- It needs collage v0.22.0 or later, and must go in `Config.Plugins`: it adds
-  `{{cspNonce}}`.
+- It needs collage v0.43.0 or later (v0.2.0 of the plugin), and must go in
+  `Config.Plugins`: it adds `{{cspNonce}}`. Its place in the list does not matter:
+  the nonce goes in after the cache and before compression, through
+  `PersonaliseHook`, so it works whether it is listed before or after
+  elagoht/compress. (Before v0.2.0, listed before compress it left the marker in
+  the gzip body and the CSP blocked every inline script.)
 - By default it sends `X-Content-Type-Options`, `X-Frame-Options`,
   `Referrer-Policy`, `Cross-Origin-Opener-Policy` and, over TLS or behind a proxy
   sending `X-Forwarded-Proto: https`, `Strict-Transport-Security`.
   `Permissions-Policy` and the CSP are sent when set; `"-"` leaves a header out.
 - `{nonce}` in the policy and `{{cspNonce}}` on an inline script are one nonce,
   new on every response: the cached page carries a placeholder, and the plugin's
-  middleware puts a fresh nonce in its place. A page carrying one is sent with
-  `Cache-Control: no-store` and no `ETag`. Every other response answers
+  hook puts a fresh nonce in its place. A page carrying one is sent with
+  `Cache-Control: private, no-store` (set by collage) and an `ETag` of the body sent. Every other response answers
   conditional requests as usual: a feed, a document or a mounted file still gets
   its `304` (since v0.1.5; before, with a policy set, nothing behind the plugin could).
 - A static export writes pages this middleware never serves, and a file cannot
@@ -1440,8 +1444,9 @@ Plugins: []collage.Plugin{
 ```
 
 - It needs collage v0.23.0 or later. **Register it before any plugin that rewrites
-  response bodies**, elagoht/secure among them: the first plugin registered is the
-  outermost middleware.
+  response bodies**: the first plugin registered is the outermost middleware.
+  elagoht/secure no longer needs this (v0.2.0, collage v0.43.0): it rewrites through
+  `PersonaliseHook`, inside every middleware.
 - Text types of at least `minSize` bytes are compressed with the best encoding the
   request accepts. `text/event-stream`, a WebSocket and a `Range` request are left
   alone.

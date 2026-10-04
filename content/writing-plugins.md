@@ -214,6 +214,7 @@ take the connection over with `Hijack`, as it could on a bare `net/http` server.
 | `BeforeRenderHook` | `OnBeforeRender` | `BeforeRenderEvent` | Before a fresh page render | nothing on the event; may hoist through `ev.Context` |
 | `BeforeActionHook` | `OnBeforeAction` | `BeforeActionEvent` | Before an action's handler, after its guards, body limit and forgery check (since v0.31.0) | `ev.Result`, which answers in the handler's place |
 | `AfterRenderHook` | `OnAfterRender` | `AfterRenderEvent` | After a page render succeeded | `ev.HTML`; reports with `ev.Warn`, `ev.Error` |
+| `PersonaliseHook` | `OnPersonalise` | `PersonaliseEvent` | For every HTML response on its way to one reader, after the cache (since v0.43.0) | `ev.Body`, `ev.Header`, `ev.Personal` |
 | `DocumentRenderedHook` | `OnDocumentRendered` | `DocumentRenderedEvent` | After a document handler produced its body | `ev.Body` |
 | `CacheWriteHook` | `OnCacheWrite` | `CacheWriteEvent` | Before a page or document is written to the cache | `ev.Skip`, `ev.TTL`, `ev.Tags` |
 | `CacheInvalidateHook` | `OnCacheInvalidate` | `CacheInvalidateEvent` | After entries were invalidated by tag | nothing |
@@ -483,6 +484,51 @@ build did not write — belongs in [`OnBuildFinished`](#buildfinishedhook).
 [elagoht/htmlcheck](/docs/plugins#elagohthtmlcheck) is a checking plugin built on
 both.
 
+### Rewriting each response: `PersonaliseHook`
+
+`OnAfterRender` runs once, before the cache, so it cannot give each reader
+something of their own. A plugin that must, such as a Content-Security-Policy nonce
+or a per-visitor token, implements `PersonaliseHook` (since v0.43.0), called for
+every HTML response on its way to one reader:
+
+```go
+func (p *Plugin) OnPersonalise(_ context.Context, ev *collage.PersonaliseEvent) error {
+	if !bytes.Contains(ev.Body, []byte(p.marker)) {
+		return nil
+	}
+	nonce, err := newNonce()
+	if err != nil {
+		return err
+	}
+	ev.Body = bytes.ReplaceAll(ev.Body, []byte(p.marker), []byte(nonce))
+	ev.Header.Set("Content-Security-Policy", "script-src 'nonce-"+nonce+"'")
+	ev.Personal = true
+	return nil
+}
+```
+
+The event carries:
+
+- `ev.Request`: the reader's own request, not a shared render's stripped one.
+- `ev.Header`: the response header; set here what must match the body.
+- `ev.Body`: what will be written, the reader's forgery token already in it. A hook
+  may replace it; what the cache holds is never changed.
+- `ev.Personal`: set it when the body became particular to this reader.
+
+It runs after the forgery token goes into the shared body, inside every
+middleware, so before compression, and before the dev overlay and reload script.
+Plugins run in registration order and each sees the previous body. It covers a
+page (from the cache or fresh), a fragment path or fragment read, an action's HTML
+answer and an error page, never a document.
+
+`Personal` treats the response as a forgery token does: its ETag is recomputed
+from the body sent, a page answers `private, no-store`, and a fragment read keeps
+`private, no-cache` with the recomputed ETag. A body changed without `Personal`
+still gets an ETag naming the bytes sent. A hook that returns an error or panics is
+logged and the page, fragment or action answers 500; on an error page the built-in
+page for that status is sent instead. A site without such a plugin sends the same
+responses as before.
+
 ### DocumentRenderedHook
 
 ```go
@@ -686,6 +732,8 @@ never fires on a server.
   error; it does not take the process down.
 - For `OnPageResolved`, `OnBeforeRender`, `OnAfterRender` and
   `OnDocumentRendered`, the **first error stops dispatch** and fails the request.
+- For `OnPersonalise`, the first error stops dispatch; a page, fragment or action
+  answers 500 and an error page falls back to the built-in page for its status.
 - For `OnBeforeAction`, the first error stops dispatch and fails the request, and
   so does the first plugin to set `ev.Result`, which answers it.
 - For `OnCacheWrite`, the first error stops dispatch and suppresses the write.
