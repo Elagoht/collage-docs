@@ -530,7 +530,8 @@ the cache nor a fragment read is answered `304`, not even to `If-None-Match: *`.
 with the recomputed ETag and an action's HTML `private, no-store`, overriding even
 a `Cache-Control` the handler set. A compressing middleware that keeps compressed
 bodies per ETag, such as elagoht/compress, gains nothing from a personal
-response: its ETag is new every time, so it is compressed for each reader. A body changed without `Personal`
+response: its ETag is new every time. elagoht/compress compresses it for each
+reader and keeps nothing (since v0.1.3). A body changed without `Personal`
 still gets an ETag naming the bytes sent. A hook that returns an error or panics is
 logged and the page, fragment or action answers 500; on an error page the built-in
 page for that status is sent instead. A site without such a plugin sends the same

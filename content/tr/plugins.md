@@ -891,8 +891,8 @@ Plugins: []collage.Plugin{honeypot.New(honeypot.Options{Key: key})},
 }
 ```
 
-- collage v0.31.0 ya da sonrasını gerektirir ve `Config.Plugins` içinde olmalıdır:
-  `{{honeypot}}`'ı ekler.
+- collage v0.43.0 ya da sonrasını gerektirir (plugin'in v0.4.0'ı) ve
+  `Config.Plugins` içinde olmalıdır: `{{honeypot}}`'ı ekler.
 - Bir gönderimin ne kadar büyük olabileceğine karışmaz. Form'u `BeforeActionHook`'ta,
   action'ın kendi body sınırıyla kontrol eder. Bu yüzden büyük dosya yükleyen bir
   form için yalnızca action'ın `WithMaxBodyBytes`'ı yeter. Yalnızca collage
@@ -912,13 +912,18 @@ Plugins: []collage.Plugin{honeypot.New(honeypot.Options{Key: key})},
   böylece bot onu kısaltamaz. `minDelay`, kendi süresini seçmeyen her form için bir
   süre belirler.
 - Zaman damgası, collage'ın forgery token'ı gibi page cache'ten sağ çıkar: cache'lenen
-  page bir placeholder taşır, plugin'in middleware'i de o anki zamanı imzalayıp onun
-  yerine koyar. En az 32 rastgele byte'lık, her instance'ta aynı olan bir key
-  ayarlayın.
-- v0.1.3'ten beri `Content-Type` olmadan yazılan bir response da damgalanır.
-  Örneğin `app.Handle` ile bağlanıp `RenderPath` çıktısını yazan bir handler'ınki.
-  Tür, net/http'nin yaptığı gibi ilk byte'lardan tahmin edilir. Önceden bu
-  response'taki placeholder olduğu gibi gidiyor, form da reddediliyordu.
+  page bir placeholder taşır, plugin de o anki zamanı imzalayıp `PersonaliseHook` ile,
+  page cache'ten sonra ve sıkıştırmadan önce onun yerine koyar. `Config.Plugins`
+  içindeki yeri fark etmez. (v0.4.0'dan önce elagoht/compress'ten önce listelenirse
+  placeholder gzip'li body'de kalıyor ve her gerçek gönderim reddediliyordu.)
+  Damgalanan bir page `Cache-Control: private, no-store` (collage ayarlar) ile ve her
+  response'ta yeni bir `ETag` ile gönderilir. En az 32 rastgele byte'lık, her
+  instance'ta aynı olan bir key ayarlayın.
+- Yalnızca collage'ın render ettiği şey damgalanır: bir page, bir fragment, bir
+  action'ın HTML cevabı, bir hata sayfası. `app.Handle` ile bağlanan elle yazılmış
+  bir handler'ın kendi yazdığı placeholder olduğu gibi gider ve form'u reddedilir.
+  (v0.4.0'dan önce böyle bir response damgalanıyordu; türü ilk byte'lardan tahmin
+  ediliyordu.)
 - Ret bir `400`'dür. `silent` ile ise kabul edilmiş bir form'un cevabı gibi, form'a
   geri dönen bir `303`'tür. Dikkatsiz bot'ları durdurur, kararlı birini durdurmaz;
   onu elagoht/ratelimit ile birlikte kullanın.
@@ -1056,6 +1061,7 @@ Plugins: []collage.Plugin{secure.New(secure.Options{
     "hsts": 63072000,
     "hstsSubdomains": true,
     "frameOptions": "DENY",
+    "key": "<64 hex characters: openssl rand -hex 32>",
     "permissionsPolicy": "camera=(), microphone=(), geolocation=()"
   }
 }
@@ -1080,6 +1086,15 @@ Plugins: []collage.Plugin{secure.New(secure.Options{
   zamanki gibi cevap verir: bir feed, bir document ya da mount edilmiş bir dosya
   `304`'ünü yine alır (v0.1.5'ten beri; öncesinde bir policy tanımlıysa plugin'in
   arkasındaki hiçbir şey alamıyordu).
+- `key`'i ayarlayın (v0.2.1): hex, en az 32 rastgele byte, her instance'ta ve
+  restart'larda aynı (`openssl rand -hex 32` ya da byte olarak `Options.Key`).
+  Key ile `{{cspNonce}}` placeholder'ı her process'te aynıdır; bu yüzden bir
+  deploy'dan sağ çıkan disk cache'ten ya da birkaç instance'ın paylaştığı bir
+  cache'ten gelen page de nonce'unu alır. Key yoksa placeholder process başına
+  değişir ve böyle bir page başka bir process'in placeholder'ını taşır; kayıt
+  süresi dolana kadar hiçbir header ile eşleşmez. Disk cache ya da birden fazla
+  instance kullanıyorsanız key ayarlayın. Kısa ya da hex olmayan bir key
+  uygulamanın başlamasını engeller; key'i gizli tutun.
 - Policy yoksa ya da policy `{nonce}` içermiyorsa adlandırılacak bir nonce da
   yoktur: `nonce` attribute'u static build'deki gibi kaldırılır, page sabit bir
   `ETag` ile cache'lenebilir kalır.
@@ -1514,17 +1529,18 @@ Plugins: []collage.Plugin{
 
 - collage v0.23.0 ya da sonrasını gerektirir. **Onu response body'lerini yeniden
   yazan her plugin'den önce register edin.** İlk register edilen plugin en dıştaki
-  middleware'dir. elagoht/secure artık buna ihtiyaç duymaz (v0.2.0, collage v0.43.0):
-  `PersonaliseHook` ile, her middleware'in içinde yeniden yazar.
+  middleware'dir. elagoht/secure ve elagoht/honeypot artık buna ihtiyaç duymaz
+  (secure v0.2.0, honeypot v0.4.0, collage v0.43.0): `PersonaliseHook` ile, her
+  middleware'in içinde yeniden yazarlar.
 - En az `minSize` byte'lık metin türleri, request'in kabul ettiği en iyi encoding ile
   sıkıştırılır. `text/event-stream`, bir WebSocket ve bir `Range` request'ine
   dokunulmaz.
 - Sıkıştırılmış bir body ETag başına saklanır. Böylece collage'ın cache'ten sunduğu
   bir page, okuyucu başına değil, encoding başına bir kez sıkıştırılır. ETag
-  encoding'i de içerir ve conditional bir request yine `304`'ünü alır. Bir plugin'in
-  kişiselleştirdiği bir response'un (örneğin elagoht/secure'ün nonce'unu taşıyan
-  bir page'in) ETag'i her seferinde yenidir; bu yüzden her okuyucu için
-  sıkıştırılır ve saklanan kopya hiç yeniden kullanılmaz.
+  encoding'i de içerir ve conditional bir request yine `304`'ünü alır. `Cache-Control`'ü
+  `private` ya da `no-store` taşıyan bir response (örneğin elagoht/secure'ün
+  nonce'unu taşıyan bir page) yine sıkıştırılır ama hiç saklanmaz (v0.1.3): her
+  seferinde değiştiği için saklanan kopya hiç yeniden kullanılmazdı.
 - Static build, önceden sıkıştırılmış dosyaları sunan bir host için sıkıştırılabilen
   her dosyanın yanına bir `.br` ve bir `.gz` yazar; `noPrecompress` bunu kapatır.
 

@@ -849,8 +849,8 @@ Plugins: []collage.Plugin{honeypot.New(honeypot.Options{Key: key})},
 }
 ```
 
-- It needs collage v0.31.0 or later, and must go in `Config.Plugins`: it adds
-  `{{honeypot}}`.
+- It needs collage v0.43.0 or later (v0.4.0 of the plugin), and must go in
+  `Config.Plugins`: it adds `{{honeypot}}`.
 - It has no say in how large a submission may be. It checks the form in
   `BeforeActionHook`, through the action's own body limit, so a form that uploads
   large files needs only the action's `WithMaxBodyBytes`. Only collage actions are
@@ -868,12 +868,17 @@ Plugins: []collage.Plugin{honeypot.New(honeypot.Options{Key: key})},
   many seconds before it is sent, signed into the timestamp so a bot cannot
   shorten it; `minDelay` sets one for every form that does not choose its own.
 - The timestamp survives the page cache as collage's forgery token does: the
-  cached page carries a placeholder, and the plugin's middleware signs the current
-  time into it. Set a key of at least 32 random bytes, the same on every instance.
-- Since v0.1.3 a response written without a `Content-Type`, such as a handler
-  mounted with `app.Handle` writing `RenderPath` output, is stamped too: the type
-  is sniffed from the first bytes, as net/http does. Before, its placeholder went
-  out unchanged and the form was refused.
+  cached page carries a placeholder, and the plugin signs the current time into it
+  through `PersonaliseHook`, after the page cache and before compression. Its place
+  in `Config.Plugins` does not matter. (Before v0.4.0, listed before
+  elagoht/compress it left the placeholder in the gzip body and every real
+  submission was refused.) A stamped page is sent with `Cache-Control: private,
+  no-store` (set by collage) and a new `ETag` on every response. Set a key of at
+  least 32 random bytes, the same on every instance.
+- Only what collage renders is stamped: a page, a fragment, an action's HTML
+  answer, an error page. A placeholder a hand-written `app.Handle` handler writes
+  itself goes out as it is, and its form is refused. (Before v0.4.0 such a
+  response was stamped, its type sniffed from the first bytes.)
 - A refusal is a `400`; with `silent` it is a `303` back to the form, as an accepted
   form answers. It stops careless bots, not a determined one — pair it with
   elagoht/ratelimit.
@@ -1009,6 +1014,7 @@ Plugins: []collage.Plugin{secure.New(secure.Options{
     "hsts": 63072000,
     "hstsSubdomains": true,
     "frameOptions": "DENY",
+    "key": "<64 hex characters: openssl rand -hex 32>",
     "permissionsPolicy": "camera=(), microphone=(), geolocation=()"
   }
 }
@@ -1031,6 +1037,14 @@ Plugins: []collage.Plugin{secure.New(secure.Options{
   response. Every other response answers conditional requests as usual: a feed,
   a document or a mounted file still gets its `304` (since v0.1.5; before, with a
   policy set, nothing behind the plugin could).
+- Set `key` (v0.2.1): hex, at least 32 random bytes, the same on every instance and
+  across restarts (`openssl rand -hex 32`, or `Options.Key` as bytes). With it the
+  `{{cspNonce}}` placeholder is the same in every process, so a page from a disk
+  cache that survived a deploy, or from a cache shared by several instances, still
+  gets its nonce. Without a key the placeholder changes per process, and such a
+  page carries another process's placeholder, matching no header until the entry
+  expires: set a key when you use a disk cache or several instances. A key that is
+  short or not hex stops the application from starting; keep it secret.
 - With no policy, or one without `{nonce}`, there is no nonce to name: the `nonce`
   attribute is removed, as in a static build, and the page stays cacheable with a
   stable `ETag`.
@@ -1449,16 +1463,18 @@ Plugins: []collage.Plugin{
 
 - It needs collage v0.23.0 or later. **Register it before any plugin that rewrites
   response bodies**: the first plugin registered is the outermost middleware.
-  elagoht/secure no longer needs this (v0.2.0, collage v0.43.0): it rewrites through
-  `PersonaliseHook`, inside every middleware.
+  elagoht/secure and elagoht/honeypot no longer need this (secure v0.2.0, honeypot
+  v0.4.0, collage v0.43.0): they rewrite through `PersonaliseHook`, inside every
+  middleware.
 - Text types of at least `minSize` bytes are compressed with the best encoding the
   request accepts. `text/event-stream`, a WebSocket and a `Range` request are left
   alone.
 - A compressed body is kept per ETag, so a page collage serves from its cache is
   compressed once per encoding, not once per reader. The ETag gains the encoding,
-  and a conditional request still gets its `304`. A response a plugin makes
-  personal, such as a page carrying elagoht/secure's nonce, has a new ETag every
-  time, so it is compressed for each reader and what is kept is never reused.
+  and a conditional request still gets its `304`. A response whose `Cache-Control`
+  has `private` or `no-store`, such as a page carrying elagoht/secure's nonce, is
+  still compressed but never kept (v0.1.3): it changes every time, so what was
+  kept would never be reused.
 - A static build writes a `.br` and a `.gz` beside every compressible file, for a
   host that serves precompressed files; `noPrecompress` turns it off.
 

@@ -558,8 +558,9 @@ gelen bir page ne de bir fragment read, `If-None-Match: *`'a bile, `304` alır. 
 hesaplanan ETag ile `private, no-cache`, action'ın HTML'i ise `private, no-store`
 cevabı verir; handler'ın kendi ayarladığı `Cache-Control` da geçersiz kalır.
 elagoht/compress gibi sıkıştırılmış body'leri ETag başına saklayan bir middleware
-kişisel bir response'tan bir şey kazanmaz: ETag'i her seferinde yenidir, bu yüzden
-her okuyucu için sıkıştırılır. `Personal` olmadan değişen bir
+kişisel bir response'tan bir şey kazanmaz: ETag'i her seferinde yenidir.
+elagoht/compress onu her okuyucu için sıkıştırır ve hiçbir şey saklamaz (v0.1.3'ten
+beri). `Personal` olmadan değişen bir
 body da gönderilen byte'ları adlandıran bir ETag alır. Hata dönen ya da panic eden
 bir hook log'lanır; page, fragment ya da action 500 cevabı verir, hata sayfasında ise
 o status'un yerleşik sayfası gönderilir. Böyle bir plugin'i olmayan bir site eskisiyle
