@@ -1924,11 +1924,14 @@ Plugins: []collage.Plugin{errortrack.New(errortrack.Options{
 ```
 
 - It needs collage v0.45.0 or later, whose `ErrorEvent` carries the status and the
-  request, and a `DSN` or `DSNEnv`: startup fails without one. The DSN is a
+  request, and a `DSN` or `DSNEnv`: startup fails without one, except in dev mode
+  without `inDevelopment`, where nothing is sent and no DSN is needed. The DSN is a
   credential; keep it in the environment, not in `collage.json`.
 - What leaves the server is limited: the error chain, a panic's stack, the route
-  pattern rather than the raw path, query keys with `[filtered]` values, and five
-  request headers. Cookies, `Authorization`, the body and the client address are
+  pattern rather than the raw path (only `scheme://host` when no route resolved, as
+  for a middleware's panic; the raw path only with `sendPath`), query keys with
+  `[filtered]` values, and six request headers, the `Referer` cut to its origin
+  unless `sendPath` is set. Cookies, `Authorization`, the body and the client address are
   never sent (the address only with `sendIP`). A user is sent only as far as your
   `User` callback returns one.
 - A message is sent as the failing code wrote it, and may carry a secret. Scrub it

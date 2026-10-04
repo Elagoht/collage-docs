@@ -723,6 +723,12 @@ read. It is `nil` when the failure did not come from a request. Read what you ne
 during `OnError`; do not keep it or hand it to another goroutine. Together they let
 a plugin tell a 5xx from a 4xx and name the URL without a middleware of its own.
 
+A page's failed cache write (`"cache_write"`) happens inside the render shared by
+every reader waiting on the same cache key, so its `Request` is that shared
+render's stripped request, not a particular reader's: no cookies, only the headers
+middleware declared with `collage.Vary`, no `RemoteAddr`. A document's cache write
+carries the request of the reader whose miss started the shared render.
+
 An error returned from `OnError` is logged and swallowed, and the remaining
 plugins still receive the event: an error handler that fails must not start another
 round of error handling.

@@ -758,6 +758,13 @@ sırasında okuyun; saklamayın ve başka bir goroutine'e vermeyin. İkisi birli
 plugin'in kendi middleware'ine ihtiyaç duymadan 5xx'i 4xx'ten ayırmasını ve URL'yi
 adlandırmasını sağlar.
 
+Bir page'in başarısız cache yazımı (`"cache_write"`), aynı cache key'ini bekleyen
+bütün okuyucuların paylaştığı render'ın içinde olur. Bu yüzden onun `Request`'i
+belirli bir okuyucunun değil, o paylaşılan render'ın sadeleştirilmiş request'idir:
+cookie yoktur, yalnızca middleware'in `collage.Vary` ile bildirdiği header'lar vardır,
+`RemoteAddr` yoktur. Bir document'ın cache yazımı ise paylaşılan render'ı başlatan
+okuyucunun, yani cache'te bulamayanın request'ini taşır.
+
 `OnError`'dan dönen bir hata log'lanır ve yutulur. Kalan plugin'ler event'i yine de
 alır. Başarısız olan bir error handler, yeni bir error handling turu başlatmamalıdır.
 

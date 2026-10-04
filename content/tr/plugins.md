@@ -2008,11 +2008,14 @@ Plugins: []collage.Plugin{errortrack.New(errortrack.Options{
 ```
 
 - collage v0.45.0 ya da sonrasını ister; `ErrorEvent`'i status'ü ve request'i taşır.
-  Ayrıca bir `DSN` ya da `DSNEnv` gerekir: yoksa başlangıç başarısız olur. DSN bir
-  kimlik bilgisidir; `collage.json`'a değil, ortam değişkenine koyun.
+  Ayrıca bir `DSN` ya da `DSNEnv` gerekir: yoksa başlangıç başarısız olur. Bunun tek
+  istisnası `inDevelopment` verilmemiş dev moddur; orada hiçbir şey gönderilmez ve DSN
+  gerekmez. DSN bir kimlik bilgisidir; `collage.json`'a değil, ortam değişkenine koyun.
 - Sunucudan çıkan şey sınırlıdır: error zinciri, bir panic'in stack'i, ham path
-  yerine route pattern'i, değerleri `[filtered]` olan query anahtarları ve beş request
-  header'ı. Cookie'ler, `Authorization`, body ve client adresi hiçbir zaman
+  yerine route pattern'i (bir middleware'in panic'i gibi hiçbir route çözülmediğinde
+  yalnızca `scheme://host`; ham path yalnızca `sendPath` ile), değerleri `[filtered]`
+  olan query anahtarları ve altı request header'ı; `sendPath` verilmedikçe `Referer`
+  yalnızca origin'ine indirilir. Cookie'ler, `Authorization`, body ve client adresi hiçbir zaman
   gönderilmez (adres yalnızca `sendIP` ile). Bir kullanıcı, ancak `User` callback'inizin
   döndürdüğü kadarıyla gönderilir.
 - Mesaj, hatalı kodun yazdığı gibi gönderilir ve bir sır taşıyabilir. `BeforeSend` ile
