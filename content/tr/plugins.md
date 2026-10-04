@@ -1075,11 +1075,14 @@ Plugins: []collage.Plugin{secure.New(secure.Options{
 - Policy'deki `{nonce}` ile inline bir script'teki `{{cspNonce}}` aynı nonce'tur ve
   her response'ta yenidir. Cache'lenen page bir placeholder taşır, plugin'in
   hook'u da onun yerine taze bir nonce koyar. Nonce taşıyan bir page
-  `Cache-Control: private, no-store` (collage ayarlar) ile ve gönderilen body'nin
-  `ETag`'i ile gönderilir. Diğer her response
-  conditional request'lere her zamanki gibi cevap verir: bir feed, bir document ya
-  da mount edilmiş bir dosya `304`'ünü yine alır (v0.1.5'ten beri; öncesinde
-  bir policy tanımlıysa plugin'in arkasındaki hiçbir şey alamıyordu).
+  `Cache-Control: private, no-store` (collage ayarlar) ile ve her response'ta yeni
+  bir `ETag` ile gönderilir. Diğer her response conditional request'lere her
+  zamanki gibi cevap verir: bir feed, bir document ya da mount edilmiş bir dosya
+  `304`'ünü yine alır (v0.1.5'ten beri; öncesinde bir policy tanımlıysa plugin'in
+  arkasındaki hiçbir şey alamıyordu).
+- Policy yoksa ya da policy `{nonce}` içermiyorsa adlandırılacak bir nonce da
+  yoktur: `nonce` attribute'u static build'deki gibi kaldırılır, page sabit bir
+  `ETag` ile cache'lenebilir kalır.
 - Static export'un yazdığı page'leri bu middleware hiç sunmaz ve bir dosya her
   response'ta değişen bir nonce taşıyamaz. Bu yüzden static build'de `nonce`
   attribute'u kaldırılır, script yerinde kalır ve bir kez uyarı verilir. Bu inline
@@ -1518,7 +1521,10 @@ Plugins: []collage.Plugin{
   dokunulmaz.
 - Sıkıştırılmış bir body ETag başına saklanır. Böylece collage'ın cache'ten sunduğu
   bir page, okuyucu başına değil, encoding başına bir kez sıkıştırılır. ETag
-  encoding'i de içerir ve conditional bir request yine `304`'ünü alır.
+  encoding'i de içerir ve conditional bir request yine `304`'ünü alır. Kişisel bir
+  response'un (forgery token'ı ya da elagoht/secure'ün nonce'unu taşıyan bir
+  page'in) ETag'i her seferinde yenidir; bu yüzden her okuyucu için sıkıştırılır ve
+  saklanan kopya hiç yeniden kullanılmaz.
 - Static build, önceden sıkıştırılmış dosyaları sunan bir host için sıkıştırılabilen
   her dosyanın yanına bir `.br` ve bir `.gz` yazar; `noPrecompress` bunu kapatır.
 

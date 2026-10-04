@@ -1027,9 +1027,13 @@ Plugins: []collage.Plugin{secure.New(secure.Options{
 - `{nonce}` in the policy and `{{cspNonce}}` on an inline script are one nonce,
   new on every response: the cached page carries a placeholder, and the plugin's
   hook puts a fresh nonce in its place. A page carrying one is sent with
-  `Cache-Control: private, no-store` (set by collage) and an `ETag` of the body sent. Every other response answers
-  conditional requests as usual: a feed, a document or a mounted file still gets
-  its `304` (since v0.1.5; before, with a policy set, nothing behind the plugin could).
+  `Cache-Control: private, no-store` (set by collage) and a new `ETag` on every
+  response. Every other response answers conditional requests as usual: a feed,
+  a document or a mounted file still gets its `304` (since v0.1.5; before, with a
+  policy set, nothing behind the plugin could).
+- With no policy, or one without `{nonce}`, there is no nonce to name: the `nonce`
+  attribute is removed, as in a static build, and the page stays cacheable with a
+  stable `ETag`.
 - A static export writes pages this middleware never serves, and a file cannot
   carry a per-response nonce. So in a static build the `nonce` attribute is
   removed and the script kept, with one warning; allow those inline scripts in
@@ -1452,7 +1456,9 @@ Plugins: []collage.Plugin{
   alone.
 - A compressed body is kept per ETag, so a page collage serves from its cache is
   compressed once per encoding, not once per reader. The ETag gains the encoding,
-  and a conditional request still gets its `304`.
+  and a conditional request still gets its `304`. A personal response (a page
+  carrying a forgery token or elagoht/secure's nonce) has a new ETag every time,
+  so it is compressed for each reader and what is kept is never reused.
 - A static build writes a `.br` and a `.gz` beside every compressible file, for a
   host that serves precompressed files; `noPrecompress` turns it off.
 

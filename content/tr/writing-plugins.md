@@ -540,18 +540,26 @@ Event şunları taşır:
   request'i değil.
 - `ev.Header`: response header'ı; body ile uyuşması gereken her şeyi burada ayarlayın.
 - `ev.Body`: yazılacak olan body; okuyucunun forgery token'ı zaten içindedir. Hook
-  onu değiştirebilir; cache'in tuttuğu içerik ise asla değişmez.
+  onu değiştirir (yeni bir slice atar); içine asla yazmamalıdır: slice cache'in
+  olabilir ve eşzamanlı okuyucularla paylaşılıyor olabilir.
 - `ev.Personal`: body bu okuyucuya özel hale geldiğinde ayarlayın.
 
 Forgery token paylaşılan body'ye girdikten sonra, her middleware'in içinde, yani
-sıkıştırmadan önce, dev overlay'inden ve reload script'inden de önce çalışır.
+sıkıştırmadan önce ve dev reload script'inden önce çalışır. Bir page'de dev
+overlay'inden önce çalışır; bir hata sayfasında ya da bir action'ın cevap olarak
+verdiği bir page'de ise overlay body'de zaten vardır.
 Plugin'ler register sırasına göre çalışır ve her biri öncekinin body'sini görür. Bir
 page'i (cache'ten ya da yeni), bir fragment path'ini ya da fragment read'ini, bir
 action'ın HTML cevabını ve bir hata sayfasını kapsar; document'ı asla.
 
 `Personal`, response'u bir forgery token'ın yaptığı gibi ele alır: ETag'i gönderilen
-body'den yeniden hesaplanır, page `private, no-store`, fragment read ise yeniden
-hesaplanan ETag ile `private, no-cache` cevabı verir. `Personal` olmadan değişen bir
+body'den yeniden hesaplanır, page `private, no-store` cevabı verir ve cache'ten
+geldiğinde `If-None-Match: *`'a bile asla `304` vermez. Fragment read yeniden
+hesaplanan ETag ile `private, no-cache`, action'ın HTML'i ise `private, no-store`
+cevabı verir; handler'ın kendi ayarladığı `Cache-Control` da geçersiz kalır.
+elagoht/compress gibi sıkıştırılmış body'leri ETag başına saklayan bir middleware
+kişisel bir response'tan bir şey kazanmaz: ETag'i her seferinde yenidir, bu yüzden
+her okuyucu için sıkıştırılır. `Personal` olmadan değişen bir
 body da gönderilen byte'ları adlandıran bir ETag alır. Hata dönen ya da panic eden
 bir hook log'lanır; page, fragment ya da action 500 cevabı verir, hata sayfasında ise
 o status'un yerleşik sayfası gönderilir. Böyle bir plugin'i olmayan bir site eskisiyle
