@@ -1456,9 +1456,9 @@ Plugins: []collage.Plugin{
   alone.
 - A compressed body is kept per ETag, so a page collage serves from its cache is
   compressed once per encoding, not once per reader. The ETag gains the encoding,
-  and a conditional request still gets its `304`. A personal response (a page
-  carrying a forgery token or elagoht/secure's nonce) has a new ETag every time,
-  so it is compressed for each reader and what is kept is never reused.
+  and a conditional request still gets its `304`. A response a plugin makes
+  personal, such as a page carrying elagoht/secure's nonce, has a new ETag every
+  time, so it is compressed for each reader and what is kept is never reused.
 - A static build writes a `.br` and a `.gz` beside every compressible file, for a
   host that serves precompressed files; `noPrecompress` turns it off.
 

@@ -1521,10 +1521,10 @@ Plugins: []collage.Plugin{
   dokunulmaz.
 - Sıkıştırılmış bir body ETag başına saklanır. Böylece collage'ın cache'ten sunduğu
   bir page, okuyucu başına değil, encoding başına bir kez sıkıştırılır. ETag
-  encoding'i de içerir ve conditional bir request yine `304`'ünü alır. Kişisel bir
-  response'un (forgery token'ı ya da elagoht/secure'ün nonce'unu taşıyan bir
-  page'in) ETag'i her seferinde yenidir; bu yüzden her okuyucu için sıkıştırılır ve
-  saklanan kopya hiç yeniden kullanılmaz.
+  encoding'i de içerir ve conditional bir request yine `304`'ünü alır. Bir plugin'in
+  kişiselleştirdiği bir response'un (örneğin elagoht/secure'ün nonce'unu taşıyan
+  bir page'in) ETag'i her seferinde yenidir; bu yüzden her okuyucu için
+  sıkıştırılır ve saklanan kopya hiç yeniden kullanılmaz.
 - Static build, önceden sıkıştırılmış dosyaları sunan bir host için sıkıştırılabilen
   her dosyanın yanına bir `.br` ve bir `.gz` yazar; `noPrecompress` bunu kapatır.
 

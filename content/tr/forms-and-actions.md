@@ -612,7 +612,9 @@ hâliyle hash'idir. Cevap ayrıca `Cache-Control: private, no-cache` taşır. E�
 bir `If-None-Match` ile gelen request'e body olmadan `304` ile cevap verilir. Render
 yine de çalışır. Kazanılan şey, kablodaki body ve client'ın yapacağı iştir. Birkaç
 saniyede bir yenilenen bir panel için bu, işin çoğudur. `Cache-Control`'ü kendisi
-set eden bir handler kendi değerini korur.
+set eden bir handler kendi değerini korur; ancak bir `PersonaliseHook` body'yi
+kişisel hale getirdiyse (v0.43.0'dan beri) handler ne set etmiş olursa olsun
+cevap `private, no-cache` olur.
 
 ### Tarayıcıdan yenilemek
 
