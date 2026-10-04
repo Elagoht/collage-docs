@@ -98,6 +98,8 @@ Minimal bir proje şöyle görünür:
 ```text
 mysite/
 ├── main.go                     configuration, the static mount, the CLI contract, plugin commands
+├── embed.go                    templates/ and static/, embedded — left out of collage dev's builds
+├── embed_dev.go                the same variables, empty, for collage dev's builds
 ├── routes.go                   every page, document and action — a new route goes here
 ├── go.mod
 ├── .gitignore
@@ -161,11 +163,14 @@ uygulamayı döner. Demo projesindeki `main_test.go` aynı fonksiyonu çağırı
 kurulmuş ikinci bir kopyasını değil, gerçekten çalışan siteyi test eder.
 [Test yazmak](/docs/testing) sayfasına bakın.
 
-**Template'ler ve static dosyalar embed edilir.** `//go:embed all:templates` ve
-`//go:embed all:static` bunları binary'nin içine gömer. Bu sayede binary herhangi
-bir çalışma dizininden çalışabilir. Development'ta diskteki dizinler varsa her
-zaman onlar kullanılır. Böylece düzenlediğiniz bir template bir sonraki request'te
-yine görünür.
+**Template'ler ve static dosyalar embed edilir.** `embed.go` içindeki
+`//go:embed all:templates` ve `//go:embed all:static` bunları binary'nin içine
+gömer. Bu sayede binary herhangi bir çalışma dizininden çalışabilir. `collage dev`
+ise `-tags collage_dev` ile build eder: bu tag `embed.go` yerine `embed_dev.go`'yu
+alır ve hiçbir şey embed edilmez. Development diskteki dizinleri okur, böylece
+düzenlediğiniz bir template bir sonraki request'te yine görünür ve Go build cache'i
+her kaydetmede onların bir kopyasını daha biriktirmez (v0.46.0'dan beri;
+[collage dev](/docs/cli#development-builds-embed-nothing) sayfasına bakın).
 
 **Development'ta static dosyalar `os.DirFS` ile değil, `os.OpenRoot` ile mount
 edilir.** Bir `os.Root`, dizinin dışına çıkan bir symlink'i reddeder. `os.DirFS`

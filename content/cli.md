@@ -239,6 +239,65 @@ reloads the page too once its directory is named in
 [Templates](/docs/templates#reloading-in-development) for what else development
 mode changes.
 
+### Development builds embed nothing
+
+Since v0.46.0 `collage dev` builds with `go build -tags collage_dev`, and the
+scaffold keeps its `//go:embed` lines in `embed.go`, which starts with
+`//go:build !collage_dev`. Beside it, `embed_dev.go` (`//go:build collage_dev`)
+declares the same two variables, empty. Development mode reads `templates/` and
+`static/` from disk anyway, so a development build has nothing to embed, and
+`collage build`, `collage export` and a plain `go build` pass no tag and embed as
+before.
+
+The reason is the Go build cache. A package that embeds files carries them in its
+compiled form, and a change anywhere in your project recompiles `main`, so every
+build that embeds them stores another copy of `templates/` and `static/` there —
+one per save, kept for five days. A 30 MB `static/` grew the cache by about 30 MB
+per save; a few hundred saves are gigabytes.
+
+A project scaffolded before v0.46.0 still embeds in `main.go`, and `collage dev`
+says so when it starts:
+
+```text
+16:10:23 ! collage dev: main.go embeds files into every development build, and each build stores another copy of them in the Go build cache; move the //go:embed lines into a file constrained with //go:build !collage_dev (see collage help dev)  patterns=all:static all:templates
+```
+
+To fix it, move the two `//go:embed` variables out of `main.go` (and `"embed"` out
+of its imports) into two files of their own:
+
+```go
+// embed.go
+//go:build !collage_dev
+
+package main
+
+import "embed"
+
+//go:embed all:templates
+var templatesFS embed.FS
+
+//go:embed all:static
+var staticFS embed.FS
+```
+
+```go
+// embed_dev.go
+//go:build collage_dev
+
+package main
+
+import "embed"
+
+var (
+	templatesFS embed.FS
+	staticFS    embed.FS
+)
+```
+
+`go clean -cache` reclaims what is already in the cache. Your editor's `gopls`,
+which builds without the tag, reports `embed_dev.go` as excluded by build
+constraints when you open it; that is expected.
+
 ### What triggers a rebuild
 
 | Watched | Not watched |
@@ -566,7 +625,7 @@ scaffolded one does all three. The third, handing the words after its flags to
 
 | Command | Runs | Your `main.go` must |
 | --- | --- | --- |
-| `collage dev` | `go build`, then the binary, with `COLLAGE_DEV=1` and the `HOST` and `PORT` to listen on | turn on development mode when `COLLAGE_DEV` is `1`, and listen on `HOST` and `PORT` |
+| `collage dev` | `go build -tags collage_dev`, then the binary, with `COLLAGE_DEV=1` and the `HOST` and `PORT` to listen on | turn on development mode when `COLLAGE_DEV` is `1`, and listen on `HOST` and `PORT` |
 | `collage export` | `go run . -collage-build -out <dir> [-clean]` | parse `-collage-build`, `-out` and `-clean`, and on `-collage-build` render to `<dir>` instead of serving |
 | `collage inspect` | `go run . collage-inspect` | pass the words after its flags to `collage.DispatchCommands` |
 

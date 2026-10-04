@@ -248,6 +248,66 @@ yeniler. Programınızın diskten kendisi okuduğu içerik de (örneğin Markdow
 yeniler (v0.10.0'dan beri). Development modunun başka neleri değiştirdiğini
 [Template'ler](/docs/templates#reloading-in-development) sayfasında bulabilirsiniz.
 
+### Development build'leri hiçbir şey embed etmez
+
+v0.46.0'dan beri `collage dev`, `go build -tags collage_dev` ile build eder.
+Scaffold da `//go:embed` satırlarını `//go:build !collage_dev` ile başlayan
+`embed.go` dosyasında tutar. Yanındaki `embed_dev.go` (`//go:build collage_dev`)
+aynı iki değişkeni boş olarak tanımlar. Development modu `templates/` ve `static/`
+dizinlerini zaten diskten okur, yani bir development build'inin embed edeceği bir
+şey yoktur. `collage build`, `collage export` ve düz bir `go build` tag vermez ve
+eskisi gibi embed eder.
+
+Sebebi Go build cache'idir. Dosya embed eden bir paket bu dosyaları derlenmiş
+hâlinde taşır. Projenizde herhangi bir yerdeki değişiklik `main`'i yeniden derler.
+Bu yüzden dosyaları embed eden her build, `templates/` ve `static/`'in bir kopyasını
+daha cache'e yazar: her kaydetmede bir tane, beş gün boyunca saklanır. 30 MB'lık bir
+`static/`, cache'i her kaydetmede yaklaşık 30 MB büyüttü; birkaç yüz kaydetme
+gigabaytlar eder.
+
+v0.46.0'dan önce scaffold edilmiş bir proje hâlâ `main.go` içinde embed eder ve
+`collage dev` başlarken bunu söyler:
+
+```text
+16:10:23 ! collage dev: main.go embeds files into every development build, and each build stores another copy of them in the Go build cache; move the //go:embed lines into a file constrained with //go:build !collage_dev (see collage help dev)  patterns=all:static all:templates
+```
+
+Düzeltmek için iki `//go:embed` değişkenini `main.go`'dan (ve import'larındaki
+`"embed"`'i) çıkarıp kendi dosyalarına taşıyın:
+
+```go
+// embed.go
+//go:build !collage_dev
+
+package main
+
+import "embed"
+
+//go:embed all:templates
+var templatesFS embed.FS
+
+//go:embed all:static
+var staticFS embed.FS
+```
+
+```go
+// embed_dev.go
+//go:build collage_dev
+
+package main
+
+import "embed"
+
+var (
+	templatesFS embed.FS
+	staticFS    embed.FS
+)
+```
+
+Cache'te zaten birikmiş olanı `go clean -cache` geri kazandırır. Editörünüzdeki
+`gopls` tag'siz build ettiği için `embed_dev.go`'yu açtığınızda dosyanın build
+constraint'ler yüzünden dışarıda kaldığını söyler; bu beklenen bir durumdur.
+
 ### Rebuild'i ne tetikler
 
 | İzlenir | İzlenmez |
@@ -598,7 +658,7 @@ budur:
 
 | Komut | Çalıştırdığı | `main.go`'nuzun yapması gereken |
 | --- | --- | --- |
-| `collage dev` | önce `go build`, sonra binary; `COLLAGE_DEV=1` ve dinlenecek `HOST` ile `PORT` ayarlı olarak | `COLLAGE_DEV` `1` olduğunda development modunu açmak ve `HOST` ile `PORT` üzerinde dinlemek |
+| `collage dev` | önce `go build -tags collage_dev`, sonra binary; `COLLAGE_DEV=1` ve dinlenecek `HOST` ile `PORT` ayarlı olarak | `COLLAGE_DEV` `1` olduğunda development modunu açmak ve `HOST` ile `PORT` üzerinde dinlemek |
 | `collage export` | `go run . -collage-build -out <dir> [-clean]` | `-collage-build`, `-out` ve `-clean` flag'lerini parse etmek; `-collage-build` verildiğinde sunmak yerine `<dir>` dizinine render etmek |
 | `collage inspect` | `go run . collage-inspect` | flag'lerden sonraki kelimeleri `collage.DispatchCommands`'a vermek |
 

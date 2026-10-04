@@ -94,6 +94,8 @@ A minimal project looks like this:
 ```text
 mysite/
 ├── main.go                     configuration, the static mount, the CLI contract, plugin commands
+├── embed.go                    templates/ and static/, embedded — left out of collage dev's builds
+├── embed_dev.go                the same variables, empty, for collage dev's builds
 ├── routes.go                   every page, document and action — a new route goes here
 ├── go.mod
 ├── .gitignore
@@ -155,9 +157,12 @@ without starting a server. The demo project's `main_test.go` calls the same func
 actually runs rather than a second wiring of it. See [Testing](/docs/testing).
 
 **Templates and static files are embedded.** `//go:embed all:templates` and
-`//go:embed all:static` put them inside the binary, so it runs from any working
-directory. In development the directories on disk win whenever they are there, so
-an edited template still shows up on the next request.
+`//go:embed all:static`, in `embed.go`, put them inside the binary, so it runs from
+any working directory. `collage dev` builds with `-tags collage_dev`, which swaps
+`embed.go` for `embed_dev.go` and embeds nothing: development reads the directories
+on disk, so an edited template still shows up on the next request, and the Go
+build cache does not gain a copy of them with every save (since v0.46.0; see
+[collage dev](/docs/cli#development-builds-embed-nothing)).
 
 **In development, static files are mounted with `os.OpenRoot`, not `os.DirFS`.**
 An `os.Root` refuses a symlink that leads out of the directory; `os.DirFS` follows
