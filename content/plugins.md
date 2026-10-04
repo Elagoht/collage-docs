@@ -1,5 +1,5 @@
 ---
-description: What a plugin can do, how to register and configure one, and the thirty-five published plugins, grouped by what they are for.
+description: What a plugin can do, how to register and configure one, and the thirty-eight published plugins, grouped by what they are for.
 reference: Plugin, LoadPluginConfig, ErrUnknownPluginConfig, ErrAppStarted
 ---
 
@@ -160,7 +160,7 @@ a boolean — is also an error, raised when the plugin reads it.
 
 ## The published plugins
 
-Thirty-five plugins are published alongside the framework, grouped below by what
+Thirty-eight plugins are published alongside the framework, grouped below by what
 they are for. Each is its own module, with its own README that is the full
 reference; what follows is enough to set one up.
 
