@@ -1325,8 +1325,10 @@ Plugins: []collage.Plugin{f2b /* , diğerleri */},
   strike verir. Sitenizin gerçekten page, document ya da action olarak sunduğu bir
   probe path'i sayılmaz. `notfound` jail'i (`1m` içinde 50, `10m` ban) diğer her
   `404`'e strike verir, bir mount'unki hariç. Tarayıcının bir alt kaynak request'i
-  (`image` ya da `script` gibi bir `Sec-Fetch-Dest`) asla strike vermez; böylece
-  `/.env`'i gösteren bir `<img>` okurlarınızı banlatamaz. Kendi jail'iniz yalnızca
+  (`image` ya da `script` gibi bir `Sec-Fetch-Dest`) asla strike vermez;
+  `Sec-Fetch-Site: cross-site` olarak işaretlenmiş bir request de (no-cors bir fetch,
+  gizli bir iframe, başka bir siteden bir link) vermez. Böylece başka bir sayfa
+  okurlarınızı banlatamaz. Bu header'ları taklit eden bir tarayıcı bot fark edilmez. Kendi jail'iniz yalnızca
   `Report`'ta strike verir; herhangi birini adıyla override edebilir ya da
   `"off": true` ile kapatabilirsiniz.
 - Tekrarlanan ban iki katına çıkar, `maxBanTime`'a (`24h`) kadar. Banlı istemci düz bir
