@@ -1,5 +1,5 @@
 ---
-description: What a plugin can do, how to register and configure one, and the thirty-eight published plugins, grouped by what they are for.
+description: What a plugin can do, how to register and configure one, and the thirty-nine published plugins, grouped by what they are for.
 reference: Plugin, LoadPluginConfig, ErrUnknownPluginConfig, ErrAppStarted
 ---
 
@@ -160,7 +160,7 @@ a boolean — is also an error, raised when the plugin reads it.
 
 ## The published plugins
 
-Thirty-eight plugins are published alongside the framework, grouped below by what
+Thirty-nine plugins are published alongside the framework, grouped below by what
 they are for. Each is its own module, with its own README that is the full
 reference; what follows is enough to set one up.
 
@@ -169,7 +169,7 @@ reference; what follows is enough to set one up.
 | [SEO and discovery](#seo-and-discovery) | jsonld, meta, ogimage, sitemap, robots, feed, redirects, indexnow |
 | [Content](#content) | markdown, highlight, toc, search, i18n |
 | [Forms and state](#forms-and-state) | validate, honeypot, flash, session |
-| [Security](#security) | secure, ratelimit, basicauth, oauth |
+| [Security](#security) | secure, ratelimit, basicauth, oauth, fail2ban |
 | [Live updates](#live-updates) | live, websocket |
 | [Assets and delivery](#assets-and-delivery) | minimizer, opti-image, bundle, favicon, compress, cdnpurge, offline |
 | [Operations and development](#operations-and-development) | htmlcheck, devtoolbar, accesslog, prometheus, otel, analytics, tenant, errortrack |
@@ -1214,6 +1214,58 @@ Plugins: []collage.Plugin{
   signature is not checked (it comes from the token endpoint over TLS, which OpenID
   Connect Core allows). Refresh coalescing is per process. A guard's or an action's
   redirect stays unchecked: only `next` is.
+
+#### elagoht/fail2ban
+
+[github.com/Elagoht/collage-fail2ban](https://github.com/Elagoht/collage-fail2ban)
+bans clients that probe or brute-force a site. It counts strikes per client in named
+jails, and a client that reaches a jail's limit gets a plain `403` for the length of
+the ban.
+
+```go
+import "github.com/Elagoht/collage-fail2ban"
+
+f2b := fail2ban.New(fail2ban.Options{
+	OnBan: func(b fail2ban.Ban) { notifyAdmin(b.Prefix, b.Jail, b.Until) },
+})
+
+Plugins: []collage.Plugin{f2b /* , the rest */},
+```
+
+```json
+{
+  "elagoht/fail2ban": {
+    "jails": {
+      "probe": { "banTime": "6h" },
+      "notfound": { "off": true }
+    },
+    "allow": ["203.0.113.7", "10.0.0.0/8"]
+  }
+}
+```
+
+- It needs collage v0.47.0 or later, for `Server.TrustedProxies`, `collage.ClientIP`
+  and a `RequestHook` that sees requests collage rejects before routing. List it
+  first in `Config.Plugins`, so its ban check runs before the other plugins'
+  middleware.
+- **Behind a reverse proxy or a CDN, set `Server.TrustedProxies`.** Without it the
+  proxy is the client: one scanner gets your proxy banned, and with it every
+  visitor. A client is an IPv4 address, or an IPv6 `/64`.
+- The `probe` jail (3 strikes in `10m`, banned for `1h`) strikes on a request for a
+  probe path (`/.env`, `/.git/`, `/wp-login.php` and the like; add your own with
+  `probePaths`) or one collage rejects early, with an encoded slash or a `.` / `..`
+  segment. The `notfound` jail (50 in `1m`, `10m`) strikes on any other `404`. A jail
+  of your own strikes only on `Report`; override any by name, or turn it off with
+  `"off": true`.
+- A repeat ban doubles, up to `maxBanTime` (`24h`). A banned client gets a plain
+  `403 Forbidden`, never the site's error page. Collage's own `404` or redirect for
+  an encoded-slash or dirty-path request still reaches it.
+- Call `Report(r, "login")` on a failed login and `Forgive(r, "login")` on a good
+  one. `allow` lists addresses and ranges never counted or banned. `Ban`, `Unban` and
+  `Bans` are the manual API, and `OnBan` (Go only) is called after each ban.
+- Bans are per process and in memory: instances do not share them and a restart
+  clears them. In dev mode nothing happens unless `inDevelopment` is set. It reacts
+  after strikes; it does not replace `elagoht/ratelimit`.
 
 ### Live updates
 

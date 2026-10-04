@@ -363,6 +363,31 @@ Bu durumda `ListenAndServe`'ün sizin yerinize hallettiği timeout'lar ve signal
 handling artık sizin sorumluluğunuzdadır. Plugin'lerin kapanması için
 `app.Shutdown(ctx)`'i de kendiniz çağırırsınız.
 
+
+## Bir proxy'nin arkasında: `TrustedProxies`
+
+Bir proxy'nin arkasında her request'in `RemoteAddr`'i proxy'ninkidir. Gerçek istemciyi
+proxy `X-Forwarded-For`'da bildirir, ama bunu başkası da yapabilir: kendi
+`X-Forwarded-For`'unu gönderen bir istemciye inanılmaz. `Server.TrustedProxies`
+(v0.47.0'dan beri) kimin söylediğine inanılacağını belirler:
+
+```go
+Server: collage.ServerConfig{
+	TrustedProxies: []string{"10.0.0.0/8", "127.0.0.1"},
+},
+```
+
+Her girdi bir adres ya da CIDR aralığıdır; ikisinden de olmayan bir girdi
+`collage.New`'ı başarısız kılar. `collage.ClientIP(r)` bundan sonra istemcinin kim
+olduğunu söyler: `RemoteAddr`'in host'u; ta ki o güvenilen bir proxy olana kadar.
+Öyleyse header sağdan okunur, güvenilen adresler atlanır ve güvenilmeyen ilk adres
+istemcidir (hepsi güvenilense en soldaki). Boşken, yani varsayılanda, hiçbir header'a
+güvenilmez ve `ClientIP` her zaman `RemoteAddr`'dir.
+
+Yalnızca kendi işlettiğiniz proxy'leri ya da platformunuzun belgelediği aralıkları
+yazın. İstemcinin request gönderebildiği bir aralığa güvenmek, o istemcinin istediği
+adresi kendine vermesine izin vermektir.
+
 ## Timeout'lar
 
 `ListenAndServe`, `Config.Server` içindeki timeout'ları uygular:

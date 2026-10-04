@@ -275,6 +275,22 @@ Hooks run in registration order, and each is handed the request under the contex
 the one before it made; the finish functions run in the reverse order. One that
 panics is skipped, and the request is served under the context before it.
 
+Since v0.47.0 the hooks also see a request collage answers before routing: a path
+with an encoded slash (`/a%2f..%2fb`), answered with a 404, and a dirty path
+(`/a/../b`), redirected with 301 (308 for a method other than `GET` and `HEAD`).
+These are a scanner's probes more often than not. For such a request the finish
+function is called once with the status written, `collage.RouteOf` is empty, and
+`r.URL` is the raw path. `collage.ClientIP(r)` works inside `OnRequest`, so a plugin
+that bans or counts clients can see them. `Metrics.HTTPResponse` and collage's own
+request span still skip these requests.
+
+Use `collage.ClientIP(r)` rather than `r.RemoteAddr` for the client's address. It is
+a `netip.Addr`: `RemoteAddr`'s host, or, behind the proxies the application lists in
+`Server.TrustedProxies` (see [Deployment](/docs/deployment#behind-a-proxy-trustedproxies)),
+the client the proxy reports. It is unmapped and has no zone, and is the zero
+`netip.Addr` when there is no address to give, as in a shared page render, whose
+request has no `RemoteAddr`: never count that one.
+
 ### PageResolvedHook
 
 ```go

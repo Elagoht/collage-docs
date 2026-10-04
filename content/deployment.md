@@ -340,6 +340,30 @@ log.Fatal(srv.ListenAndServeTLS(certFile, keyFile))
 Doing that means you own the timeouts and the signal handling that `ListenAndServe`
 did for you, and you call `app.Shutdown(ctx)` yourself so plugins shut down.
 
+
+## Behind a proxy: `TrustedProxies`
+
+Behind a proxy, every request's `RemoteAddr` is the proxy's. The proxy names the real
+client in `X-Forwarded-For`, but so can anyone else: a client sending its own
+`X-Forwarded-For` is not to be believed. `Server.TrustedProxies` (since v0.47.0) says
+whose to believe:
+
+```go
+Server: collage.ServerConfig{
+	TrustedProxies: []string{"10.0.0.0/8", "127.0.0.1"},
+},
+```
+
+Each entry is an address or a CIDR range; one that is neither makes `collage.New`
+fail. `collage.ClientIP(r)` then answers who the client is: `RemoteAddr`'s host,
+unless that is a trusted proxy, in which case the header is read from the right,
+skipping trusted addresses, and the first untrusted one is the client (the leftmost,
+when every one is trusted). Empty, the default, trusts no header, and `ClientIP` is
+always `RemoteAddr`.
+
+List only proxies you run, or your platform's documented ranges. Trusting a range a
+client can send from lets that client name any address it likes.
+
 ## Timeouts
 
 `ListenAndServe` applies the timeouts in `Config.Server`:

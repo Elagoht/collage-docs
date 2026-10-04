@@ -1,5 +1,5 @@
 ---
-description: Bir plugin'in neler yapabildiği, bir plugin'in nasıl register edilip yapılandırıldığı ve ne işe yaradıklarına göre gruplanmış, yayımlanmış otuz sekiz plugin.
+description: Bir plugin'in neler yapabildiği, bir plugin'in nasıl register edilip yapılandırıldığı ve ne işe yaradıklarına göre gruplanmış, yayımlanmış otuz dokuz plugin.
 reference: Plugin, LoadPluginConfig, ErrUnknownPluginConfig, ErrAppStarted
 ---
 
@@ -174,7 +174,7 @@ beklediği yerde bir string varsa, plugin bu bölümü okuduğunda hata oluşur.
 
 ## Yayımlanmış plugin'ler
 
-Framework ile birlikte otuz sekiz plugin yayımlanmıştır. Aşağıda ne işe
+Framework ile birlikte otuz dokuz plugin yayımlanmıştır. Aşağıda ne işe
 yaradıklarına göre gruplanmışlardır. Her biri ayrı bir modüldür ve her birinin tam
 referans niteliğinde kendi README'si vardır. Aşağıdaki bilgiler bir plugin'i
 kurmanız için yeterlidir.
@@ -184,7 +184,7 @@ kurmanız için yeterlidir.
 | [SEO ve keşfedilebilirlik](#seo-and-discovery) | jsonld, meta, ogimage, sitemap, robots, feed, redirects, indexnow |
 | [İçerik](#content) | markdown, highlight, toc, search, i18n |
 | [Form'lar ve state](#forms-and-state) | validate, honeypot, flash, session |
-| [Güvenlik](#security) | secure, ratelimit, basicauth, oauth |
+| [Güvenlik](#security) | secure, ratelimit, basicauth, oauth, fail2ban |
 | [Canlı güncellemeler](#live-updates) | live, websocket |
 | [Asset'ler ve teslimat](#assets-and-delivery) | minimizer, opti-image, bundle, favicon, compress, cdnpurge, offline |
 | [Operasyon ve development](#operations-and-development) | htmlcheck, devtoolbar, accesslog, prometheus, otel, analytics, tenant, errortrack |
@@ -1270,6 +1270,61 @@ Plugins: []collage.Plugin{
   imzası kontrol edilmez (token endpoint'inden TLS üzerinden gelir, OpenID Connect
   Core buna izin verir). Refresh birleştirme süreç başınadır. Bir guard'ın ya da
   action'ın redirect'i kontrolsüz kalır: yalnızca `next` kontrol edilir.
+
+#### elagoht/fail2ban
+
+[github.com/Elagoht/collage-fail2ban](https://github.com/Elagoht/collage-fail2ban),
+bir siteyi yoklayan ya da brute-force eden istemcileri banlar. İstemci başına
+strike'ları adlandırılmış jail'lerde sayar; bir jail'in sınırına ulaşan istemci ban
+süresi boyunca düz bir `403` alır.
+
+```go
+import "github.com/Elagoht/collage-fail2ban"
+
+f2b := fail2ban.New(fail2ban.Options{
+	OnBan: func(b fail2ban.Ban) { notifyAdmin(b.Prefix, b.Jail, b.Until) },
+})
+
+Plugins: []collage.Plugin{f2b /* , diğerleri */},
+```
+
+```json
+{
+  "elagoht/fail2ban": {
+    "jails": {
+      "probe": { "banTime": "6h" },
+      "notfound": { "off": true }
+    },
+    "allow": ["203.0.113.7", "10.0.0.0/8"]
+  }
+}
+```
+
+- collage v0.47.0 ya da sonrasını gerektirir: `Server.TrustedProxies`,
+  `collage.ClientIP` ve collage'ın routing'den önce reddettiği request'leri de gören
+  bir `RequestHook` için. `Config.Plugins`'te ilk sıraya koyun; böylece ban kontrolü
+  diğer plugin'lerin middleware'inden önce çalışır.
+- **Bir reverse proxy ya da CDN'in arkasında `Server.TrustedProxies`'i ayarlayın.**
+  Ayarlanmazsa istemci proxy'nin kendisi olur: tek bir tarayıcı bot proxy'nizin
+  banlanmasına, onunla birlikte her ziyaretçinin banlanmasına yol açar. Bir istemci
+  bir IPv4 adresidir, IPv6'da ise bir `/64`.
+- `probe` jail'i (`10m` içinde 3 strike, `1h` ban) bir probe path'i isteyen
+  (`/.env`, `/.git/`, `/wp-login.php` gibi; kendinizinkini `probePaths` ile ekleyin)
+  ya da collage'ın encoded slash ya da `.` / `..` segment'i yüzünden erkenden
+  reddettiği request'e strike verir. `notfound` jail'i (`1m` içinde 50, `10m` ban)
+  diğer her `404`'e strike verir. Kendi jail'iniz yalnızca `Report`'ta strike verir;
+  herhangi birini adıyla override edebilir ya da `"off": true` ile kapatabilirsiniz.
+- Tekrarlanan ban iki katına çıkar, `maxBanTime`'a (`24h`) kadar. Banlı istemci düz bir
+  `403 Forbidden` alır, sitenin error page'ini asla. Encoded slash'li ya da kirli
+  path'li bir request için collage'ın kendi `404`'ü ya da redirect'i yine de ona
+  ulaşır.
+- Başarısız bir login'de `Report(r, "login")`, başarılısında `Forgive(r, "login")`
+  çağırın. `allow`, hiç sayılmayan ve banlanmayan adresleri ve aralıkları listeler.
+  `Ban`, `Unban` ve `Bans` elle kullanılan API'dir; `OnBan` (yalnızca Go) her ban'dan
+  sonra çağrılır.
+- Ban'lar process başınadır ve memory'de tutulur: instance'lar paylaşmaz, restart
+  hepsini siler. Dev modunda `inDevelopment` ayarlanmadıkça hiçbir şey olmaz. Strike'lardan
+  sonra tepki verir; `elagoht/ratelimit`'in yerine geçmez.
 
 ### Canlı güncellemeler
 

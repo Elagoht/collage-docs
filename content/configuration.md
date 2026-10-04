@@ -130,6 +130,7 @@ spelling it was posted to.
 | `IdleTimeout` | `time.Duration` | `60s` | How long a keep-alive connection may sit idle. |
 | `ShutdownTimeout` | `time.Duration` | `10s` | How long graceful shutdown waits for in-flight requests. |
 | `MaxBodyBytes` | `int64` | 4 MiB | Bound on a request body when the action it routes to sets none — applied before middleware since v0.34.0. |
+| `TrustedProxies` | `[]string` | none | Addresses and CIDR ranges of the proxies in front of the server, whose `X-Forwarded-For` is believed (since v0.47.0). |
 
 `Host` defaults to `localhost`, which is unreachable from outside the machine — in
 a container, set it to `0.0.0.0`. A scaffolded project fills `Host` and `Port` from
@@ -141,6 +142,24 @@ request arrives, and a negative value means unbounded. An unbounded body is memo
 an anonymous caller chooses the size of, so choose that deliberately. An action can
 set its own bound with `WithMaxBodyBytes`; see
 [Forms and actions](/docs/forms-and-actions).
+
+`TrustedProxies` is what makes the client's address knowable behind a reverse proxy,
+where every request's `RemoteAddr` is the proxy's. Each entry is an address or a CIDR
+range (`"10.0.0.0/8"`, `"127.0.0.1"`); one that is neither makes `collage.New` fail,
+naming it. Empty, the default, `X-Forwarded-For` is never read, so a client cannot
+forge it, and `collage.ClientIP(r)` is `RemoteAddr`'s host:
+
+```go
+Server: collage.ServerConfig{
+	TrustedProxies: []string{"10.0.0.0/8", "127.0.0.1"},
+},
+```
+
+A request from a trusted proxy names its client in `X-Forwarded-For`, read from the
+right: the first address that is not a trusted proxy is the client, or the leftmost
+when every one is. List only proxies you run, or your platform's documented ranges.
+Trusting a range a client can send from lets that client name any address it likes.
+See [Deployment](/docs/deployment#behind-a-proxy-trustedproxies).
 
 ## SecurityConfig
 

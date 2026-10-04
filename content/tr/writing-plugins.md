@@ -291,6 +291,22 @@ Hook'lar register sırasına göre çalışır. Her biri request'i kendinden ön
 oluşturduğu context ile alır. Finish fonksiyonları ters sırada çalışır. Panic'e
 düşen bir hook atlanır ve request ondan önceki context ile sunulur.
 
+v0.47.0'dan beri hook'lar, collage'ın routing'den önce yanıtladığı request'leri de
+görür: encoded slash içeren bir path (`/a%2f..%2fb`) 404 ile, kirli bir path
+(`/a/../b`) ise 301 ile yanıtlanır (`GET` ve `HEAD` dışındaki bir metotta 308).
+Bunlar çoğu zaman bir tarayıcı botunun yoklamalarıdır. Böyle bir request için finish
+fonksiyonu, yazılan status ile bir kez çağrılır, `collage.RouteOf` boştur ve `r.URL`
+ham path'tir. `collage.ClientIP(r)` `OnRequest` içinde çalışır; bu yüzden istemcileri
+sayan ya da banlayan bir plugin bu request'leri görebilir. `Metrics.HTTPResponse` ve
+collage'ın kendi request span'i bu request'leri hâlâ atlar.
+
+İstemcinin adresi için `r.RemoteAddr` yerine `collage.ClientIP(r)` kullanın. Bu bir
+`netip.Addr`'dir: `RemoteAddr`'in host'u ya da uygulamanın `Server.TrustedProxies`'te
+listelediği proxy'lerin arkasında proxy'nin bildirdiği istemci (bkz.
+[Deployment](/docs/deployment#behind-a-proxy-trustedproxies)). Adres unmapped'dır,
+zone taşımaz ve verilecek bir adres olmadığında, örneğin `RemoteAddr`'i olmayan
+paylaşılan bir page render'ında, sıfır `netip.Addr`'dir: onu asla saymayın.
+
 ### PageResolvedHook
 
 ```go

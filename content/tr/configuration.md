@@ -138,6 +138,7 @@ action ise hangi yazıma post edildiyse o adreste cevap verir.
 | `IdleTimeout` | `time.Duration` | `60s` | Bir keep-alive bağlantısının en fazla ne kadar boşta bekleyebileceği. |
 | `ShutdownTimeout` | `time.Duration` | `10s` | Graceful shutdown'ın devam eden request'leri ne kadar beklediği. |
 | `MaxBodyBytes` | `int64` | 4 MiB | Request'in yönlendirildiği action kendi sınırını koymadığında request body'sine uygulanan sınır. v0.34.0'dan beri middleware'den önce uygulanır. |
+| `TrustedProxies` | `[]string` | yok | Sunucunun önündeki proxy'lerin adresleri ve CIDR aralıkları; bunların `X-Forwarded-For`'una inanılır (v0.47.0'dan beri). |
 
 `Host`'un varsayılanı `localhost`'tur ve bu adrese makinenin dışından erişilemez.
 Container içinde bu alanı `0.0.0.0` yapın. Scaffold edilen bir proje `Host` ve
@@ -150,6 +151,26 @@ değer ise sınır olmadığı anlamına gelir. Sınırsız bir body, boyutunu a
 çağıranın belirlediği bir bellek kullanımıdır. Bu yüzden bunu bilerek seçin. Bir
 action kendi sınırını `WithMaxBodyBytes` ile koyabilir. Ayrıntılar için [Form'lar ve
 action'lar](/docs/forms-and-actions) sayfasına bakın.
+
+`TrustedProxies`, bir reverse proxy'nin arkasında istemcinin adresini bilmeyi
+sağlayan alandır; orada her request'in `RemoteAddr`'i proxy'ninkidir. Her girdi bir
+adres ya da CIDR aralığıdır (`"10.0.0.0/8"`, `"127.0.0.1"`). İkisinden de olmayan bir
+girdi `collage.New`'ı, girdiyi adıyla anarak başarısız kılar. Boşken, yani
+varsayılanda, `X-Forwarded-For` hiç okunmaz; bu yüzden istemci onu taklit edemez ve
+`collage.ClientIP(r)`, `RemoteAddr`'in host'udur:
+
+```go
+Server: collage.ServerConfig{
+	TrustedProxies: []string{"10.0.0.0/8", "127.0.0.1"},
+},
+```
+
+Güvenilen bir proxy'den gelen request, istemcisini `X-Forwarded-For`'da bildirir ve
+header sağdan okunur: güvenilen proxy olmayan ilk adres istemcidir; hepsi güvenilense
+en soldaki. Yalnızca kendi işlettiğiniz proxy'leri ya da platformunuzun belgelediği
+aralıkları yazın. İstemcinin request gönderebildiği bir aralığa güvenmek, o istemcinin
+istediği adresi kendine vermesine izin vermektir. Bkz.
+[Deployment](/docs/deployment#behind-a-proxy-trustedproxies).
 
 ## SecurityConfig
 
