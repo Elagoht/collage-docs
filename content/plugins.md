@@ -1266,12 +1266,15 @@ Plugins: []collage.Plugin{f2b /* , the rest */},
   probe path (`/.env`, `/.git/`, `/wp-login.php` and the like, and anywhere a
   segment starting with `.env` or a `.git` segment; add your own with `probePaths`) or one collage rejects
   early, with an encoded slash or a `.` / `..` segment. A probe path your site
-  really serves as a page, document or action is not counted. The `notfound` jail
+  really serves as a page, document or action is not counted, unless it answers
+  `404` or another error. The `notfound` jail
   (50 in `1m`, `10m`) strikes on any other `404`, except a mount's. A browser's
   subresource request (`Sec-Fetch-Dest` such as `image` or `script`) never strikes,
   nor does a request marked `Sec-Fetch-Site: cross-site` (a no-cors fetch, a hidden
-  iframe, a link from another site), so another page cannot get your readers banned.
-  A scanner forging these headers goes undetected. A jail of your
+  iframe, a link from another site). That keeps a page on another site from getting
+  your readers banned, in browsers that send these headers; a page on a subdomain of
+  yours, or user content on your own origin, using an iframe or a fetch still
+  counts. A scanner forging these headers goes undetected. A jail of your
   own strikes only on `Report`; override any by name, or turn it off with
   `"off": true`.
 - A repeat ban doubles, up to `maxBanTime` (`24h`). A banned client gets a plain

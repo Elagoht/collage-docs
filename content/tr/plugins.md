@@ -1323,12 +1323,15 @@ Plugins: []collage.Plugin{f2b /* , diğerleri */},
   başlayan ya da `.git` olan bir segment; kendinizinkini `probePaths` ile ekleyin) ya da collage'ın
   encoded slash ya da `.` / `..` segment'i yüzünden erkenden reddettiği request'e
   strike verir. Sitenizin gerçekten page, document ya da action olarak sunduğu bir
-  probe path'i sayılmaz. `notfound` jail'i (`1m` içinde 50, `10m` ban) diğer her
+  probe path'i, `404` ya da başka bir hatayla yanıtlanmadıkça sayılmaz. `notfound` jail'i (`1m` içinde 50, `10m` ban) diğer her
   `404`'e strike verir, bir mount'unki hariç. Tarayıcının bir alt kaynak request'i
   (`image` ya da `script` gibi bir `Sec-Fetch-Dest`) asla strike vermez;
   `Sec-Fetch-Site: cross-site` olarak işaretlenmiş bir request de (no-cors bir fetch,
-  gizli bir iframe, başka bir siteden bir link) vermez. Böylece başka bir sayfa
-  okurlarınızı banlatamaz. Bu header'ları taklit eden bir tarayıcı bot fark edilmez. Kendi jail'iniz yalnızca
+  gizli bir iframe, başka bir siteden bir link) vermez. Bu, bu header'ları gönderen
+  tarayıcılarda başka bir sitedeki sayfanın okurlarınızı banlatmasını engeller;
+  sizin bir subdomain'inizdeki bir sayfa ya da kendi origin'inizdeki kullanıcı
+  içeriği iframe ya da fetch ile yine strike verdirir. Bu header'ları taklit eden
+  bir tarayıcı bot fark edilmez. Kendi jail'iniz yalnızca
   `Report`'ta strike verir; herhangi birini adıyla override edebilir ya da
   `"off": true` ile kapatabilirsiniz.
 - Tekrarlanan ban iki katına çıkar, `maxBanTime`'a (`24h`) kadar. Banlı istemci düz bir
