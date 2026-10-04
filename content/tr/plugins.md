@@ -1023,7 +1023,7 @@ private := collage.NewFragment("private", "layouts/private.html").
   `ErrNoSession` ile başarısız kılar. Her okuyucuyu, onu asla içeri alamayacak bir
   login'e göndermez. Login action'ı `next`'e redirect etmeden önce `next`'i
   `collage.SafeRedirect`'ten geçirin (collage v0.44.0):
-  `collage.SafeRedirect(r.URL.Query().Get("next"), "/")`.
+  `collage.SafeRedirect(rc.Request.URL.Query().Get("next"), "/")`.
 - Metotları `Get`, `Set`, `Delete`, `Clear`, `Regenerate` ve `ID`'dir. Kendi
   handler'ınız session'ı `session.FromContext(r.Context())` ile okur.
 - **Geçerli bir session taşıyan request yeniden render edilir.** Page cache'ten
@@ -1237,11 +1237,24 @@ Plugins: []collage.Plugin{
   değil.
 - Route'lar `{prefix}/{name}/login` ve `{prefix}/{name}/callback`'tir (prefix
   `/auth`), yalnızca `GET`. Sağlayıcıya `{origin}/auth/google/callback` adresini
-  kaydedin. Origin `Config.BaseURL`'dür, bu yüzden çok kiracılı bir sitede her
-  host'un adresi ayrı kaydedilir.
+  kaydedin. Origin `Config.BaseURL`'dür ya da elagoht/tenant gibi bir origin
+  resolver'ın isteğin host'u için söylediğidir. Bu yüzden çok kiracılı bir sitede
+  her host'un adresi ayrı kaydedilir.
+- Bir `issuer` `https` olmalıdır (düz `http` yalnızca `localhost`'a ya da bir
+  loopback IP'ye), yoksa site başlamaz. Böyle olmayan bir endpoint adlandıran
+  discovery document girişi `unavailable` ile bitirir. Token ve revocation
+  çağrıları hiçbir redirect'i izlemez. elagoht/session'ın `sameSite` ayarını
+  varsayılanı olan `"lax"`'ta bırakın: `"strict"` ile cookie sağlayıcıdan dönüşte
+  gönderilmez ve her giriş başarısız olur.
+- `microsoft` preset'i tek başına her Entra ID tenant'ını ve her kişisel Microsoft
+  hesabını kabul eder. Yalnızca bir tenant'ı kabul etmek için `issuer`'ı onunkine
+  ayarlayın (`https://login.microsoftonline.com/<tenant-id>/v2.0`): ayarlanmış bir
+  issuer birebir eşleşmelidir. Microsoft `email_verified` göndermez, bu yüzden onun
+  için `EmailVerified` false'tur. `offline`, preset'i olmayan bir sağlayıcıdan
+  `offline_access` scope'unu ister.
 - Bir giriş `state`, `nonce` ve PKCE kullanır, id_token'ın claim'lerini kontrol eder,
   session'a yeni bir ID verir ve okuyucuyu `collage.SafeRedirect` ile kontrol edilmiş
-  `next`'e gönderir. Başarısız bir giriş kimseyi giriş yapmış bırakmaz: `errorPath`
+  `next`'e, kontrol edildiği haliyle gönderir. Başarısız bir giriş kimseyi giriş yapmış bırakmaz: `errorPath`
   `?error=<kod>` ile açılır (`state`, `expired`, `denied`, `rejected`, `exchange`,
   `token`, `unavailable`), yoksa sitenin status page'i gösterilir.
 - **Hesapları `Provider` + `Subject` ile eşleyin.** E-postaya da yalnızca
@@ -1251,7 +1264,8 @@ Plugins: []collage.Plugin{
   mühürlenerek saklanır. `plug.Client(ctx, userID, "google")`, kullanıcının
   token'ını gönderen ve yenileyen bir `*http.Client` döndürür.
   `errors.Is(err, oauth.ErrNotLinked)` okuyucuyu yeniden girişe göndermek demektir;
-  `Revoke` bağlantıyı koparır. Token yalnızca ilk gittiği host'a gider.
+  `Revoke` bağlantıyı koparır. Token yalnızca ilk gittiği host'a ya da onun
+  subdomain'lerine gider.
 - Sınırlar: GitHub yok (OpenID Connect değil), hesap bağlama yok ve id_token'ın
   imzası kontrol edilmez (token endpoint'inden TLS üzerinden gelir, OpenID Connect
   Core buna izin verir). Refresh birleştirme süreç başınadır. Bir guard'ın ya da

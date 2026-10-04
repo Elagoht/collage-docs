@@ -55,8 +55,11 @@ loc := collage.SafeRedirect(rc.Request.URL.Query().Get("next"), "/")
 ```
 
 `SafeRedirect`, `next` bu sitede bir path ise onu döndürür: `/` ile başlar, `//`
-ya da `/\` ile başlamaz ve kontrol karakteri içermez. Değilse fallback'i döndürür
-(fallback da path değilse `/`). Mutlak bir URL, bu sitenin kendi origin'indeki
+ile başlamaz, ters bölü ve kontrol karakteri içermez, temizlendikten sonra da tek
+bir `/` ile başlar. Değilse fallback'i döndürür (fallback da path değilse `/`).
+Temizleme önemlidir çünkü `http.Redirect` köklü bir path'i temizler:
+`/./\evil.example`, `/\evil.example` olarak çıkar ve tarayıcı bunu
+`//evil.example` diye okur. Mutlak bir URL, bu sitenin kendi origin'indeki
 bile olsa hiçbir zaman kabul edilmez.
 
 ## Bir path tek bir anlama gelir

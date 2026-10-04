@@ -50,9 +50,12 @@ loc := collage.SafeRedirect(rc.Request.URL.Query().Get("next"), "/")
 ```
 
 `SafeRedirect` returns `next` when it is a path on this site — it starts with
-`/`, not with `//` or `/\`, and holds no control character — and the fallback
-otherwise (`/` when the fallback is not one either). An absolute URL is never
-accepted, even one on this site's own origin.
+`/`, not with `//`, holds no backslash and no control character, and still starts
+with a single `/` once cleaned — and the fallback otherwise (`/` when the fallback
+is not one either). The cleaning matters because `http.Redirect` cleans a rooted
+path: `/./\evil.example` would leave as `/\evil.example`, which a browser reads as
+`//evil.example`. An absolute URL is never accepted, even one on this site's own
+origin.
 
 ## A path means one thing
 
