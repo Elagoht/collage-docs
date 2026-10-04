@@ -245,6 +245,20 @@ To redirect to a page by name rather than by path, use
 [`rc.URL`](/docs/links-and-locales#links-from-go) (since v0.37.0); the action
 needs no `*App` handed to it for that either.
 
+A login that sends the reader back to where they came from reads that place from
+a `next` query parameter, and the parameter is the reader's input. Pass it through
+`collage.SafeRedirect` (since v0.44.0) before it becomes a `Location`:
+
+```go
+return &collage.ActionResult{
+	Location: collage.SafeRedirect(rc.Request.URL.Query().Get("next"), "/"),
+}, nil
+```
+
+It returns `next` when that is a path on this site, and the fallback otherwise, so
+`next=https://evil.example` ends at `/`. See
+[Redirects stay on the site](/docs/security#redirects-stay-on-the-site).
+
 Three plugins cover what a form usually needs around this:
 [elagoht/validate](/docs/plugins#elagohtvalidate) checks the fields and answers a
 refused submission with the page and a 422, the reader's input and each field's

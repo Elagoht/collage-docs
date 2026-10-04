@@ -184,7 +184,7 @@ kurmanız için yeterlidir.
 | [SEO ve keşfedilebilirlik](#seo-and-discovery) | jsonld, meta, ogimage, sitemap, robots, feed, redirects, indexnow |
 | [İçerik](#content) | markdown, highlight, toc, search, i18n |
 | [Form'lar ve state](#forms-and-state) | validate, honeypot, flash, session |
-| [Güvenlik](#security) | secure, ratelimit, basicauth |
+| [Güvenlik](#security) | secure, ratelimit, basicauth, oauth |
 | [Canlı güncellemeler](#live-updates) | live, websocket |
 | [Asset'ler ve teslimat](#assets-and-delivery) | minimizer, opti-image, bundle, favicon, compress, cdnpurge, offline |
 | [Operasyon ve development](#operations-and-development) | htmlcheck, devtoolbar, accesslog, prometheus, otel, analytics, tenant |
@@ -1021,8 +1021,9 @@ private := collage.NewFragment("private", "layouts/private.html").
   korur. `Require(key, loginPath)` aynı işi herhangi bir key için yapar:
   `Require("admin", "/login")`. Plugin uygulamada yoksa guard, request'i
   `ErrNoSession` ile başarısız kılar. Her okuyucuyu, onu asla içeri alamayacak bir
-  login'e göndermez. Login action'ı `next`'e redirect etmeden önce `next`'in kendi
-  sitenizde bir path olduğunu kontrol edin.
+  login'e göndermez. Login action'ı `next`'e redirect etmeden önce `next`'i
+  `collage.SafeRedirect`'ten geçirin (collage v0.44.0):
+  `collage.SafeRedirect(r.URL.Query().Get("next"), "/")`.
 - Metotları `Get`, `Set`, `Delete`, `Clear`, `Regenerate` ve `ID`'dir. Kendi
   handler'ınız session'ı `session.FromContext(r.Context())` ile okur.
 - **Geçerli bir session taşıyan request yeniden render edilir.** Page cache'ten
@@ -1036,8 +1037,8 @@ private := collage.NewFragment("private", "layouts/private.html").
 ### Güvenlik
 
 Bir sitenin göndermesi gereken header'lar, tek bir istemcinin siteye ne kadar hızlı
-istek atabileceğine bir sınır ve henüz herkese açık olmayan bir sitenin önünde bir
-parola.
+istek atabileceğine bir sınır, henüz herkese açık olmayan bir sitenin önünde bir
+parola ve bir kimlik sağlayıcısıyla giriş.
 
 #### elagoht/secure
 
@@ -1181,6 +1182,80 @@ Plugins: []collage.Plugin{basicauth.New(basicauth.Options{
 - Kimliği doğrulanmış her response'ta `public`, `private` ile değiştirilir ve
   response `Vary: Authorization` taşır. Böylece öndeki bir CDN, bir page'i sormadan
   sonraki okuyucuya vermez. Siteyi HTTPS üzerinden sunun.
+
+#### elagoht/oauth
+
+[github.com/Elagoht/collage-oauth](https://github.com/Elagoht/collage-oauth),
+okuyucuyu bir OpenID Connect sağlayıcısıyla (Google, Microsoft, GitLab ya da discovery
+document'ı olan herhangi biri) giriş yaptırır. İsterseniz sağlayıcının API token'larını
+da saklar, böylece uygulama okuyucu adına sağlayıcıyı çağırabilir. Kullanıcıları
+uygulama kendisi tutar: siz kendi kullanıcı ID'nizle cevap verirsiniz, plugin de
+okuyucuyu elagoht/session üzerinden giriş yaptırır. Bu yüzden `session.RequireUser`
+guard'ları değişmeden çalışır.
+
+```go
+import "github.com/Elagoht/collage-oauth"
+
+Plugins: []collage.Plugin{
+	session.New(session.Options{KeyHex: os.Getenv("SESSION_KEY")}),
+	oauth.New(oauth.Options{
+		Providers: []oauth.Provider{{
+			Name:            "google",
+			Preset:          "google",
+			ClientID:        "1234-abcd.apps.googleusercontent.com",
+			ClientSecretEnv: "GOOGLE_CLIENT_SECRET",
+		}},
+		OnLogin: func(ctx context.Context, id oauth.Identity) (string, error) {
+			return users.FindOrCreate(ctx, id.Provider, id.Subject, id.Name)
+		},
+	}),
+},
+```
+
+```html
+<a href="{{oauthLogin "google"}}">Google ile giriş yap</a>
+```
+
+```json
+{
+  "elagoht/oauth": {
+    "providers": [
+      { "name": "google", "preset": "google", "clientID": "1234-abcd.apps.googleusercontent.com",
+        "clientSecretEnv": "GOOGLE_CLIENT_SECRET", "offline": true }
+    ],
+    "afterLogin": "/account",
+    "errorPath": "/sign-in-failed",
+    "key": "<64 hex karakter: openssl rand -hex 32>"
+  }
+}
+```
+
+- collage v0.44.0 ya da sonrasını (`collage.SafeRedirect` için) ve elagoht/session
+  v0.2.1 ya da sonrasını gerektirir. Session de register edilmelidir: yoksa login
+  route'ları `500` döner. `OnLogin` ve `Store` kod olduğu için onları Go'da
+  verin. Secret ve key ortam değişkeninde durmalı, sürüm kontrolündeki bir dosyada
+  değil.
+- Route'lar `{prefix}/{name}/login` ve `{prefix}/{name}/callback`'tir (prefix
+  `/auth`), yalnızca `GET`. Sağlayıcıya `{origin}/auth/google/callback` adresini
+  kaydedin. Origin `Config.BaseURL`'dür, bu yüzden çok kiracılı bir sitede her
+  host'un adresi ayrı kaydedilir.
+- Bir giriş `state`, `nonce` ve PKCE kullanır, id_token'ın claim'lerini kontrol eder,
+  session'a yeni bir ID verir ve okuyucuyu `collage.SafeRedirect` ile kontrol edilmiş
+  `next`'e gönderir. Başarısız bir giriş kimseyi giriş yapmış bırakmaz: `errorPath`
+  `?error=<kod>` ile açılır (`state`, `expired`, `denied`, `rejected`, `exchange`,
+  `token`, `unavailable`), yoksa sitenin status page'i gösterilir.
+- **Hesapları `Provider` + `Subject` ile eşleyin.** E-postaya da yalnızca
+  `EmailVerified` true ise güvenin: doğrulanmamış bir adresle hesap eşlemek, bir
+  okuyucunun başkasının hesabını ele geçirmesine yol açar.
+- Bir `Store` ve bir `Key` (hex, en az 32 byte) verilirse token'lar AES-256-GCM ile
+  mühürlenerek saklanır. `plug.Client(ctx, userID, "google")`, kullanıcının
+  token'ını gönderen ve yenileyen bir `*http.Client` döndürür.
+  `errors.Is(err, oauth.ErrNotLinked)` okuyucuyu yeniden girişe göndermek demektir;
+  `Revoke` bağlantıyı koparır. Token yalnızca ilk gittiği host'a gider.
+- Sınırlar: GitHub yok (OpenID Connect değil), hesap bağlama yok ve id_token'ın
+  imzası kontrol edilmez (token endpoint'inden TLS üzerinden gelir, OpenID Connect
+  Core buna izin verir). Refresh birleştirme süreç başınadır. Bir guard'ın ya da
+  action'ın redirect'i kontrolsüz kalır: yalnızca `next` kontrol edilir.
 
 ### Canlı güncellemeler
 

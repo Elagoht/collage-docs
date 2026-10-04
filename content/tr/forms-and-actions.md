@@ -257,6 +257,20 @@ Bir page'e path yerine adıyla redirect etmek için
 [`rc.URL`](/docs/links-and-locales#links-from-go) kullanın (v0.37.0'dan beri).
 Bunun için de action'a `*App` taşımak gerekmez.
 
+Okuyucuyu geldiği yere geri gönderen bir login, o yeri `next` query parametresinden
+okur ve bu parametre okuyucunun girdisidir. `Location` olmadan önce
+`collage.SafeRedirect`'ten geçirin (v0.44.0'dan beri):
+
+```go
+return &collage.ActionResult{
+	Location: collage.SafeRedirect(rc.Request.URL.Query().Get("next"), "/"),
+}, nil
+```
+
+`next` bu sitede bir path ise onu, değilse fallback'i döndürür. Böylece
+`next=https://evil.example` `/`'de biter. Bkz.
+[Redirect'ler sitede kalır](/docs/security#redirects-stay-on-the-site).
+
 Bir form'un bunun etrafında genellikle ihtiyaç duyduklarını üç plugin karşılar.
 [elagoht/validate](/docs/plugins#elagohtvalidate) alanları kontrol eder ve
 reddedilen bir gönderime page ve 422 ile cevap verir; okuyucunun girdisi ve her

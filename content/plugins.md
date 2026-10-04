@@ -169,7 +169,7 @@ reference; what follows is enough to set one up.
 | [SEO and discovery](#seo-and-discovery) | jsonld, meta, ogimage, sitemap, robots, feed, redirects, indexnow |
 | [Content](#content) | markdown, highlight, toc, search, i18n |
 | [Forms and state](#forms-and-state) | validate, honeypot, flash, session |
-| [Security](#security) | secure, ratelimit, basicauth |
+| [Security](#security) | secure, ratelimit, basicauth, oauth |
 | [Live updates](#live-updates) | live, websocket |
 | [Assets and delivery](#assets-and-delivery) | minimizer, opti-image, bundle, favicon, compress, cdnpurge, offline |
 | [Operations and development](#operations-and-development) | htmlcheck, devtoolbar, accesslog, prometheus, otel, analytics, tenant |
@@ -975,8 +975,9 @@ private := collage.NewFragment("private", "layouts/private.html").
   login path with a query of its own keeps it. `Require(key, loginPath)` is the
   same for any key — `Require("admin", "/login")`. Without the plugin in the
   application the guard fails the request with `ErrNoSession` rather than sending
-  every reader to a login that could never let them in. Check `next` is a path on
-  your own site before the login action redirects to it.
+  every reader to a login that could never let them in. Pass `next` through
+  `collage.SafeRedirect` (collage v0.44.0) before the login action redirects to
+  it: `collage.SafeRedirect(r.URL.Query().Get("next"), "/")`.
 - `Get`, `Set`, `Delete`, `Clear`, `Regenerate` and `ID`; a handler of your own
   reads it with `session.FromContext(r.Context())`.
 - **A request carrying a valid session is rendered fresh**, neither read from the
@@ -989,8 +990,9 @@ private := collage.NewFragment("private", "layouts/private.html").
 
 ### Security
 
-Headers a site should send, a limit on how fast one client can hit it, and a
-password in front of a site that is not public yet.
+Headers a site should send, a limit on how fast one client can hit it, a
+password in front of a site that is not public yet, and sign-in with an identity
+provider.
 
 #### elagoht/secure
 
@@ -1129,6 +1131,77 @@ Plugins: []collage.Plugin{basicauth.New(basicauth.Options{
 - Every authenticated response has `public` replaced by `private` and carries
   `Vary: Authorization`, so a CDN in front does not hand a page to the next reader
   without asking. Serve it over HTTPS.
+
+#### elagoht/oauth
+
+[github.com/Elagoht/collage-oauth](https://github.com/Elagoht/collage-oauth)
+signs a reader in with an OpenID Connect provider (Google, Microsoft, GitLab or any
+other with a discovery document) and, when you ask, keeps the provider's API tokens
+so the application can call the provider for the reader. The application keeps its
+own users: you answer with your user ID, and the plugin signs the reader in through
+elagoht/session, so `session.RequireUser` guards work unchanged.
+
+```go
+import "github.com/Elagoht/collage-oauth"
+
+Plugins: []collage.Plugin{
+	session.New(session.Options{KeyHex: os.Getenv("SESSION_KEY")}),
+	oauth.New(oauth.Options{
+		Providers: []oauth.Provider{{
+			Name:            "google",
+			Preset:          "google",
+			ClientID:        "1234-abcd.apps.googleusercontent.com",
+			ClientSecretEnv: "GOOGLE_CLIENT_SECRET",
+		}},
+		OnLogin: func(ctx context.Context, id oauth.Identity) (string, error) {
+			return users.FindOrCreate(ctx, id.Provider, id.Subject, id.Name)
+		},
+	}),
+},
+```
+
+```html
+<a href="{{oauthLogin "google"}}">Sign in with Google</a>
+```
+
+```json
+{
+  "elagoht/oauth": {
+    "providers": [
+      { "name": "google", "preset": "google", "clientID": "1234-abcd.apps.googleusercontent.com",
+        "clientSecretEnv": "GOOGLE_CLIENT_SECRET", "offline": true }
+    ],
+    "afterLogin": "/account",
+    "errorPath": "/sign-in-failed",
+    "key": "<64 hex characters: openssl rand -hex 32>"
+  }
+}
+```
+
+- It needs collage v0.44.0 or later (for `collage.SafeRedirect`) and elagoht/session
+  v0.2.1 or later, registered too: without it the login routes answer `500`.
+  `OnLogin` and `Store` are code, so set them in Go; the secret and the key belong
+  in the environment, not in a file under version control.
+- The routes are `{prefix}/{name}/login` and `{prefix}/{name}/callback` (prefix
+  `/auth`), `GET` only. Register `{origin}/auth/google/callback` with the provider:
+  the origin is `Config.BaseURL`, so a multi-tenant site registers each host's.
+- A sign-in uses `state`, a `nonce` and PKCE, checks the id_token's claims, gives
+  the session a new ID, and sends the reader to `next`, checked with
+  `collage.SafeRedirect`. A failure leaves no one signed in: `errorPath` gets
+  `?error=<code>` (`state`, `expired`, `denied`, `rejected`, `exchange`, `token`,
+  `unavailable`), or the site's status page is shown.
+- **Key accounts on `Provider` + `Subject`**, and trust the e-mail only when
+  `EmailVerified` is true: matching an account by an unverified address lets one
+  reader take over another's.
+- With a `Store` and a `Key` (hex, at least 32 bytes) the tokens are kept sealed with
+  AES-256-GCM, and `plug.Client(ctx, userID, "google")` returns an `*http.Client`
+  that sends the user's token and refreshes it. `errors.Is(err, oauth.ErrNotLinked)`
+  means send the reader through sign-in again; `Revoke` unlinks. The token goes only
+  to the host it was first sent to.
+- Limits: no GitHub (not OpenID Connect), no account linking, and the id_token's
+  signature is not checked (it comes from the token endpoint over TLS, which OpenID
+  Connect Core allows). Refresh coalescing is per process. A guard's or an action's
+  redirect stays unchecked: only `next` is.
 
 ### Live updates
 

@@ -46,7 +46,18 @@ collage'ın yazdığı hiçbir redirect, okuyucuyu başka bir siteye gönderemez
 
 Bir action'ın `Location`'ı ve bir guard'ınki sizindir: collage onları sizin
 ayarladığınız gibi yazar. Bu yüzden request'ten, kontrol etmeden bir `Location`
-oluşturmayın.
+oluşturmayın. Bazıları siteden çıkmak zorundadır (bir giriş sağlayıcısının
+sayfası), collage'ın onları kontrol etmemesinin sebebi budur. URL'den alınan bir
+`next` için collage v0.44.0'dan beri kendi kontrolünü sunar:
+
+```go
+loc := collage.SafeRedirect(rc.Request.URL.Query().Get("next"), "/")
+```
+
+`SafeRedirect`, `next` bu sitede bir path ise onu döndürür: `/` ile başlar, `//`
+ya da `/\` ile başlamaz ve kontrol karakteri içermez. Değilse fallback'i döndürür
+(fallback da path değilse `/`). Mutlak bir URL, bu sitenin kendi origin'indeki
+bile olsa hiçbir zaman kabul edilmez.
 
 ## Bir path tek bir anlama gelir
 

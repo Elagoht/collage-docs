@@ -41,7 +41,18 @@ No redirect collage writes can send a reader to another site:
   value, so `/login?next={slug}` cannot be handed a second `next`.
 
 An action's `Location` and a guard's are yours: collage writes them as you set
-them, so do not build one from the request without checking it.
+them, so do not build one from the request without checking it. Some must leave
+the site (a sign-in provider's page), which is why collage does not check them.
+For a `next` taken from the URL, collage offers its own check, since v0.44.0:
+
+```go
+loc := collage.SafeRedirect(rc.Request.URL.Query().Get("next"), "/")
+```
+
+`SafeRedirect` returns `next` when it is a path on this site — it starts with
+`/`, not with `//` or `/\`, and holds no control character — and the fallback
+otherwise (`/` when the fallback is not one either). An absolute URL is never
+accepted, even one on this site's own origin.
 
 ## A path means one thing
 
