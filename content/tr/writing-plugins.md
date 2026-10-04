@@ -553,8 +553,8 @@ page'i (cache'ten ya da yeni), bir fragment path'ini ya da fragment read'ini, bi
 action'ın HTML cevabını ve bir hata sayfasını kapsar; document'ı asla.
 
 `Personal`, response'u bir forgery token'ın yaptığı gibi ele alır: ETag'i gönderilen
-body'den yeniden hesaplanır, page `private, no-store` cevabı verir ve cache'ten
-geldiğinde `If-None-Match: *`'a bile asla `304` vermez. Fragment read yeniden
+body'den yeniden hesaplanır, page `private, no-store` cevabı verir; ne cache'ten
+gelen bir page ne de bir fragment read, `If-None-Match: *`'a bile, `304` alır. Fragment read yeniden
 hesaplanan ETag ile `private, no-cache`, action'ın HTML'i ise `private, no-store`
 cevabı verir; handler'ın kendi ayarladığı `Cache-Control` da geçersiz kalır.
 elagoht/compress gibi sıkıştırılmış body'leri ETag başına saklayan bir middleware
