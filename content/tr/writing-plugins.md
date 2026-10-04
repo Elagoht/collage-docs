@@ -705,10 +705,12 @@ olan kod, `collage.Vary` ile bildirilmiş bir header'ı `collage.VariedContext(c
 
 ```go
 type ErrorEvent struct {
-	Err   error
-	Page  *collage.Page // nil unless the failure was a page's own; see below
-	Path  string
-	Stage string
+	Err     error
+	Page    *collage.Page // nil unless the failure was a page's own; see below
+	Path    string
+	Stage   string
+	Status  int           // the HTTP status the failure is answered with; 0 for none
+	Request *http.Request // the reader's request, read-only; nil outside a request
 }
 ```
 
@@ -737,6 +739,24 @@ page alır. Bu yüzden başka türlü kimse durumu fark etmez.
 `collage.ErrCSRFMissing` ve benzerleri, 4xx ya da 5xx dönen bir mount için
 `collage.ErrAssetFailed`, recover edilmiş bir panic için `collage.ErrPanic` vardır.
 Geri kalanlar [Hatalar](/docs/errors#reported-to-error-hooks) sayfasında listelenir.
+
+Bir request sunulurken recover edilen panic (stage `"panic"`) v0.45.0'dan beri bir
+`*collage.PanicError`'dır. `errors.Is(err, collage.ErrPanic)` yine eşleşir;
+`errors.As` panic değerine ve panic'in oluştuğu stack'e ulaşır, kod bir error ile
+panic ettiyse `errors.Is` değerin kendisine ulaşır. Stack artık error'ın mesajında
+değildir; yalnızca framework'ün `collage: request failed` log satırındaki ayrı bir
+`stack` attribute'unda bulunur. Stack'i mesajda arayan kod bunun yerine
+`PanicError.Stack`'i okumalıdır.
+
+`Status` (v0.45.0'dan beri), hatanın cevaplandığı HTTP status'tür: var olmayan bir
+asset için 404, başarısız bir render ya da panic için 500. Hata için hiçbir cevap
+yazılmıyorsa 0'dır; page sunulduktan sonra başarısız olan bir cache yazımı gibi.
+`"error_page"` event'i her zaman 500 der. `Request`, okuyucunun canlı request'idir ve
+yalnızca okumak içindir: URL'si, method'u ve header'ları; body'si daha önce okunmuş
+olabilir. Hata bir request'ten gelmediyse `nil`'dir. İhtiyacınız olanı `OnError`
+sırasında okuyun; saklamayın ve başka bir goroutine'e vermeyin. İkisi birlikte, bir
+plugin'in kendi middleware'ine ihtiyaç duymadan 5xx'i 4xx'ten ayırmasını ve URL'yi
+adlandırmasını sağlar.
 
 `OnError`'dan dönen bir hata log'lanır ve yutulur. Kalan plugin'ler event'i yine de
 alır. Başarısız olan bir error handler, yeni bir error handling turu başlatmamalıdır.

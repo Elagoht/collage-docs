@@ -673,10 +673,12 @@ holds only a context reads a header declared with `collage.Vary` through
 
 ```go
 type ErrorEvent struct {
-	Err   error
-	Page  *collage.Page // nil unless the failure was a page's own; see below
-	Path  string
-	Stage string
+	Err     error
+	Page    *collage.Page // nil unless the failure was a page's own; see below
+	Path    string
+	Stage   string
+	Status  int           // the HTTP status the failure is answered with; 0 for none
+	Request *http.Request // the reader's request, read-only; nil outside a request
 }
 ```
 
@@ -703,6 +705,23 @@ nothing, `collage.ErrNotFound` for content that does not exist,
 for a refused submission, `collage.ErrAssetFailed` for a mount answering 4xx or
 5xx, `collage.ErrPanic` for a recovered panic, and the rest listed in
 [Errors](/docs/errors#reported-to-error-hooks).
+
+A panic recovered while serving a request (stage `"panic"`) is a
+`*collage.PanicError` (since v0.45.0). It still matches `errors.Is(err, collage.ErrPanic)`;
+`errors.As` reaches the panic value and the stack it was raised on, and `errors.Is`
+reaches the value itself when the code panicked with an error. The stack is no longer
+in the error's message, only in a separate `stack` attribute of the framework's
+`collage: request failed` log line, so code that matched the stack in the message
+reads `PanicError.Stack` instead.
+
+`Status` (since v0.45.0) is the HTTP status the failure is answered with: 404 for a
+missing asset, 500 for a failed render or a panic, and 0 when no response is written
+for it, as for a cache write that failed after the page was served. An
+`"error_page"` event always says 500. `Request` is the reader's live request, for
+reading only: its URL, method and headers, with a body that may already have been
+read. It is `nil` when the failure did not come from a request. Read what you need
+during `OnError`; do not keep it or hand it to another goroutine. Together they let
+a plugin tell a 5xx from a 4xx and name the URL without a middleware of its own.
 
 An error returned from `OnError` is logged and swallowed, and the remaining
 plugins still receive the event: an error handler that fails must not start another

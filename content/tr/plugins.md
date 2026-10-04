@@ -187,7 +187,7 @@ kurmanız için yeterlidir.
 | [Güvenlik](#security) | secure, ratelimit, basicauth, oauth |
 | [Canlı güncellemeler](#live-updates) | live, websocket |
 | [Asset'ler ve teslimat](#assets-and-delivery) | minimizer, opti-image, bundle, favicon, compress, cdnpurge, offline |
-| [Operasyon ve development](#operations-and-development) | htmlcheck, devtoolbar, accesslog, prometheus, otel, analytics, tenant |
+| [Operasyon ve development](#operations-and-development) | htmlcheck, devtoolbar, accesslog, prometheus, otel, analytics, tenant, errortrack |
 
 ### SEO ve keşfedilebilirlik
 
@@ -1977,6 +1977,52 @@ Plugins: []collage.Plugin{tenant.NewWith(tenant.Options{
   v0.2.0'dan itibaren host'u izler.
 - `acme.localhost` `collage dev` ile çalışır. Static build'in host'u yoktur; tenant'sız
   render eder ve `tenant/no-host` uyarısı verir.
+
+#### elagoht/errortrack
+
+[github.com/Elagoht/collage-errortrack](https://github.com/Elagoht/collage-errortrack),
+sunucu hatalarını ve panic'leri Sentry'ye ya da protokolünü konuşan herhangi bir
+servise (GlitchTip, kendi barındırdığınız Sentry) yalnızca standart kütüphaneyle
+raporlar. Her `5xx`'i ve recover edilen her panic'i `ErrorHook` üzerinden duyar ve
+arka plandaki bir goroutine'den gönderir; bu yüzden yavaş ya da kapalı bir Sentry
+hiçbir request'i yavaşlatmaz.
+
+```go
+import "github.com/Elagoht/collage-errortrack"
+
+Plugins: []collage.Plugin{errortrack.New(errortrack.Options{
+	User: func(r *http.Request) errortrack.User {
+		return errortrack.User{ID: userID(r)}
+	},
+})},
+```
+
+```json
+{
+  "elagoht/errortrack": {
+    "dsnEnv": "SENTRY_DSN",
+    "environment": "production",
+    "sampleRate": 1
+  }
+}
+```
+
+- collage v0.45.0 ya da sonrasını ister; `ErrorEvent`'i status'ü ve request'i taşır.
+  Ayrıca bir `DSN` ya da `DSNEnv` gerekir: yoksa başlangıç başarısız olur. DSN bir
+  kimlik bilgisidir; `collage.json`'a değil, ortam değişkenine koyun.
+- Sunucudan çıkan şey sınırlıdır: error zinciri, bir panic'in stack'i, ham path
+  yerine route pattern'i, değerleri `[filtered]` olan query anahtarları ve beş request
+  header'ı. Cookie'ler, `Authorization`, body ve client adresi hiçbir zaman
+  gönderilmez (adres yalnızca `sendIP` ile). Bir kullanıcı, ancak `User` callback'inizin
+  döndürdüğü kadarıyla gönderilir.
+- Mesaj, hatalı kodun yazdığı gibi gönderilir ve bir sır taşıyabilir. `BeforeSend` ile
+  temizleyin; o event'i düzenleyebilir ya da `false` dönerek düşürebilir.
+- `minStatus` (500) neyin raporlanacağını belirler; panic'ler her zaman raporlanır.
+  `sampleRate`, `perMinute` (60) ve `queueSize` (100) hacmi sınırlar: aşan event'ler
+  düşürülür ve sayılır, yeniden denenmez; bir `429` gönderimi duraklatır.
+- Kaydettiğiniz plugin üzerindeki `Capture(ctx, err)`, bir arka plan işi gibi request
+  dışında oluşan bir hatayı raporlar. `inDevelopment` verilmedikçe dev modda hiçbir şey
+  gönderilmez.
 
 ## Head'e yazan plugin'ler
 

@@ -172,7 +172,7 @@ reference; what follows is enough to set one up.
 | [Security](#security) | secure, ratelimit, basicauth, oauth |
 | [Live updates](#live-updates) | live, websocket |
 | [Assets and delivery](#assets-and-delivery) | minimizer, opti-image, bundle, favicon, compress, cdnpurge, offline |
-| [Operations and development](#operations-and-development) | htmlcheck, devtoolbar, accesslog, prometheus, otel, analytics, tenant |
+| [Operations and development](#operations-and-development) | htmlcheck, devtoolbar, accesslog, prometheus, otel, analytics, tenant, errortrack |
 
 ### SEO and discovery
 
@@ -1894,6 +1894,51 @@ Plugins: []collage.Plugin{tenant.NewWith(tenant.Options{
   follow the host from v0.2.0.
 - `acme.localhost` works through `collage dev`. A static build has no host, so it
   renders without a tenant and warns `tenant/no-host`.
+
+#### elagoht/errortrack
+
+[github.com/Elagoht/collage-errortrack](https://github.com/Elagoht/collage-errortrack)
+reports server errors and panics to Sentry, or to any service that speaks its
+protocol (GlitchTip, self-hosted Sentry), with the standard library alone. It hears
+every `5xx` and every recovered panic through `ErrorHook` and sends from a
+background goroutine, so a slow or down Sentry never slows a request.
+
+```go
+import "github.com/Elagoht/collage-errortrack"
+
+Plugins: []collage.Plugin{errortrack.New(errortrack.Options{
+	User: func(r *http.Request) errortrack.User {
+		return errortrack.User{ID: userID(r)}
+	},
+})},
+```
+
+```json
+{
+  "elagoht/errortrack": {
+    "dsnEnv": "SENTRY_DSN",
+    "environment": "production",
+    "sampleRate": 1
+  }
+}
+```
+
+- It needs collage v0.45.0 or later, whose `ErrorEvent` carries the status and the
+  request, and a `DSN` or `DSNEnv`: startup fails without one. The DSN is a
+  credential; keep it in the environment, not in `collage.json`.
+- What leaves the server is limited: the error chain, a panic's stack, the route
+  pattern rather than the raw path, query keys with `[filtered]` values, and five
+  request headers. Cookies, `Authorization`, the body and the client address are
+  never sent (the address only with `sendIP`). A user is sent only as far as your
+  `User` callback returns one.
+- A message is sent as the failing code wrote it, and may carry a secret. Scrub it
+  with `BeforeSend`, which may edit the event or return `false` to drop it.
+- `minStatus` (500) lowers or raises what is reported; panics always are. `sampleRate`,
+  `perMinute` (60) and `queueSize` (100) bound the volume: what exceeds them is
+  dropped and counted, never retried, and a `429` pauses sending.
+- `Capture(ctx, err)` on the plugin you registered reports an error from outside a
+  request, such as a background job. Nothing is sent in dev mode unless
+  `inDevelopment` is set.
 
 ## Plugins that write to the head
 
