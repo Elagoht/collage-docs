@@ -90,13 +90,13 @@ A page that calls none of the three is resolved when it is registered. Before
 that its strategy is `collage.StrategyAuto`; after, it is one of the other three.
 
 - **Dynamic** if anything it renders fetches per render: a data handler
-  (`WithDataHandler`, including `collage.Load` and `collage.Effect`) or a slot
+  (`collage.DataHandler`, `collage.Load` or `collage.Effect`) or a slot
   resolver, in its layout, its content, anything bound into their slots, their
   fallbacks, or a fragment opened with `WithFragmentPath`.
 - **Static** otherwise. A page rendering templates and fixed values —
-  `WithData(v)`, `WithTitle(s)` — renders the same for every reader, so a site of
-  such pages is cached and [exported](/docs/static-export) without a `Static()` on
-  each one.
+  `collage.Value(v)`, `WithTitle(s)` — renders the same for every reader, so a
+  site of such pages is cached and [exported](/docs/static-export) without a
+  `Static()` on each one.
 
 A handler means dynamic because it may read the request, a cookie, the clock, and
 nothing outside the function can tell whether it does. When the guess is wrong
@@ -115,7 +115,7 @@ not make a page dynamic. Since v0.17.0.
 
 ```go
 more := collage.NewFragment("more-recipes", "fragments/more-recipes.html").
-	WithDataHandler(loadMore). // every recipe but rc.Param("slug")
+	WithData(collage.DataHandler(loadMore)). // every recipe but rc.Param("slug")
 	Static().
 	Build()
 ```
@@ -136,7 +136,7 @@ same over time. Mark it `Shared()` instead. Since v0.19.0.
 
 ```go
 cpu := collage.NewFragment("cpu", "fragments/cpu.html").
-	WithDataHandler(cpuUsage). // the same for everyone, different every second
+	WithData(collage.Load(cpuUsage)). // the same for everyone, different every second
 	Shared().
 	Build()
 ```
@@ -536,7 +536,7 @@ the author thirty times.
 `collage.Cached` stores the author:
 
 ```go
-func authorCard(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
+func authorCard(ctx context.Context, rc *collage.RenderContext) (Author, []string, error) {
 	id := rc.Param("author")
 	author, err := collage.Cached(rc, "author:"+id, time.Hour, []string{"author:" + id},
 		func(ctx context.Context) (Author, error) {

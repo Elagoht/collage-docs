@@ -225,7 +225,7 @@ for _, action := range []*collage.Action{preview.Start(app), preview.Exit()} {
 A data handler asks for drafts when the request is a preview:
 
 ```go
-func postData(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
+func postData(ctx context.Context, rc *collage.RenderContext) (postView, []string, error) {
 	slug := rc.Param("slug")
 	tags := []string{"post:" + slug}
 
@@ -234,10 +234,10 @@ func postData(ctx context.Context, rc *collage.RenderContext) (any, []string, er
 			return cmsClient.Post(ctx, slug, cms.Options{Drafts: preview.Drafts(ctx)})
 		})
 	if errors.Is(err, cms.ErrNotFound) {
-		return nil, tags, fmt.Errorf("post %q: %w", slug, collage.ErrNotFound)
+		return postView{}, tags, fmt.Errorf("post %q: %w", slug, collage.ErrNotFound)
 	}
 	if err != nil {
-		return nil, tags, err
+		return postView{}, tags, err
 	}
 	return postView{Post: post, Preview: preview.Drafts(ctx)}, tags, nil
 }

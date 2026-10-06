@@ -363,7 +363,7 @@ Every page has one of three strategies, which decide whether its output is cache
 A page that calls none of the three is `StrategyAuto` until it is registered, and
 registration resolves it: **dynamic** if anything it renders has a data handler or
 a slot resolver, **static** otherwise. A page of templates and fixed values —
-`WithData`, `WithTitle` — renders the same for everyone, so it is cached without
+`collage.Value`, `WithTitle` — renders the same for everyone, so it is cached without
 saying so. A handler may read the request, a cookie or the clock, and nothing
 outside it can tell, so a page with one renders per request until it says
 `Static()` or `Incremental(ttl)`. [Caching](/docs/caching#a-page-that-declares-none)

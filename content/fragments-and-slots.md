@@ -1,6 +1,6 @@
 ---
 description: Fragments, the slots they expose, what happens when one fails, and slots filled from content at render time.
-reference: NewFragment, NewInlineFragment, InlineHTML, FragmentBuilder, Fragment, FragmentBuilder.WithFallback, FragmentBuilder.WithSlot, FragmentBuilder.WithData, FragmentBuilder.Static, FragmentBuilder.Shared, SlotResolverFunc, ErrUnknownSlot
+reference: NewFragment, NewInlineFragment, InlineHTML, FragmentBuilder, Fragment, FragmentBuilder.WithFallback, FragmentBuilder.WithSlot, FragmentBuilder.WithData, FragmentBuilder.WithoutTypeCheck, FragmentBuilder.Static, FragmentBuilder.Shared, Data, Value, SlotResolverFunc, ErrUnknownSlot
 ---
 
 # Fragments and slots
@@ -12,7 +12,7 @@ a comment list. A page is a tree of them, with the layout at the root.
 
 ```go
 author := collage.NewFragment("author", "fragments/author.html").
-	WithDataHandler(loadAuthor).
+	WithData(collage.DataHandler(loadAuthor)).
 	WithTimeout(time.Second).
 	WithFallback(anonymousAuthor).
 	Build()
@@ -38,8 +38,8 @@ Everything else is optional:
 
 | Method | What it sets |
 | --- | --- |
-| `WithDataHandler(h)` | The function that fetches the template's data — see [Data handlers](/docs/data-handlers) |
-| `WithData(v)` | Data fixed when the program starts, in place of a handler |
+| `WithData(d)` | The template's data: a handler from `collage.DataHandler` or `collage.Load`, a value fixed when the program starts from `collage.Value`, or `collage.Effect` — see [Data handlers](/docs/data-handlers) |
+| `WithoutTypeCheck()` | Leaves the template out of the check against its data's type — see [How templates are checked](/docs/data-handlers#how-templates-are-checked). Since v0.49.0 |
 | `WithTitle(s)` | The page's `<title>`, without a handler — see [Head and SEO](/docs/head-and-seo) |
 | `WithSlot(name, required, allowMultiple)` | Makes a slot required, or limits it to one fragment |
 | `WithSlotFragment(slot, child)` | Binds a child fragment into a slot |
@@ -59,7 +59,7 @@ you want the error at the line that caused it rather than at `RegisterPage`; see
 [Pages and layouts](/docs/pages-and-layouts#building-a-page).
 
 A fragment with no data handler renders its template with no data, or with the
-value `WithData(v)` hands it on every render. That is right for markup that never
+value `collage.Value(v)` hands it on every render. That is right for markup that never
 changes — a footer, a static notice, a list of links — and for a layout whose only
 job is to arrange slots. It also keeps the page cacheable: a page that declares no
 strategy is static unless something it renders has a data handler or a slot
@@ -68,8 +68,8 @@ whose handler reads only the path's parameters and the locale says `Static()`,
 and its handler no longer counts. One whose handler is the same for every reader
 but not over time — a measurement — says `Shared()`, which implies nothing about
 the page and still counts; a handler that breaks either promise sends one reader's
-data to another. Setting both
-`WithData` and `WithDataHandler` is `ErrConflictingData` at registration.
+data to another. Setting a fragment's data
+twice is `ErrConflictingData` at registration.
 
 ### Inline templates
 
@@ -83,7 +83,7 @@ row := collage.NewInlineFragment("post-row", `
     <td>{{.Title}}</td>
     <td>{{template "partials/date.html" .Date}}</td>
   </tr>`).
-	WithDataHandler(loadRow).
+	WithData(collage.DataHandler(loadRow)).
 	Build()
 ```
 
@@ -118,7 +118,7 @@ The template is code, so it must be a constant. Never build it from data —
 title holds, and each distinct string becomes a template the program keeps until
 it exits. This matters most in a [slot resolver](#slots-filled-per-render), which
 builds fragments per request: its fragments can be inline, but their templates are
-fixed, and the data reaches them through `WithData` or a data handler.
+fixed, and the data reaches them through `collage.Value` or a data handler.
 
 Three more limits come with it:
 
@@ -143,7 +143,7 @@ children into it by name:
 
 ```go
 post := collage.NewFragment("post", "pages/post.html").
-	WithDataHandler(loadPost).
+	WithData(collage.DataHandler(loadPost)).
 	WithSlot("author", true, false).
 	WithSlotFragment("author", author).
 	WithSlotFragment("related", relatedPosts).
@@ -219,17 +219,17 @@ What happens next is the fragment's **failure policy**, and there are three.
 
 ```go
 postContent := collage.NewFragment("post", "pages/post.html").
-	WithDataHandler(loadPost).
+	WithData(collage.DataHandler(loadPost)).
 	Required().
 	Build()
 
 comments := collage.NewFragment("comments", "fragments/comments.html").
-	WithDataHandler(loadComments).
+	WithData(collage.DataHandler(loadComments)).
 	WithFallback(collage.NewFragment("comments-unavailable", "fragments/comments-unavailable.html").Build()).
 	Build()
 
 related := collage.NewFragment("related", "fragments/related.html").
-	WithDataHandler(loadRelated).
+	WithData(collage.DataHandler(loadRelated)).
 	Build()
 ```
 
@@ -283,7 +283,7 @@ records `ErrInvalidTimeout`.
 
 ```go
 recommendations := collage.NewFragment("recommendations", "fragments/recommendations.html").
-	WithDataHandler(loadRecommendations).
+	WithData(collage.DataHandler(loadRecommendations)).
 	WithTimeout(300 * time.Millisecond).
 	WithFallback(nothingToRecommend).
 	Build()
@@ -315,7 +315,7 @@ type block struct {
 }
 
 landing := collage.NewFragment("landing", "pages/landing.html").
-	WithDataHandler(collage.Effect(func(ctx context.Context, rc *collage.RenderContext) error {
+	WithData(collage.Effect(func(ctx context.Context, rc *collage.RenderContext) error {
 		blocks, err := cms.Blocks(ctx, "landing")
 		if err != nil {
 			return err
@@ -348,7 +348,7 @@ func blockFragment(i int, b block) (*collage.Fragment, error) {
 	switch b.Kind {
 	case "hero", "text":
 		return collage.NewFragment(fmt.Sprintf("block-%d-%s", i, b.Kind), "blocks/"+b.Kind+".html").
-			WithData(b).
+			WithData(collage.Value(b)).
 			Build(), nil
 	}
 	return nil, fmt.Errorf("landing: unknown block kind %q", b.Kind)
@@ -376,12 +376,13 @@ The rules:
   returned fragment built with errors fails the fragment that owns the slot, under
   that fragment's failure policy, with the returned fragment's name in the error.
   Check `BuildErr()` yourself when you would rather handle it in the resolver.
-  Templates are all loaded at startup, so the set of block kinds a resolver can
-  use is still fixed by the program.
+  Nor are their templates checked against their data's type, which registration
+  does for every other fragment. Templates are all loaded at startup, so the set
+  of block kinds a resolver can use is still fixed by the program.
 
 A page whose sections come from content should also report that content's tags —
-here the landing handler could be written in `WithDataHandler`'s own shape rather
-than with `collage.Effect`, returning `"landing"` as a tag — so a cached page is
+here the landing handler could be written with `collage.DataHandler` rather than
+with `collage.Effect`, returning `"landing"` as a tag — so a cached page is
 dropped when an editor reorders it. See [Caching](/docs/caching).
 
 ## The nesting limit

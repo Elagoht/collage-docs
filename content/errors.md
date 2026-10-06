@@ -1,6 +1,6 @@
 ---
 description: Every exported error value in collage, grouped by where it comes from, with what it means and what to do about it.
-reference: ErrCSRFCrossOrigin, ErrCachedFetchPanicked, PanicError, ErrUnknownSlot, ErrConflictingData, ErrNoDocumentHandler, ErrRouteParams, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath, ErrInvalidGuardDecision, ErrGuardRefused, ErrGuarded
+reference: ErrCSRFCrossOrigin, ErrCachedFetchPanicked, PanicError, ErrUnknownSlot, ErrConflictingData, ErrTemplateType, TemplateTypeError, ErrNoDocumentHandler, ErrRouteParams, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath, ErrInvalidGuardDecision, ErrGuardRefused, ErrGuarded
 ---
 
 # Errors
@@ -108,7 +108,8 @@ before it serves anything.
 | `ErrMissingContent` | `collage: missing content` | A page has no content fragment. |
 | `ErrMissingLayout` | `collage: missing layout` | `WithLayouts` was called with no layouts. A page without a layout does not call it. |
 | `ErrConflictingLayout` | `collage: layout chain already declared` | `WithLayouts` was called twice on one builder — or a page built by hand sets a `LayoutFragment` that is not the first entry of its `LayoutChain`. |
-| `ErrConflictingData` | `collage: fixed data and a handler are both set` | A fragment sets both `WithData` and `WithDataHandler`. |
+| `ErrConflictingData` | `collage: conflicting data` | A fragment's data is set twice — `WithData` called twice with data, which before v0.49.0 silently kept the last — or a document sets both `WithBody` and `WithHandler`. The message names the fragment: `fragment "x" has its data set twice`. |
+| `ErrTemplateType` | `collage: template does not fit its data` | A template reads something its fragment's data type cannot give it: `{{.Titel}}` on a type with no such field, say. Each finding is a `*TemplateTypeError` naming the page, the fragment, the file, the line and the column; see [How templates are checked](/docs/data-handlers#how-templates-are-checked). Since v0.49.0. |
 | `ErrInvalidTimeout` | `collage: invalid timeout` | A fragment's timeout is negative. |
 | `ErrMissingTTL` | `collage: missing cache ttl for incremental strategy` | `Incremental` was given a zero TTL. |
 | `ErrInvalidTTL` | `collage: invalid cache ttl` | A page's TTL is negative. |

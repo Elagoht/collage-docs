@@ -1,6 +1,6 @@
 ---
 description: A hands-on tutorial — build a recipe page with a layout, a data handler and a template, add a second fragment in a slot, and export every recipe to static files.
-reference: New, NewPage, NewFragment, FragmentBuilder.WithData, FragmentBuilder.WithTitle, PageBuilder.WithStaticParams, Registrable, DataHandler, Load, ErrNotFound, ErrUnknownSlot
+reference: New, NewPage, NewFragment, FragmentBuilder.WithData, FragmentBuilder.WithTitle, PageBuilder.WithStaticParams, Registrable, DataHandler, Load, Value, ErrNotFound, ErrUnknownSlot, ErrTemplateType
 ---
 
 # Your first page
@@ -82,7 +82,7 @@ type homeView struct {
 
 func Home() *collage.Fragment {
 	return collage.NewFragment("home", "pages/home.html").
-		WithData(homeView{Name: "cookbook"}).
+		WithData(collage.Value(homeView{Name: "cookbook"})).
 		Build()
 }
 ```
@@ -104,14 +104,14 @@ func Home() *collage.Page {
 `fragments "cookbook/fragments/pages/landing"`: both packages are called after
 what they hold, `pages` and `fragments`, and the directory says which area.
 
-`WithData` hands the template the same value on every render, and in
+`collage.Value` hands the template the same value on every render, and in
 `templates/pages/home.html` that value is `.`:
 
 ```html
 <h1>Hello from {{.Name}}</h1>
 ```
 
-Add a field to `homeView`, set it in `WithData(...)` and use it in the template,
+Add a field to `homeView`, set it in `collage.Value(...)` and use it in the template,
 and the page shows it. That is all a fixed piece of data — a list of links, a
 heading — needs.
 
@@ -220,16 +220,16 @@ import (
 // Returns the recipe page's content.
 func Recipe() *collage.Fragment {
 	return collage.NewFragment("recipe", "pages/recipes/recipe.html").
-		WithDataHandler(loadRecipe).
+		WithData(collage.DataHandler(loadRecipe)).
 		Required().
 		Build()
 }
 
 // loadRecipe is the content fragment's data handler.
-func loadRecipe(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
+func loadRecipe(ctx context.Context, rc *collage.RenderContext) (recipes.Recipe, []string, error) {
 	recipe, err := recipes.Get(ctx, rc.Param("slug"))
 	if err != nil {
-		return nil, nil, err
+		return recipes.Recipe{}, nil, err
 	}
 	rc.HoistTitle(recipe.Title + " — cookbook")
 	return recipe, []string{"recipe:" + recipe.Slug}, nil
@@ -252,16 +252,17 @@ Take it a line at a time.
 
 - **`NewFragment("recipe", "pages/recipes/recipe.html")`** names the fragment and
   its template. The template path is relative to `templates/`, extension included.
-- **`WithDataHandler(loadRecipe)`** gives the fragment its data handler: a function
-  of exactly the shape `WithDataHandler` takes, no adapter in between.
+- **`WithData(collage.DataHandler(loadRecipe))`** gives the fragment its data
+  handler. `collage.DataHandler` takes a function that returns its data in its own
+  type, here a `recipes.Recipe`, and that type is what the template is checked
+  against when the page is registered.
 - **The handler returns three things**: the data, the dependency tags it was built
-  from, and an error. The data is the `recipes.Recipe`, returned as `any`, and it
-  is what the template receives as `.`. The tag `recipe:pancakes` says "this page
-  shows the pancakes recipe", which is what lets a cached copy be thrown away when
-  that recipe changes. A loader you also call from elsewhere — a test, another
-  page — can return its own type instead, through `collage.DataHandler`, or
-  `collage.Load` when it has no tags, as the one `collage add` wrote did; see
-  [Data handlers](/docs/data-handlers#loaders-with-a-type-of-their-own).
+  from, and an error. The data is the `recipes.Recipe`, and it is what the template
+  receives as `.`. The tag `recipe:pancakes` says "this page shows the pancakes
+  recipe", which is what lets a cached copy be thrown away when that recipe
+  changes. A loader with no tags to report uses `collage.Load` instead, as the one
+  `collage add` wrote did; see
+  [Data handlers](/docs/data-handlers#handlers-with-no-tags).
 - **`rc.Param("slug")`** is the `{slug}` the URL matched.
 - **`rc.HoistTitle`** gives the page its own `<title>`. The content fragment sits
   inside the layout, and the innermost declaration wins, so it replaces the
@@ -345,9 +346,12 @@ names `recipe` as the fragment where the failure started and prints the whole
 error chain, down to `pages/recipes/recipe.html:2:8` and the field it could not
 find. Put it back.
 
-That is also why the handler returns `any` rather than a `recipes.Recipe`. The
-template is what reads the data, and it reads it untyped: a concrete return type
-would not have caught `{{.Name}}` either.
+That is the development server reparsing a template it has already checked. The
+next time the program starts — the next change to its Go code, `collage check`, or
+a test that registers the page — it does not get that far: the handler returns a
+`recipes.Recipe`, which has no `Name`, so `RegisterPage` refuses the page with a
+`collage.ErrTemplateType` naming the fragment, the file, the line and the column.
+See [How templates are checked](/docs/data-handlers#how-templates-are-checked).
 
 ## Add a second fragment in a slot
 
@@ -380,14 +384,14 @@ type moreView struct {
 // Returns the list of every recipe but the one on the page.
 func More() *collage.Fragment {
 	return collage.NewFragment("more", "pages/recipes/more.html").
-		WithDataHandler(loadMore).
+		WithData(collage.DataHandler(loadMore)).
 		Build()
 }
 
-func loadMore(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
+func loadMore(ctx context.Context, rc *collage.RenderContext) (moreView, []string, error) {
 	list, err := recipes.List(ctx)
 	if err != nil {
-		return nil, nil, err
+		return moreView{}, nil, err
 	}
 	var view moreView
 	for _, recipe := range list {
@@ -425,7 +429,7 @@ the layout every page shares. Put it in a slot of the recipe fragment. In
 
 ```go
 return collage.NewFragment("recipe", "pages/recipes/recipe.html").
-	WithDataHandler(loadRecipe).
+	WithData(collage.DataHandler(loadRecipe)).
 	WithSlotFragment("more", More()).
 	Required().
 	Build()

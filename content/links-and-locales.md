@@ -96,10 +96,10 @@ A fragment reads the result as `rc.Locale`, and uses it to fetch the right
 content:
 
 ```go
-func aboutData(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
+func aboutData(ctx context.Context, rc *collage.RenderContext) (aboutView, []string, error) {
 	text, err := cms.Page(ctx, "about", rc.Locale)
 	if err != nil {
-		return nil, nil, err
+		return aboutView{}, nil, err
 	}
 	return aboutView{Body: text}, []string{"page:about:" + rc.Locale}, nil
 }
@@ -308,7 +308,7 @@ app.Use(func(next http.Handler) http.Handler {
 ```
 
 ```go
-func pageData(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
+func pageData(ctx context.Context, rc *collage.RenderContext) (pageView, []string, error) {
 	lang, _ := ctx.Value(langKey{}).(string)
 	// ...
 }

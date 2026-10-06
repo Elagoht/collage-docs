@@ -1,6 +1,6 @@
 ---
 description: Every command of the collage CLI — new, add, dev, build, export, serve, inspect, check, version and help — with its flags and exactly what it runs.
-reference: DispatchCommands, Command, ErrUnknownCommand, InspectCommand, Inspection, App, Registrable
+reference: DispatchCommands, Command, ErrUnknownCommand, InspectCommand, Inspection, FragmentBuilder.WithoutTypeCheck, App, Registrable
 ---
 
 # The collage CLI
@@ -80,8 +80,8 @@ mount, the CLI contract described [below](#the-contract-with-maingo) and the
 dispatch of [plugin commands](#plugin-commands), a `routes.go` registering every
 route, a layout that names the site with `WithTitle` and declares no slots (so a
 page's own title replaces the site's), a home page that hands its template the
-project's name with `WithData` — static without saying `Static()`, because nothing
-in it fetches — `static/`, a `.gitignore` and a README.
+project's name with `collage.Value` — static without saying `Static()`, because
+nothing in it fetches — `static/`, a `.gitignore` and a README.
 
 **`--template demo`** adds a page of live demos — an action answering
 JSON, a form posting to its own page, a fragment with its own URL, a JSON
@@ -113,7 +113,7 @@ everything with one [`app.Register`](/docs/pages-and-layouts#registration) call.
 
 **The minimal project**, the default since v0.32.0, is the least a project can be: the layout around one
 page, `<h1>Hello from {{.Name}}</h1>` — the project's name, handed to the
-template with `WithData` — and a stylesheet that sets the background and text
+template with `collage.Value` — and a stylesheet that sets the background and text
 colour, dark mode included. Nothing else — no tests, and no not-found page:
 collage answers an unknown address with its own plain 404 until you register one.
 
@@ -542,6 +542,43 @@ It is what an editor's completion reads: the Collage Snippets & Highlighter
 extension for VS Code ([Editor support](/docs/installation#editor-support)) offers
 page names in `{{pageURL "…"}}`, slots in `{{slot "…"}}` and files in
 `{{asset "…"}}` from it.
+
+Since v0.49.0 each fragment also carries the Go type its template sees as `.`, and
+the root carries `types`, a table of the types those reach. An editor can then
+complete `{{.` and check a field name the way registration does — see
+[How templates are checked](/docs/data-handlers#how-templates-are-checked):
+
+```json
+"fragments": [
+  {"name": "post-body", "template": "pages/post.html", "handler": true, "dataType": "*blog.Post"},
+  {"name": "layout", "template": "layouts/default.html", "dataType": "nil"},
+  {"name": "legacy", "template": "pages/legacy.html", "handler": true, "dataType": null, "typeCheck": false}
+],
+"types": {
+  "blog.Post": {
+    "kind": "struct",
+    "fields": [{"name": "Title", "type": "string"}, {"name": "Author", "type": "*blog.User"}],
+    "methods": [{"name": "URL", "args": 0, "returns": "string"}]
+  },
+  "blog.User": {"kind": "struct", "fields": [{"name": "Name", "type": "string"}]}
+}
+```
+
+- **`dataType`** is always written: the Go type, `"nil"` for a fragment with no
+  data or with `collage.Effect`, and `null` when the type is an interface and so
+  unknown until the page renders — a handler declared to return `any`.
+- **`typeCheck: false`** appears only on a fragment built `WithoutTypeCheck()`.
+- **`types`** holds every named type reachable from some fragment's data type —
+  through fields, element and key types, and method results — keyed by its Go
+  name, with its exported fields (promoted ones included) and the exported methods
+  of it and its pointer that return something. A type is listed once and named
+  everywhere else, so a recursive type ends. An unnamed struct is listed under its
+  Go spelling; other unnamed composites are written inline in a type string
+  (`[]blog.Comment`). Standard library types such as `time.Time` and
+  `template.HTML` are named, not described. `types` is left out when no fragment
+  has a known data type.
+
+These are additions: the output's `version` is still `1`.
 
 ## collage check
 

@@ -120,7 +120,7 @@ app.Use(func(next http.Handler) http.Handler {
 ```
 
 ```go
-func accountData(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
+func accountData(ctx context.Context, rc *collage.RenderContext) (accountView, []string, error) {
 	user, ok := ctx.Value(userKey{}).(User)
 	if !ok {
 		return accountView{}, nil, nil // signed out: the fragment renders its signed-out state

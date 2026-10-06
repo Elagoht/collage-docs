@@ -1,6 +1,6 @@
 ---
 description: Where templates live, how they are loaded and embedded, how they reload in development, slots, built-in and custom functions, and escaping.
-reference: TemplateConfig, Config, ErrUnknownSlot
+reference: TemplateConfig, Config, ErrUnknownSlot, ErrTemplateType
 ---
 
 # Templates
@@ -66,8 +66,14 @@ Each kind of mistake is caught at the earliest point it can be:
   `ErrTemplateNotFound`, naming the page, the fragment and the path.
 - **A fragment bound into a slot its template never calls** fails `RegisterPage`
   with `ErrUnknownSlot` — see [Slots](#slots) below.
-- **A template that fails while executing** — a field the data does not have, a
-  function returning an error — fails its fragment, and the fragment's
+- **A template that does not fit its data** — `{{.Titel}}` where the data's type
+  has only `Title`, a method called with the wrong number of arguments — fails
+  `RegisterPage` with `ErrTemplateType`, naming the file, the line and the column
+  (since v0.49.0). See
+  [How templates are checked](/docs/data-handlers#how-templates-are-checked).
+- **A template that fails while executing** — a field of data whose type was not
+  known before the render, a nil pointer, a function returning an error — fails
+  its fragment, and the fragment's
   [failure policy](/docs/fragments-and-slots#when-a-fragment-fails) applies.
   Output is buffered, so a template that fails halfway writes nothing rather than
   half a fragment.
@@ -138,14 +144,16 @@ Two other things make an edit show up at once:
 Since the whole set is reparsed, a syntax error in any one template fails every
 render until it is fixed — in development, where you will see it straight away,
 with the file and line in the error. The checks registration makes are not made
-again for a template edited after startup: its failure shows on the development
-error page instead, template, line and cause first.
+again for a template edited after startup — the check against its data's type
+included, until the next restart: its failure shows on the development error page
+instead, template, line and cause first.
 
 ## What a template receives
 
-`.` is exactly what the fragment's data handler returned, or the value its
-`WithData` gave it. A fragment with neither, or whose handler is adapted with
-`collage.Effect`, renders with no data. See [Data handlers](/docs/data-handlers).
+`.` is exactly what the fragment's data handler returned, or the value
+`collage.Value` gave it, in the Go type the handler or the value declares. A
+fragment with no data, or whose handler is adapted with `collage.Effect`, renders
+with no data. See [Data handlers](/docs/data-handlers).
 
 ```go
 type postView struct {

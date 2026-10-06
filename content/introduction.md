@@ -26,11 +26,11 @@ a layout fragment with a content fragment in it, and a URL.
 
 ```go
 author := collage.NewFragment("author", "fragments/author.html").
-	WithDataHandler(loadAuthor).
+	WithData(collage.DataHandler(loadAuthor)).
 	Build()
 
 post := collage.NewFragment("post", "pages/post.html").
-	WithDataHandler(loadPost).
+	WithData(collage.DataHandler(loadPost)).
 	WithSlotFragment("author", author).
 	Build()
 

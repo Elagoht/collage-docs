@@ -1,60 +1,77 @@
 ---
-description: How a fragment fetches its data — the handler contract, fixed data, typed loaders, dependency tags, 404s, concurrency, the render context, sharing data, and timeouts.
-reference: DataHandlerFunc, FragmentBuilder.WithData, FragmentBuilder.WithTitle, DataHandler, Load, RenderContext, Get, Once, Effect, ErrNotFound, ErrConflictingData, PanicError
+description: How a fragment fetches its data — the handler contract, fixed data, dependency tags, 404s, concurrency, the render context, sharing data, timeouts, and how templates are checked against their data.
+reference: Data, FragmentBuilder.WithData, FragmentBuilder.WithTitle, FragmentBuilder.WithoutTypeCheck, DataHandler, Load, Value, RenderContext, Get, Once, Effect, ErrNotFound, ErrConflictingData, TemplateTypeError, ErrTemplateType, PanicError
 ---
 
 # Data handlers
 
 A data handler is the function a fragment calls to get what its template renders.
-It receives the request's context and the render context, and returns the data,
-the dependency tags that data came from, and an error. Everything about a page
-that talks to the outside world — a database, a CMS, an API — happens in data
-handlers, and nowhere else.
+It receives the request's context and the render context, and returns the data in
+a Go type of its own, the dependency tags that data came from, and an error.
+Everything about a page that talks to the outside world — a database, a CMS, an
+API — happens in data handlers, and nowhere else.
 
 ```go
 content := collage.NewFragment("post", "pages/post.html").
-	WithDataHandler(func(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
+	WithData(collage.DataHandler(func(ctx context.Context, rc *collage.RenderContext) (*Post, []string, error) {
 		post, err := store.Post(ctx, rc.Param("slug"))
 		if err != nil {
 			return nil, nil, err
 		}
 		return post, []string{"post:" + post.Slug}, nil
-	}).
+	})).
 	Required().
 	Build()
 ```
 
 ## The contract
 
-A handler is a function of `WithDataHandler`'s own shape, `collage.DataHandlerFunc`:
+A fragment's data is set with `WithData`, which takes a `collage.Data`. Only four
+constructors make one, and each says where the data comes from:
+
+| Constructor | What it runs | The template's `.` |
+| --- | --- | --- |
+| `collage.DataHandler(fn)`, `fn` returning `(T, []string, error)` | `fn`, on every render, reporting its dependency tags | `T` |
+| `collage.Load(fn)`, `fn` returning `(T, error)` | `fn`, on every render, reporting no tags | `T` |
+| `collage.Value(v)` | Nothing: `v` is handed over on every render | `v`'s type |
+| `collage.Effect(fn)`, `fn` returning `error` | `fn`, on every render, for what it declares | Nothing |
+
+A fragment with no `WithData` renders with no data, as one with `collage.Effect`
+does.
+
+A handler is an ordinary function that returns its own type. Write it inline, as
+above, or name it and hand it over:
 
 ```go
-func(ctx context.Context, rc *collage.RenderContext) (any, []string, error)
-```
-
-Write it inline, as above, or name it and hand it over:
-
-```go
-func loadPost(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
+func loadPost(ctx context.Context, rc *collage.RenderContext) (*Post, []string, error) {
 	// ...
 }
 
 content := collage.NewFragment("post", "pages/post.html").
-	WithDataHandler(loadPost).
+	WithData(collage.DataHandler(loadPost)).
 	Build()
 ```
 
-The data is `any` because its one reader, the template, is untyped anyway. A
-`{{.Titel}}` fails when the page renders whatever the handler's return type says,
-so a concrete type would check nothing the template does not. Where a concrete type
-does pay — a loader that is also called from a test or another handler — see
-[below](#loaders-with-a-type-of-their-own).
+`T` comes from the function's signature, and it is the type the template is
+checked against when the page is registered — see
+[How templates are checked](#how-templates-are-checked) — so the handler and the
+template's idea of its data cannot drift apart. A loader written this way is also
+easy to call from a test or a sitemap's handler, which get a `*Post` rather than a
+value to assert. The constructors are functions of their own rather than forms of
+`WithData` because Go methods cannot take type parameters.
 
-The three results each have a job.
+Before v0.49.0 a handler was handed over with `WithDataHandler` and returned
+`(any, []string, error)`, and fixed data was `WithData(v)`. Both are gone: wrap the
+handler in `collage.DataHandler`, returning its real type, and the value in
+`collage.Value`.
+
+The three results of a `DataHandler` each have a job.
 
 - **The data** — whatever the template renders, as `.`. A struct written for the
   template, a "view", is usually clearer than handing a template a database row.
-  Each fragment gets its own; a child does not see its parent's.
+  Each fragment gets its own; a child does not see its parent's. On an error the
+  data is dropped, so a nil `*Post` returned beside an error never reaches the
+  template as a value that looks present.
 - **The tags** — the pieces of content this data was built from, such as
   `"post:hello-world"` or `"author:ada"`. They are collected from every fragment on
   the page, together with the page's own `WithDependency` tags, and stored with the
@@ -79,10 +96,10 @@ every reader but changes over time — a measurement — says `Shared()` instead
 its render may be shared between readers, and the page stays dynamic. See
 [Caching](/docs/caching#a-page-that-declares-none).
 
-### Fixed data: WithData
+### Fixed data: collage.Value
 
 Data that is fixed when the program starts — a list of links, a heading, a site
-name — needs no handler. `WithData(v)` hands the template `v` on every render:
+name — needs no handler. `collage.Value(v)` hands the template `v` on every render:
 
 ```go
 type homeView struct {
@@ -90,41 +107,24 @@ type homeView struct {
 }
 
 content := collage.NewFragment("home-content", "pages/home.html").
-	WithData(homeView{Links: links}).
+	WithData(collage.Value(homeView{Links: links})).
 	Build()
 ```
 
 Nothing in it fetches per render, so unlike a handler it leaves a page that
-declares no strategy static. A fragment with both `WithData` and `WithDataHandler`
-is refused at registration with `collage.ErrConflictingData`.
+declares no strategy static.
 
-### Loaders with a type of their own
+A fragment has one source of data. Calling `WithData` twice with data is refused at
+registration with `collage.ErrConflictingData`, whose message names the fragment:
+`fragment "home-content" has its data set twice`. Keep the call you mean and drop
+the other; before v0.49.0 the second call silently won. A nil `Data` —
+`WithData(nil)`, or a constructor handed a nil function — is no data, and
+conflicts with nothing.
 
-A loader that is also called where its concrete type matters — a test that checks
-the post it returns, a sitemap's handler that lists every post — is easier to use
-returning a `Post` than an `any` to assert. Write that one against its own type and
-adapt it with `collage.DataHandler`, which is generic over the return type:
+### Handlers with no tags
 
-```go
-func loadPost(ctx context.Context, rc *collage.RenderContext) (Post, []string, error) {
-	post, err := store.Post(ctx, rc.Param("slug"))
-	if err != nil {
-		return Post{}, nil, err
-	}
-	return post, []string{"post:" + post.Slug}, nil
-}
-
-content := collage.NewFragment("post", "pages/post.html").
-	WithDataHandler(collage.DataHandler(loadPost)).
-	Build()
-```
-
-The value it returns is still exactly what the template receives as `.`. It is a
-function rather than a form of `WithDataHandler` because Go methods cannot take
-type parameters.
-
-`collage.Load` is the same for a loader that reports no tags, one that returns the
-data and an error:
+`collage.Load` is `DataHandler` for a loader that reports no tags, one that
+returns the data and an error:
 
 ```go
 func loadClock(_ context.Context, rc *collage.RenderContext) (clockView, error) {
@@ -132,23 +132,23 @@ func loadClock(_ context.Context, rc *collage.RenderContext) (clockView, error) 
 }
 
 content := collage.NewFragment("clock", "fragments/clock.html").
-	WithDataHandler(collage.Load(loadClock)).
+	WithData(collage.Load(loadClock)).
 	Build()
 ```
 
-Both drop the data when the loader returns an error. Which form to reach for:
+Both drop the data when the loader returns an error. Which one to reach for:
 
 | The data | Write |
 | --- | --- |
-| Is the same on every render | `WithData(v)` |
-| Is fetched | A handler, `func(ctx, rc) (any, []string, error)` |
-| Is fetched by a loader called elsewhere too | `collage.DataHandler(fn)` |
-| Is fetched by such a loader, with no tags to report | `collage.Load(fn)` |
+| Is the same on every render | `collage.Value(v)` |
+| Is fetched, from content whose changes must reach a cached page | `collage.DataHandler(fn)` |
+| Is fetched, with no tags to report | `collage.Load(fn)` |
+| Is nothing: the fragment only declares things for the page | `collage.Effect(fn)` — see [below](#handlers-that-render-nothing) |
 
 Leave out the tags only where the page is not cached or the data never changes: a
 cached page whose data changes wants its tags, so that they invalidate it. And
-moving from `WithData` to a handler changes more than the fragment — a page that
-declares no strategy goes from static to dynamic with it.
+moving from `collage.Value` to a handler changes more than the fragment — a page
+that declares no strategy goes from static to dynamic with it.
 
 ### Not found is not an error
 
@@ -157,7 +157,7 @@ get a different answer for each: a 404 for the first, a 500 for the second. Say
 which by wrapping `collage.ErrNotFound`:
 
 ```go
-func loadPost(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
+func loadPost(ctx context.Context, rc *collage.RenderContext) (*Post, []string, error) {
 	slug := rc.Param("slug")
 	post, err := store.Post(ctx, slug)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -258,14 +258,14 @@ Fragments on one page often need the same thing. The post page's content, its
 rc.Set("post", post)
 
 // in a child's handler, which starts after the parent's has returned
-post, ok := collage.Get[Post](rc, "post")
+post, ok := collage.Get[*Post](rc, "post")
 if !ok {
 	return nil, nil, errors.New("more-by-author: no post in shared data")
 }
 ```
 
 `ok` is false when nothing is stored under the key, and also when what is stored is
-not a `Post` — to the caller, both mean the value it wanted is not there. Keys are
+not a `*Post` — to the caller, both mean the value it wanted is not there. Keys are
 your application's own namespace; pick names that will not collide.
 
 `rc.Get` and `rc.Set` take the render's lock, which is why they are safe from
@@ -282,13 +282,13 @@ For siblings — or any fragments that might each need the same fetch — use
 result to every fragment that asks:
 
 ```go
-func loadAuthorCard(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
+func loadAuthorCard(ctx context.Context, rc *collage.RenderContext) (Author, []string, error) {
 	slug := rc.Param("slug")
-	post, err := collage.Once(rc, "post:"+slug, func(ctx context.Context) (Post, error) {
+	post, err := collage.Once(rc, "post:"+slug, func(ctx context.Context) (*Post, error) {
 		return store.Post(ctx, slug)
 	})
 	if err != nil {
-		return nil, nil, err
+		return Author{}, nil, err
 	}
 	return post.Author, []string{"post:" + slug, "author:" + post.Author.ID}, nil
 }
@@ -332,8 +332,8 @@ handler that returns only an error:
 
 ```go
 seo := collage.NewFragment("post-seo", "fragments/empty.html").
-	WithDataHandler(collage.Effect(func(ctx context.Context, rc *collage.RenderContext) error {
-		post, err := collage.Once(rc, "post:"+rc.Param("slug"), func(ctx context.Context) (Post, error) {
+	WithData(collage.Effect(func(ctx context.Context, rc *collage.RenderContext) error {
+		post, err := collage.Once(rc, "post:"+rc.Param("slug"), func(ctx context.Context) (*Post, error) {
 			return store.Post(ctx, rc.Param("slug"))
 		})
 		if err != nil {
@@ -371,7 +371,7 @@ page waits for it.
 Honouring it is one habit: pass `ctx` to everything that can wait.
 
 ```go
-func loadWeather(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
+func loadWeather(ctx context.Context, rc *collage.RenderContext) (*Weather, []string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, weatherURL(rc.Locale), nil)
 	if err != nil {
 		return nil, nil, err
@@ -386,7 +386,7 @@ func loadWeather(ctx context.Context, rc *collage.RenderContext) (any, []string,
 	if err := json.NewDecoder(res.Body).Decode(&weather); err != nil {
 		return nil, nil, err
 	}
-	return weather, nil, nil
+	return &weather, nil, nil
 }
 ```
 
@@ -410,3 +410,170 @@ A panic in a data handler does not take the process down. It is recovered into a
 `*collage.PanicError`, carrying the panic value and the stack, and the fragment
 fails with it like any other error. In development the error page shows the stack;
 reach it in your own code with `errors.As`.
+
+## How templates are checked
+
+A template reads its data by name — `{{.Title}}`, `{{.Author.Name}}` — and
+`html/template` resolves those names only when the template runs. A `{{.Titel}}`
+fails every render of its page, and on a page nobody visits, it never shows. Since
+v0.49.0 every fragment's data comes from a typed constructor, so registration
+knows the Go type each template will run with and walks the template against it.
+`RegisterPage` refuses a page whose templates do not fit their data, naming the
+page, the fragment, the file, the line and the column:
+
+```text
+collage: page "post": fragment "post-body" (post.html:1:6): {{.Titel}}: type blog.Post has no field or method Titel (did you mean Title?)
+```
+
+It reports only what is certain to fail: each finding is an expression
+`text/template` would fail on when the render reached it. An application that now
+fails at startup had a template that would already have failed when rendered; the
+check reports it earlier, and adds no rule of its own.
+
+### What is walked
+
+Every fragment a page reaches: its layouts, its content, everything bound into
+their slots, fallbacks, inline fragments, fragments opened with
+[`WithFragmentPath`](/docs/forms-and-actions#a-fragment-at-its-own-url), and the
+pages named as its [not-found and error pages](/docs/pages-and-layouts#not-found-and-error-pages).
+A partial included with `{{template "partials/author.html" .Author}}` is walked
+with the type it is handed, and once for each type it is handed across the
+application.
+
+A fragment a [slot resolver](/docs/fragments-and-slots#slots-filled-per-render)
+returns is built while the page renders, so registration never sees it, and its
+template is not checked.
+
+`.` starts as the fragment's data type and follows the template: inside
+`{{range}}` it is the element, inside `{{with}}` the value, and a `$x := …`
+variable keeps the type it was given for its scope.
+
+### What is reported
+
+- **A field or method the type does not have**, or a field that is unexported.
+  Pointers are followed, and fields promoted from embedded structs count. The
+  closest exported name is suggested when one is near.
+- **A method with a pointer receiver, reached through a value that is not
+  addressable.** `text/template` calls such a method through the value's
+  address, and data handed to a template by value has none — nor have its
+  fields, nor a map's elements. What a pointer points to and a slice's elements
+  are addressable. If `URL` is declared on `*Post`, `{{.URL}}` fails on a `Post`
+  and works on a `*Post`; the fix is to hand the template the pointer.
+- **A map keyed by a named string type** (`map[Slug]Post`): `.key` looks a key up
+  as a plain `string`, which such a map does not accept. A map keyed by `string`
+  is fine, and a key it does not hold is not an error either: it silently ends
+  the chain, so `{{.Meta.absent.Name}}` renders nothing. The check, knowing only
+  the map's element type, still reports a name that element type lacks.
+- **Calls of the wrong shape**: a method, a template function or a built-in
+  given the wrong number of arguments; a field or map key given arguments; a
+  method or function returning more than a value and an error; `call` on
+  something that is not a function.
+- **`range`, `len` and `index` on the wrong kind**: ranging over a string or a
+  struct, or over an integer with two variables; `len` of a struct; `index` into
+  a struct.
+
+What the render can never reach is not reported. An `{{if}}` or `{{with}}` whose
+condition is a literal — `true`, `false`, `0`, `1`, `""`, `"x"`, or `not` of one —
+never runs the side the literal rules out. `{{and}}` and `{{or}}` stop at an
+operand only when it is a literal that decides them: `false`, `0`, `""` or `nil`
+for `and`; `true`, a non-zero number or a non-empty string for `or`. So
+`{{and 0 .Nope}}` reports nothing, while `{{and 1 .Nope}}` and
+`{{and .Title .Nope}}` report `.Nope`, since the render may reach it.
+
+### What is not
+
+- **What cannot be known before the render.** An interface — `any`, a
+  `map[string]any`'s entries, an `error` — could hold anything, so nothing read
+  from one is reported. Nor is anything read from a `reflect.Value` that a method
+  or function returns, which `text/template` unwraps into whatever it holds.
+- **A fragment with no data.** Reading a field of nil data is not an error in
+  `html/template`: `{{.Title}}` renders nothing. A fragment without `WithData`, or
+  with `collage.Effect`, is still walked, but only its function calls and their
+  argument counts are checked.
+- **Nil pointers inside the data.** `{{.Author.Name}}` with a nil `Author` fails
+  when it renders, and whether it is nil is the data's business, not the type's.
+- **Argument types.** Only the number of arguments is checked: `text/template`
+  converts some arguments itself, and second-guessing it is where false alarms
+  would come from.
+
+### Reading the error
+
+`RegisterPage` returns every finding in the page's own fragments at once, joined
+with `errors.Join` and ordered by file, line and column, so ten mistakes are one
+restart rather than ten. The page's not-found page is checked once the page itself
+passes, and its error page once both have; their findings arrive wrapped in a
+`collage: page "post" not-found page: …` (or `error page: …`) error, on the start
+after the page's own are fixed.
+
+Each finding is a `*collage.TemplateTypeError`, and each matches
+`collage.ErrTemplateType`. A finding may sit under a wrapping error as well as a
+join, so walk the whole tree to list them:
+
+```go
+// typeErrors collects every *collage.TemplateTypeError in err's tree.
+func typeErrors(err error) []*collage.TemplateTypeError {
+	switch e := err.(type) {
+	case nil:
+		return nil
+	case *collage.TemplateTypeError:
+		return []*collage.TemplateTypeError{e}
+	case interface{ Unwrap() []error }:
+		var found []*collage.TemplateTypeError
+		for _, inner := range e.Unwrap() {
+			found = append(found, typeErrors(inner)...)
+		}
+		return found
+	case interface{ Unwrap() error }:
+		return typeErrors(e.Unwrap())
+	}
+	return nil
+}
+```
+
+and, where the page is registered:
+
+```go
+if err := app.RegisterPage(page); errors.Is(err, collage.ErrTemplateType) {
+	for _, typeErr := range typeErrors(err) {
+		fmt.Printf("%s:%d:%d %s\n", typeErr.Template, typeErr.Line, typeErr.Col, typeErr.Reason)
+	}
+}
+```
+
+`errors.As` on the returned error finds the first finding. Its fields:
+
+| Field | What it holds |
+| --- | --- |
+| `Page`, `Fragment` | The page and the fragment the template belongs to |
+| `Template` | The file the expression is in — the fragment's own, or a partial it includes — or `inline template of fragment "x"` |
+| `Line`, `Col` | Where `text/template` itself would name the error, which may lie inside `Expr` rather than at its start: at the last argument of a call, say |
+| `Expr` | The expression as written, `{{.Titel}}` |
+| `Reason` | What is wrong |
+| `Suggestion` | The closest name the type has, or empty |
+
+The check runs where the other registration checks run: at startup, and so in
+[`collage check`](/docs/cli#collage-check), which starts the application, and in
+a test that registers the pages. Under `collage dev` a template edited while the
+program runs is reparsed but not checked again until the next restart, which is
+the next change to its Go code. [`collage inspect`](/docs/cli#collage-inspect)
+prints each fragment's data type, and the types it reaches, for an editor to check
+the same way.
+
+### Turning it off
+
+`WithoutTypeCheck()` leaves one fragment's template out of the check, for the rare
+finding that is wrong, while it is fixed. The fragment renders as before, and
+`collage inspect` marks it `"typeCheck": false`:
+
+```go
+collage.NewFragment("post-body", "pages/post.html").
+	WithData(collage.DataHandler(loadPost)).
+	WithoutTypeCheck().
+	Build()
+```
+
+A handler declared to return an interface — `collage.Load[any]`, say — leaves the
+type unknown, and its template is not walked: that is the way to say on purpose
+that a fragment's data has no fixed shape. `collage.Value` is the exception. Its
+value is in hand, so a value held in an interface is checked against the type it
+holds.

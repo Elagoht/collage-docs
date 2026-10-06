@@ -183,7 +183,7 @@ type contactView struct {
 
 func ContactPage() *collage.Page {
 	form := collage.NewFragment("contact-form", "pages/contact.html").
-		WithDataHandler(contactData).
+		WithData(collage.Load(contactData)).
 		Build()
 
 	return collage.NewPage("contact").
@@ -207,10 +207,10 @@ func sendContact(ctx context.Context, rc *collage.RenderContext) (*collage.Actio
 	return collage.SeeOther("/contact/thanks"), nil
 }
 
-func contactData(_ context.Context, rc *collage.RenderContext) (any, []string, error) {
+func contactData(_ context.Context, rc *collage.RenderContext) (contactView, error) {
 	// Set by the action when this render is its answer; empty on an ordinary GET.
 	view, _ := collage.Get[contactView](rc, "contact:form")
-	return view, nil, nil
+	return view, nil
 }
 ```
 
@@ -520,7 +520,7 @@ for a part stricter than the page:
 
 ```go
 results := collage.NewFragment("results", "fragments/results.html").
-	WithDataHandler(search).
+	WithData(collage.DataHandler(search)).
 	WithGuard(requireAdmin). // after the page's own guards
 	Build()
 ```

@@ -206,7 +206,7 @@ set — and nothing else, because the plugin cannot know what a page is about. T
 page says so from the data handler that fetched the article:
 
 ```go
-func loadArticle(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
+func loadArticle(ctx context.Context, rc *collage.RenderContext) (*Article, []string, error) {
 	article, err := client.Article(ctx, rc.Param("slug"))
 	if err != nil {
 		return nil, nil, err
@@ -575,7 +575,9 @@ app.RegisterPage(collage.NewPage("post").
 }
 ```
 
-- v0.1.3 needs collage v0.34.2 or later; v0.1.2 needed v0.24.0. It can go in
+- v0.1.3 needs collage v0.34.2 or later; v0.1.2 needed v0.24.0. It hands its
+  handlers over as `collage.DataHandlerFunc`, which collage v0.49.0 removed, so it
+  does not build against v0.49.0 or later. It can go in
   `Config.Plugins` or `RegisterPlugin`: it reads its configuration and files when
   the application starts, which a static build does before it lists the pages to
   write.
