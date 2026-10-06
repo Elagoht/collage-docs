@@ -431,7 +431,9 @@ stored.
 
 It counts the content a memory cache holds, and the size of the files on disk.
 Go's allocator rounds a large value up to whole pages, so a memory cache full of
-50 KB pages takes some 10% more heap than `MaxBytes` says. A store of your own
+50 KB pages takes some 10% more heap than `MaxBytes` says, and the process takes
+more than its heap: in a container, set `GOMEMLIMIT` too — see
+[Deployment](/docs/deployment#a-memory-cache-and-the-containers-limit). A store of your own
 bounds itself and ignores the field. Naming the query parameters a page reads with
 [`WithCacheParams`](#query-parameters-in-the-key) is the other half: a page that
 ignores the query stores one copy, not thousands.

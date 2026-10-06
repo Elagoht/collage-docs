@@ -455,7 +455,10 @@ evict edilir. Sınırın tamamından büyük bir page ise sunulur ama saklanmaz.
 Memory cache'te tutulan içeriği, diskte ise dosyaların boyutunu sayar. Go'nun
 allocator'ı büyük bir değeri tam bellek sayfalarına yuvarlar. Bu yüzden 50 KB'lık page'lerle
 dolu bir memory cache, `MaxBytes`'ın söylediğinden yaklaşık %10 daha fazla heap
-kaplar. Kendi store'unuz kendini sınırlar ve bu alanı yok sayar. Page'in okuduğu
+kaplar. Process'in kendisi de heap'inden fazlasını kaplar. Bu yüzden bir
+container'da `GOMEMLIMIT`'i de ayarlayın; ayrıntılar için
+[Deployment](/docs/deployment#a-memory-cache-and-the-containers-limit) sayfasına bakın.
+Kendi store'unuz kendini sınırlar ve bu alanı yok sayar. Page'in okuduğu
 query parametrelerini [`WithCacheParams`](#query-parameters-in-the-key) ile
 belirtmek işin diğer yarısıdır: query'yi yok sayan bir page binlerce değil, tek bir
 kopya saklar.

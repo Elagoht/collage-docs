@@ -295,6 +295,34 @@ ettiğinde bu kopyaları purge eder. [elagoht/compress](/docs/plugins#elagohtcom
 ise response'ları Brotli ve gzip ile, okuyucu başına değil cache'lenen page başına
 bir kez sıkıştırır.
 
+### Memory cache ve container'ın bellek sınırı
+
+`"memory"` cache `MaxBytes` ile sınırlıdır. Siz ayarlamadıkça bu sınır saklanan
+page'ler için 256 MiB'tır ve gerçekten işler: cache dolduğunda canlı heap büyümeyi
+bırakır. Ama process orada durmaz. Go'nun garbage collector'ı yeniden çalışmadan
+önce heap'in, son toplamadan sonra canlı kalan miktarın yaklaşık iki katına
+çıkmasına izin verir. Bu yüzden dolu bir 256 MiB'lık cache, 512 MiB'ı epey aşan
+bir process demek olabilir. Yaklaşık 14 KB'lık bir page 30.000 farklı URL ile
+istendiğinde process yaklaşık 720 MB'ta dengelendi. Bu, bütün ayarlar varsayılan
+değerinde bırakıldığında 512 MiB'lık bir container'ın öldürülmesine yeter.
+
+Runtime'a ne kadar belleği olduğunu `GOMEMLIMIT` ile, container'ın sınırının biraz
+altında bir değerle söyleyin. Böylece runtime sınıra yaklaştıkça öldürülmek yerine
+belleği daha sıkı toplar:
+
+```dockerfile
+# In a 512 MiB container.
+ENV GOMEMLIMIT=400MiB
+```
+
+Aynı ölçüm `GOMEMLIMIT=320MiB` ile yaklaşık 430 MB'ta kaldı. Bu sınır yumuşaktır:
+runtime'ın hedeflediği bir değerdir, zorla uyguladığı bir tavan değildir. Bu yüzden
+`MaxBytes`'ı bunun epey altında tutun. Cache'in tuttuğu her şey canlıdır ve runtime
+ne kadar uğraşırsa uğraşsın toplanamaz. Boyutu sınırın üçte biri ile yarısı
+arasında olan bir cache, render'ların kendisine de yer bırakır. 512 MiB'lık bir
+container'da `MaxBytes`'ı varsayılanından 128–192 MiB'a indirin. Scaffold'un disk
+cache'i page'leri diskte tuttuğu için buna ihtiyaç duymaz.
+
 ### Birden fazla instance ile invalidation
 
 `app.InvalidateTags`, içinde çalıştığı process'in cache'inden entry'leri düşürür. Tek
