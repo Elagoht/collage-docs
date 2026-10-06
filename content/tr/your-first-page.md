@@ -367,8 +367,8 @@ Bu, development server'ın daha önce kontrol ettiği bir template'i yeniden par
 etmesidir. Program bir sonraki başlatılışında (Go kodundaki bir sonraki
 değişiklikte, `collage check`'te ya da page'i register eden bir test'te) o kadar
 ilerleyemez. Handler `Name` alanı olmayan bir `recipes.Recipe` döner. Bu yüzden
-`RegisterPage`, page'i fragment'i, dosyayı, satırı ve sütunu veren bir
-`collage.ErrTemplateType` ile reddeder. Bkz.
+`RegisterPage` page'i reddeder ve fragment'i, dosyayı, satırı ve sütunu belirten
+bir `collage.ErrTemplateType` döner. Bkz.
 [Template'ler nasıl kontrol edilir](/docs/data-handlers#how-templates-are-checked).
 
 ## Bir slot'a ikinci bir fragment ekleyin

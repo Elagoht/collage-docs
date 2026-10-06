@@ -601,15 +601,15 @@ sırasında olduğu gibi kontrol edebilir (bkz.
   şekilde tanımlanmış bir handler) `null`.
 - **`typeCheck: false`** yalnızca `WithoutTypeCheck()` ile oluşturulmuş bir
   fragment'te görünür.
-- **`types`**, herhangi bir fragment'in veri tipinden alanlar, eleman ve anahtar
+- **`types`**, herhangi bir fragment'in veri tipinden alanlar, eleman ve key
   tipleri ve method sonuçları üzerinden ulaşılabilen her isimli tipi tutar. Her
-  tip Go adıyla anahtarlanır ve export edilmiş alanlarını (yükseltilenler dahil)
+  tip Go adıyla key'lenir ve export edilmiş alanlarını (promote edilenler dahil)
   ve kendisinin ve pointer'ının bir şey dönen export edilmiş method'larını
   içerir. Bir tip bir kez listelenir, diğer her yerde adıyla anılır. Böylece
   özyinelemeli bir tip sonsuza gitmez. İsimsiz bir struct, Go yazımıyla
   listelenir. Diğer isimsiz bileşik tipler bir tip string'inin içinde yazılır
   (`[]blog.Comment`). `time.Time` ve `template.HTML` gibi standart kütüphane
-  tipleri tanımlanmaz, yalnızca adıyla anılır. Hiçbir fragment'in bilinen bir veri
+  tipleri ayrıntılandırılmaz, yalnızca adıyla anılır. Hiçbir fragment'in bilinen bir veri
   tipi yoksa `types` yazılmaz.
 
 Bunlar eklemedir: çıktının `version`'ı hâlâ `1`'dir.

@@ -153,9 +153,8 @@ düzeltilene kadar bütün render'ları başarısız kılar. Bu development'ta o
 hemen, dosya ve satır numarasıyla birlikte görürsünüz. Register sırasında yapılan
 kontroller, verinin tipine göre yapılan kontrol de dahil, açılıştan sonra
 düzenlenen bir template için bir sonraki yeniden başlatmaya kadar yeniden
-yapılmaz. Böyle
-bir template'in hatası bunun yerine development error page'inde görünür; önce
-template, satır ve neden gelir.
+yapılmaz. Böyle bir template'in hatası bunun yerine development error page'inde
+görünür; önce template, satır ve neden gelir.
 
 ## Bir template ne alır
 

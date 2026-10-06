@@ -34,8 +34,8 @@ söyler:
 | --- | --- | --- |
 | `collage.DataHandler(fn)`, `fn` `(T, []string, error)` döner | Her render'da `fn`'i çalıştırır ve dependency tag'lerini bildirir | `T` |
 | `collage.Load(fn)`, `fn` `(T, error)` döner | Her render'da `fn`'i çalıştırır, tag bildirmez | `T` |
-| `collage.Value(v)` | Hiçbir şey: `v` her render'da olduğu gibi verilir | `v`'nin tipi |
-| `collage.Effect(fn)`, `fn` `error` döner | Her render'da `fn`'i, tanımladıkları için çalıştırır | Hiçbir şey |
+| `collage.Value(v)` | Hiçbir şey: `v` her render'da verilir | `v`'nin tipi |
+| `collage.Effect(fn)`, `fn` `error` döner | Her render'da `fn`'i, tanımladığı şeyler için çalıştırır | Hiçbir şey |
 
 `WithData` kullanmayan bir fragment, `collage.Effect` kullanan bir fragment gibi
 verisiz render edilir.
@@ -56,7 +56,7 @@ content := collage.NewFragment("post", "pages/post.html").
 `T` fonksiyonun imzasından gelir. Page register edilirken template de bu tipe
 göre kontrol edilir (bkz.
 [Template'ler nasıl kontrol edilir](#how-templates-are-checked)). Bu yüzden
-handler ile template'in verisi hakkındaki varsayımı birbirinden kopamaz. Bu
+handler ile template'in kendi verisine dair varsayımı birbirinden ayrışamaz. Bu
 şekilde yazılan bir loader'ı bir test'ten ya da bir sitemap handler'ından çağırmak
 da kolaydır: bunlar assert edilmesi gereken bir değer yerine bir `*Post` alır.
 Constructor'ların `WithData`'nın bir biçimi değil de ayrı fonksiyonlar olmasının
@@ -73,7 +73,7 @@ Bir `DataHandler`'ın üç dönüş değerinin her birinin ayrı bir görevi var
   struct, yani bir "view", template'e bir veritabanı satırı vermekten genellikle
   daha anlaşılırdır. Her fragment kendi verisini alır. Bir child, parent'ının
   verisini görmez. Hata durumunda veri atılır. Böylece bir hatanın yanında dönen
-  nil bir `*Post`, template'e varmış gibi görünen bir değer olarak hiç ulaşmaz.
+  nil bir `*Post`, template'e mevcutmuş gibi görünen bir değer olarak hiç ulaşmaz.
 - **Tag'ler:** Bu verinin oluşturulduğu içerik parçalarıdır, örneğin
   `"post:hello-world"` ya da `"author:ada"`. Page'deki her fragment'ten, page'in
   kendi `WithDependency` tag'leriyle birlikte toplanır ve cache'lenen page ile
@@ -444,17 +444,17 @@ page'inin her render'ını başarısız kılar. Kimsenin ziyaret etmediği bir p
 ise hiç ortaya çıkmaz. v0.49.0'dan beri her fragment'in verisi tipli bir
 constructor'dan gelir. Bu yüzden register işlemi her template'in hangi Go tipiyle
 çalışacağını bilir ve template'i bu tipe göre dolaşır. `RegisterPage`,
-template'leri verisine uymayan bir page'i reddeder. Hata page'i, fragment'i,
-dosyayı, satırı ve sütunu verir:
+template'leri verilerine uymayan bir page'i reddeder. Hata mesajında page'in,
+fragment'in ve dosyanın adı, satır ve sütun yer alır:
 
 ```text
 collage: page "post": fragment "post-body" (post.html:1:6): {{.Titel}}: type blog.Post has no field or method Titel (did you mean Title?)
 ```
 
-Yalnızca kesin olarak başarısız olacak şeyleri bildirir: her bulgu, render ona
+Kontrol yalnızca kesin olarak başarısız olacak şeyleri bildirir: her bulgu, render ona
 ulaştığında `text/template`'in başarısız olacağı bir ifadedir. Artık başlangıçta
 başarısız olan bir uygulamanın template'i, render edildiğinde zaten başarısız
-olacaktı. Kontrol bunu yalnızca daha erken bildirir, kendinden bir kural eklemez.
+olacaktı. Kontrol bunu daha erken bildirir ve kendinden bir kural eklemez.
 
 ### Neler dolaşılır
 
@@ -478,8 +478,8 @@ boyunca verildiği tipi korur.
 ### Neler bildirilir
 
 - **Tipin sahip olmadığı bir alan ya da method** veya export edilmemiş bir alan.
-  Pointer'lar izlenir, gömülü struct'lardan yükseltilen alanlar da sayılır. Yakın
-  bir isim varsa, en yakın export edilmiş isim önerilir.
+  Pointer'lar izlenir, embedded struct'lardan promote edilen alanlar da sayılır.
+  Yakın bir isim varsa, en yakın export edilmiş isim önerilir.
 - **Adreslenebilir olmayan bir değer üzerinden ulaşılan, pointer receiver'lı bir
   method.** `text/template` böyle bir method'u değerin adresi üzerinden çağırır.
   Template'e değer olarak verilen verinin adresi yoktur; alanlarının ve bir map'in
@@ -487,17 +487,17 @@ boyunca verildiği tipi korur.
   elemanları adreslenebilirdir. `URL`, `*Post` üzerinde tanımlıysa `{{.URL}}` bir
   `Post` üzerinde başarısız olur, bir `*Post` üzerinde çalışır. Çözüm, template'e
   pointer'ı vermektir.
-- **İsimli bir string tipiyle anahtarlanan bir map** (`map[Slug]Post`): `.key`
-  anahtarı düz bir `string` olarak arar ve böyle bir map bunu kabul etmez.
-  `string` ile anahtarlanan bir map sorun değildir. Map'te olmayan bir anahtar da
-  hata değildir: zinciri sessizce bitirir, bu yüzden `{{.Meta.absent.Name}}` hiçbir
-  şey render etmez. Yalnızca map'in eleman tipini bilen kontrol, o eleman tipinde
-  olmayan bir ismi yine de bildirir.
+- **Key'i isimli bir string tipi olan bir map** (`map[Slug]Post`): `.key`, key'i
+  düz bir `string` olarak arar ve böyle bir map bunu kabul etmez. Key'i `string`
+  olan bir map sorun değildir. Map'te olmayan bir key de hata değildir: zinciri
+  sessizce bitirir, bu yüzden `{{.Meta.absent.Name}}` hiçbir şey render etmez.
+  Yalnızca map'in eleman tipini bilen kontrol, o eleman tipinde olmayan bir ismi
+  yine de bildirir.
 - **Yanlış biçimdeki çağrılar:** yanlış sayıda argüman verilen bir method,
-  template fonksiyonu ya da built-in; argüman verilen bir alan ya da map anahtarı;
+  template fonksiyonu ya da built-in; argüman verilen bir alan ya da map key'i;
   bir değer ve bir hatadan fazlasını dönen bir method ya da fonksiyon; fonksiyon
   olmayan bir şey üzerinde `call`.
-- **Yanlış türde `range`, `len` ve `index`:** bir string ya da struct üzerinde
+- **Yanlış türdeki değerler üzerinde `range`, `len` ve `index`:** bir string ya da struct üzerinde
   range, iki değişkenle bir tamsayı üzerinde range, bir struct'ın `len`'i, bir
   struct'a `index`.
 
@@ -523,8 +523,8 @@ bir string. Bu yüzden `{{and 0 .Nope}}` hiçbir şey bildirmez. `{{and 1 .Nope}
 - **Verinin içindeki nil pointer'lar.** `Author` nil ise `{{.Author.Name}}` render
   edilirken başarısız olur. Onun nil olup olmadığı tipin değil, verinin işidir.
 - **Argüman tipleri.** Yalnızca argüman sayısı kontrol edilir. `text/template`
-  bazı argümanları kendisi dönüştürür ve onu tahmin etmeye çalışmak yanlış
-  alarmların kaynağı olurdu.
+  bazı argümanları kendisi dönüştürür ve onun yerine karar vermeye çalışmak
+  yanlış alarmların kaynağı olurdu.
 
 ### Hatayı okumak
 
@@ -534,8 +534,7 @@ Böylece on hata, on değil tek bir yeniden başlatma demektir. Page'in not-foun
 page'i, page'in kendisi geçtikten sonra kontrol edilir. Error page'i ise ikisi de
 geçtikten sonra kontrol edilir. Bunların bulguları bir
 `collage: page "post" not-found page: …` (ya da `error page: …`) hatasıyla sarılı
-olarak, page'in kendi bulguları
-düzeltildikten sonraki başlangıçta gelir.
+olarak, page'in kendi bulguları düzeltildikten sonraki başlangıçta gelir.
 
 Her bulgu bir `*collage.TemplateTypeError`'dır ve her biri
 `collage.ErrTemplateType` ile eşleşir. Bir bulgu, bir join'in yanı sıra sarmalayan
@@ -580,16 +579,16 @@ Dönen hata üzerinde `errors.As` ilk bulguyu bulur. Alanları:
 | `Page`, `Fragment` | Template'in ait olduğu page ve fragment |
 | `Template` | İfadenin bulunduğu dosya (fragment'in kendi dosyası ya da dahil ettiği bir partial) ya da `inline template of fragment "x"` |
 | `Line`, `Col` | `text/template`'in hatayı göstereceği yer. Bu, `Expr`'in başı değil içi olabilir, örneğin bir çağrının son argümanı |
-| `Expr` | Yazıldığı haliyle ifade, `{{.Titel}}` |
+| `Expr` | Yazıldığı hâliyle ifade, `{{.Titel}}` |
 | `Reason` | Neyin yanlış olduğu |
 | `Suggestion` | Tipin sahip olduğu en yakın isim ya da boş |
 
 Kontrol, register sırasında yapılan diğer kontrollerin çalıştığı yerde çalışır:
 başlangıçta, dolayısıyla uygulamayı başlatan
 [`collage check`](/docs/cli#collage-check)'te ve page'leri register eden bir
-test'te. `collage dev` altında, program çalışırken
-düzenlenen bir template yeniden parse edilir ama bir sonraki yeniden başlatmaya,
-yani Go kodundaki bir sonraki değişikliğe kadar tekrar kontrol edilmez.
+test'te. `collage dev` altında, program çalışırken düzenlenen bir template yeniden
+parse edilir. Ama bir sonraki yeniden başlatmaya, yani Go kodundaki bir sonraki
+değişikliğe kadar tekrar kontrol edilmez.
 [`collage inspect`](/docs/cli#collage-inspect), bir editörün aynı şekilde kontrol
 edebilmesi için her fragment'in veri tipini ve ulaştığı tipleri yazdırır.
 
