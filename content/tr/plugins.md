@@ -223,7 +223,7 @@ page'in ne hakkında olduğunu bilemez. Bunu page'in kendisi, makaleyi çeken da
 handler'dan bildirir:
 
 ```go
-func loadArticle(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
+func loadArticle(ctx context.Context, rc *collage.RenderContext) (*Article, []string, error) {
 	article, err := client.Article(ctx, rc.Param("slug"))
 	if err != nil {
 		return nil, nil, err
@@ -607,7 +607,9 @@ app.RegisterPage(collage.NewPage("post").
 ```
 
 - v0.1.3, collage v0.34.2 ya da sonrasını gerektirir (v0.1.2 v0.24.0'ı
-  gerektiriyordu). `Config.Plugins` içinde ya da `RegisterPlugin` ile register
+  gerektiriyordu). Handler'larını collage v0.49.0'ın kaldırdığı
+  `collage.DataHandlerFunc` olarak verir. Bu yüzden v0.49.0 ve sonrasıyla build
+  edilmez. `Config.Plugins` içinde ya da `RegisterPlugin` ile register
   edilebilir: config'ini ve dosyalarını uygulama
   başlarken okur, static build de bunu yazacağı page'leri listelemeden önce yapar.
 - `md.Handler()`, template'e `slug`'ın adlandırdığı `Doc`'u verir (`Title`,

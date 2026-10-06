@@ -1,6 +1,6 @@
 ---
 description: Fragment'ler, sundukları slot'lar, bir fragment başarısız olduğunda ne olduğu ve render sırasında içerikten doldurulan slot'lar.
-reference: NewFragment, NewInlineFragment, InlineHTML, FragmentBuilder, Fragment, FragmentBuilder.WithFallback, FragmentBuilder.WithSlot, FragmentBuilder.WithData, FragmentBuilder.Static, FragmentBuilder.Shared, SlotResolverFunc, ErrUnknownSlot
+reference: NewFragment, NewInlineFragment, InlineHTML, FragmentBuilder, Fragment, FragmentBuilder.WithFallback, FragmentBuilder.WithSlot, FragmentBuilder.WithData, FragmentBuilder.WithoutTypeCheck, FragmentBuilder.Static, FragmentBuilder.Shared, Data, Value, SlotResolverFunc, ErrUnknownSlot
 ---
 
 # Fragment'ler ve slot'lar
@@ -13,7 +13,7 @@ layout'un durduğu bir fragment ağacıdır.
 
 ```go
 author := collage.NewFragment("author", "fragments/author.html").
-	WithDataHandler(loadAuthor).
+	WithData(collage.DataHandler(loadAuthor)).
 	WithTimeout(time.Second).
 	WithFallback(anonymousAuthor).
 	Build()
@@ -40,8 +40,8 @@ Geri kalan her şey isteğe bağlıdır:
 
 | Metot | Neyi ayarlar |
 | --- | --- |
-| `WithDataHandler(h)` | Template'in verisini çeken fonksiyonu. Bkz. [Data handler'lar](/docs/data-handlers) |
-| `WithData(v)` | Handler yerine, program başlarken sabitlenen veriyi |
+| `WithData(d)` | Template'in verisini: `collage.DataHandler` ya da `collage.Load` ile bir handler'ı, `collage.Value` ile program başlarken sabitlenen bir değeri ya da `collage.Effect`'i. Bkz. [Data handler'lar](/docs/data-handlers) |
+| `WithoutTypeCheck()` | Template'i, verisinin tipine göre yapılan kontrolün dışında bırakır. Bkz. [Template'ler nasıl kontrol edilir](/docs/data-handlers#how-templates-are-checked). v0.49.0'dan beri |
 | `WithTitle(s)` | Page'in `<title>`'ını, handler olmadan. Bkz. [Head ve SEO](/docs/head-and-seo) |
 | `WithSlot(name, required, allowMultiple)` | Bir slot'u required yapar ya da tek fragment'le sınırlar |
 | `WithSlotFragment(slot, child)` | Bir child fragment'i bir slot'a bağlar |
@@ -62,7 +62,7 @@ satırda almak istediğinizde `BuildErr()`'ü çağırın. Bkz. [Page'ler ve
 layout'lar](/docs/pages-and-layouts#building-a-page).
 
 Data handler'ı olmayan bir fragment, template'ini veri olmadan ya da
-`WithData(v)`'nin her render'da verdiği değerle render eder. Bu, hiç değişmeyen
+`collage.Value(v)`'nin her render'da verdiği değerle render eder. Bu, hiç değişmeyen
 markup için doğru seçimdir: bir footer, static bir duyuru ya da bir link listesi
 gibi. Tek işi slot'ları yerleştirmek olan bir layout için de doğrudur. Page'i
 cache'lenebilir de tutar: strateji tanımlamayan bir page, render ettiği bir şeyin
@@ -72,9 +72,8 @@ parametrelerini ve locale'i okuyan bir fragment `Static()` der ve handler'ı art
 hesaba katılmaz. Handler'ı her okuyucu için aynı olan ama zaman içinde aynı
 kalmayan bir fragment (bir ölçüm gibi) `Shared()` der. Bu, page hakkında hiçbir şey
 söylemez ve handler yine hesaba katılır. İki sözden birini bozan bir handler, bir
-okuyucunun verisini başka bir okuyucuya gönderir. `WithData` ile
-`WithDataHandler`'ı birlikte ayarlamak, register sırasında `ErrConflictingData`
-hatası verir.
+okuyucunun verisini başka bir okuyucuya gönderir. Bir fragment'in verisini iki
+kez ayarlamak, register sırasında `ErrConflictingData` hatası verir.
 
 ### Inline template'ler
 
@@ -88,7 +87,7 @@ row := collage.NewInlineFragment("post-row", `
     <td>{{.Title}}</td>
     <td>{{template "partials/date.html" .Date}}</td>
   </tr>`).
-	WithDataHandler(loadRow).
+	WithData(collage.DataHandler(loadRow)).
 	Build()
 ```
 
@@ -125,7 +124,7 @@ Template koddur, bu yüzden sabit olmalıdır. Onu asla veriden oluşturmayın:
 `{{…}}` ifadesini çalıştırır ve her farklı string, program kapanana kadar saklanan
 bir template'e dönüşür. Bu en çok, fragment'leri her request'te oluşturan bir
 [slot resolver](#slots-filled-per-render)'da önemlidir. Resolver'ın fragment'leri
-inline olabilir, ama template'leri sabittir ve veri onlara `WithData` ya da bir
+inline olabilir, ama template'leri sabittir ve veri onlara `collage.Value` ya da bir
 data handler üzerinden ulaşır.
 
 Bunun dışında üç sınırı daha vardır:
@@ -151,7 +150,7 @@ child'ları ona ismiyle bağlar:
 
 ```go
 post := collage.NewFragment("post", "pages/post.html").
-	WithDataHandler(loadPost).
+	WithData(collage.DataHandler(loadPost)).
 	WithSlot("author", true, false).
 	WithSlotFragment("author", author).
 	WithSlotFragment("related", relatedPosts).
@@ -233,17 +232,17 @@ vardır.
 
 ```go
 postContent := collage.NewFragment("post", "pages/post.html").
-	WithDataHandler(loadPost).
+	WithData(collage.DataHandler(loadPost)).
 	Required().
 	Build()
 
 comments := collage.NewFragment("comments", "fragments/comments.html").
-	WithDataHandler(loadComments).
+	WithData(collage.DataHandler(loadComments)).
 	WithFallback(collage.NewFragment("comments-unavailable", "fragments/comments-unavailable.html").Build()).
 	Build()
 
 related := collage.NewFragment("related", "fragments/related.html").
-	WithDataHandler(loadRelated).
+	WithData(collage.DataHandler(loadRelated)).
 	Build()
 ```
 
@@ -300,7 +299,7 @@ varsayılanı beş saniyedir. Negatif bir süre `ErrInvalidTimeout` kaydeder.
 
 ```go
 recommendations := collage.NewFragment("recommendations", "fragments/recommendations.html").
-	WithDataHandler(loadRecommendations).
+	WithData(collage.DataHandler(loadRecommendations)).
 	WithTimeout(300 * time.Millisecond).
 	WithFallback(nothingToRecommend).
 	Build()
@@ -333,7 +332,7 @@ type block struct {
 }
 
 landing := collage.NewFragment("landing", "pages/landing.html").
-	WithDataHandler(collage.Effect(func(ctx context.Context, rc *collage.RenderContext) error {
+	WithData(collage.Effect(func(ctx context.Context, rc *collage.RenderContext) error {
 		blocks, err := cms.Blocks(ctx, "landing")
 		if err != nil {
 			return err
@@ -367,7 +366,7 @@ func blockFragment(i int, b block) (*collage.Fragment, error) {
 	switch b.Kind {
 	case "hero", "text":
 		return collage.NewFragment(fmt.Sprintf("block-%d-%s", i, b.Kind), "blocks/"+b.Kind+".html").
-			WithData(b).
+			WithData(collage.Value(b)).
 			Build(), nil
 	}
 	return nil, fmt.Errorf("landing: unknown block kind %q", b.Kind)
@@ -399,12 +398,13 @@ Kurallar şunlardır:
   döndürülürse, slot'un sahibi olan fragment başarısız olur. Bu durumda o fragment'in
   failure policy'si uygulanır ve hata, döndürülen fragment'in ismini içerir. Hatayı
   resolver'ın içinde ele almak isterseniz `BuildErr()`'ü kendiniz kontrol edin.
-  Template'lerin hepsi başlangıçta yüklenir. Bu yüzden bir resolver'ın
+  Registration'ın diğer bütün fragment'ler için yaptığı gibi template'leri
+  verilerinin tipine göre de kontrol edilmez. Template'lerin hepsi başlangıçta yüklenir. Bu yüzden bir resolver'ın
   kullanabileceği block türleri yine de program tarafından belirlenir.
 
 Bölümleri içerikten gelen bir page, o içeriğin tag'lerini de bildirmelidir. Buradaki
-örnekte landing handler'ı, `collage.Effect` yerine `WithDataHandler`'ın kendi
-biçiminde yazılıp `"landing"`'i tag olarak dönebilir. Böylece bir editör page'i
+örnekte landing handler'ı, `collage.Effect` yerine `collage.DataHandler` ile
+yazılıp `"landing"`'i tag olarak dönebilir. Böylece bir editör page'i
 yeniden sıraladığında cache'teki page atılır. Bkz. [Caching](/docs/caching).
 
 ## İç içe geçme sınırı

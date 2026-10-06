@@ -1,63 +1,79 @@
 ---
-description: Bir fragment'in verisini nasıl çektiğini anlatır: handler sözleşmesi, sabit veri, kendi tipiyle yazılan loader'lar, dependency tag'ler, 404'ler, eşzamanlılık, render context'i, veri paylaşımı ve timeout'lar.
-reference: DataHandlerFunc, FragmentBuilder.WithData, FragmentBuilder.WithTitle, DataHandler, Load, RenderContext, Get, Once, Effect, ErrNotFound, ErrConflictingData, PanicError
+description: Bir fragment'in verisini nasıl çektiğini anlatır: handler sözleşmesi, sabit veri, dependency tag'ler, 404'ler, eşzamanlılık, render context'i, veri paylaşımı, timeout'lar ve template'lerin verilerine göre nasıl kontrol edildiği.
+reference: Data, FragmentBuilder.WithData, FragmentBuilder.WithTitle, FragmentBuilder.WithoutTypeCheck, DataHandler, Load, Value, RenderContext, Get, Once, Effect, ErrNotFound, ErrConflictingData, TemplateTypeError, ErrTemplateType, PanicError
 ---
 
 # Data handler'lar
 
 Data handler, bir fragment'in template'inde render edeceği veriyi almak için
 çağırdığı fonksiyondur. Request'in context'ini ve render context'ini alır. Geriye
-veriyi, bu verinin geldiği dependency tag'leri ve bir hata döner. Bir page'in dış
-dünyayla konuştuğu her şey (bir veritabanı, bir CMS, bir API) data handler'larda
-olur, başka hiçbir yerde olmaz.
+kendi Go tipindeki veriyi, bu verinin geldiği dependency tag'leri ve bir hata
+döner. Bir page'in dış dünyayla konuştuğu her şey (bir veritabanı, bir CMS, bir
+API) data handler'larda olur, başka hiçbir yerde olmaz.
 
 ```go
 content := collage.NewFragment("post", "pages/post.html").
-	WithDataHandler(func(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
+	WithData(collage.DataHandler(func(ctx context.Context, rc *collage.RenderContext) (*Post, []string, error) {
 		post, err := store.Post(ctx, rc.Param("slug"))
 		if err != nil {
 			return nil, nil, err
 		}
 		return post, []string{"post:" + post.Slug}, nil
-	}).
+	})).
 	Required().
 	Build()
 ```
 
 ## Sözleşme
 
-Handler, `WithDataHandler`'ın beklediği biçimde, yani `collage.DataHandlerFunc`
-biçiminde bir fonksiyondur:
+Bir fragment'in verisi `WithData` ile ayarlanır. `WithData` bir `collage.Data`
+alır. Bunu yalnızca dört constructor üretir ve her biri verinin nereden geldiğini
+söyler:
+
+| Constructor | Ne çalıştırır | Template'in `.`'sı |
+| --- | --- | --- |
+| `collage.DataHandler(fn)`, `fn` `(T, []string, error)` döner | Her render'da `fn`'i çalıştırır ve dependency tag'lerini bildirir | `T` |
+| `collage.Load(fn)`, `fn` `(T, error)` döner | Her render'da `fn`'i çalıştırır, tag bildirmez | `T` |
+| `collage.Value(v)` | Hiçbir şey: `v` her render'da olduğu gibi verilir | `v`'nin tipi |
+| `collage.Effect(fn)`, `fn` `error` döner | Her render'da `fn`'i, tanımladıkları için çalıştırır | Hiçbir şey |
+
+`WithData` kullanmayan bir fragment, `collage.Effect` kullanan bir fragment gibi
+verisiz render edilir.
+
+Handler, kendi tipini dönen sıradan bir fonksiyondur. Onu yukarıdaki gibi yerinde
+yazabilir ya da bir isim verip geçirebilirsiniz:
 
 ```go
-func(ctx context.Context, rc *collage.RenderContext) (any, []string, error)
-```
-
-Onu yukarıdaki gibi yerinde yazabilir ya da bir isim verip geçirebilirsiniz:
-
-```go
-func loadPost(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
+func loadPost(ctx context.Context, rc *collage.RenderContext) (*Post, []string, error) {
 	// ...
 }
 
 content := collage.NewFragment("post", "pages/post.html").
-	WithDataHandler(loadPost).
+	WithData(collage.DataHandler(loadPost)).
 	Build()
 ```
 
-Verinin `any` olmasının nedeni, onu okuyan tek şeyin, yani template'in zaten
-tipsiz olmasıdır. Handler'ın dönüş tipi ne olursa olsun `{{.Titel}}`, page render
-edilirken başarısız olur. Bu yüzden somut bir tip, template'in yakalamadığı hiçbir
-şeyi yakalamaz. Somut bir tipin gerçekten işe yaradığı durum için (bir test'ten
-ya da başka bir handler'dan da çağrılan bir loader)
-[aşağıya](#loaders-with-a-type-of-their-own) bakın.
+`T` fonksiyonun imzasından gelir. Page register edilirken template de bu tipe
+göre kontrol edilir (bkz.
+[Template'ler nasıl kontrol edilir](#how-templates-are-checked)). Bu yüzden
+handler ile template'in verisi hakkındaki varsayımı birbirinden kopamaz. Bu
+şekilde yazılan bir loader'ı bir test'ten ya da bir sitemap handler'ından çağırmak
+da kolaydır: bunlar assert edilmesi gereken bir değer yerine bir `*Post` alır.
+Constructor'ların `WithData`'nın bir biçimi değil de ayrı fonksiyonlar olmasının
+nedeni, Go method'larının type parameter alamamasıdır.
 
-Üç dönüş değerinin her birinin ayrı bir görevi vardır.
+v0.49.0'dan önce bir handler `WithDataHandler` ile verilir ve
+`(any, []string, error)` dönerdi. Sabit veri ise `WithData(v)` ile verilirdi. İkisi
+de kaldırıldı: handler'ı gerçek tipini dönecek şekilde `collage.DataHandler` ile,
+değeri de `collage.Value` ile sarın.
+
+Bir `DataHandler`'ın üç dönüş değerinin her birinin ayrı bir görevi vardır.
 
 - **Veri:** Template'in `.` olarak render ettiği şeydir. Template için yazılmış bir
   struct, yani bir "view", template'e bir veritabanı satırı vermekten genellikle
   daha anlaşılırdır. Her fragment kendi verisini alır. Bir child, parent'ının
-  verisini görmez.
+  verisini görmez. Hata durumunda veri atılır. Böylece bir hatanın yanında dönen
+  nil bir `*Post`, template'e varmış gibi görünen bir değer olarak hiç ulaşmaz.
 - **Tag'ler:** Bu verinin oluşturulduğu içerik parçalarıdır, örneğin
   `"post:hello-world"` ya da `"author:ada"`. Page'deki her fragment'ten, page'in
   kendi `WithDependency` tag'leriyle birlikte toplanır ve cache'lenen page ile
@@ -84,10 +100,10 @@ handler (bir ölçüm gibi) bunun yerine `Shared()` der. Render'ı okuyucular ar
 paylaşılabilir ve page dynamic kalır. Ayrıntılar için
 [Caching](/docs/caching#a-page-that-declares-none) sayfasına bakın.
 
-### Sabit veri: WithData
+### Sabit veri: collage.Value
 
 Program başlarken belli olan veri (bir link listesi, bir başlık, bir site adı)
-handler gerektirmez. `WithData(v)`, template'e her render'da `v`'yi verir:
+handler gerektirmez. `collage.Value(v)`, template'e her render'da `v`'yi verir:
 
 ```go
 type homeView struct {
@@ -95,43 +111,24 @@ type homeView struct {
 }
 
 content := collage.NewFragment("home-content", "pages/home.html").
-	WithData(homeView{Links: links}).
+	WithData(collage.Value(homeView{Links: links})).
 	Build()
 ```
 
 Burada render başına çekilen hiçbir şey yoktur. Bu yüzden handler'ın aksine,
-strateji tanımlamayan bir page'i static bırakır. Hem `WithData` hem de
-`WithDataHandler` kullanan bir fragment, register edilirken
-`collage.ErrConflictingData` ile reddedilir.
+strateji tanımlamayan bir page'i static bırakır.
 
-### Kendi tipiyle yazılan loader'lar
+Bir fragment'in tek bir veri kaynağı vardır. `WithData`'yı veriyle iki kez
+çağırmak, register sırasında `collage.ErrConflictingData` ile reddedilir. Hata
+mesajı fragment'in adını verir: `fragment "home-content" has its data set twice`.
+Kastettiğiniz çağrıyı tutun, diğerini silin. v0.49.0'dan önce ikinci çağrı sessizce
+kazanırdı. nil bir `Data` (`WithData(nil)` ya da nil bir fonksiyon verilmiş bir
+constructor) veri yok demektir ve hiçbir şeyle çakışmaz.
 
-Bazı loader'lar, somut tipinin önemli olduğu yerlerden de çağrılır: döndüğü yazıyı
-kontrol eden bir test ya da bütün yazıları listeleyen bir sitemap handler'ı gibi.
-Böyle bir loader, assert edilmesi gereken bir `any` yerine bir `Post` döndüğünde
-daha kolay kullanılır. Onu kendi tipiyle yazın ve dönüş tipi üzerinde generic olan
-`collage.DataHandler` ile adapte edin:
+### Tag'siz handler'lar
 
-```go
-func loadPost(ctx context.Context, rc *collage.RenderContext) (Post, []string, error) {
-	post, err := store.Post(ctx, rc.Param("slug"))
-	if err != nil {
-		return Post{}, nil, err
-	}
-	return post, []string{"post:" + post.Slug}, nil
-}
-
-content := collage.NewFragment("post", "pages/post.html").
-	WithDataHandler(collage.DataHandler(loadPost)).
-	Build()
-```
-
-Loader'ın döndüğü değer yine template'in `.` olarak aldığı değerin ta kendisidir.
-`WithDataHandler`'ın bir biçimi değil de ayrı bir fonksiyon olmasının nedeni, Go
-method'larının type parameter alamamasıdır.
-
-`collage.Load` da tag bildirmeyen, yalnızca veriyi ve bir hatayı dönen bir loader
-için aynı işi görür:
+`collage.Load`, tag bildirmeyen, yalnızca veriyi ve bir hatayı dönen bir loader
+için `DataHandler`'ın karşılığıdır:
 
 ```go
 func loadClock(_ context.Context, rc *collage.RenderContext) (clockView, error) {
@@ -139,23 +136,23 @@ func loadClock(_ context.Context, rc *collage.RenderContext) (clockView, error) 
 }
 
 content := collage.NewFragment("clock", "fragments/clock.html").
-	WithDataHandler(collage.Load(loadClock)).
+	WithData(collage.Load(loadClock)).
 	Build()
 ```
 
-İkisi de loader hata döndüğünde veriyi atar. Hangi biçimi seçeceğiniz şöyle
+İkisi de loader hata döndüğünde veriyi atar. Hangisini seçeceğiniz şöyle
 belirlenir:
 
 | Veri | Yazılacak |
 | --- | --- |
-| Her render'da aynıysa | `WithData(v)` |
-| Dışarıdan çekiliyorsa | Bir handler, `func(ctx, rc) (any, []string, error)` |
-| Başka yerlerden de çağrılan bir loader ile çekiliyorsa | `collage.DataHandler(fn)` |
-| Böyle bir loader ile çekiliyorsa ve bildirilecek tag yoksa | `collage.Load(fn)` |
+| Her render'da aynıysa | `collage.Value(v)` |
+| Değişiklikleri cache'lenmiş bir page'e ulaşması gereken içerikten çekiliyorsa | `collage.DataHandler(fn)` |
+| Çekiliyorsa ve bildirilecek tag yoksa | `collage.Load(fn)` |
+| Veri yoksa ve fragment yalnızca page için bir şeyler tanımlıyorsa | `collage.Effect(fn)` (bkz. [aşağısı](#handlers-that-render-nothing)) |
 
 Tag'leri yalnızca page cache'lenmiyorsa ya da veri hiç değişmiyorsa dışarıda
 bırakın. Verisi değişen cache'lenmiş bir page, kendisini invalidate edebilmeleri
-için tag'lerine ihtiyaç duyar. `WithData`'dan bir handler'a geçmek de yalnızca
+için tag'lerine ihtiyaç duyar. `collage.Value`'dan bir handler'a geçmek de yalnızca
 fragment'i değiştirmez: strateji tanımlamayan bir page, onunla birlikte static'ten
 dynamic'e geçer.
 
@@ -166,7 +163,7 @@ farklı bir cevap almalıdır: ilki için 404, ikincisi için 500. Hangisi oldu�
 `collage.ErrNotFound`'u wrap ederek belirtin:
 
 ```go
-func loadPost(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
+func loadPost(ctx context.Context, rc *collage.RenderContext) (*Post, []string, error) {
 	slug := rc.Param("slug")
 	post, err := store.Post(ctx, slug)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -273,13 +270,13 @@ ihtiyaç duyar.
 rc.Set("post", post)
 
 // in a child's handler, which starts after the parent's has returned
-post, ok := collage.Get[Post](rc, "post")
+post, ok := collage.Get[*Post](rc, "post")
 if !ok {
 	return nil, nil, errors.New("more-by-author: no post in shared data")
 }
 ```
 
-Key altında hiçbir şey saklanmamışsa `ok` false olur. Saklanan değer bir `Post`
+Key altında hiçbir şey saklanmamışsa `ok` false olur. Saklanan değer bir `*Post`
 değilse de false olur. Çağıran taraf için ikisi de aynı anlama gelir: istediği değer
 orada yoktur. Key'ler uygulamanızın kendi namespace'idir. Çakışmayacak isimler
 seçin.
@@ -298,13 +295,13 @@ için `collage.Once` kullanın. `collage.Once` bir key için çekme işlemini re
 başına en fazla bir kez çalıştırır ve sonucu isteyen her fragment'e verir:
 
 ```go
-func loadAuthorCard(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
+func loadAuthorCard(ctx context.Context, rc *collage.RenderContext) (Author, []string, error) {
 	slug := rc.Param("slug")
-	post, err := collage.Once(rc, "post:"+slug, func(ctx context.Context) (Post, error) {
+	post, err := collage.Once(rc, "post:"+slug, func(ctx context.Context) (*Post, error) {
 		return store.Post(ctx, slug)
 	})
 	if err != nil {
-		return nil, nil, err
+		return Author{}, nil, err
 	}
 	return post.Author, []string{"post:" + slug, "author:" + post.Author.ID}, nil
 }
@@ -356,8 +353,8 @@ yalnızca hata dönen bir handler'ı adapte eder:
 
 ```go
 seo := collage.NewFragment("post-seo", "fragments/empty.html").
-	WithDataHandler(collage.Effect(func(ctx context.Context, rc *collage.RenderContext) error {
-		post, err := collage.Once(rc, "post:"+rc.Param("slug"), func(ctx context.Context) (Post, error) {
+	WithData(collage.Effect(func(ctx context.Context, rc *collage.RenderContext) error {
+		post, err := collage.Once(rc, "post:"+rc.Param("slug"), func(ctx context.Context) (*Post, error) {
 			return store.Post(ctx, rc.Param("slug"))
 		})
 		if err != nil {
@@ -398,7 +395,7 @@ Deadline'a uymak tek bir alışkanlığa bağlıdır: bekleyebilecek her şeye `
 geçirin.
 
 ```go
-func loadWeather(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
+func loadWeather(ctx context.Context, rc *collage.RenderContext) (*Weather, []string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, weatherURL(rc.Locale), nil)
 	if err != nil {
 		return nil, nil, err
@@ -413,7 +410,7 @@ func loadWeather(ctx context.Context, rc *collage.RenderContext) (any, []string,
 	if err := json.NewDecoder(res.Body).Decode(&weather); err != nil {
 		return nil, nil, err
 	}
-	return weather, nil, nil
+	return &weather, nil, nil
 }
 ```
 
@@ -438,3 +435,178 @@ Bir data handler'daki panic process'i çökertmez. Panic recover edilir ve panic
 değerini ve stack'i taşıyan bir `*collage.PanicError`'a dönüştürülür. Fragment da
 diğer her hatada olduğu gibi bu hatayla başarısız olur. Development'ta error page
 stack'i gösterir. Kendi kodunuzda bu hataya `errors.As` ile ulaşabilirsiniz.
+
+## Template'ler nasıl kontrol edilir
+
+Bir template verisini isimle okur: `{{.Title}}`, `{{.Author.Name}}`.
+`html/template` bu isimleri ancak template çalışırken çözer. Bir `{{.Titel}}`,
+page'inin her render'ını başarısız kılar. Kimsenin ziyaret etmediği bir page'de
+ise hiç ortaya çıkmaz. v0.49.0'dan beri her fragment'in verisi tipli bir
+constructor'dan gelir. Bu yüzden registration her template'in hangi Go tipiyle
+çalışacağını bilir ve template'i bu tipe göre dolaşır. `RegisterPage`,
+template'leri verisine uymayan bir page'i reddeder. Hata page'i, fragment'i,
+dosyayı, satırı ve sütunu verir:
+
+```text
+collage: page "post": fragment "post-body" (post.html:1:6): {{.Titel}}: type blog.Post has no field or method Titel (did you mean Title?)
+```
+
+Yalnızca kesin olarak başarısız olacak şeyleri bildirir: her bulgu, render ona
+ulaştığında `text/template`'in başarısız olacağı bir ifadedir. Artık başlangıçta
+başarısız olan bir uygulamanın template'i, render edildiğinde zaten başarısız
+olacaktı. Kontrol bunu yalnızca daha erken bildirir, kendinden bir kural eklemez.
+
+### Neler dolaşılır
+
+Bir page'in ulaştığı her fragment: layout'ları, content'i, bunların slot'larına
+bağlanan her şey, fallback'ler, inline fragment'ler,
+[`WithFragmentPath`](/docs/forms-and-actions#a-fragment-at-its-own-url) ile açılan
+fragment'ler ve page'in
+[not-found ve error page'leri](/docs/pages-and-layouts#not-found-and-error-pages)
+olarak verilen page'ler. `{{template "partials/author.html" .Author}}` ile dahil
+edilen bir partial, kendisine verilen tiple dolaşılır. Uygulama genelinde
+kendisine verilen her tip için de bir kez dolaşılır.
+
+Bir [slot resolver'ın](/docs/fragments-and-slots#slots-filled-per-render) döndüğü
+fragment page render edilirken oluşturulur. Bu yüzden registration onu hiç görmez
+ve template'i kontrol edilmez.
+
+`.` fragment'in veri tipiyle başlar ve template'i izler: `{{range}}` içinde
+elemandır, `{{with}}` içinde değerdir. Bir `$x := …` değişkeni de kendi scope'u
+boyunca verildiği tipi korur.
+
+### Neler bildirilir
+
+- **Tipin sahip olmadığı bir alan ya da method** veya export edilmemiş bir alan.
+  Pointer'lar izlenir, gömülü struct'lardan yükseltilen alanlar da sayılır. Yakın
+  bir isim varsa, en yakın export edilmiş isim önerilir.
+- **Adreslenebilir olmayan bir değer üzerinden ulaşılan, pointer receiver'lı bir
+  method.** `text/template` böyle bir method'u değerin adresi üzerinden çağırır.
+  Template'e değer olarak verilen verinin adresi yoktur; alanlarının ve bir map'in
+  elemanlarının da yoktur. Bir pointer'ın gösterdiği şey ve bir slice'ın
+  elemanları adreslenebilirdir. `URL`, `*Post` üzerinde tanımlıysa `{{.URL}}` bir
+  `Post` üzerinde başarısız olur, bir `*Post` üzerinde çalışır. Çözüm, template'e
+  pointer'ı vermektir.
+- **İsimli bir string tipiyle anahtarlanan bir map** (`map[Slug]Post`): `.key`
+  anahtarı düz bir `string` olarak arar ve böyle bir map bunu kabul etmez.
+  `string` ile anahtarlanan bir map sorun değildir. Map'te olmayan bir anahtar da
+  hata değildir: zinciri sessizce bitirir, bu yüzden `{{.Meta.absent.Name}}` hiçbir
+  şey render etmez. Yalnızca map'in eleman tipini bilen kontrol, o eleman tipinde
+  olmayan bir ismi yine de bildirir.
+- **Yanlış biçimdeki çağrılar:** yanlış sayıda argüman verilen bir method,
+  template fonksiyonu ya da built-in; argüman verilen bir alan ya da map anahtarı;
+  bir değer ve bir hatadan fazlasını dönen bir method ya da fonksiyon; fonksiyon
+  olmayan bir şey üzerinde `call`.
+- **Yanlış türde `range`, `len` ve `index`:** bir string ya da struct üzerinde
+  range, iki değişkenle bir tamsayı üzerinde range, bir struct'ın `len`'i, bir
+  struct'a `index`.
+
+Render'ın hiç ulaşamayacağı şeyler bildirilmez. Koşulu bir literal olan bir
+`{{if}}` ya da `{{with}}` (`true`, `false`, `0`, `1`, `""`, `"x"` ya da bunlardan
+birinin `not`'u), literal'in dışarıda bıraktığı tarafı hiç çalıştırmaz. `{{and}}`
+ve `{{or}}` yalnızca sonucu belirleyen bir literal'de durur: `and` için `false`,
+`0`, `""` ya da `nil`; `or` için `true`, sıfır olmayan bir sayı ya da boş olmayan
+bir string. Bu yüzden `{{and 0 .Nope}}` hiçbir şey bildirmez. `{{and 1 .Nope}}` ve
+`{{and .Title .Nope}}` ise `.Nope`'u bildirir, çünkü render ona ulaşabilir.
+
+### Neler bildirilmez
+
+- **Render'dan önce bilinemeyenler.** Bir interface (`any`, bir
+  `map[string]any`'nin elemanları, bir `error`) her şeyi tutabilir. Bu yüzden
+  ondan okunan hiçbir şey bildirilmez. Bir method'un ya da fonksiyonun döndüğü bir
+  `reflect.Value`'dan okunanlar da bildirilmez, çünkü `text/template` onu tuttuğu
+  değere açar.
+- **Verisi olmayan bir fragment.** nil verinin bir alanını okumak `html/template`'te
+  hata değildir: `{{.Title}}` hiçbir şey render etmez. `WithData` kullanmayan ya
+  da `collage.Effect` kullanan bir fragment yine dolaşılır, ama yalnızca fonksiyon
+  çağrıları ve bunların argüman sayıları kontrol edilir.
+- **Verinin içindeki nil pointer'lar.** `Author` nil ise `{{.Author.Name}}` render
+  edilirken başarısız olur. Onun nil olup olmadığı tipin değil, verinin işidir.
+- **Argüman tipleri.** Yalnızca argüman sayısı kontrol edilir. `text/template`
+  bazı argümanları kendisi dönüştürür ve onu tahmin etmeye çalışmak yanlış
+  alarmların kaynağı olurdu.
+
+### Hatayı okumak
+
+`RegisterPage`, page'in kendi fragment'lerindeki bütün bulguları bir kerede,
+`errors.Join` ile birleştirip dosya, satır ve sütuna göre sıralayarak döner.
+Böylece on hata, on değil tek bir yeniden başlatma demektir. Page'in not-found
+page'i, page'in kendisi geçtikten sonra kontrol edilir. Error page'i ise ikisi de
+geçtikten sonra kontrol edilir. Bunların bulguları bir
+`collage: page "post" not-found page: …` (ya da `error page: …`) hatasıyla sarılı
+olarak, page'in kendi bulguları
+düzeltildikten sonraki başlangıçta gelir.
+
+Her bulgu bir `*collage.TemplateTypeError`'dır ve her biri
+`collage.ErrTemplateType` ile eşleşir. Bir bulgu, bir join'in yanı sıra sarmalayan
+bir hatanın altında da durabilir. Bu yüzden hepsini listelemek için bütün ağacı
+dolaşın:
+
+```go
+// typeErrors collects every *collage.TemplateTypeError in err's tree.
+func typeErrors(err error) []*collage.TemplateTypeError {
+	switch e := err.(type) {
+	case nil:
+		return nil
+	case *collage.TemplateTypeError:
+		return []*collage.TemplateTypeError{e}
+	case interface{ Unwrap() []error }:
+		var found []*collage.TemplateTypeError
+		for _, inner := range e.Unwrap() {
+			found = append(found, typeErrors(inner)...)
+		}
+		return found
+	case interface{ Unwrap() error }:
+		return typeErrors(e.Unwrap())
+	}
+	return nil
+}
+```
+
+ve page'in register edildiği yerde:
+
+```go
+if err := app.RegisterPage(page); errors.Is(err, collage.ErrTemplateType) {
+	for _, typeErr := range typeErrors(err) {
+		fmt.Printf("%s:%d:%d %s\n", typeErr.Template, typeErr.Line, typeErr.Col, typeErr.Reason)
+	}
+}
+```
+
+Dönen hata üzerinde `errors.As` ilk bulguyu bulur. Alanları:
+
+| Alan | Ne tutar |
+| --- | --- |
+| `Page`, `Fragment` | Template'in ait olduğu page ve fragment |
+| `Template` | İfadenin bulunduğu dosya (fragment'in kendi dosyası ya da dahil ettiği bir partial) ya da `inline template of fragment "x"` |
+| `Line`, `Col` | `text/template`'in hatayı göstereceği yer. Bu, `Expr`'in başı değil içi olabilir, örneğin bir çağrının son argümanı |
+| `Expr` | Yazıldığı haliyle ifade, `{{.Titel}}` |
+| `Reason` | Neyin yanlış olduğu |
+| `Suggestion` | Tipin sahip olduğu en yakın isim ya da boş |
+
+Kontrol, diğer registration kontrollerinin çalıştığı yerde çalışır: başlangıçta,
+dolayısıyla uygulamayı başlatan [`collage check`](/docs/cli#collage-check)'te ve
+page'leri register eden bir test'te. `collage dev` altında, program çalışırken
+düzenlenen bir template yeniden parse edilir ama bir sonraki yeniden başlatmaya,
+yani Go kodundaki bir sonraki değişikliğe kadar tekrar kontrol edilmez.
+[`collage inspect`](/docs/cli#collage-inspect), bir editörün aynı şekilde kontrol
+edebilmesi için her fragment'in veri tipini ve ulaştığı tipleri yazdırır.
+
+### Kapatmak
+
+`WithoutTypeCheck()`, nadiren karşılaşılan yanlış bir bulgu düzeltilene kadar tek
+bir fragment'in template'ini kontrolün dışında bırakır. Fragment eskisi gibi render
+edilir ve `collage inspect` onu `"typeCheck": false` olarak işaretler:
+
+```go
+collage.NewFragment("post-body", "pages/post.html").
+	WithData(collage.DataHandler(loadPost)).
+	WithoutTypeCheck().
+	Build()
+```
+
+Bir interface dönecek şekilde tanımlanan bir handler (örneğin `collage.Load[any]`)
+tipi bilinmez bırakır ve template'i dolaşılmaz. Bir fragment'in verisinin sabit bir
+biçimi olmadığını bilerek söylemenin yolu budur. `collage.Value` bunun istisnasıdır:
+değeri elde olduğu için, bir interface içinde tutulan değer tuttuğu tipe göre
+kontrol edilir.

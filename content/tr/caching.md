@@ -98,12 +98,12 @@ belirlenir. O ana kadar stratejisi `collage.StrategyAuto`'dur, sonrasında diğe
 üçünden biri olur.
 
 - Render ettiği herhangi bir şey her render'da veri çekiyorsa **dynamic** olur. Bu,
-  bir data handler (`WithDataHandler`, `collage.Load` ve `collage.Effect` dahil) ya
+  bir data handler (`collage.DataHandler`, `collage.Load` ya da `collage.Effect`) ya
   da bir slot resolver'dır. Layout'unda, content'inde, bunların slot'larına
   bağlanan herhangi bir şeyde, fallback'lerinde ya da `WithFragmentPath` ile
   açılan bir fragment'te olması fark etmez.
 - Aksi hâlde **static** olur. Yalnızca template'leri ve sabit değerleri
-  (`WithData(v)`, `WithTitle(s)`) render eden bir page her okuyucu için aynı
+  (`collage.Value(v)`, `WithTitle(s)`) render eden bir page her okuyucu için aynı
   render edilir. Bu yüzden böyle page'lerden oluşan bir site, her birine
   `Static()` yazmadan cache'lenir ve [export edilir](/docs/static-export).
 
@@ -125,7 +125,7 @@ yazıldığında, o fragment page'i dynamic yapmaz. v0.17.0'dan beri.
 
 ```go
 more := collage.NewFragment("more-recipes", "fragments/more-recipes.html").
-	WithDataHandler(loadMore). // every recipe but rc.Param("slug")
+	WithData(collage.DataHandler(loadMore)). // every recipe but rc.Param("slug")
 	Static().
 	Build()
 ```
@@ -147,7 +147,7 @@ Böyle bir fragment'i bunun yerine `Shared()` ile işaretleyin. v0.19.0'dan beri
 
 ```go
 cpu := collage.NewFragment("cpu", "fragments/cpu.html").
-	WithDataHandler(cpuUsage). // the same for everyone, different every second
+	WithData(collage.Load(cpuUsage)). // the same for everyone, different every second
 	Shared().
 	Build()
 ```
@@ -571,7 +571,7 @@ static export, yazarı otuz kez çeker.
 `collage.Cached` yazarı saklar:
 
 ```go
-func authorCard(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
+func authorCard(ctx context.Context, rc *collage.RenderContext) (Author, []string, error) {
 	id := rc.Param("author")
 	author, err := collage.Cached(rc, "author:"+id, time.Hour, []string{"author:" + id},
 		func(ctx context.Context) (Author, error) {

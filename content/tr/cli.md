@@ -1,6 +1,6 @@
 ---
 description: collage CLI'ın bütün komutları (new, add, dev, build, export, serve, inspect, check, version ve help), flag'leri ve her birinin tam olarak neyi çalıştırdığı.
-reference: DispatchCommands, Command, ErrUnknownCommand, InspectCommand, Inspection, App, Registrable
+reference: DispatchCommands, Command, ErrUnknownCommand, InspectCommand, Inspection, FragmentBuilder.WithoutTypeCheck, App, Registrable
 ---
 
 # collage CLI
@@ -82,7 +82,7 @@ yazdığı dosyalar, dizindeki aynı adlı dosyaların yerine geçer.
 [plugin komutlarının](#plugin-commands) dispatch'ini içeren bir `main.go`; bütün
 route'ları register eden bir `routes.go`; sitenin adını `WithTitle` ile veren ve
 hiç slot tanımlamayan bir layout (böylece bir page'in kendi başlığı sitenin
-başlığının yerine geçer); template'ine proje adını `WithData` ile veren bir ana
+başlığının yerine geçer); template'ine proje adını `collage.Value` ile veren bir ana
 sayfa (içinde hiçbir şey veri çekmediği için `Static()` demeden static'tir);
 `static/`, bir `.gitignore` ve bir README.
 
@@ -118,7 +118,7 @@ bir [`app.Register`](/docs/pages-and-layouts#registration) çağrısıyla regist
 
 **Minimal proje**, v0.32.0'dan beri varsayılan projedir ve bir projenin olabileceği en yalın hâldir. İçinde tek bir
 page'i saran layout vardır. Bu page `<h1>Hello from {{.Name}}</h1>` satırından
-ibarettir; `{{.Name}}`, template'e `WithData` ile verilen proje adıdır.
+ibarettir; `{{.Name}}`, template'e `collage.Value` ile verilen proje adıdır.
 Bunun yanında arka plan ve metin rengini dark mode dahil ayarlayan bir stylesheet
 bulunur. Başka hiçbir şey yoktur: test yoktur, not-found page'i de yoktur. Siz bir
 not-found page'i register edene kadar collage bilinmeyen adreslere kendi sade 404'üyle
@@ -572,6 +572,47 @@ Bir editörün completion'ı da bunu okur. VS Code için Collage Snippets & High
 extension'ı ([Editör desteği](/docs/installation#editor-support)),
 `{{pageURL "…"}}` içindeki page adlarını, `{{slot "…"}}` içindeki slot'ları ve
 `{{asset "…"}}` içindeki dosyaları buradan önerir.
+
+v0.49.0'dan beri her fragment, template'inin `.` olarak gördüğü Go tipini de
+taşır. Root da bu tiplerin ulaştığı tiplerin bir tablosu olan `types`'ı taşır.
+Böylece bir editör `{{.`'yı tamamlayabilir ve bir alan adını registration'ın
+yaptığı gibi kontrol edebilir (bkz.
+[Template'ler nasıl kontrol edilir](/docs/data-handlers#how-templates-are-checked)):
+
+```json
+"fragments": [
+  {"name": "post-body", "template": "pages/post.html", "handler": true, "dataType": "*blog.Post"},
+  {"name": "layout", "template": "layouts/default.html", "dataType": "nil"},
+  {"name": "legacy", "template": "pages/legacy.html", "handler": true, "dataType": null, "typeCheck": false}
+],
+"types": {
+  "blog.Post": {
+    "kind": "struct",
+    "fields": [{"name": "Title", "type": "string"}, {"name": "Author", "type": "*blog.User"}],
+    "methods": [{"name": "URL", "args": 0, "returns": "string"}]
+  },
+  "blog.User": {"kind": "struct", "fields": [{"name": "Name", "type": "string"}]}
+}
+```
+
+- **`dataType`** her zaman yazılır: Go tipi; verisi olmayan ya da
+  `collage.Effect` kullanan bir fragment için `"nil"`; tip bir interface olduğu
+  ve bu yüzden page render edilene kadar bilinmediği durumda (`any` dönecek
+  şekilde tanımlanmış bir handler) `null`.
+- **`typeCheck: false`** yalnızca `WithoutTypeCheck()` ile oluşturulmuş bir
+  fragment'te görünür.
+- **`types`**, herhangi bir fragment'in veri tipinden alanlar, eleman ve anahtar
+  tipleri ve method sonuçları üzerinden ulaşılabilen her isimli tipi tutar. Her
+  tip Go adıyla anahtarlanır ve export edilmiş alanlarını (yükseltilenler dahil)
+  ve kendisinin ve pointer'ının bir şey dönen export edilmiş method'larını
+  içerir. Bir tip bir kez listelenir, diğer her yerde adıyla anılır. Böylece
+  özyinelemeli bir tip sonsuza gitmez. İsimsiz bir struct, Go yazımıyla
+  listelenir. Diğer isimsiz bileşik tipler bir tip string'inin içinde yazılır
+  (`[]blog.Comment`). `time.Time` ve `template.HTML` gibi standart kütüphane
+  tipleri tanımlanmaz, yalnızca adıyla anılır. Hiçbir fragment'in bilinen bir veri
+  tipi yoksa `types` yazılmaz.
+
+Bunlar eklemedir: çıktının `version`'ı hâlâ `1`'dir.
 
 ## collage check
 

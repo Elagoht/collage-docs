@@ -385,7 +385,7 @@ cache'lenmeyeceğini belirler:
 Bu üç çağrıdan hiçbirini yapmayan bir page, register edilene kadar
 `StrategyAuto`'dur. Register işlemi stratejiyi belirler: render ettiği herhangi bir
 şeyin data handler'ı ya da slot resolver'ı varsa **dynamic**, yoksa **static**
-olur. Template'lerden ve sabit değerlerden (`WithData`, `WithTitle`) oluşan bir page
+olur. Template'lerden ve sabit değerlerden (`collage.Value`, `WithTitle`) oluşan bir page
 herkes için aynı render edilir, bu yüzden söylemeye gerek kalmadan cache'lenir.
 Handler ise request'i, bir cookie'yi ya da saati okuyabilir ve dışarıdan bu
 anlaşılamaz. Bu yüzden handler'ı olan bir page, `Static()` ya da

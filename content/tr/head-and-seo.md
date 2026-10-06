@@ -64,7 +64,7 @@ stylesheet, `RenderContext` üzerindeki helper'larla tanımlanır. Bunları bir 
 handler'dan çağırın:
 
 ```go
-func loadPost(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
+func loadPost(ctx context.Context, rc *collage.RenderContext) (*Post, []string, error) {
 	post, err := store.Post(ctx, rc.Param("slug"))
 	if err != nil {
 		return nil, nil, err
@@ -133,7 +133,7 @@ override etsin:
 ```go
 layout := collage.NewFragment("layout", "layouts/default.html").
 	WithTitle("The Wire").
-	WithDataHandler(collage.Effect(func(_ context.Context, rc *collage.RenderContext) error {
+	WithData(collage.Effect(func(_ context.Context, rc *collage.RenderContext) error {
 		rc.HoistMeta("description", "News about the sea, and the people who live beside it.")
 		return nil
 	})).
@@ -219,7 +219,7 @@ layout'tan, o an hangi page render ediliyorsa onun için,
 ```go
 func Layout(app *collage.App) *collage.Fragment {
 	return collage.NewFragment("layout", "layouts/default.html").
-		WithDataHandler(collage.Effect(func(_ context.Context, rc *collage.RenderContext) error {
+		WithData(collage.Effect(func(_ context.Context, rc *collage.RenderContext) error {
 			for _, locale := range []string{"en", "tr"} {
 				href, err := app.URL(rc.Page.Name, locale, rc.PathParams)
 				if errors.Is(err, collage.ErrNoPathInLocale) {
@@ -257,7 +257,7 @@ yazar. Bunu elle oluşturulmuş JSON'dan değil, tipli değerlerden yapar:
 ```go
 import "github.com/Elagoht/collage-jsonld"
 
-func loadPost(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
+func loadPost(ctx context.Context, rc *collage.RenderContext) (*Post, []string, error) {
 	post, err := store.Post(ctx, rc.Param("slug"))
 	if err != nil {
 		return nil, nil, err

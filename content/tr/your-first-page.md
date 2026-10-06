@@ -1,6 +1,6 @@
 ---
 description: Uygulamalı bir rehber. Bir layout, bir data handler ve bir template ile bir tarif page'i kurarsınız, bir slot'a ikinci bir fragment eklersiniz ve bütün tarifleri static dosyalara export edersiniz.
-reference: New, NewPage, NewFragment, FragmentBuilder.WithData, FragmentBuilder.WithTitle, PageBuilder.WithStaticParams, Registrable, DataHandler, Load, ErrNotFound, ErrUnknownSlot
+reference: New, NewPage, NewFragment, FragmentBuilder.WithData, FragmentBuilder.WithTitle, PageBuilder.WithStaticParams, Registrable, DataHandler, Load, Value, ErrNotFound, ErrUnknownSlot, ErrTemplateType
 ---
 
 # İlk page'iniz
@@ -86,7 +86,7 @@ type homeView struct {
 
 func Home() *collage.Fragment {
 	return collage.NewFragment("home", "pages/home.html").
-		WithData(homeView{Name: "cookbook"}).
+		WithData(collage.Value(homeView{Name: "cookbook"})).
 		Build()
 }
 ```
@@ -110,14 +110,14 @@ Buradaki `fragments`, içeriğin package'ıdır ve
 içerdikleri şeyin adını taşır, `pages` ve `fragments`; hangi alan olduğunu ise dizin
 söyler.
 
-`WithData`, template'e her render'da aynı değeri verir. `templates/pages/home.html`
+`collage.Value`, template'e her render'da aynı değeri verir. `templates/pages/home.html`
 içinde bu değer `.` olarak kullanılır:
 
 ```html
 <h1>Hello from {{.Name}}</h1>
 ```
 
-`homeView`'a bir alan ekleyin, değerini `WithData(...)` içinde verin ve template'te
+`homeView`'a bir alan ekleyin, değerini `collage.Value(...)` içinde verin ve template'te
 kullanın; page bu alanı gösterir. Sabit bir veri için, örneğin bir link listesi ya
 da bir başlık için, gereken tek şey budur.
 
@@ -230,16 +230,16 @@ import (
 // Returns the recipe page's content.
 func Recipe() *collage.Fragment {
 	return collage.NewFragment("recipe", "pages/recipes/recipe.html").
-		WithDataHandler(loadRecipe).
+		WithData(collage.DataHandler(loadRecipe)).
 		Required().
 		Build()
 }
 
 // loadRecipe is the content fragment's data handler.
-func loadRecipe(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
+func loadRecipe(ctx context.Context, rc *collage.RenderContext) (recipes.Recipe, []string, error) {
 	recipe, err := recipes.Get(ctx, rc.Param("slug"))
 	if err != nil {
-		return nil, nil, err
+		return recipes.Recipe{}, nil, err
 	}
 	rc.HoistTitle(recipe.Title + " — cookbook")
 	return recipe, []string{"recipe:" + recipe.Slug}, nil
@@ -262,16 +262,17 @@ Kodu satır satır inceleyelim.
 
 - **`NewFragment("recipe", "pages/recipes/recipe.html")`** fragment'e ve template'ine
   isim verir. Template yolu `templates/` dizinine göredir ve uzantıyı da içerir.
-- **`WithDataHandler(loadRecipe)`** fragment'e data handler'ını verir. Bu,
-  `WithDataHandler`'ın beklediği biçimde bir fonksiyondur, arada adapter yoktur.
+- **`WithData(collage.DataHandler(loadRecipe))`** fragment'e data handler'ını
+  verir. `collage.DataHandler`, verisini kendi tipinde (burada bir
+  `recipes.Recipe`) dönen bir fonksiyon alır. Page register edilirken template bu
+  tipe göre kontrol edilir.
 - **Handler üç şey döndürür**: veri, verinin oluşturulduğu dependency tag'leri ve bir
-  hata. Veri, `any` olarak dönen `recipes.Recipe` değeridir ve template onu `.`
-  olarak alır. `recipe:pancakes` tag'i "bu page pancakes tarifini gösteriyor"
-  anlamına gelir. O tarif değiştiğinde cache'teki kopyanın atılabilmesini sağlayan
-  budur. Başka yerlerden de (bir test'ten, başka bir page'den) çağırdığınız bir
-  loader ise `collage.DataHandler` ile kendi tipini dönebilir. Tag'i yoksa
-  `collage.Load` kullanılır; `collage add`'in yazdığı loader da öyleydi. Bkz.
-  [Data handler'lar](/docs/data-handlers#loaders-with-a-type-of-their-own).
+  hata. Veri `recipes.Recipe` değeridir ve template onu `.` olarak alır.
+  `recipe:pancakes` tag'i "bu page pancakes tarifini gösteriyor" anlamına gelir. O
+  tarif değiştiğinde cache'teki kopyanın atılabilmesini sağlayan budur. Bildirecek
+  tag'i olmayan bir loader ise bunun yerine `collage.Load` kullanır;
+  `collage add`'in yazdığı loader da öyleydi. Bkz.
+  [Data handler'lar](/docs/data-handlers#handlers-with-no-tags).
 - **`rc.Param("slug")`**, URL'de eşleşen `{slug}` değeridir.
 - **`rc.HoistTitle`** page'e kendi `<title>`'ını verir. Content fragment'i layout'un
   içinde yer alır ve en içteki tanım kazanır. Bu yüzden bu başlık, layout'un
@@ -362,9 +363,13 @@ döner. Development'ta error page, hatanın başladığı fragment olarak
 `recipe`'yi gösterir. Ayrıca hata zincirinin tamamını, `pages/recipes/recipe.html:2:8`
 konumuna ve bulunamayan alana kadar yazdırır. Sonra değişikliği geri alın.
 
-Handler'ın `recipes.Recipe` yerine `any` dönmesinin nedeni de budur. Veriyi okuyan
-template'tir ve onu tipsiz okur: somut bir dönüş tipi de `{{.Name}}` hatasını
-yakalamazdı.
+Bu, development server'ın daha önce kontrol ettiği bir template'i yeniden parse
+etmesidir. Program bir sonraki başlatılışında (Go kodundaki bir sonraki
+değişiklikte, `collage check`'te ya da page'i register eden bir test'te) o kadar
+ilerleyemez. Handler `Name` alanı olmayan bir `recipes.Recipe` döner. Bu yüzden
+`RegisterPage`, page'i fragment'i, dosyayı, satırı ve sütunu veren bir
+`collage.ErrTemplateType` ile reddeder. Bkz.
+[Template'ler nasıl kontrol edilir](/docs/data-handlers#how-templates-are-checked).
 
 ## Bir slot'a ikinci bir fragment ekleyin
 
@@ -397,14 +402,14 @@ type moreView struct {
 // Returns the list of every recipe but the one on the page.
 func More() *collage.Fragment {
 	return collage.NewFragment("more", "pages/recipes/more.html").
-		WithDataHandler(loadMore).
+		WithData(collage.DataHandler(loadMore)).
 		Build()
 }
 
-func loadMore(ctx context.Context, rc *collage.RenderContext) (any, []string, error) {
+func loadMore(ctx context.Context, rc *collage.RenderContext) (moreView, []string, error) {
 	list, err := recipes.List(ctx)
 	if err != nil {
-		return nil, nil, err
+		return moreView{}, nil, err
 	}
 	var view moreView
 	for _, recipe := range list {
@@ -442,7 +447,7 @@ de aynı package'ta durduğu `fragments/pages/recipes/recipe.go` dosyasında:
 
 ```go
 return collage.NewFragment("recipe", "pages/recipes/recipe.html").
-	WithDataHandler(loadRecipe).
+	WithData(collage.DataHandler(loadRecipe)).
 	WithSlotFragment("more", More()).
 	Required().
 	Build()

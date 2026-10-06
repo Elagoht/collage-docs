@@ -30,11 +30,11 @@ fragment'i bulunan bir layout fragment'i ve bir URL'dir.
 
 ```go
 author := collage.NewFragment("author", "fragments/author.html").
-	WithDataHandler(loadAuthor).
+	WithData(collage.DataHandler(loadAuthor)).
 	Build()
 
 post := collage.NewFragment("post", "pages/post.html").
-	WithDataHandler(loadPost).
+	WithData(collage.DataHandler(loadPost)).
 	WithSlotFragment("author", author).
 	Build()
 

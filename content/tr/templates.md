@@ -1,6 +1,6 @@
 ---
 description: Template'lerin nerede durduğu, nasıl yüklenip binary'ye embed edildiği, development'ta nasıl yeniden yüklendiği; slot'lar, built-in ve kendi fonksiyonlarınız, escaping.
-reference: TemplateConfig, Config, ErrUnknownSlot
+reference: TemplateConfig, Config, ErrUnknownSlot, ErrTemplateType
 ---
 
 # Template'ler
@@ -68,9 +68,14 @@ set'e toplar. Her hata türü, yakalanabileceği en erken noktada yakalanır:
 - **Template'inin hiç çağırmadığı bir slot'a bağlanmış bir fragment** olduğunda
   `RegisterPage`, `ErrUnknownSlot` ile hata döner. Ayrıntılar aşağıda,
   [Slot'lar](#slots) bölümündedir.
-- **Çalışırken hata veren bir template**, örneğin veride olmayan bir alana erişen ya
-  da hata dönen bir fonksiyonu çağıran bir template, kendi fragment'ini başarısız
-  kılar.
+- **Verisine uymayan bir template** olduğunda (verinin tipinde yalnızca `Title`
+  varken `{{.Titel}}` ya da yanlış sayıda argümanla çağrılan bir method gibi)
+  `RegisterPage`, `ErrTemplateType` ile hata döner. Hata dosyayı, satırı ve
+  sütunu belirtir (v0.49.0'dan beri). Bkz.
+  [Template'ler nasıl kontrol edilir](/docs/data-handlers#how-templates-are-checked).
+- **Çalışırken hata veren bir template**, örneğin tipi render'dan önce bilinmeyen
+  bir verinin alanına erişen, nil bir pointer'a takılan ya da hata dönen bir
+  fonksiyonu çağıran bir template, kendi fragment'ini başarısız kılar.
   Bu durumda fragment'in
   [failure policy'si](/docs/fragments-and-slots#when-a-fragment-fails) devreye
   girer. Çıktı buffer'lanır. Bu yüzden yarıda hata veren bir template yarım bir
@@ -146,15 +151,18 @@ Bir değişikliğin hemen görünmesini iki şey daha sağlar:
 Bütün set yeniden parse edildiği için herhangi bir template'teki bir syntax hatası,
 düzeltilene kadar bütün render'ları başarısız kılar. Bu development'ta olur. Hatayı orada
 hemen, dosya ve satır numarasıyla birlikte görürsünüz. Register sırasında yapılan
-kontroller, açılıştan sonra düzenlenen bir template için yeniden yapılmaz. Böyle
+kontroller, verinin tipine göre yapılan kontrol de dahil, açılıştan sonra
+düzenlenen bir template için bir sonraki yeniden başlatmaya kadar yeniden
+yapılmaz. Böyle
 bir template'in hatası bunun yerine development error page'inde görünür; önce
 template, satır ve neden gelir.
 
 ## Bir template ne alır
 
 `.`, tam olarak fragment'in data handler'ının döndürdüğü değerdir ya da
-fragment'e `WithData` ile verilen değerdir. İkisi de olmayan ya da handler'ı
-`collage.Effect` ile uyarlanmış bir fragment, veri olmadan render edilir. Bkz.
+`collage.Value`'nun verdiği değerdir. Tipi de handler'ın ya da değerin belirttiği
+Go tipidir. Verisi olmayan ya da handler'ı `collage.Effect` ile uyarlanmış bir
+fragment, veri olmadan render edilir. Bkz.
 [Data handler'lar](/docs/data-handlers).
 
 ```go

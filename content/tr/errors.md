@@ -1,6 +1,6 @@
 ---
 description: collage'ın export ettiği bütün error değerleri, nereden geldiklerine göre gruplanmış hâlde; her birinin ne anlama geldiği ve ne yapmanız gerektiğiyle birlikte.
-reference: ErrCSRFCrossOrigin, ErrCachedFetchPanicked, PanicError, ErrUnknownSlot, ErrConflictingData, ErrNoDocumentHandler, ErrRouteParams, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath, ErrInvalidGuardDecision, ErrGuardRefused, ErrGuarded
+reference: ErrCSRFCrossOrigin, ErrCachedFetchPanicked, PanicError, ErrUnknownSlot, ErrConflictingData, ErrTemplateType, TemplateTypeError, ErrNoDocumentHandler, ErrRouteParams, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath, ErrInvalidGuardDecision, ErrGuardRefused, ErrGuarded
 ---
 
 # Hatalar
@@ -111,7 +111,8 @@ reddedilir.
 | `ErrMissingContent` | `collage: missing content` | Bir page'in content fragment'i yoktur. |
 | `ErrMissingLayout` | `collage: missing layout` | `WithLayouts` hiç layout verilmeden çağrılmıştır. Layout'u olmayan bir page onu çağırmaz. |
 | `ErrConflictingLayout` | `collage: layout chain already declared` | `WithLayouts` aynı builder'da iki kez çağrılmıştır. Ya da elle oluşturulan bir page, `LayoutChain`'inin ilk elemanı olmayan bir `LayoutFragment` belirtmiştir. |
-| `ErrConflictingData` | `collage: fixed data and a handler are both set` | Bir fragment hem `WithData` hem `WithDataHandler` ayarlamıştır. |
+| `ErrConflictingData` | `collage: conflicting data` | Bir fragment'in verisi iki kez ayarlanmıştır: `WithData` veriyle iki kez çağrılmıştır (v0.49.0'dan önce sonuncusu sessizce kazanırdı) ya da bir document'ta hem `WithBody` hem `WithHandler` vardır. Mesaj fragment'in adını verir: `fragment "x" has its data set twice`. |
+| `ErrTemplateType` | `collage: template does not fit its data` | Bir template, fragment'inin veri tipinin veremeyeceği bir şeyi okur: örneğin böyle bir alanı olmayan bir tip üzerinde `{{.Titel}}`. Her bulgu, page'i, fragment'i, dosyayı, satırı ve sütunu veren bir `*TemplateTypeError`'dır. Bkz. [Template'ler nasıl kontrol edilir](/docs/data-handlers#how-templates-are-checked). v0.49.0'dan beri. |
 | `ErrInvalidTimeout` | `collage: invalid timeout` | Bir fragment'in timeout'u negatiftir. |
 | `ErrMissingTTL` | `collage: missing cache ttl for incremental strategy` | `Incremental`'a sıfır bir TTL verilmiştir. |
 | `ErrInvalidTTL` | `collage: invalid cache ttl` | Bir page'in TTL'i negatiftir. |
