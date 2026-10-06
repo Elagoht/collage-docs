@@ -29,7 +29,7 @@ type docView struct {
 // far in a translation, and nothing else.
 func DocPage(app *collage.App, docs func() (*site.Set, error)) *collage.Page {
 	content := collage.NewFragment("doc-content", "pages/doc.html").
-		WithDataHandler(collage.Load(func(_ context.Context, rc *collage.RenderContext) (docView, error) {
+		WithData(collage.Load(func(_ context.Context, rc *collage.RenderContext) (docView, error) {
 			set, err := docs()
 			if err != nil {
 				return docView{}, err

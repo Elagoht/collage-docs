@@ -19,7 +19,7 @@ type homeView struct {
 // HomePage is the landing page, at "/" and, in Turkish, "/tr/".
 func HomePage(app *collage.App, docs func() (*site.Set, error)) *collage.Page {
 	content := collage.NewFragment("home-content", "pages/home.html").
-		WithDataHandler(collage.Load(func(_ context.Context, rc *collage.RenderContext) (homeView, error) {
+		WithData(collage.Load(func(_ context.Context, rc *collage.RenderContext) (homeView, error) {
 			set, err := docs()
 			if err != nil {
 				return homeView{}, err
