@@ -442,7 +442,7 @@ Bir template verisini isimle okur: `{{.Title}}`, `{{.Author.Name}}`.
 `html/template` bu isimleri ancak template çalışırken çözer. Bir `{{.Titel}}`,
 page'inin her render'ını başarısız kılar. Kimsenin ziyaret etmediği bir page'de
 ise hiç ortaya çıkmaz. v0.49.0'dan beri her fragment'in verisi tipli bir
-constructor'dan gelir. Bu yüzden registration her template'in hangi Go tipiyle
+constructor'dan gelir. Bu yüzden register işlemi her template'in hangi Go tipiyle
 çalışacağını bilir ve template'i bu tipe göre dolaşır. `RegisterPage`,
 template'leri verisine uymayan bir page'i reddeder. Hata page'i, fragment'i,
 dosyayı, satırı ve sütunu verir:
@@ -468,7 +468,7 @@ edilen bir partial, kendisine verilen tiple dolaşılır. Uygulama genelinde
 kendisine verilen her tip için de bir kez dolaşılır.
 
 Bir [slot resolver'ın](/docs/fragments-and-slots#slots-filled-per-render) döndüğü
-fragment page render edilirken oluşturulur. Bu yüzden registration onu hiç görmez
+fragment page render edilirken oluşturulur. Bu yüzden register işlemi onu hiç görmez
 ve template'i kontrol edilmez.
 
 `.` fragment'in veri tipiyle başlar ve template'i izler: `{{range}}` içinde
@@ -584,9 +584,10 @@ Dönen hata üzerinde `errors.As` ilk bulguyu bulur. Alanları:
 | `Reason` | Neyin yanlış olduğu |
 | `Suggestion` | Tipin sahip olduğu en yakın isim ya da boş |
 
-Kontrol, diğer registration kontrollerinin çalıştığı yerde çalışır: başlangıçta,
-dolayısıyla uygulamayı başlatan [`collage check`](/docs/cli#collage-check)'te ve
-page'leri register eden bir test'te. `collage dev` altında, program çalışırken
+Kontrol, register sırasında yapılan diğer kontrollerin çalıştığı yerde çalışır:
+başlangıçta, dolayısıyla uygulamayı başlatan
+[`collage check`](/docs/cli#collage-check)'te ve page'leri register eden bir
+test'te. `collage dev` altında, program çalışırken
 düzenlenen bir template yeniden parse edilir ama bir sonraki yeniden başlatmaya,
 yani Go kodundaki bir sonraki değişikliğe kadar tekrar kontrol edilmez.
 [`collage inspect`](/docs/cli#collage-inspect), bir editörün aynı şekilde kontrol

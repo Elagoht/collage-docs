@@ -398,9 +398,10 @@ Kurallar şunlardır:
   döndürülürse, slot'un sahibi olan fragment başarısız olur. Bu durumda o fragment'in
   failure policy'si uygulanır ve hata, döndürülen fragment'in ismini içerir. Hatayı
   resolver'ın içinde ele almak isterseniz `BuildErr()`'ü kendiniz kontrol edin.
-  Registration'ın diğer bütün fragment'ler için yaptığı gibi template'leri
-  verilerinin tipine göre de kontrol edilmez. Template'lerin hepsi başlangıçta yüklenir. Bu yüzden bir resolver'ın
-  kullanabileceği block türleri yine de program tarafından belirlenir.
+  Register işlemi diğer bütün fragment'lerin template'lerini verilerinin tipine
+  göre kontrol eder, bunlarınkini ise etmez. Template'lerin hepsi başlangıçta
+  yüklenir. Bu yüzden bir resolver'ın kullanabileceği block türleri yine de
+  program tarafından belirlenir.
 
 Bölümleri içerikten gelen bir page, o içeriğin tag'lerini de bildirmelidir. Buradaki
 örnekte landing handler'ı, `collage.Effect` yerine `collage.DataHandler` ile

@@ -575,8 +575,8 @@ extension'ı ([Editör desteği](/docs/installation#editor-support)),
 
 v0.49.0'dan beri her fragment, template'inin `.` olarak gördüğü Go tipini de
 taşır. Root da bu tiplerin ulaştığı tiplerin bir tablosu olan `types`'ı taşır.
-Böylece bir editör `{{.`'yı tamamlayabilir ve bir alan adını registration'ın
-yaptığı gibi kontrol edebilir (bkz.
+Böylece bir editör `{{.`'yı tamamlayabilir ve bir alan adını register
+sırasında olduğu gibi kontrol edebilir (bkz.
 [Template'ler nasıl kontrol edilir](/docs/data-handlers#how-templates-are-checked)):
 
 ```json
