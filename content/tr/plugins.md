@@ -586,7 +586,7 @@ Plugins: []collage.Plugin{md},
 ```go
 app.RegisterPage(collage.NewPage("post").
 	WithContent(collage.NewFragment("post", "pages/post.html").
-		WithDataHandler(md.Handler()).
+		WithData(md.Handler()).
 		Required().
 		Build()).
 	WithPath("en", "/blog/{slug}").
@@ -606,10 +606,10 @@ app.RegisterPage(collage.NewPage("post").
 }
 ```
 
-- v0.1.3, collage v0.34.2 ya da sonrasını gerektirir (v0.1.2 v0.24.0'ı
-  gerektiriyordu). Handler'larını collage v0.49.0'ın kaldırdığı
-  `collage.DataHandlerFunc` olarak verir. Bu yüzden v0.49.0 ve sonrasıyla build
-  edilmez. `Config.Plugins` içinde ya da `RegisterPlugin` ile register
+- v0.2.0, collage v0.49.0 ya da sonrasını gerektirir ve handler'ları
+  `collage.Data`'dır: `WithData(md.Handler())`. v0.1.3 v0.34.2'yi gerektiriyordu
+  ve döndürdüğü `collage.DataHandlerFunc`'ı kaldıran v0.49.0 ile build edilmez.
+  `Config.Plugins` içinde ya da `RegisterPlugin` ile register
   edilebilir: config'ini ve dosyalarını uygulama
   başlarken okur, static build de bunu yazacağı page'leri listelemeden önce yapar.
 - `md.Handler()`, template'e `slug`'ın adlandırdığı `Doc`'u verir (`Title`,

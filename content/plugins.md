@@ -555,7 +555,7 @@ Plugins: []collage.Plugin{md},
 ```go
 app.RegisterPage(collage.NewPage("post").
 	WithContent(collage.NewFragment("post", "pages/post.html").
-		WithDataHandler(md.Handler()).
+		WithData(md.Handler()).
 		Required().
 		Build()).
 	WithPath("en", "/blog/{slug}").
@@ -575,9 +575,9 @@ app.RegisterPage(collage.NewPage("post").
 }
 ```
 
-- v0.1.3 needs collage v0.34.2 or later; v0.1.2 needed v0.24.0. It hands its
-  handlers over as `collage.DataHandlerFunc`, which collage v0.49.0 removed, so it
-  does not build against v0.49.0 or later. It can go in
+- v0.2.0 needs collage v0.49.0 or later, and its handlers are `collage.Data`:
+  `WithData(md.Handler())`. v0.1.3 needed v0.34.2 and does not build against
+  v0.49.0, which removed the `collage.DataHandlerFunc` it returned. It can go in
   `Config.Plugins` or `RegisterPlugin`: it reads its configuration and files when
   the application starts, which a static build does before it lists the pages to
   write.
