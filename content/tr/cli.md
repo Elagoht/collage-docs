@@ -625,7 +625,10 @@ sırasında olduğu gibi kontrol edebilir (bkz.
   listelenir. Diğer isimsiz bileşik tipler bir tip string'inin içinde yazılır
   (`[]blog.Comment`). `time.Time` ve `template.HTML` gibi standart kütüphane
   tipleri ayrıntılandırılmaz, yalnızca adıyla anılır. Hiçbir fragment'in bilinen bir veri
-  tipi yoksa `types` yazılmaz.
+  tipi yoksa `types` yazılmaz. İki farklı tipin paylaştığı bir key (`models`
+  adlı iki paketteki `models.User`) alan ve method içermeden
+  `{"kind": "struct", "ambiguous": true}` olarak yazılır, editör onu bilinmeyen
+  sayar (v0.51.2'den beri).
 
 Bunlar eklemedir: çıktının `version`'ı hâlâ `1`'dir.
 
