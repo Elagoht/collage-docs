@@ -1,6 +1,6 @@
 ---
 description: How a fragment fetches its data — the handler contract, fixed data, dependency tags, 404s, concurrency, the render context, sharing data, timeouts, and how templates are checked against their data.
-reference: Data, FragmentBuilder.WithData, FragmentBuilder.WithTitle, FragmentBuilder.WithoutTypeCheck, DataHandler, Load, Value, RenderContext, Get, Once, Effect, ErrNotFound, ErrConflictingData, TemplateTypeError, ErrTemplateType, PanicError
+reference: Data, FragmentBuilder.WithData, FragmentBuilder.WithTitle, FragmentBuilder.WithoutTypeCheck, DataHandler, Load, Value, RenderContext, Key, NewKey, Once, Effect, ErrNotFound, ErrConflictingData, TemplateTypeError, ErrTemplateType, PanicError
 ---
 
 # Data handlers
@@ -193,7 +193,7 @@ not their sum.
 The order that is guaranteed:
 
 - **A parent's handler finishes before its children's start.** A child can read
-  what its parent put in shared data, and a path parameter its parent resolved.
+  what its parent stored under a key, and a path parameter its parent resolved.
 - **Siblings run at the same time**, each on its own goroutine, in no particular
   order.
 - **Templates still render one at a time, in tree order.** Output is identical from
@@ -205,8 +205,8 @@ That has three consequences for the code you write.
 - **Handlers must be safe to run concurrently with their siblings.** Anything they
   share — a map, a counter, a client that is not goroutine-safe — needs the same
   care it would anywhere else in Go.
-- **Shared data goes through `rc.Get` and `rc.Set`,** never the `SharedData` map
-  directly — see [below](#sharing-data-between-fragments).
+- **Shared values go through a `collage.Key`,** whose `Get` and `Set` hold the
+  render's lock — see [below](#sharing-data-between-fragments).
 - **A fragment in a slot the template does not render still starts.** Its context
   is cancelled as soon as the template has finished, and its failure is discarded.
   A handler that is expensive and usually skipped belongs behind something other
@@ -223,7 +223,7 @@ rendered.
 | `rc.Locale` | The locale the URL resolved to |
 | `rc.Param(name)`, `rc.PathParams` | What the route's `{name}` placeholders captured |
 | `rc.Page` | The page being rendered; in an action, the page whose URL it answers on (since v0.33.0) — **read only** |
-| `rc.Get(key)`, `rc.Set(key, value)` | Values shared between the fragments of one render |
+| `key.Get(rc)`, `key.Set(rc, value)` | Values shared between the fragments of one render, through a `collage.Key` |
 | `rc.Context()` | The context the render context carries |
 | `rc.HoistTitle`, `rc.HoistMeta`, `rc.HoistProperty`, `rc.HoistLink`, `rc.HoistAlternate`, `rc.HoistStylesheet`, `rc.Hoist` | Declarations for the page's `<head>` — see [Head and SEO](/docs/head-and-seo) |
 | `rc.Asset(path)` | A mounted file's content-addressed URL — see [Static assets](/docs/assets) |
@@ -238,38 +238,48 @@ Two rules about the render context itself.
   return — in a goroutine, a cache, a struct — is holding on to a request that has
   finished.
 - **Do not write to `rc.Page`.** It is the one registered `*collage.Page`, shared by
-  every request rendering that page at the same moment. Writing to its `SEO` map or
-  its `DependencyTags` from a handler is a data race on live framework state, which
-  `go test -race` reports and production eventually corrupts. Anything that varies
-  per request goes in the data you return or in shared data.
+  every request rendering that page at the same moment. Writing to its `Paths` map
+  or its `DependencyTags` from a handler is a data race on live framework state,
+  which `go test -race` reports and production eventually corrupts. Anything that
+  varies per request goes in the data you return or under a `collage.Key`.
 
 ## Sharing data between fragments
 
 Fragments on one page often need the same thing. The post page's content, its
 `<head>` and its "more by this author" box all want the post.
 
-### rc.Set and collage.Get
+### collage.Key
 
-`rc.Set(key, value)` stores a value for the rest of the render, and
-`collage.Get[T](rc, key)` reads it back as the type it was stored as:
+A `collage.Key` is a name and a type, declared once at package level. `Set` stores
+a value under it for the rest of the render, and `Get` reads it back as that type:
 
 ```go
+var postKey = collage.NewKey[*Post]("post")
+
 // in the parent's handler
-rc.Set("post", post)
+postKey.Set(rc, post)
 
 // in a child's handler, which starts after the parent's has returned
-post, ok := collage.Get[*Post](rc, "post")
+post, ok := postKey.Get(rc)
 if !ok {
-	return nil, nil, errors.New("more-by-author: no post in shared data")
+	return nil, nil, errors.New("more-by-author: no post stored under postKey")
 }
 ```
 
-`ok` is false when nothing is stored under the key, and also when what is stored is
-not a `*Post` — to the caller, both mean the value it wanted is not there. Keys are
-your application's own namespace; pick names that will not collide.
+`ok` is false when nothing is stored under the key. A read needs no type assertion,
+and a write of the wrong type does not compile. A key is its name *and* its type:
+`NewKey[*Post]("post")` and `NewKey[*Draft]("post")` are two keys holding two
+values, and two `NewKey[*Post]("post")` declared in different files are one. Keys
+are your application's own namespace; pick names that will not collide.
 
-`rc.Get` and `rc.Set` take the render's lock, which is why they are safe from
-concurrent siblings and the bare `rc.SharedData` map is not.
+`With` derives a key per value from a declared one: `postKey.With(slug)` is named
+`post:<slug>` and holds the same type. `NewKey` panics on an empty name, at the
+line that declares it, and a zero `Key` — a struct field never made with `NewKey`
+— panics where it is used.
+
+`Get` and `Set` take the render's lock, which is why they are safe from concurrent
+siblings. Before v0.50.0 values were shared with `rc.Set(key, value)` and
+`collage.Get[T](rc, key)`, over a `SharedData` map; all three are gone.
 
 This works from parent to child, because a parent's handler finishes first. It does
 not work between siblings: they run at the same time, so one cannot count on the
@@ -284,7 +294,7 @@ result to every fragment that asks:
 ```go
 func loadAuthorCard(ctx context.Context, rc *collage.RenderContext) (Author, []string, error) {
 	slug := rc.Param("slug")
-	post, err := collage.Once(rc, "post:"+slug, func(ctx context.Context) (*Post, error) {
+	post, err := collage.Once(rc, postKey.With(slug), func(ctx context.Context) (*Post, error) {
 		return store.Post(ctx, slug)
 	})
 	if err != nil {
@@ -295,15 +305,16 @@ func loadAuthorCard(ctx context.Context, rc *collage.RenderContext) (Author, []s
 ```
 
 The first caller fetches; the rest wait for it and receive what it produced. The
-obvious alternative — `rc.Get`, fetch on a miss, `rc.Set` — has a gap between the
-check and the write, and two siblings both fall into it and both fetch.
+obvious alternative — `Get`, fetch on a miss, `Set` — has a gap between the check
+and the write, and two siblings both fall into it and both fetch.
 
 - **An error is a result.** Everyone waiting gets it; the fetch is not retried per
   fragment, which is how one slow failure would become several.
 - **It lasts one render.** There is nothing to configure and nothing to evict.
 - **A waiter whose own context ends stops waiting** and returns that error.
-- **One key, one type.** Asking for a key as two different types is
-  `ErrOnceTypeMismatch`, not a silently empty value.
+- **Its values are its own.** What `Once` fetched is not readable with `Get`, and
+  what `Set` stored is not handed to `Once`. Two keys of one name and different
+  types are two fetches; before v0.50.0 that was `ErrOnceTypeMismatch`.
 
 ### collage.Cached
 
@@ -311,7 +322,9 @@ check and the write, and two siblings both fall into it and both fetch.
 between requests: thirty posts by one author fetch the author once.
 
 ```go
-author, err := collage.Cached(rc, "author:"+id, time.Hour, []string{"author:" + id},
+var authorKey = collage.NewKey[Author]("author")
+
+author, err := collage.Cached(rc, authorKey.With(id), time.Hour, []string{"author:" + id},
 	func(ctx context.Context) (Author, error) { return api.Author(ctx, id) })
 ```
 
@@ -333,7 +346,7 @@ handler that returns only an error:
 ```go
 seo := collage.NewFragment("post-seo", "fragments/empty.html").
 	WithData(collage.Effect(func(ctx context.Context, rc *collage.RenderContext) error {
-		post, err := collage.Once(rc, "post:"+rc.Param("slug"), func(ctx context.Context) (*Post, error) {
+		post, err := collage.Once(rc, postKey.With(rc.Param("slug")), func(ctx context.Context) (*Post, error) {
 			return store.Post(ctx, rc.Param("slug"))
 		})
 		if err != nil {

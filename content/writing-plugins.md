@@ -1,6 +1,6 @@
 ---
 description: The plugin contract, what Host and ConfigHost expose, every hook and what it may change, and a complete plugin with its tests.
-reference: Plugin, Host, ConfigHost, Configurer, Command, BeforeRenderHook, BeforeActionHook, BeforeActionEvent, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, RequestHook, RouteOf, RouteInfo, Route, ClientIP
+reference: Plugin, Host, ConfigHost, ConfigReader, PluginConfig, Configurer, Command, BeforeRenderHook, BeforeActionHook, BeforeActionEvent, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, RequestHook, RouteOf, RouteInfo, Route, ClientIP, Key, NewKey, RenderValues
 ---
 
 # Writing a plugin
@@ -75,7 +75,7 @@ already parsed the templates, so it refuses such a plugin with
 
 | | `ConfigHost` (Configure) | `Host` (Init) |
 | --- | --- | --- |
-| `DevMode`, `Logger`, `Config` | yes | yes |
+| `DevMode`, `Logger`, `collage.PluginConfig(host, …)` | yes | yes |
 | `AddTemplateFunc`, `AddRenderFunc`, `WrapMount` | yes | — |
 | `Pages`, `Page`, `InvalidateTags` | — | yes |
 | `URL`, `FragmentURL`, `Locales`, `PageURLs` | — | yes |
@@ -94,7 +94,7 @@ cache to reach.
 | --- | --- |
 | `DevMode() bool` | Whether the application runs in development mode. |
 | `Logger() *slog.Logger` | The application's logger. |
-| `Config(v) error` | Decodes this plugin's configuration section into `v` — see [Configuration](#configuration). |
+| `ConfigReader` (embedded) | What `collage.PluginConfig(host, defaults)` reads this plugin's configuration section through — see [Configuration](#configuration). |
 | `AddTemplateFunc(name, fn) error` | Adds a template function. Returns `ErrDuplicateTemplateFunc` when the name was already added — by another plugin, or by this one earlier. |
 | `WrapMount(wrap func(fs.FS) fs.FS)` | Registers a transformation applied to every mounted filesystem, in the order wrappers were registered. |
 | `AddRenderFunc(name, factory) error` | Adds a template function made anew for each render from its `*RenderContext` — see [Template functions](#template-functions) (since v0.21.0). |
@@ -105,7 +105,7 @@ cache to reach.
 | --- | --- |
 | `DevMode() bool` | Whether the application runs in development mode. |
 | `Logger() *slog.Logger` | The application's logger. |
-| `Config(v) error` | Decodes this plugin's configuration section into `v`. |
+| `ConfigReader` (embedded) | What `collage.PluginConfig(host, defaults)` reads this plugin's configuration section through. |
 | `Pages() []*collage.Page` | Every registered page, each a defensive copy. |
 | `Page(name) (*collage.Page, bool)` | One page by name, a defensive copy. |
 | `InvalidateTags(ctx, tags...) error` | Drops every cached entry built from any of the tags. |
@@ -135,10 +135,12 @@ methods and nothing else, so a plugin cannot assert its way to `ListenAndServe`,
 and `PageURLs` in v0.21.0, with `AddRenderFunc` on `ConfigHost`, and `BuildID` and
 `ServeStatus` in v0.24.0. **Each of these is a breaking change for a test double:**
 one implementing `Host` or `ConfigHost` needs the new methods too — since v0.24.0,
-`BuildID` and `ServeStatus`.
+`BuildID` and `ServeStatus`. Since v0.50.0 both include `collage.ConfigReader`, whose
+one method is unexported, so only collage's own hosts satisfy it; test a plugin
+through a real application instead — see [Testing a plugin](#testing-a-plugin).
 
 **`Host` limits what a plugin can reach, not what it can change.** `Pages` and
-`Page` return copies of the page struct and of its `Paths`, `Redirects`, `SEO` and
+`Page` return copies of the page struct and of its `Paths`, `Redirects` and
 `DependencyTags` containers, so editing those does not touch the application's own
 page. The fragment pointers inside a copy are still shared, and the events below
 carry the *live* page, not a copy — copying a page and its fragment tree on every
@@ -213,7 +215,7 @@ take the connection over with `Hijack`, as it could on a bare `net/http` server.
 | `PageResolvedHook` | `OnPageResolved` | `PageResolvedEvent` | Once per page request, right after routing and the page's guards — cache hits included | nothing |
 | `BeforeRenderHook` | `OnBeforeRender` | `BeforeRenderEvent` | Before a fresh page render | nothing on the event; may hoist through `ev.Context` |
 | `BeforeActionHook` | `OnBeforeAction` | `BeforeActionEvent` | Before an action's handler, after its guards, body limit and forgery check (since v0.31.0) | `ev.Result`, which answers in the handler's place |
-| `AfterRenderHook` | `OnAfterRender` | `AfterRenderEvent` | After a page render succeeded | `ev.HTML`; reports with `ev.Warn`, `ev.Error` |
+| `AfterRenderHook` | `OnAfterRender` | `AfterRenderEvent` | After a page render succeeded, with `ev.Values` (read with a key's `In`) | `ev.HTML`; reports with `ev.Warn`, `ev.Error` |
 | `PersonaliseHook` | `OnPersonalise` | `PersonaliseEvent` | For every HTML response on its way to one reader, after the cache (since v0.43.0) | `ev.Body`, `ev.Header`, `ev.Personal` |
 | `DocumentRenderedHook` | `OnDocumentRendered` | `DocumentRenderedEvent` | After a document handler produced its body | `ev.Body` |
 | `CacheWriteHook` | `OnCacheWrite` | `CacheWriteEvent` | Before a page or document is written to the cache | `ev.Skip`, `ev.TTL`, `ev.Tags` |
@@ -403,7 +405,7 @@ type AfterRenderEvent struct {
 	HTML     []byte // replace it to post-process the page
 	// Fragments: each fragment's time and failure, as collage.FragmentReport
 	// DependencyTags: the tags the render depended on
-	// Data: the render's shared data, the map behind rc.Set and rc.Get
+	// Values: the render's shared values, read with a collage.Key's In
 	// Findings: what ev.Warn and ev.Error reported so far
 }
 ```
@@ -414,11 +416,35 @@ Replace `ev.HTML` to post-process; what you leave there is what is served, and �
 unless a cache-write hook skips it — what is cached. Later plugins see what earlier
 ones produced.
 
-`ev.Data` is the render's shared data — the same map fragments read and write with
-`rc.Set` and `rc.Get` — so it is what the page was built *from*, for a plugin that
-wants the article rather than markup to parse back. What is in it is entirely the
-application's convention; the framework puts nothing there. It is the live map:
-reading it is fine, keeping it past the hook is holding request state.
+`ev.Values` (a `*collage.RenderValues`) are the values the page's fragments
+exchanged through keys, so they are what the page was built *from*, for a plugin
+that wants the article rather than markup to parse back. A hook has no
+`RenderContext`, so it reads them with the key's `In`:
+
+```go
+var ArticleKey = collage.NewKey[Article]("jsonld:article")
+
+func (p *Plugin) OnAfterRender(_ context.Context, ev *collage.AfterRenderEvent) error {
+	article, ok := ArticleKey.In(ev.Values)
+	if !ok {
+		return nil // this page stored no article
+	}
+	ev.Hoist("head", "jsonld", p.script(article))
+	return nil
+}
+```
+
+The values are opaque: a plugin reads only what it holds a key for, and there is no
+listing them. A plugin that wants the application to hand it something exports the
+key, and the application stores under it; a plugin that carries state from its own
+render functions to its hook keeps the key unexported. The framework puts nothing
+there. They are the render's own, not a copy: keeping them past the hook is holding
+request state.
+
+Begin a key's name with the plugin's own name — `"jsonld:article"`,
+`"validate:errors"`. A key is only its name and its type, so two plugins that each
+declare `NewKey[string]("errors")` hold one value between them, and whichever sets
+it last wins. Before v0.50.0 this was `ev.Data`, the render's shared map.
 
 `ev.Fragments` and `ev.DependencyTags` (since v0.24.0) report how the render went,
 for a development tool to show beside the page. Each `collage.FragmentReport` has
@@ -835,8 +861,10 @@ v0.21.0 `AddRenderFunc` takes a factory instead, called for each render with its
 nonce a `BeforeRender` hook set, the render's locale:
 
 ```go
+var nonceKey = collage.NewKey[string]("csp:nonce")
+
 host.AddRenderFunc("nonce", func(rc *collage.RenderContext) any {
-	nonce, _ := collage.Get[string](rc, "csp:nonce")
+	nonce, _ := nonceKey.Get(rc)
 	return func() string { return nonce }
 })
 ```
@@ -956,8 +984,9 @@ block itself. See [The collage CLI](/docs/cli#plugin-commands).
 ## Configuration
 
 A plugin reads its own section of `Config.PluginConfig` into a typed struct with
-`host.Config`, available in both phases. Set your defaults first; `Config` decodes
-the application's section over them:
+`collage.PluginConfig(host, defaults)`, which takes `Host` or `ConfigHost` alike and
+returns the type of the defaults. It decodes the application's section over a copy
+of them:
 
 ```go
 type Config struct {
@@ -966,15 +995,19 @@ type Config struct {
 }
 
 func (p *Plugin) Configure(_ context.Context, host collage.ConfigHost) error {
-	p.cfg = Config{Generator: "collage"} // defaults
-	return host.Config(&p.cfg)           // overlaid by the application's section, if any
+	cfg, err := collage.PluginConfig(host, Config{Generator: "collage"}) // defaults, overlaid by the application's section
+	p.cfg = cfg
+	return err
 }
 ```
 
-- **An absent section leaves `v` untouched**, so "not configured" and "configured to
-  the zero value" stay different statements.
-- **A present but malformed section is an error.** The operator wrote something,
-  and running on defaults instead would be the silent failure this refuses.
+- **An absent, empty or `null` section returns the defaults unchanged**, so "not
+  configured" and "configured to the zero value" stay different statements.
+- **A present but malformed section is an error** naming the plugin —
+  `collage: plugin "acme/stamp" configuration: …` — returned with the defaults. The
+  operator wrote something, and running on defaults silently would hide it.
+- A map or slice inside the defaults is decoded into in place, so write the
+  defaults as a literal in the call rather than sharing one value between calls.
 - The section is decoded with `json.Unmarshal` over your defaults, and follows its
   rules. A scalar or a slice in the JSON replaces your default — a slice is not
   merged. A JSON object decoded into a map adds its entries to the map you set,
@@ -983,6 +1016,8 @@ func (p *Plugin) Configure(_ context.Context, host collage.ConfigHost) error {
 - The application sees a key that names no registered plugin as a startup error
   (`ErrUnknownPluginConfig`). Your `Name` is therefore the whole of your
   configuration's address; changing it is a breaking change.
+
+Before v0.50.0 a plugin set its defaults on a field and called `host.Config(&cfg)`.
 
 Document every key, its type and its default in your README. Offering a
 `NewWith(Config)` constructor alongside `New()` lets an application configure you
@@ -1088,10 +1123,11 @@ func (p *Plugin) Version() string { return "0.1.0" }
 // Configure runs inside collage.New, before templates are parsed: the one
 // moment a template function can still be added.
 func (p *Plugin) Configure(_ context.Context, host collage.ConfigHost) error {
-	p.cfg = Config{Generator: "collage"} // the defaults
-	if err := host.Config(&p.cfg); err != nil {
+	cfg, err := collage.PluginConfig(host, Config{Generator: "collage"}) // the defaults
+	if err != nil {
 		return err // a section that is present but malformed
 	}
+	p.cfg = cfg
 	return host.AddTemplateFunc("generator", func() string { return p.cfg.Generator })
 }
 

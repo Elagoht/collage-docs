@@ -179,12 +179,14 @@ See [Static assets](/docs/assets) and
 | `ErrMaxDepthExceeded` | `collage: max fragment depth exceeded` | The fragment tree nests deeper than the engine allows. | Almost always a fragment bound into its own slot, directly or not. |
 | `ErrNoRootFragment` | `collage: page has no root fragment` | A page has neither a layout nor content. | — |
 | `ErrPageNotFound` | `collage: no page at path` | `App.RenderPath` found no page at the path. | — |
-| `ErrOnceTypeMismatch` | `collage: once key fetched as two different types` | Two `collage.Once` calls asked for one key as different types in one render. | The keys collide; namespace them. |
-| `ErrCachedTypeMismatch` | `collage: Cached key holds a value of a different type` | Two `collage.Cached` calls asked for one key as different types. | As above. |
 | `ErrCachedFetchPanicked` | `collage: data fetch panicked` | A `collage.Cached` call waited on another render's fetch, and that fetch panicked (since v0.34.1). The panic itself goes to the render whose fetch it was. | The key is free again: the next render fetches. Fix what panicked. |
 | `ErrDictOddArgs` | `collage: dict requires an even number of arguments` | `{{dict}}` was given a key with no value. | Pair every key with a value. |
 | `ErrDictKeyNotString` | `collage: dict key must be a string` | A `{{dict}}` key is not a string. | Quote the key. |
 | `ErrCSRFDisabled` | `collage: csrfToken used but request-forgery protection is disabled` | A template calls `{{csrfToken}}` in an application with `Security.DisableCSRF` set. | Remove the call, or turn protection back on. |
+
+Before v0.50.0 `ErrOnceTypeMismatch` and `ErrCachedTypeMismatch` reported one key
+asked for as two types. A [`collage.Key`](/docs/data-handlers#collagekey) is its
+name and its type, so two such keys now hold two values and both errors are gone.
 
 A panic in a data handler, a slot resolver or a template function does not take
 the process down: it becomes a `collage.PanicError`, and the fragment fails like

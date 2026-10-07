@@ -1,6 +1,6 @@
 ---
 description: How collage caches rendered pages and the data they are made from, and how it knows what to throw away.
-reference: CacheConfig, Cached, Once, TaggedCache, SkipCache, Vary, PageBuilder.Static, PageBuilder.Incremental, PageBuilder.Dynamic, FragmentBuilder.Static, FragmentBuilder.Shared, StrategyAuto, PathTag
+reference: CacheConfig, Cached, Once, Key, TaggedCache, SkipCache, Vary, PageBuilder.Static, PageBuilder.Incremental, PageBuilder.Dynamic, FragmentBuilder.Static, FragmentBuilder.Shared, StrategyAuto, PathTag
 ---
 
 # Caching
@@ -536,9 +536,11 @@ the author thirty times.
 `collage.Cached` stores the author:
 
 ```go
+var authorKey = collage.NewKey[Author]("author")
+
 func authorCard(ctx context.Context, rc *collage.RenderContext) (Author, []string, error) {
 	id := rc.Param("author")
-	author, err := collage.Cached(rc, "author:"+id, time.Hour, []string{"author:" + id},
+	author, err := collage.Cached(rc, authorKey.With(id), time.Hour, []string{"author:" + id},
 		func(ctx context.Context) (Author, error) {
 			return api.Author(ctx, id)
 		})
@@ -547,7 +549,7 @@ func authorCard(ctx context.Context, rc *collage.RenderContext) (Author, []strin
 ```
 
 ```go
-func Cached[T any](rc *RenderContext, key string, ttl time.Duration, tags []string,
+func Cached[T any](rc *RenderContext, key Key[T], ttl time.Duration, tags []string,
 	fetch func(context.Context) (T, error)) (T, error)
 ```
 
@@ -557,6 +559,13 @@ authors now make two author requests — served or exported. (With it off, and i
 development, there is no store; see [below](#where-it-keeps-nothing).) A [document's](/docs/documents) handler shares the
 same store, so a sitemap or a feed reading those authors fetches none of them
 again.
+
+The key is a [`collage.Key`](/docs/data-handlers#collagekey), the same kind the
+fragments of one render share values through: a name and a type, declared once,
+with `With` adding the part that varies — `authorKey.With("ada")` is named
+`author:ada`. A `fetch` returning anything but the key's type does not compile.
+Tags stay plain strings — `"author:" + id` here — because they are what
+`InvalidateTags` is called with. Before v0.50.0 the key was a string.
 
 ### One set of tags for both caches
 
@@ -577,8 +586,10 @@ the stale author they were meant to replace.
 ### How it behaves
 
 - **The key is yours.** It names the value across the whole application, so make
-  it as specific as the fetch: `author:ada`, not `author`. Asking for one key as
-  two different types is `collage.ErrCachedTypeMismatch`.
+  it as specific as the fetch: `authorKey.With(id)`, not `authorKey`. A key is its
+  name and its type, so two keys of one name and different types hold two values
+  rather than one read as the wrong type (before v0.50.0, that was
+  `collage.ErrCachedTypeMismatch`).
 - **One fetch per key at a time.** Renders that ask for a key while it is being
   fetched wait for that fetch rather than starting their own.
 - **Errors are not stored.** Everyone waiting gets the error; the next render
@@ -621,14 +632,16 @@ rendered, so none of its fetches run at all. See
 
 The page cache is kept per host; `collage.Cached` is not. Its store is one per
 process, keyed only by the key you give it, so on a site serving several customers
-(elagoht/tenant, say) `Cached(rc, "posts", ...)` fetches acme's posts once and hands
+(elagoht/tenant, say) `Cached(rc, postsKey, ...)` fetches acme's posts once and hands
 them to globex too. Put the customer in the key, and in the tags, so invalidating
 one customer's data leaves the others' alone:
 
 ```go
+var postsKey = collage.NewKey[[]Post]("posts")
+
 func posts(ctx context.Context, rc *collage.RenderContext) ([]Post, []string, error) {
 	id, _ := tenant.ID(rc)
-	list, err := collage.Cached(rc, "posts:"+id, time.Hour, []string{"posts:" + id},
+	list, err := collage.Cached(rc, postsKey.With(id), time.Hour, []string{"posts:" + id},
 		func(ctx context.Context) ([]Post, error) { return db.Posts(ctx, id) })
 	return list, nil, err
 }

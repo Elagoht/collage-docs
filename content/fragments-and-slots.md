@@ -195,7 +195,7 @@ checked.
 
 A child does not see its parent's data. Inside `fragments/author.html`, `.` is what
 `loadAuthor` returned, not the post. A child that needs something its parent
-fetched reads it from the render's shared data, or asks for it itself with
+fetched reads it through a `collage.Key` its parent set, or asks for it itself with
 `collage.Once` or `collage.Cached` so it is fetched only once — see
 [Data handlers](/docs/data-handlers#sharing-data-between-fragments).
 
@@ -314,18 +314,20 @@ type block struct {
 	Text    string
 }
 
+var blocksKey = collage.NewKey[[]block]("blocks")
+
 landing := collage.NewFragment("landing", "pages/landing.html").
 	WithData(collage.Effect(func(ctx context.Context, rc *collage.RenderContext) error {
 		blocks, err := cms.Blocks(ctx, "landing")
 		if err != nil {
 			return err
 		}
-		rc.Set("blocks", blocks)
+		blocksKey.Set(rc, blocks)
 		return nil
 	})).
 	WithSlot("blocks", true, true).
 	WithSlotResolver("blocks", func(rc *collage.RenderContext) ([]*collage.Fragment, error) {
-		blocks, _ := collage.Get[[]block](rc, "blocks")
+		blocks, _ := blocksKey.Get(rc)
 		fragments := make([]*collage.Fragment, 0, len(blocks))
 		for i, b := range blocks {
 			f, err := blockFragment(i, b)

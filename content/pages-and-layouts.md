@@ -555,8 +555,8 @@ that refers to a page by value must use that one:
 
 - **`rc.Page` is that value too**, shared by every request that renders the page
   and every goroutine serving them. Read it freely; never write to it. Anything that
-  varies per request belongs in the data a handler returns or in the render's
-  shared data — see [Data handlers](/docs/data-handlers#the-render-context).
+  varies per request belongs in the data a handler returns or under a
+  `collage.Key` — see [Data handlers](/docs/data-handlers#the-render-context).
 
 `app.Page(name)` and `app.Pages()` return copies of registered pages, for looking
 at them — a sitemap listing every page's paths, a test checking a strategy. A copy
