@@ -1,6 +1,6 @@
 ---
 description: Plugin sözleşmesi, Host ve ConfigHost'un sundukları, her hook ve neyi değiştirebileceği, testleriyle birlikte eksiksiz bir plugin.
-reference: Plugin, Host, ConfigHost, ConfigReader, PluginConfig, Configurer, Command, BeforeRenderHook, BeforeActionHook, BeforeActionEvent, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, RequestHook, RouteOf, RouteInfo, Route, ClientIP, Key, NewKey, RenderValues
+reference: Plugin, Host, ConfigHost, ConfigReader, PluginConfig, Configurer, Command, BeforeRenderHook, BeforeActionHook, BeforeActionEvent, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, BuiltRedirect, RedirectSource, IsCapture, RequestHook, RouteOf, RouteInfo, Route, ClientIP, Key, NewKey, RenderValues
 ---
 
 # Plugin yazmak
@@ -236,7 +236,7 @@ sunucusunda da yapabilirdi.
 | `CacheInvalidateHook` | `OnCacheInvalidate` | `CacheInvalidateEvent` | Entry'ler tag ile invalidate edildikten sonra | hiçbir şeyi |
 | `OriginResolver` | `Origin` | string olarak host | `collage.BaseURL` ya da `Origins` bir host'un origin'ini sorduğunda (v0.42.0'dan beri) | dönen origin |
 | `ErrorHook` | `OnError` | `ErrorEvent` | Bir request sunulurken bir hata oluştuğunda | hiçbir şeyi |
-| `BuildFinishedHook` | `OnBuildFinished` | `BuildFinishedEvent` | Bir static build her dosyayı yazdığında, bir kez (v0.21.0'dan beri) | `ev.Warn` ve `ev.Error` ile raporlar |
+| `BuildFinishedHook` | `OnBuildFinished` | `BuildFinishedEvent` | Bir static build her dosyayı yazıp header'larını yakaladığında, bir kez (v0.21.0'dan beri) | `ev.Warn` ve `ev.Error` ile raporlar |
 
 `OnRequest` dışında her hook metodunun imzası
 `func(ctx context.Context, ev *Event) error` biçimindedir.
@@ -304,6 +304,12 @@ kez), `collage.RouteOf` boştur ve `r.URL` ham path'tir. `collage.ClientIP(r)` `
 sayan ya da banlayan bir plugin bu request'leri görebilir. `Metrics.HTTPResponse` ve
 collage'ın kendi request span'i bu request'leri hâlâ atlar.
 
+Hook'lar static bir build'in header yakalamasını da görür (v0.52.0'dan beri).
+`BuildFinishedHook` implement eden bir plugin register edilmişse build, yazdığı her
+dosyayı handler'a sorar ve bu request'lerde `collage.IsCapture(r.Context())`
+true'dur. İstemcileri sayan ya da banlayan bir plugin bunları atlar. Bkz.
+[BuildFinishedHook](#buildfinishedhook).
+
 İstemcinin adresi için `r.RemoteAddr` yerine `collage.ClientIP(r)` kullanın. Bu bir
 `netip.Addr`'dir: `RemoteAddr`'in host'u ya da uygulamanın `Server.TrustedProxies`'te
 listelediği proxy'lerin arkasında proxy'nin bildirdiği istemci (bkz.
@@ -327,9 +333,11 @@ Bir page'e route edilen her request'te, cache'e bakılmadan önce bir kez çalı
 yüzden yeni render'ları da, cache hit'leri de görür. Page'in
 [guard](/docs/pages-and-layouts#private-pages-guards)'larından sonra çalışır;
 onlardan birinin engellediği bir request için hiç çalışmaz, çünkü o request page'e
-hiç ulaşmamıştır. Bir document için hiçbir zaman çalışmaz. Static build
-sırasında da çalışmaz: build bir request değildir ve request'leri sayan bir
-plugin, kimsenin istemediği render'ları da saymış olurdu.
+hiç ulaşmamıştır. Bir document için hiçbir zaman çalışmaz. Static bir build'in
+render'ları için de çalışmaz: onlar request değildir ve request'leri sayan bir
+plugin, kimsenin istemediği render'ları da saymış olurdu. Build'in header yakalaması
+ise bir request'tir ve onun için çalışır (v0.52.0'dan beri);
+`collage.IsCapture(ctx)` true olduğunda onu atlayın.
 Dönen bir hata, request'i `"page_resolved"` stage'i altında 500 ile başarısız kılar.
 
 ### BeforeRenderHook
@@ -367,7 +375,8 @@ bir hata, request'i `"before_render"` altında 500 ile başarısız kılar.
 
 `Static` (v0.22.0'dan beri), page'in bir request için değil, `App.RenderPath`
 üzerinden bir static build için render edildiğini söyler. `AfterRenderEvent`'te de
-bulunur.
+bulunur. Build'in header yakalaması için yapılan render bir request'tir, bu yüzden
+onda `Static` false'tur; onu `collage.IsCapture(ctx)` ayırt eder.
 
 ### BeforeActionHook
 
@@ -820,17 +829,28 @@ alır. Başarısız olan bir error handler, yeni bir error handling turu başlat
 
 ```go
 type BuildFinishedEvent struct {
-	OutDir string              // the directory the build wrote into
-	Files  []collage.BuiltFile // every file it wrote, in no particular order
+	OutDir    string                  // the directory the build wrote into
+	Files     []collage.BuiltFile     // every file it wrote, in no particular order
+	Redirects []collage.BuiltRedirect // every redirect the site declares
 	// Findings: what ev.Warn and ev.Error reported so far
 }
 
 type BuiltFile struct {
-	Kind   string // "page", "document" or "asset"
-	Name   string // the page's or document's name; empty for an asset
-	Locale string
-	Path   string // the URL path the file answers
-	File   string // its absolute path on disk
+	Kind     string // "page", "document" or "asset"
+	Name     string // the page's or document's name; empty for an asset
+	Locale   string
+	Path     string // the URL path the file answers
+	File     string // its absolute path on disk
+	Captured bool        // the build asked the application for this path
+	Status   int         // what it answered with; 0 when not captured or failed
+	Headers  http.Header // the headers a static host can carry
+}
+
+type BuiltRedirect struct {
+	From   string // "/old/{slug}", as registered
+	To     string // "/new/{slug}", an absolute URL, or empty for a 410
+	Status int    // 301, 302, 307, 308 or 410
+	Source string // "page:<name>", "document:<name>" or a plugin's name
 }
 ```
 
@@ -840,6 +860,58 @@ gerektiğinde onu `os.ReadFile` ile okuyun. `ev.Warn(path, rule, message)` ve
 `ev.Error`, `path`'teki page hakkında bir finding raporlar; `path` boşsa finding
 build'in bütünü hakkındadır. Hook'tan dönen bir hata da build'i başarısız kılar;
 zaten yazılmış dosyalar yerinde kalır. Bir sunucuda hiçbir zaman çalışmaz.
+Context'i sona ermiş bir build de ona verilmez.
+
+**Header'lar.** v0.52.0'dan beri build, hook çalışmadan önce her dosyanın path'ini
+uygulamanın handler'ına iki kez sorar ve cevabı dosyaya koyar: `Status` ve
+`Headers`. Tek bir response'a ait header'lar (`Date`, `ETag`, `Set-Cookie`, …) ve
+iki cevap arasında değişenler, örneğin bir CSP nonce'ı, bunlara girmez. `Captured`,
+build'in sorduğu her dosya için true'dur; yakalaması başarısız olan dosya da
+(`Status` 0) buna dahildir. Build'in kendisinin ürettiği `404.html` page'leri ve
+kök redirect için ise false'tur. Yakalama yalnızca `BuildFinishedHook` implement
+eden bir plugin register edilmişse çalışır. Bulduğu şeyler uyarı olarak raporlanır;
+bkz. [Static export](/docs/static-export#headers-and-redirects).
+
+**Redirect'ler.** `ev.Redirects`, sitenin tanımladığı her redirect'i taşır: önce
+register sırasıyla her page'inkiler (`Source` `"page:<name>"`), sonra her
+document'ınkiler (`"document:<name>"`), en son da her plugin'inkiler. `Status`,
+redirect'in `EffectiveStatus()` değeridir. Yalnızca `RegisterNotFoundPage` ya da
+`RegisterErrorPage` ile register edilen bir page hiçbir zaman eşleşmez, bu yüzden
+onun redirect'leri listede yer almaz.
+
+Bir deploy adapter'ı tam olarak bu ikisine ihtiyaç duyar:
+[elagoht/deploy](/docs/plugins#elagohtdeploy) onları bir host'un `_headers`,
+`_redirects` ya da `vercel.json` dosyası olarak yazar.
+
+**Yakalama bir request'tir.** Middleware ve request hook'ları onu görür, page de
+`OnBeforeRender`, `OnAfterRender` ve `OnDocumentRendered` ile yeniden render edilir.
+Trafiği sayan ya da sınırlayan bir plugin de, bir render hook'undan dosya yazan ya
+da sayım tutan bir plugin de `collage.IsCapture(ctx)`'e bakar ve onu atlar. Bir yakalama
+request'i response cache'ine hiçbir zaman yazmaz.
+
+### RedirectSource
+
+```go
+type RedirectSource interface {
+	Redirects() []collage.BuiltRedirect
+}
+```
+
+Kendi redirect'lerini (bir dosyadan, bir veritabanından) sunan bir plugin,
+static export'un bu kuralları host'a taşıması için `RedirectSource` implement eder
+(v0.52.0'dan beri). Build, her dosya yazıldıktan sonra ona bir kez sorar ve
+kurallarını `Source` alanına plugin'in adını koyarak `ev.Redirects`'e ekler. Her
+kural, register edilmiş bir redirect gibi kontrol edilir: `From` tek bir `/` ile
+başlamalı ve bir route pattern'i olarak parse edilebilmeli, `To`'daki her
+placeholder da onun tarafından yakalanmalıdır. Bir page'in redirect'inden farklı
+olarak `To` mutlak bir `http` ya da `https` URL'i olabilir. `410`'un (artık olmayan
+bir path) ise `To`'su yoktur; 301, 302, 307 ve 308 birine ihtiyaç duyar. Başka
+herhangi bir `Status` build'i `collage.ErrInvalidRedirectStatus` ile, bozuk ya da
+control karakteri içeren bir kural ise `collage.ErrInvalidRedirect` ile başarısız
+kılar. Hata, kuralı ve plugin'i adıyla söyler. Başka bir redirect ile aynı path'ten
+gelen ya da yazılmış bir dosyanın üstüne düşen bir plugin kuralı da build'i diğerleri
+gibi başarısız kılar ([Neler başarısız olur](/docs/static-export#what-fails)).
+[elagoht/redirects](/docs/plugins#elagohtredirects) böyle bir plugin'dir.
 
 ### Dispatch kuralları
 

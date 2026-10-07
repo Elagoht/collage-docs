@@ -139,9 +139,13 @@ sees](/docs/caching#what-a-shared-render-sees)): since v0.39.0 a per-user page y
 cached by mistake renders signed-out for everyone — the `userKey` value hidden —
 rather than showing the first reader's account to all. Keep it dynamic.
 
-A static export renders without a request, so no middleware runs during one. A data
-handler reading a context value must cope with its absence — which it has to anyway,
-for a reader who is not signed in.
+A static export renders without a request, so no middleware runs for the files it
+writes. A data handler reading a context value must cope with its absence — which it
+has to anyway, for a reader who is not signed in. Since v0.52.0 the build may then
+[capture each file's headers](/docs/static-export#headers-and-redirects) through
+the handler, and those requests do pass through middleware: middleware that counts
+or limits traffic skips one when `collage.IsCapture(r.Context())` is true, and
+middleware that sets headers handles it as usual.
 
 ## Content that depends on a header: `collage.Vary`
 

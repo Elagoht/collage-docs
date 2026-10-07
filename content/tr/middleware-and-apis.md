@@ -148,9 +148,14 @@ v0.39.0'dan beri, yanlışlıkla cache'lediğiniz kullanıcıya özel bir page �
 değeri gizlendiği için — ilk okuyucunun hesabını herkese göstermek yerine herkese
 oturum kapalıymış gibi render edilir. Onu dynamic bırakın.
 
-Static export request olmadan render eder, bu yüzden export sırasında hiçbir
+Static export request olmadan render eder, bu yüzden yazdığı dosyalar için hiçbir
 middleware çalışmaz. Context'ten değer okuyan bir data handler, bu değer olmadığında
 da doğru çalışmalıdır. Oturum açmamış bir okuyucu için bunu zaten yapması gerekir.
+v0.52.0'dan beri build ardından
+[her dosyanın header'larını](/docs/static-export#headers-and-redirects) handler
+üzerinden yakalayabilir ve bu request'ler middleware'den geçer. Trafiği sayan ya da
+sınırlayan bir middleware, `collage.IsCapture(r.Context())` true olduğunda
+request'i atlar. Header set eden middleware ise onu her zamanki gibi işler.
 
 ## Bir header'a bağlı içerik: `collage.Vary`
 

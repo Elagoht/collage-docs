@@ -114,7 +114,8 @@ before it serves anything.
 | `ErrMissingTTL` | `collage: missing cache ttl for incremental strategy` | `Incremental` was given a zero TTL. |
 | `ErrInvalidTTL` | `collage: invalid cache ttl` | A page's TTL is negative. |
 | `ErrInvalidPath` | `collage: invalid path` | A path pattern does not start with `/` — or, since v0.34.0, a redirect's destination would leave the site: `//host`, `/\host`. |
-| `ErrInvalidRedirectStatus` | `collage: invalid redirect status code` | A redirect status other than `0`, `301`, `302`, `307` or `308`. |
+| `ErrInvalidRedirectStatus` | `collage: invalid redirect status code` | A redirect status other than `0`, `301`, `302`, `307` or `308` — or, for a `RedirectSource` plugin's rule in a static build, other than those and `410`. |
+| `ErrInvalidRedirect` | `collage: invalid redirect` | A redirect's `From` or `To` holds a control character — `\r`, `\n`, any other, or the Unicode line and paragraph separators — from `WithRedirect`, `WithPermanentRedirect` or `Redirect.Validate` (since v0.52.0). In a static build, also a malformed or control-character rule from a `RedirectSource` plugin. |
 | `ErrSelfErrorPage` | `collage: page cannot reference itself as an error page` | A page is its own not-found or error page. |
 
 See [Pages and layouts](/docs/pages-and-layouts) and
@@ -314,6 +315,8 @@ Returned by `collage.NewBuilder` and `Builder.Build`, or recorded in the
 | `ErrRouteParams` | see [Links and URLs](#links-and-urls) | report error | A map `WithStaticParams` returned does not fill the pattern exactly — a name missing, or one the pattern does not have. Only that file fails; the rest are built. |
 | `ErrNotStatic` | `collage: a Dynamic() route cannot be built statically` | skip | A page or document is dynamic — declared `Dynamic()`, or declaring no strategy and rendering a data handler — so there is nothing to export. |
 | `ErrGuarded` | `collage: a guarded page cannot be built statically` | skip | A page has a [guard](/docs/pages-and-layouts#private-pages-guards) on its layout chain or content fragment. An export has no reader to ask it about, and a file on a static host is served to anyone. |
+| `ErrDuplicateRedirect` | `collage: two redirects from one path` | report error | Two redirects the router takes for one — `/old` and `/old/`, `/blog/{slug}` and `/blog/{x}` — from pages, documents or a `RedirectSource` plugin (since v0.52.0). A static host would pick one by its own precedence. |
+| `ErrRedirectShadowsFile` | `collage: a redirect shadows a written file` | report error | A redirect matches the path of a file the build wrote — `/about` or `/about/` beside `about/index.html`, `/docs/{rest...}` beside `docs/x/index.html` (since v0.52.0). Narrow the pattern, or drop the page. |
 | `ErrDuplicateOutputPath` | `collage: two build tasks write the same output path` | skip | Two document tasks resolve to one file — `WithStaticParams` listing the same values twice. The first is built, the rest skipped. |
 | `ErrDegradedRender` | `collage: refusing to write a degraded render` | report error | A page rendered with a failed fragment and `AllowDegraded` is off. No file is written. |
 | `ErrEmptyRender` | `collage: page rendered no markup` | report error | A page rendered no markup at all. Refused even with `AllowDegraded`. One sentinel with serving's, above. |

@@ -341,6 +341,6 @@ değiştirmez ve `collage.ErrVaryTooLate` döner. Bu yol,
 [tek URL, tek içerik](#why-only-the-url) yaklaşımının faydalarından vazgeçer. O
 yüzden onu bilerek seçin; genellikle `DisablePathLocale` ile birlikte kullanılır.
 
-[Static export](/docs/static-export) request olmadan render eder, bu yüzden onun için
-hiçbir middleware çalışmaz. Export edilen bir sitede locale'ler yalnızca URL'lerde
-yer alabilir.
+[Static export](/docs/static-export) request olmadan render eder, bu yüzden yazdığı
+dosyalar için hiçbir middleware çalışmaz. Export edilen bir sitede locale'ler
+yalnızca URL'lerde yer alabilir.

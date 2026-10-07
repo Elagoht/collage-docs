@@ -324,4 +324,5 @@ returns `collage.ErrVaryTooLate`. This is the shape that trades the benefits of
 alongside `DisablePathLocale`.
 
 A [static export](/docs/static-export) renders without requests, so no middleware
-runs for it: an exported site can only have its locales in its URLs.
+runs for the files it writes: an exported site can only have its locales in its
+URLs.

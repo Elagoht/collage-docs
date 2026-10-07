@@ -1,6 +1,6 @@
 ---
 description: Render the site to static files with collage export — what is written, what is skipped and why, dynamic paths, and publishing to a static host.
-reference: NewBuilder, BuildOptions, BuildReport, PrintBuildReport, StaticParamsFunc, SkipRecord, ErrNotStatic, ErrGuarded, ErrDynamicPathUnresolved, ErrRouteParams, ErrBuildFindings
+reference: NewBuilder, BuildOptions, BuildReport, PrintBuildReport, StaticParamsFunc, SkipRecord, ErrNotStatic, ErrGuarded, ErrDynamicPathUnresolved, ErrRouteParams, ErrBuildFindings, ErrDuplicateRedirect, ErrRedirectShadowsFile, IsCapture, BuiltFile, BuiltRedirect, RedirectSource
 ---
 
 # Static export
@@ -133,8 +133,10 @@ Error pages registered without a path are not listed at all: they are not URLs.
 
 Not exported, and not reported, because they are not pages: [actions](/docs/forms-and-actions),
 handlers mounted with `app.Handle`, and middleware. An export renders without a
-request, so no middleware runs and `collage.Vary` is never called — each page is
-written in the version a request with no preferences would get.
+request, so no middleware runs for the files it writes and `collage.Vary` is never
+called — each page is written in the version a request with no preferences would
+get. The requests that [capture the headers](#headers-and-redirects) afterwards do
+go through middleware, but what they render is not written.
 
 ## What is warned about
 
@@ -167,6 +169,18 @@ These are errors: the page is not written, the build reports it and exits non-ze
   that differ only in a trailing slash, or `WithStaticParams` listing one set of
   values twice. No page is rendered when this is found; the documents, the `404.html`
   pages and the mounted assets are still written, and the build still fails.
+
+- **Two redirects from one path**, `collage.ErrDuplicateRedirect` (since v0.52.0) —
+  `/old` and `/old/`, or `/blog/{slug}` and `/blog/{x}`, which the router takes for
+  one, whether they come from pages, documents or a plugin. On a static host the
+  host's own precedence would pick one. Remove one of the two.
+- **A redirect over a written file**, `collage.ErrRedirectShadowsFile` (since
+  v0.52.0) — `/about` or `/about/` beside `about/index.html`, `/docs/{rest...}`
+  beside `docs/intro/index.html`. A placeholder `From` such as `/{slug}` matches
+  every file at its depth, `404.html` included. Narrow the pattern, or drop the page.
+
+Both redirect checks run on every build, with or without a plugin to read the
+redirects, and the files are still written.
 
 **An error-level finding** fails the build as well, with `collage.ErrBuildFindings`
 (since v0.21.0), but differently: the pages are written either way, and the
@@ -263,9 +277,17 @@ a page a plugin registers, or the `WithStaticParams` of data a plugin loads, is
 built, and a plugin reads the same configuration; `OnBeforeRender`, `OnAfterRender` and
 `OnDocumentRendered` fire for every page and document, so what a minifier or a
 structured-data plugin does to a served page it does to the file. `OnPageResolved`
-does not fire, because an export is not a request. Since v0.21.0 `OnBuildFinished`
-runs once every file is written, for a plugin that checks the build as a whole.
-See [Using plugins](/docs/plugins).
+does not fire for those renders, because they are not requests. Since v0.21.0
+`OnBuildFinished` runs once every file is written, for a plugin that checks the
+build as a whole.
+
+When such a plugin is registered, the build first
+[captures every file's headers](#headers-and-redirects) through `App.Handler()`
+(since v0.52.0). Those are requests: middleware, `OnRequest` and `OnPageResolved`
+see them, and the page renders again with `OnBeforeRender` and `OnAfterRender` —
+with `ev.Static` false. A plugin that counts or limits traffic, or writes files
+from a render hook, skips them when `collage.IsCapture(ctx)` is true. See
+[Using plugins](/docs/plugins).
 
 ## Reading the report
 
@@ -326,6 +348,11 @@ is still written. The findings are in `report.Findings`, each a `collage.Finding
 How a plugin reports one is in
 [Writing a plugin](/docs/writing-plugins#checking-the-output-findings).
 
+The header capture reports what it found here too, as build-wide warnings that
+never fail the build: `unstable-header`, `capture-status`, `capture-failed`,
+`capture-dev-mode` and `capture-personal`. See
+[Headers and redirects](#headers-and-redirects).
+
 ## Looking at it: `collage serve`
 
 Opening `dist/index.html` in a browser does not work: a `file://` page has no root,
@@ -361,6 +388,70 @@ things to check on any of them:
   as `<path>/index.html`, and a host serves it at `/about/` and redirects `/about`
   there. With the setting on, every link collage builds is already the address the
   host answers, rather than a redirect to it.
+
+### Headers and redirects
+
+A server sends headers with every page and answers redirects itself. A static host
+sends what its own configuration files say: Netlify's `_headers` and `_redirects`,
+Vercel's `vercel.json`. Since v0.52.0 a build carries what the server would have
+said, for a plugin to write those files. Collage writes none of them itself.
+
+**Headers are captured.** When a plugin implementing
+[`BuildFinishedHook`](/docs/writing-plugins#buildfinishedhook) is registered, the
+build asks the application's own handler for each written file's path, twice — in
+process, with no network — and records the answer on the file as
+`BuiltFile.Status` and `BuiltFile.Headers`. With no such plugin it asks nothing.
+The requests carry the host of `Config.BaseURL`, and come over HTTPS when its
+scheme is `https`, so a header sent only over HTTPS, such as
+`Strict-Transport-Security`, is captured too. Whatever your middleware and plugins
+set — `Cache-Control`, `Content-Security-Policy`, `X-Frame-Options` — comes along
+without being declared again. Left out:
+
+- headers about one response rather than the file: `Date`, `ETag`,
+  `Last-Modified`, `Content-Length`, `Set-Cookie`, `Vary`, `Content-Encoding`,
+  `Transfer-Encoding`, `Connection`, `Age` and `X-Collage-Render-Time`;
+- a header whose value differs between the two answers, such as a CSP nonce: a
+  file cannot carry a new one per reader;
+- the `404.html` pages and the root redirect, which the build makes itself.
+  `BuiltFile.Captured` is false for those and true for every file the build asked
+  for, also one whose capture failed, which leaves `Status` 0.
+
+What the capture found is reported as warnings in the build's findings:
+
+| Rule | Means |
+| --- | --- |
+| `unstable-header` | A header was left out because it differs between the two answers — once per header name, with a count of paths. |
+| `capture-status` | A file was answered with a status other than 2xx, or with two different statuses. |
+| `capture-failed` | A path was not answered — each request has a deadline — or the capture did not run at all. |
+| `capture-dev-mode` | The build ran in development mode, whose headers (`Cache-Control: no-store`) are not the ones to deploy. |
+| `capture-personal` | Pages answered with `Cache-Control` `private` or `no-store` beside a header that differs between answers. That header is left out, so the file is no longer personal, and the `Cache-Control` only keeps a host from caching it. |
+
+Middleware sees the capture requests. One that counts or limits traffic —
+analytics, a rate limiter, a ban list — lets a request through untouched when
+`collage.IsCapture(r.Context())` is true. Middleware that sets headers must not
+skip it: what it sets is what the deployed file is served with.
+
+**Redirects reach the build hook.** `BuildFinishedEvent.Redirects` holds every
+redirect the site declares — every page's `WithRedirect` and
+`WithPermanentRedirect`, every document's, and the rules of every plugin
+implementing `collage.RedirectSource` — with its status and where it came from. Two
+of them from one path, or one over a written file,
+[fail the build](#what-fails).
+
+**[elagoht/deploy](/docs/plugins#elagohtdeploy) writes the host's files.** Name the
+host, and the plugin turns the captured headers and the redirects into the files
+that host reads, warning about whatever the host cannot carry:
+
+```json
+{ "elagoht/deploy": { "target": "netlify" } }
+```
+
+| `target` | Writes |
+| --- | --- |
+| `netlify` | `_headers` and `_redirects` |
+| `cloudflare` | `_headers` and `_redirects` |
+| `vercel` | `vercel.json` |
+| `github-pages` | a meta-refresh page per redirect and `.nojekyll`; no headers |
 
 ### GitHub Pages
 
@@ -410,6 +501,10 @@ the runner does not need the collage CLI installed. Set the repository's Pages
 source to GitHub Actions, and give it a custom domain unless it is your
 `user.github.io` repository.
 
+GitHub Pages takes no custom headers. With elagoht/deploy's `github-pages` target
+each literal redirect becomes a page that sends the browser on, and the warnings
+say how many headers were lost.
+
 ### Cloudflare Pages
 
 Export in CI, the same way, and upload the directory with Wrangler:
@@ -420,11 +515,14 @@ npx wrangler pages deploy dist --project-name mysite
 ```
 
 Cloudflare Pages serves `404.html` for unknown paths when one is at the root, which
-the export always writes when the site has a not-found page.
+the export always writes when the site has a not-found page. elagoht/deploy's
+`cloudflare` target writes its `_headers` and `_redirects`.
 
 ### Anything else
 
 Netlify, S3 behind CloudFront, an nginx directory — each needs only the contents
 of `dist/` and, if it does not do so already, `404.html` configured as the error
-page. When the site needs forms, previews or per-request pages, it needs a server
-instead: see [Deployment](/docs/deployment).
+page. elagoht/deploy has a `netlify` target, and a `vercel` one whose `vercel.json`
+is read only when the output directory is deployed as the project
+(`vercel deploy dist`). When the site needs forms, previews or per-request pages,
+it needs a server instead: see [Deployment](/docs/deployment).

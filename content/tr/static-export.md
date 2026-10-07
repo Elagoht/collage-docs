@@ -1,6 +1,6 @@
 ---
 description: Siteyi collage export ile static dosyalara render edin: nelerin yazıldığı, nelerin neden atlandığı, dinamik path'ler ve bir static host'ta yayımlama.
-reference: NewBuilder, BuildOptions, BuildReport, PrintBuildReport, StaticParamsFunc, SkipRecord, ErrNotStatic, ErrGuarded, ErrDynamicPathUnresolved, ErrRouteParams, ErrBuildFindings
+reference: NewBuilder, BuildOptions, BuildReport, PrintBuildReport, StaticParamsFunc, SkipRecord, ErrNotStatic, ErrGuarded, ErrDynamicPathUnresolved, ErrRouteParams, ErrBuildFindings, ErrDuplicateRedirect, ErrRedirectShadowsFile, IsCapture, BuiltFile, BuiltRedirect, RedirectSource
 ---
 
 # Static export
@@ -139,9 +139,11 @@ değildir.
 
 Bazı şeyler page olmadığı için ne export edilir ne de raporda görünür:
 [action'lar](/docs/forms-and-actions), `app.Handle` ile mount edilen handler'lar ve
-middleware'ler. Export request olmadan render eder. Bu yüzden hiçbir middleware
-çalışmaz ve `collage.Vary` hiç çağrılmaz. Her page, hiçbir tercihi olmayan bir
-request'in alacağı hâliyle yazılır.
+middleware'ler. Export request olmadan render eder. Bu yüzden yazdığı dosyalar için
+hiçbir middleware çalışmaz ve `collage.Vary` hiç çağrılmaz. Her page, hiçbir tercihi
+olmayan bir request'in alacağı hâliyle yazılır. Ardından
+[header'ları yakalayan](#headers-and-redirects) request'ler middleware'den geçer,
+ama onların render ettiği hiçbir şey yazılmaz.
 
 ## Neler için uyarı verilir
 
@@ -179,6 +181,19 @@ kodla çıkar.
   listeleyen bir `WithStaticParams` olabilir. Bu durum tespit edildiğinde hiçbir
   page render edilmez. Document'lar, `404.html` page'leri ve mount edilen asset'ler
   yine yazılır, ama build yine de başarısız olur.
+- **Aynı path'ten iki redirect** (`collage.ErrDuplicateRedirect`, v0.52.0'dan
+  beri). `/old` ile `/old/` ya da `/blog/{slug}` ile `/blog/{x}` buna örnektir:
+  page'lerden, document'lardan ya da bir plugin'den gelsinler, router ikisini tek
+  bir redirect sayar. Static bir host'ta hangisinin geçerli olacağına host'un kendi
+  önceliği karar verirdi. İkisinden birini kaldırın.
+- **Yazılmış bir dosyanın üstüne düşen redirect** (`collage.ErrRedirectShadowsFile`,
+  v0.52.0'dan beri). `about/index.html` yanındaki `/about` ya da `/about/`,
+  `docs/intro/index.html` yanındaki `/docs/{rest...}` buna örnektir. `/{slug}` gibi
+  placeholder'lı bir `From`, `404.html` dahil o derinlikteki her dosyayla eşleşir.
+  Pattern'i daraltın ya da page'i kaldırın.
+
+İki redirect kontrolü de, redirect'leri okuyacak bir plugin olsun olmasın her
+build'de çalışır ve dosyalar yine yazılır.
 
 **Error seviyesindeki bir finding** de build'i `collage.ErrBuildFindings` ile
 başarısız kılar (v0.21.0'dan beri), ama farklı bir şekilde: page'ler her durumda
@@ -279,9 +294,17 @@ Böylece bir plugin'in register ettiği page de, bir plugin'in yüklediği veriy
 `WithStaticParams` da build edilir ve plugin'ler aynı config'i okur. `OnBeforeRender`, `OnAfterRender` ve
 `OnDocumentRendered` her page ve document için tetiklenir. Yani bir minifier ya da
 structured data plugin'i sunulan bir page'e ne yapıyorsa dosyaya da onu yapar.
-`OnPageResolved` ise tetiklenmez, çünkü export bir request değildir. v0.21.0'dan
-beri `OnBuildFinished`, her dosya yazıldıktan sonra bir kez çalışır. Build'i bir
-bütün olarak denetleyen plugin'ler içindir. Bkz. [Plugin kullanmak](/docs/plugins).
+`OnPageResolved` ise bu render'lar için tetiklenmez, çünkü onlar request değildir.
+v0.21.0'dan beri `OnBuildFinished`, her dosya yazıldıktan sonra bir kez çalışır.
+Build'i bir bütün olarak denetleyen plugin'ler içindir.
+
+Böyle bir plugin register edilmişse build önce `App.Handler()` üzerinden
+[her dosyanın header'larını yakalar](#headers-and-redirects) (v0.52.0'dan beri).
+Bunlar request'tir: middleware, `OnRequest` ve `OnPageResolved` onları görür, page
+de `OnBeforeRender` ve `OnAfterRender` ile yeniden render edilir. Bu sırada
+`ev.Static` false'tur. Trafiği sayan ya da sınırlayan bir plugin de, bir render
+hook'undan dosya yazan bir plugin de `collage.IsCapture(ctx)` true olduğunda bu
+request'leri atlar. Bkz. [Plugin kullanmak](/docs/plugins).
 
 ## Raporu okumak
 
@@ -347,6 +370,11 @@ finding'i nasıl raporladığı
 [Plugin yazmak](/docs/writing-plugins#checking-the-output-findings) sayfasında
 anlatılır.
 
+Header yakalama da bulduklarını burada raporlar. Bunlar build'in geneline ait
+uyarılardır ve build'i asla başarısız kılmaz: `unstable-header`, `capture-status`,
+`capture-failed`, `capture-dev-mode` ve `capture-personal`. Bkz.
+[Header'lar ve redirect'ler](#headers-and-redirects).
+
 ## Göz atmak: `collage serve`
 
 `dist/index.html`'i tarayıcıda doğrudan açmak işe yaramaz. Bir `file://` sayfasının
@@ -385,6 +413,72 @@ host onu sunabilir. Hangi host'u kullanırsanız kullanın üç şeyi kontrol ed
   `<path>/index.html` olarak yazılır. Host onu `/about/` adresinde sunar ve
   `/about`'u oraya redirect eder. Bu ayar açıkken collage'ın ürettiği her link
   doğrudan host'un cevap verdiği adres olur, oraya giden bir redirect olmaz.
+
+### Header'lar ve redirect'ler
+
+Bir sunucu her page ile birlikte header gönderir ve redirect'leri kendisi cevaplar.
+Static bir host ise kendi config dosyalarında ne yazıyorsa onu gönderir: Netlify'ın
+`_headers` ve `_redirects` dosyaları, Vercel'in `vercel.json`'ı gibi. v0.52.0'dan
+beri build, sunucunun söyleyeceklerini de taşır; bu dosyaları bir plugin yazar.
+Collage bunların hiçbirini kendisi yazmaz.
+
+**Header'lar yakalanır.**
+[`BuildFinishedHook`](/docs/writing-plugins#buildfinishedhook) implement eden bir plugin register edilmişse build, yazdığı her dosyanın path'ini
+uygulamanın kendi handler'ına iki kez sorar. Bu, process içinde ve ağ olmadan olur.
+Gelen cevap dosyaya `BuiltFile.Status` ve `BuiltFile.Headers` olarak kaydedilir.
+Böyle bir plugin yoksa hiçbir şey sorulmaz. Request'ler `Config.BaseURL`'in host'unu
+taşır ve scheme'i `https` ise HTTPS üzerinden gelir. Böylece yalnızca HTTPS'te
+gönderilen `Strict-Transport-Security` gibi bir header da yakalanır.
+Middleware'lerinizin ve plugin'lerinizin set ettiği her şey (`Cache-Control`,
+`Content-Security-Policy`, `X-Frame-Options`) yeniden tanımlanmadan gelir. Dışarıda kalanlar:
+
+- dosyaya değil tek bir response'a ait header'lar: `Date`, `ETag`,
+  `Last-Modified`, `Content-Length`, `Set-Cookie`, `Vary`, `Content-Encoding`,
+  `Transfer-Encoding`, `Connection`, `Age` ve `X-Collage-Render-Time`;
+- iki cevap arasında değeri değişen bir header, örneğin bir CSP nonce'ı. Bir dosya
+  her okuyucu için yenisini taşıyamaz;
+- build'in kendisinin ürettiği `404.html` page'leri ve kök redirect.
+  `BuiltFile.Captured` bunlar için false'tur. Build'in sorduğu her dosya için ise
+  true'dur; yakalaması başarısız olan bir dosya da buna dahildir ve onun `Status`'u
+  0 kalır.
+
+Yakalamanın bulduğu şeyler build'in finding'lerinde uyarı olarak raporlanır:
+
+| Kural | Anlamı |
+| --- | --- |
+| `unstable-header` | Bir header, iki cevap arasında değiştiği için dışarıda bırakıldı. Her header adı için bir kez, path sayısıyla birlikte verilir. |
+| `capture-status` | Bir dosya 2xx dışında bir status ile ya da iki farklı status ile cevaplandı. |
+| `capture-failed` | Bir path cevaplanmadı (her request'in bir süre sınırı vardır) ya da yakalama hiç çalışmadı. |
+| `capture-dev-mode` | Build development modunda çalıştı. Bu moddaki header'lar (`Cache-Control: no-store`) deploy edilecek header'lar değildir. |
+| `capture-personal` | Bazı page'ler, cevaplar arasında değişen bir header'ın yanında `Cache-Control` `private` ya da `no-store` ile cevaplandı. O header dışarıda bırakıldığı için dosya artık kişiye özel değildir; `Cache-Control` yalnızca host'un onu cache'lemesini engeller. |
+
+Middleware yakalama request'lerini görür. Trafiği sayan ya da sınırlayan bir
+middleware (analytics, bir rate limiter, bir ban listesi),
+`collage.IsCapture(r.Context())` true olduğunda request'i dokunmadan geçirir.
+Header set eden middleware ise onu atlamamalıdır: onun set ettiği şey, deploy edilen
+dosyanın hangi header'larla sunulacağıdır.
+
+**Redirect'ler build hook'una ulaşır.** `BuildFinishedEvent.Redirects`, sitenin
+tanımladığı her redirect'i status'u ve nereden geldiğiyle birlikte taşır: her
+page'in `WithRedirect` ve `WithPermanentRedirect` redirect'leri, her document'ınkiler
+ve `collage.RedirectSource` implement eden her plugin'in kuralları. Bunlardan ikisi
+aynı path'ten geliyorsa ya da biri yazılmış bir dosyanın üstüne düşüyorsa
+[build başarısız olur](#what-fails).
+
+**Host'un dosyalarını [elagoht/deploy](/docs/plugins#elagohtdeploy) yazar.** Host'u
+belirtin; plugin yakalanan header'ları ve redirect'leri o host'un okuduğu dosyalara
+dönüştürür ve host'un taşıyamadığı her şey için uyarı verir:
+
+```json
+{ "elagoht/deploy": { "target": "netlify" } }
+```
+
+| `target` | Yazdıkları |
+| --- | --- |
+| `netlify` | `_headers` ve `_redirects` |
+| `cloudflare` | `_headers` ve `_redirects` |
+| `vercel` | `vercel.json` |
+| `github-pages` | her redirect için bir meta-refresh page'i ve `.nojekyll`; header yok |
 
 ### GitHub Pages
 
@@ -434,6 +528,10 @@ runner'a collage CLI'ı kurmanız gerekmez. Repository'nin Pages kaynağını Gi
 Actions olarak ayarlayın. `user.github.io` repository'niz değilse ona custom bir
 domain de verin.
 
+GitHub Pages custom header kabul etmez. elagoht/deploy'un `github-pages` target'ı
+ile her sabit redirect, tarayıcıyı yeni adrese gönderen bir page'e dönüşür.
+Uyarılar da kaç header'ın kaybolduğunu söyler.
+
 ### Cloudflare Pages
 
 CI'da export'u aynı şekilde alın ve dizini Wrangler ile yükleyin:
@@ -445,11 +543,16 @@ npx wrangler pages deploy dist --project-name mysite
 
 Kökte bir `404.html` varsa Cloudflare Pages bilinmeyen path'ler için onu sunar.
 Sitenin bir not-found page'i varsa export bu dosyayı her zaman yazar.
+elagoht/deploy'un `cloudflare` target'ı onun `_headers` ve `_redirects` dosyalarını
+yazar.
 
 ### Diğerleri
 
 Netlify, CloudFront arkasındaki S3 ya da bir nginx dizini fark etmez. Hepsinin
 ihtiyacı yalnızca `dist/`'in içeriğidir. Host bunu kendiliğinden yapmıyorsa
-`404.html`'i error page olarak ayarlamanız da gerekir. Site form'lara, preview'lara
+`404.html`'i error page olarak ayarlamanız da gerekir. elagoht/deploy'un bir
+`netlify` target'ı, bir de `vercel` target'ı vardır. `vercel`'in yazdığı
+`vercel.json` yalnızca output dizini proje olarak deploy edildiğinde
+(`vercel deploy dist`) okunur. Site form'lara, preview'lara
 ya da her request'te render edilen page'lere ihtiyaç duyuyorsa bir sunucuya ihtiyacı
 vardır. Bkz. [Deployment](/docs/deployment).

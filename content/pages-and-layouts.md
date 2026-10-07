@@ -348,7 +348,10 @@ carry redirects from old URLs, with `WithRedirect(from, to, status)` and
 query string to its destination, a value it captured is escaped for where it
 lands — a path segment, or a query value after a `?`, so `/login?next={slug}`
 cannot be handed a second `next` — and a destination that would leave the site,
-`//host` or `/\host`, is `ErrInvalidPath` at registration.
+`//host` or `/\host`, is `ErrInvalidPath` at registration. Since v0.52.0 a control
+character in either path, such as a line feed, is `ErrInvalidRedirect`, and a
+static export fails on a redirect over a page it wrote; see
+[Static export](/docs/static-export#what-fails).
 
 ## Render strategies
 

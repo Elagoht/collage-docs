@@ -1,5 +1,5 @@
 ---
-description: Bir plugin'in neler yapabildiği, bir plugin'in nasıl register edilip yapılandırıldığı ve ne işe yaradıklarına göre gruplanmış, yayımlanmış otuz dokuz plugin.
+description: Bir plugin'in neler yapabildiği, bir plugin'in nasıl register edilip yapılandırıldığı ve ne işe yaradıklarına göre gruplanmış, yayımlanmış kırk plugin.
 reference: Plugin, LoadPluginConfig, ErrUnknownPluginConfig, ErrAppStarted
 ---
 
@@ -174,7 +174,7 @@ beklediği yerde bir string varsa, plugin bu bölümü okuduğunda hata oluşur.
 
 ## Yayımlanmış plugin'ler
 
-Framework ile birlikte otuz dokuz plugin yayımlanmıştır. Aşağıda ne işe
+Framework ile birlikte kırk plugin yayımlanmıştır. Aşağıda ne işe
 yaradıklarına göre gruplanmışlardır. Her biri ayrı bir modüldür ve her birinin tam
 referans niteliğinde kendi README'si vardır. Aşağıdaki bilgiler bir plugin'i
 kurmanız için yeterlidir.
@@ -186,7 +186,7 @@ kurmanız için yeterlidir.
 | [Form'lar ve state](#forms-and-state) | validate, honeypot, flash, session |
 | [Güvenlik](#security) | secure, ratelimit, basicauth, oauth, fail2ban |
 | [Canlı güncellemeler](#live-updates) | live, websocket |
-| [Asset'ler ve teslimat](#assets-and-delivery) | minimizer, opti-image, bundle, favicon, compress, cdnpurge, offline |
+| [Asset'ler ve teslimat](#assets-and-delivery) | minimizer, opti-image, bundle, favicon, compress, cdnpurge, offline, deploy |
 | [Operasyon ve development](#operations-and-development) | htmlcheck, devtoolbar, accesslog, prometheus, otel, analytics, tenant, errortrack |
 
 ### SEO ve keşfedilebilirlik
@@ -476,8 +476,8 @@ Plugins: []collage.Plugin{feed.New(feed.Feed{
 
 [github.com/Elagoht/collage-redirects](https://github.com/Elagoht/collage-redirects),
 kodda değil bir dosyada tutulan redirect'leri routing'den önce sunar. Bunlar bir
-site taşımasının geride bıraktıklarıdır. Plugin, redirect'leri static bir host için
-`_redirects` olarak da yazar.
+site taşımasının geride bıraktıklarıdır. Plugin, redirect'leri host'un kendi
+config'i için static bir build'e de verir.
 
 ```go
 import "github.com/Elagoht/collage-redirects"
@@ -493,6 +493,7 @@ Plugins: []collage.Plugin{redirects.New(redirects.Options{FS: siteFS})},
 /blog/*          /posts/:splat
 /about-us        /about          301
 /summer-sale     /sale           302
+/moved           https://new.example/moved 308
 /old-product     -               410
 ```
 
@@ -500,13 +501,12 @@ Plugins: []collage.Plugin{redirects.New(redirects.Options{FS: siteFS})},
 {
   "elagoht/redirects": {
     "file": "redirects.txt",
-    "rules": [{ "from": "/careers", "to": "https://jobs.example.com", "status": 302 }],
-    "noRedirectsFile": false
+    "rules": [{ "from": "/careers", "to": "https://jobs.example.com", "status": 302 }]
   }
 }
 ```
 
-- v0.1.6, collage v0.50.0 ya da sonrasını gerektirir (v0.1.3, collage v0.24.0 için son sürümdü).
+- v0.2.0, collage v0.52.0 ya da sonrasını gerektirir (v0.1.6, collage v0.50.0 için son sürümdü).
 - Her satırda bir kural vardır: eski path, gittiği yer ve bir status. Status
   yazılmazsa `301`'dir; `302`, `307`, `308` ya da artık olmayan bir page için `-`
   ile birlikte `410` olabilir. Bu durumda sitenin kendi not-found page'i `410`
@@ -515,10 +515,22 @@ Plugins: []collage.Plugin{redirects.New(redirects.Options{FS: siteFS})},
   taşınır.
 - Hatalı bir dosya uygulamanın başlamasını engeller ve hatanın yerini söyler: bozuk
   bir satır, hiçbir request'in ulaşamayacağı bir kural, okuyucuyu bir döngüde
-  dolaştıran kurallar.
-- Static build, kuralları Netlify ve Cloudflare Pages'in okuduğu biçimde
-  `_redirects`'e yazar; `noRedirectsFile` bunu dışarıda bırakır. Kurallar Go'da ya da
-  config'te de verilebilir.
+  dolaştıran kurallar. v0.2.0'dan beri bir kuralda control karakteri olması ya da
+  bir hedefin, tarayıcının başka bir host olarak okuduğu `/\` ile başlaması da
+  uygulamanın başlamasını engeller.
+- v0.2.0'dan beri `_redirects` yazmaz (geriye uyumsuz; `noRedirectsFile` yok
+  sayılır). Plugin bir [`RedirectSource`](/docs/writing-plugins#redirectsource)'tur:
+  static build kurallarını alır, [elagoht/deploy](#elagohtdeploy) da onları host'un
+  biçiminde yazar. Bir deploy plugin'i yoksa hiçbir şey yazılmaz.
+- Collage'ın pattern sözdiziminin ifade edemediği bir kural yine sunulur, ama
+  `redirects-not-exported` uyarısıyla build'in dışında bırakılır. Bir page'in ya da
+  document'ın kendi redirect'ini kapsayan bir kural ise `redirects-overlap`
+  uyarısıdır: sunucu kuralı, static bir host ise page'in redirect'ini izler.
+- Static bir build, yazdığı bir dosyanın üstüne düşen
+  (`collage.ErrRedirectShadowsFile`) ya da başka bir redirect ile aynı path'ten gelen
+  (`collage.ErrDuplicateRedirect`) bir kuralda başarısız olur. Bu yüzden export'u
+  v0.1.x ile çalışan bir site, kural ya da page kaldırılana kadar başarısız
+  olabilir. Kurallar Go'da ya da config'te de verilebilir.
 
 #### elagoht/indexnow
 
@@ -1146,6 +1158,8 @@ Plugins: []collage.Plugin{ratelimit.New(ratelimit.Options{
   güvenilen bir proxy'den geldiğinde inanılır. Go'daki `KeyFunc` başka bir şeye göre
   key üretir.
 - Bucket'lar memory'de tutulur, bu yüzden sınırlar process başınadır.
+- v0.1.7'den (collage v0.52.0) beri static bir build'in header yakalaması
+  sınırlanmaz ve `RateLimit` header'larını almaz.
 
 #### elagoht/basicauth
 
@@ -1499,7 +1513,8 @@ Plugins: []collage.Plugin{lv, websocket.New(lv)},
 
 Tarayıcının aldığı byte'ların neye benzediği ve oraya nasıl ulaştığı: minify
 edilmiş, yeniden boyutlandırılmış, bundle edilmiş, sıkıştırılmış, bir CDN'den purge
-edilmiş ve çevrimdışı okuma için saklanmış.
+edilmiş, çevrimdışı okuma için saklanmış ve header'ları ve redirect'leriyle
+birlikte static bir host'a deploy edilmiş.
 
 #### elagoht/minimizer
 
@@ -1797,6 +1812,53 @@ Plugins: []collage.Plugin{offline.New(offline.Options{
   `Config.Cache.Version` ya da çalıştırılabilir dosyanın parmak izi.
 - Development'ta `/sw.js` kendi kaydını siler. Static build `sw.js`'i yazar; bir
   CDN'in onu uzun süre tutmasını engelleyin.
+
+#### elagoht/deploy
+
+[github.com/Elagoht/collage-deploy](https://github.com/Elagoht/collage-deploy),
+static bir build'in yakaladığı header'lardan ve redirect'lerden static bir host'un
+okuduğu config dosyalarını yazar. Böylece bir sitenin redirect'leri, cache ve
+güvenlik header'ları export'tan sonra da korunur.
+
+```go
+import "github.com/Elagoht/collage-deploy"
+
+Plugins: []collage.Plugin{deploy.NewWith(deploy.Config{Target: "netlify"})},
+```
+
+```json
+{
+  "elagoht/deploy": {
+    "target": "netlify"
+  }
+}
+```
+
+- v0.1.0, collage v0.52.0 ya da sonrasını gerektirir. `target` şunlardan biridir:
+  `netlify`, `cloudflare`, `vercel` ya da `github-pages`. Başka bir değer
+  uygulamanın başlamasını engeller. Boş bırakılırsa hiçbir şey yazmaz, son
+  export'un yazdıklarını siler ve uyarı verir.
+- `netlify` ve `cloudflare` için `_headers` ve `_redirects`, `vercel` için bir
+  `vercel.json` yazılır. `github-pages` için her sabit redirect'e bir meta-refresh
+  page'i ve bir `.nojekyll` yazılır, ama header yazılmaz.
+- Bir host'un taşıyamadığı şey bir uyarıdır. Plugin, uygulamadan farklı redirect
+  eden bir kuralı asla yazmaz. Her host'ta 410, Netlify'da 302 ve 301 olarak yazılan
+  307 ile 308, Cloudflare'in kural sınırları, GitHub Pages'te ise pattern'li
+  redirect'ler ve tüm header'lar uyarıya konu olur. Vercel, `vercel.json`'ı yalnızca
+  output dizini proje olarak deploy edildiğinde (`vercel deploy dist`) okur.
+- Header'lar mümkün olan en az kurala sıkıştırılır: her dosyanın paylaştığı
+  `/*` altına, bir dizinin paylaştığı `/dir/*` altına, geri kalanı her dosyanın
+  kendi path'ine yazılır. `Content-Type` asla bir wildcard kurala girmez. Dosyanın
+  uzantısından anlaşılan bir `Content-Type` ise host'a bırakılır.
+- Yazdıklarını `.collage-deploy.json`'a kaydeder ve aynı dizine alınan bir sonraki
+  export'ta bu dosyaları yeniler. Kendi yazmadığı bir `_headers`, `_redirects` ya da
+  `vercel.json` dosyasının üzerine asla yazmaz: bu bir hatadır ve hiçbir şey
+  yazılmaz. Bir redirect'te ya da header'da control karakteri olması da öyledir.
+- Redirect'lerini page'lerden, document'lardan ve
+  [elagoht/redirects](#elagohtredirects) gibi her
+  [`RedirectSource`](/docs/writing-plugins#redirectsource) plugin'inden alır.
+  Header'larını ise [header yakalamasından](/docs/static-export#headers-and-redirects)
+  alır. Bu yüzden build'i production modunda ve gerçek `BaseURL` ile alın.
 
 ### Operasyon ve development
 
@@ -2145,6 +2207,12 @@ Plugin'ler, bir sunucunun render ettiği page'lerden fazlasını görür:
 - **Static export da sunucudaki render ile aynı render hook'larını çalıştırır.**
   Her plugin önce başlatılır ve yapılandırılır. Böylece export edilen site,
   sunucunun sunduğu siteyle aynı olur. Bkz. [Static export](/docs/static-export).
+- **Static bir build'in header yakalaması** (v0.52.0'dan beri), bir
+  `BuildFinishedHook` plugin'i register edilmişse yazılan her dosyayı handler'a
+  sorar. Bu yüzden middleware ve request hook'ları bir build'in path'lerini görür.
+  Trafiği sayan ya da sınırlayan bir plugin bunları
+  `collage.IsCapture(r.Context())` ile atlar. Bkz.
+  [Static export](/docs/static-export#headers-and-redirects).
 
 ## Daha ileri
 

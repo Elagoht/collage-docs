@@ -117,7 +117,8 @@ reddedilir.
 | `ErrMissingTTL` | `collage: missing cache ttl for incremental strategy` | `Incremental`'a sıfır bir TTL verilmiştir. |
 | `ErrInvalidTTL` | `collage: invalid cache ttl` | Bir page'in TTL'i negatiftir. |
 | `ErrInvalidPath` | `collage: invalid path` | Bir path pattern'i `/` ile başlamaz ya da, v0.34.0'dan beri, bir redirect'in hedefi siteden çıkacaktır: `//host`, `/\host`. |
-| `ErrInvalidRedirectStatus` | `collage: invalid redirect status code` | Redirect status'u `0`, `301`, `302`, `307` ya da `308` dışında bir değerdir. |
+| `ErrInvalidRedirectStatus` | `collage: invalid redirect status code` | Redirect status'u `0`, `301`, `302`, `307` ya da `308` dışında bir değerdir. Static bir build'de bir `RedirectSource` plugin'inin kuralı için ise bunlar ve `410` dışında bir değerdir. |
+| `ErrInvalidRedirect` | `collage: invalid redirect` | Bir redirect'in `From`'u ya da `To`'su bir control karakteri içerir: `\r`, `\n`, başka herhangi biri ya da Unicode satır ve paragraf ayırıcıları. `WithRedirect`, `WithPermanentRedirect` ya da `Redirect.Validate` döndürür (v0.52.0'dan beri). Static bir build'de, bir `RedirectSource` plugin'inden gelen bozuk ya da control karakteri içeren bir kural için de döner. |
 | `ErrSelfErrorPage` | `collage: page cannot reference itself as an error page` | Bir page kendi not-found ya da error page'idir. |
 
 Bkz. [Page'ler ve layout'lar](/docs/pages-and-layouts) ve
@@ -321,6 +322,8 @@ kaydedilirler. Bkz. [Static export](/docs/static-export).
 | `ErrRouteParams` | bkz. [Link'ler ve URL'ler](#links-and-urls) | report error | `WithStaticParams`'ın döndüğü bir map pattern'i tam olarak doldurmaz: bir isim eksiktir ya da pattern'de olmayan bir isim vardır. Yalnızca o dosya başarısız olur, geri kalanlar build edilir. |
 | `ErrNotStatic` | `collage: a Dynamic() route cannot be built statically` | skip | Bir page ya da document dynamic'tir: ya `Dynamic()` olarak tanımlanmıştır ya da strateji tanımlamayıp data handler'ı olan bir şey render eder. Dolayısıyla export edilecek bir şey yoktur. |
 | `ErrGuarded` | `collage: a guarded page cannot be built statically` | skip | Bir page'in layout zincirinde ya da content fragment'inde bir [guard](/docs/pages-and-layouts#private-pages-guards) vardır. Export'ta guard'a sorulacak bir okuyucu yoktur, static host'taki bir dosya ise herkese sunulur. |
+| `ErrDuplicateRedirect` | `collage: two redirects from one path` | report error | Router'ın tek bir redirect saydığı iki redirect vardır: `/old` ile `/old/` ya da `/blog/{slug}` ile `/blog/{x}`. Page'lerden, document'lardan ya da bir `RedirectSource` plugin'inden gelebilirler (v0.52.0'dan beri). Static bir host hangisinin geçerli olacağını kendi önceliğiyle seçerdi. |
+| `ErrRedirectShadowsFile` | `collage: a redirect shadows a written file` | report error | Bir redirect, build'in yazdığı bir dosyanın path'iyle eşleşir: `about/index.html` yanındaki `/about` ya da `/about/`, `docs/x/index.html` yanındaki `/docs/{rest...}` (v0.52.0'dan beri). Pattern'i daraltın ya da page'i kaldırın. |
 | `ErrDuplicateOutputPath` | `collage: two build tasks write the same output path` | skip | İki document görevi aynı dosyaya çözülür; `WithStaticParams` aynı değerleri iki kez listelemiştir. İlki build edilir, diğerleri atlanır. |
 | `ErrDegradedRender` | `collage: refusing to write a degraded render` | report error | Bir page başarısız olan bir fragment'le render edilmiştir ve `AllowDegraded` kapalıdır. Hiçbir dosya yazılmaz. |
 | `ErrEmptyRender` | `collage: page rendered no markup` | report error | Bir page hiç markup render etmemiştir. `AllowDegraded` açık olsa bile reddedilir. Yukarıda serve için anlatılanla aynı sentinel'dir. |

@@ -289,8 +289,9 @@ feed'leri sunar ve bunları her page'in head'inde duyurur.
 Twitter tag'lerini, canonical URL'yi ve `hreflang` link'lerini site genelindeki
 varsayılanlardan ve her page'in söylediklerinden yazar.
 [elagoht/redirects](/docs/plugins#elagohtredirects), bir taşımanın eski adreslerini
-bir dosyadan sunar. [elagoht/indexnow](/docs/plugins#elagohtindexnow) ise bir
-invalidation'ın hangi URL'leri değiştirdiğini arama motorlarına bildirir.
+bir dosyadan sunar ve static bir build'e verir.
+[elagoht/indexnow](/docs/plugins#elagohtindexnow) ise bir invalidation'ın hangi
+URL'leri değiştirdiğini arama motorlarına bildirir.
 
 ## Hoisting ve collage'ın geri kalanı
 

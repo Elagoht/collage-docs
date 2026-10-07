@@ -1,5 +1,5 @@
 ---
-description: What a plugin can do, how to register and configure one, and the thirty-nine published plugins, grouped by what they are for.
+description: What a plugin can do, how to register and configure one, and the forty published plugins, grouped by what they are for.
 reference: Plugin, LoadPluginConfig, ErrUnknownPluginConfig, ErrAppStarted
 ---
 
@@ -160,7 +160,7 @@ a boolean — is also an error, raised when the plugin reads it.
 
 ## The published plugins
 
-Thirty-nine plugins are published alongside the framework, grouped below by what
+Forty plugins are published alongside the framework, grouped below by what
 they are for. Each is its own module, with its own README that is the full
 reference; what follows is enough to set one up.
 
@@ -171,7 +171,7 @@ reference; what follows is enough to set one up.
 | [Forms and state](#forms-and-state) | validate, honeypot, flash, session |
 | [Security](#security) | secure, ratelimit, basicauth, oauth, fail2ban |
 | [Live updates](#live-updates) | live, websocket |
-| [Assets and delivery](#assets-and-delivery) | minimizer, opti-image, bundle, favicon, compress, cdnpurge, offline |
+| [Assets and delivery](#assets-and-delivery) | minimizer, opti-image, bundle, favicon, compress, cdnpurge, offline, deploy |
 | [Operations and development](#operations-and-development) | htmlcheck, devtoolbar, accesslog, prometheus, otel, analytics, tenant, errortrack |
 
 ### SEO and discovery
@@ -449,7 +449,8 @@ Plugins: []collage.Plugin{feed.New(feed.Feed{
 
 [github.com/Elagoht/collage-redirects](https://github.com/Elagoht/collage-redirects)
 serves redirects kept in a file rather than in code — what a site migration leaves
-behind — before routing, and writes them for a static host as `_redirects`.
+behind — before routing, and hands them to a static build for the host's own
+configuration.
 
 ```go
 import "github.com/Elagoht/collage-redirects"
@@ -465,6 +466,7 @@ Plugins: []collage.Plugin{redirects.New(redirects.Options{FS: siteFS})},
 /blog/*          /posts/:splat
 /about-us        /about          301
 /summer-sale     /sale           302
+/moved           https://new.example/moved 308
 /old-product     -               410
 ```
 
@@ -472,13 +474,12 @@ Plugins: []collage.Plugin{redirects.New(redirects.Options{FS: siteFS})},
 {
   "elagoht/redirects": {
     "file": "redirects.txt",
-    "rules": [{ "from": "/careers", "to": "https://jobs.example.com", "status": 302 }],
-    "noRedirectsFile": false
+    "rules": [{ "from": "/careers", "to": "https://jobs.example.com", "status": 302 }]
   }
 }
 ```
 
-- v0.1.6 needs collage v0.50.0 or later (v0.1.3 was the last for v0.24.0).
+- v0.2.0 needs collage v0.52.0 or later (v0.1.6 was the last for v0.50.0).
 - One rule a line: the old path, where it went, and a status — `301` when left out,
   or `302`, `307`, `308`, or `410` with `-` for a page that is gone, answered with
   the site's own not-found page and status `410`. `/blog/*` is a prefix, and
@@ -486,10 +487,21 @@ Plugins: []collage.Plugin{redirects.New(redirects.Options{FS: siteFS})},
   and the reader's query string is carried over.
 - A file that is wrong stops the application from starting, and says where: a
   malformed line, a rule no request can reach, rules that send a reader round in a
-  circle.
-- A static build writes the rules to `_redirects`, the format Netlify and
-  Cloudflare Pages read; `noRedirectsFile` leaves it out. Rules can also be given in
-  Go or configuration.
+  circle. Since v0.2.0 so does a control character in a rule, or a target
+  beginning `/\`, which a browser reads as another host.
+- Since v0.2.0 it no longer writes `_redirects` (breaking; `noRedirectsFile` is
+  ignored). It is a [`RedirectSource`](/docs/writing-plugins#redirectsource): a
+  static build takes its rules, and [elagoht/deploy](#elagohtdeploy) writes them
+  in the host's format. Without a deploy plugin nothing is written.
+- A rule collage's pattern syntax cannot say is still served, but left out of the
+  build with a `redirects-not-exported` warning. A rule covering a page's or a
+  document's own redirect is a `redirects-overlap` warning: the server follows the
+  rule, a static host the page's redirect.
+- A static build fails on a rule over a file it wrote
+  (`collage.ErrRedirectShadowsFile`) or from the same path as another redirect
+  (`collage.ErrDuplicateRedirect`), so a site whose export worked with v0.1.x can
+  fail until the rule or the page goes. Rules can also be given in Go or
+  configuration.
 
 #### elagoht/indexnow
 
@@ -1098,6 +1110,8 @@ Plugins: []collage.Plugin{ratelimit.New(ratelimit.Options{
   `trustProxy`, and the address is read from `X-Forwarded-For`, believed only from
   a trusted proxy. `KeyFunc`, in Go, keys by something else.
 - Buckets are kept in memory, so limits are per process.
+- Since v0.1.7 (collage v0.52.0) a static build's header capture is not limited and
+  gets no `RateLimit` headers.
 
 #### elagoht/basicauth
 
@@ -1437,7 +1451,8 @@ Plugins: []collage.Plugin{lv, websocket.New(lv)},
 ### Assets and delivery
 
 What the bytes a browser receives look like and how they get there: minified,
-resized, bundled, compressed, purged from a CDN, and kept for offline reading.
+resized, bundled, compressed, purged from a CDN, kept for offline reading, and
+deployed to a static host with their headers and redirects.
 
 #### elagoht/minimizer
 
@@ -1724,6 +1739,52 @@ Plugins: []collage.Plugin{offline.New(offline.Options{
   fingerprint of the executable.
 - In development `/sw.js` unregisters itself. A static build writes `sw.js`; keep a
   CDN from holding it long.
+
+#### elagoht/deploy
+
+[github.com/Elagoht/collage-deploy](https://github.com/Elagoht/collage-deploy)
+writes the configuration files a static host reads from a static build's captured
+headers and redirects, so a site's redirects, caching and security headers survive
+the export.
+
+```go
+import "github.com/Elagoht/collage-deploy"
+
+Plugins: []collage.Plugin{deploy.NewWith(deploy.Config{Target: "netlify"})},
+```
+
+```json
+{
+  "elagoht/deploy": {
+    "target": "netlify"
+  }
+}
+```
+
+- v0.1.0 needs collage v0.52.0 or later. `target` is `netlify`, `cloudflare`,
+  `vercel` or `github-pages`; another value stops the application from starting.
+  Left empty, it writes nothing, removes what the last export wrote, and warns.
+- `netlify` and `cloudflare` get `_headers` and `_redirects`, `vercel` a
+  `vercel.json`, and `github-pages` one meta-refresh page per literal redirect and
+  a `.nojekyll`, but no headers.
+- What a host cannot carry is a warning, never a rule that would redirect
+  differently from the application: a 410 on every host; 307 and 308 written as 302
+  and 301 on Netlify; Cloudflare's rule limits; patterned redirects and every
+  header on GitHub Pages. Vercel reads `vercel.json` only when the output directory
+  is deployed as the project (`vercel deploy dist`).
+- Headers are compacted into the fewest rules: what every file shares goes under
+  `/*`, what a directory shares under `/dir/*`, the rest at each file's path.
+  `Content-Type` never goes in a wildcard rule, and a `Content-Type` the file's
+  extension implies is left to the host.
+- It records what it wrote in `.collage-deploy.json` and replaces those files on
+  the next export into the same directory. It never overwrites a `_headers`,
+  `_redirects` or `vercel.json` it did not write: that is an error, and nothing is
+  written. So is a control character in a redirect or a header.
+- Its redirects come from pages, documents and any
+  [`RedirectSource`](/docs/writing-plugins#redirectsource) plugin, such as
+  [elagoht/redirects](#elagohtredirects); its headers from the
+  [capture](/docs/static-export#headers-and-redirects), so build in production
+  mode with the real `BaseURL`.
 
 ### Operations and development
 
@@ -2060,6 +2121,11 @@ Plugins see more than the pages a server renders:
 - **A static export runs the same render hooks** as a served render, with each
   plugin started and configured first, so the exported site is the site the server
   serves. See [Static export](/docs/static-export).
+- **A static build's header capture** (since v0.52.0) asks the handler for every
+  written file when a `BuildFinishedHook` plugin is registered, so middleware and
+  the request hooks see a build's paths. A plugin that counts or limits traffic
+  skips them with `collage.IsCapture(r.Context())`. See
+  [Static export](/docs/static-export#headers-and-redirects).
 
 ## Going further
 

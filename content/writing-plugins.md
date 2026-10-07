@@ -1,6 +1,6 @@
 ---
 description: The plugin contract, what Host and ConfigHost expose, every hook and what it may change, and a complete plugin with its tests.
-reference: Plugin, Host, ConfigHost, ConfigReader, PluginConfig, Configurer, Command, BeforeRenderHook, BeforeActionHook, BeforeActionEvent, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, RequestHook, RouteOf, RouteInfo, Route, ClientIP, Key, NewKey, RenderValues
+reference: Plugin, Host, ConfigHost, ConfigReader, PluginConfig, Configurer, Command, BeforeRenderHook, BeforeActionHook, BeforeActionEvent, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, BuiltRedirect, RedirectSource, IsCapture, RequestHook, RouteOf, RouteInfo, Route, ClientIP, Key, NewKey, RenderValues
 ---
 
 # Writing a plugin
@@ -222,7 +222,7 @@ take the connection over with `Hijack`, as it could on a bare `net/http` server.
 | `CacheInvalidateHook` | `OnCacheInvalidate` | `CacheInvalidateEvent` | After entries were invalidated by tag | nothing |
 | `OriginResolver` | `Origin` | the host, as a string | When `collage.BaseURL` or `Origins` names a host's origin (since v0.42.0) | the origin returned |
 | `ErrorHook` | `OnError` | `ErrorEvent` | On a failure while serving a request | nothing |
-| `BuildFinishedHook` | `OnBuildFinished` | `BuildFinishedEvent` | Once, when a static build has written every file (since v0.21.0) | reports with `ev.Warn`, `ev.Error` |
+| `BuildFinishedHook` | `OnBuildFinished` | `BuildFinishedEvent` | Once, when a static build has written every file and captured its headers (since v0.21.0) | reports with `ev.Warn`, `ev.Error` |
 
 Every hook method has the shape `func(ctx context.Context, ev *Event) error`, except
 `OnRequest`.
@@ -287,6 +287,12 @@ panics), `collage.RouteOf` is empty, and
 that bans or counts clients can see them. `Metrics.HTTPResponse` and collage's own
 request span still skip these requests.
 
+The hooks also see a static build's header capture (since v0.52.0): when a
+`BuildFinishedHook` plugin is registered, the build asks the handler for each file
+it wrote, and `collage.IsCapture(r.Context())` is true for those requests. A plugin
+that counts or bans clients skips them. See
+[BuildFinishedHook](#buildfinishedhook).
+
 Use `collage.ClientIP(r)` rather than `r.RemoteAddr` for the client's address. It is
 a `netip.Addr`: `RemoteAddr`'s host, or, behind the proxies the application lists in
 `Server.TrustedProxies` (see [Deployment](/docs/deployment#behind-a-proxy-trustedproxies)),
@@ -309,8 +315,10 @@ Fires once per request that routed to a page, before the cache is consulted, so
 it sees cache hits as well as fresh renders. It fires after the page's
 [guards](/docs/pages-and-layouts#private-pages-guards) and not at all for a request
 one of them blocked: that request never reached the page. It never fires for a document, and
-it does not fire during a static build — a build is not a request, and a plugin
-counting requests would count renders nobody asked for. An error fails the request
+it does not fire for a static build's renders — they are not requests, and a plugin
+counting requests would count renders nobody asked for. It does fire for the
+build's header capture (since v0.52.0), which is a request; skip it when
+`collage.IsCapture(ctx)` is true. An error fails the request
 with a 500, under the stage `"page_resolved"`.
 
 ### BeforeRenderHook
@@ -348,7 +356,8 @@ request with a 500, under `"before_render"`.
 
 `Static` (since v0.22.0) says the page is being rendered for a static build —
 through `App.RenderPath` — rather than for a request. It is on `AfterRenderEvent`
-too.
+too. A render for the build's header capture is a request, so `Static` is false
+for it; `collage.IsCapture(ctx)` tells it apart.
 
 ### BeforeActionHook
 
@@ -781,17 +790,28 @@ round of error handling.
 
 ```go
 type BuildFinishedEvent struct {
-	OutDir string              // the directory the build wrote into
-	Files  []collage.BuiltFile // every file it wrote, in no particular order
+	OutDir    string                  // the directory the build wrote into
+	Files     []collage.BuiltFile     // every file it wrote, in no particular order
+	Redirects []collage.BuiltRedirect // every redirect the site declares
 	// Findings: what ev.Warn and ev.Error reported so far
 }
 
 type BuiltFile struct {
-	Kind   string // "page", "document" or "asset"
-	Name   string // the page's or document's name; empty for an asset
-	Locale string
-	Path   string // the URL path the file answers
-	File   string // its absolute path on disk
+	Kind     string // "page", "document" or "asset"
+	Name     string // the page's or document's name; empty for an asset
+	Locale   string
+	Path     string // the URL path the file answers
+	File     string // its absolute path on disk
+	Captured bool        // the build asked the application for this path
+	Status   int         // what it answered with; 0 when not captured or failed
+	Headers  http.Header // the headers a static host can carry
+}
+
+type BuiltRedirect struct {
+	From   string // "/old/{slug}", as registered
+	To     string // "/new/{slug}", an absolute URL, or empty for a 410
+	Status int    // 301, 302, 307, 308 or 410
+	Source string // "page:<name>", "document:<name>" or a plugin's name
 }
 ```
 
@@ -800,7 +820,55 @@ v0.21.0), for checks across pages. Read a file with `os.ReadFile` when its conte
 is needed. `ev.Warn(path, rule, message)` and `ev.Error` report a finding against
 the page at `path`, or against the build as a whole with an empty one. An error
 returned from the hook fails the build too, beside the files already written. It
-never fires on a server.
+never fires on a server, and a build whose context ended is not handed to it.
+
+**Headers.** Since v0.52.0, before the hook runs, the build asks the application's
+handler for each file's path twice and puts the answer on the file: `Status` and
+`Headers`, without the headers about one response (`Date`, `ETag`,
+`Set-Cookie`, …) and without any that differ between the two answers, such as a
+CSP nonce. `Captured` is true for every file the build asked for, also one whose
+capture failed (`Status` 0), and false for the `404.html` pages and the root
+redirect, which the build makes itself. The capture runs only when a
+`BuildFinishedHook` plugin is registered. What it finds is reported as warnings;
+see [Static export](/docs/static-export#headers-and-redirects).
+
+**Redirects.** `ev.Redirects` holds every redirect the site declares: every page's
+in registration order (`Source` `"page:<name>"`), every document's
+(`"document:<name>"`), then every plugin's. `Status` is the redirect's
+`EffectiveStatus()`. A page registered only with `RegisterNotFoundPage` or
+`RegisterErrorPage` is never matched, so its redirects are left out.
+
+Together they are what a deploy adapter needs:
+[elagoht/deploy](/docs/plugins#elagohtdeploy) writes them as a host's `_headers`,
+`_redirects` or `vercel.json`.
+
+**The capture is a request.** Middleware and the request hooks see it, and the page
+renders again, with `OnBeforeRender`, `OnAfterRender` and `OnDocumentRendered`. A
+plugin that counts or limits traffic, or writes files or keeps a tally from a render
+hook, checks `collage.IsCapture(ctx)` and skips it. A capture request never writes
+the response cache.
+
+### RedirectSource
+
+```go
+type RedirectSource interface {
+	Redirects() []collage.BuiltRedirect
+}
+```
+
+A plugin that serves redirects of its own — from a file, a database — implements
+`RedirectSource` (since v0.52.0), so a static export carries its rules to the host.
+The build asks it once, after every file is written, and adds its rules to
+`ev.Redirects` with `Source` set to the plugin's name. Each is checked as a
+registered redirect is: `From` starts with one `/` and parses as a route pattern,
+and every placeholder in `To` is captured by it. Unlike a page's redirect, `To` may
+be an absolute `http` or `https` URL, and a `410` (a path that is gone) has no `To`;
+301, 302, 307 and 308 need one. Any other `Status` fails the build with
+`collage.ErrInvalidRedirectStatus`, and a malformed rule, or one with a control
+character, with `collage.ErrInvalidRedirect`, naming the rule and the plugin. A
+plugin rule from the same path as another redirect, or over a written file, fails
+the build like any other ([What fails](/docs/static-export#what-fails)).
+[elagoht/redirects](/docs/plugins#elagohtredirects) is one.
 
 ### Dispatch rules
 

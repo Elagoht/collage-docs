@@ -369,7 +369,10 @@ v0.34.0'dan beri bir redirect, request'in query string'ini hedefine taşır. Yak
 bir değer, düştüğü yere göre escape edilir: bir path segment'i ya da `?` işaretinden
 sonraki bir query değeri. Böylece `/login?next={slug}`'a ikinci bir `next`
 verilemez. Siteden çıkacak bir hedef (`//host` ya da `/\host`) ise register sırasında
-`ErrInvalidPath` olur.
+`ErrInvalidPath` olur. v0.52.0'dan beri iki path'ten birinde satır sonu gibi bir
+control karakteri olması `ErrInvalidRedirect` olur. Static export da yazdığı bir
+page'in üstüne düşen bir redirect'te başarısız olur; bkz.
+[Static export](/docs/static-export#what-fails).
 
 ## Render stratejileri
 
