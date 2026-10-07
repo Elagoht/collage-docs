@@ -515,10 +515,16 @@ boyunca verildiği tipi korur.
 - **Yanlış türdeki değerler üzerinde `range`, `len` ve `index`:** bir string ya da struct üzerinde
   range, iki değişkenle bir tamsayı üzerinde range, bir struct'ın `len`'i, bir
   struct'a `index`.
+- **Sayı sabitleri**, `text/template`'in tiplediği gibi tiplenir: `1` bir `int`,
+  `1.5` bir `float64`, `1i` bir `complex128`, `'a'` bir `int`'tir. Bu yüzden
+  `{{(1.5).Nope}}` ve `{{len 1}}` bildirilir. `int`'e sığmayacak kadar büyük bir
+  sabit ve komut olarak kullanılan `nil` de bildirilir.
 
 Render'ın hiç ulaşamayacağı şeyler bildirilmez. Koşulu bir literal olan bir
 `{{if}}` ya da `{{with}}` (`true`, `false`, `0`, `1`, `""`, `"x"` ya da bunlardan
-birinin `not`'u), literal'in dışarıda bıraktığı tarafı hiç çalıştırmaz. `{{and}}`
+birinin `not`'u), literal'in dışarıda bıraktığı tarafı hiç çalıştırmaz. Koşul bir
+değişken tanımlasa ya da atasa bile bu değişmez: `{{if $x := false}}{{.Nope}}{{end}}`
+hiçbir şey bildirmez. `{{and}}`
 ve `{{or}}` yalnızca sonucu belirleyen bir literal'de durur: `and` için `false`,
 `0`, `""` ya da `nil`; `or` için `true`, sıfır olmayan bir sayı ya da boş olmayan
 bir string. Bu yüzden `{{and 0 .Nope}}` hiçbir şey bildirmez. `{{and 1 .Nope}}` ve
@@ -539,7 +545,8 @@ bir string. Bu yüzden `{{and 0 .Nope}}` hiçbir şey bildirmez. `{{and 1 .Nope}
   edilirken başarısız olur. Onun nil olup olmadığı tipin değil, verinin işidir.
 - **Argüman tipleri.** Yalnızca argüman sayısı kontrol edilir. `text/template`
   bazı argümanları kendisi dönüştürür ve onun yerine karar vermeye çalışmak
-  yanlış alarmların kaynağı olurdu.
+  yanlış alarmların kaynağı olurdu. Argüman olarak verilen bir sayı da
+  değerlendirilmez.
 
 ### Hatayı okumak
 

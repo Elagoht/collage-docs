@@ -484,10 +484,15 @@ variable keeps the type it was given for its scope.
 - **`range`, `len` and `index` on the wrong kind**: ranging over a string or a
   struct, or over an integer with two variables; `len` of a struct; `index` into
   a struct.
+- **Number constants**, typed as `text/template` types them: `1` is an `int`,
+  `1.5` a `float64`, `1i` a `complex128`, `'a'` an `int`. So `{{(1.5).Nope}}` and
+  `{{len 1}}` are reported, as are a constant too large for an `int` and `nil`
+  used as a command.
 
 What the render can never reach is not reported. An `{{if}}` or `{{with}}` whose
 condition is a literal — `true`, `false`, `0`, `1`, `""`, `"x"`, or `not` of one —
-never runs the side the literal rules out. `{{and}}` and `{{or}}` stop at an
+never runs the side the literal rules out, even when the condition declares or
+assigns a variable: `{{if $x := false}}{{.Nope}}{{end}}` reports nothing. `{{and}}` and `{{or}}` stop at an
 operand only when it is a literal that decides them: `false`, `0`, `""` or `nil`
 for `and`; `true`, a non-zero number or a non-empty string for `or`. So
 `{{and 0 .Nope}}` reports nothing, while `{{and 1 .Nope}}` and
@@ -507,7 +512,7 @@ for `and`; `true`, a non-zero number or a non-empty string for `or`. So
   when it renders, and whether it is nil is the data's business, not the type's.
 - **Argument types.** Only the number of arguments is checked: `text/template`
   converts some arguments itself, and second-guessing it is where false alarms
-  would come from.
+  would come from. A number passed as an argument is not judged either.
 
 ### Reading the error
 
