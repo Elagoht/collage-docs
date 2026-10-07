@@ -1,6 +1,6 @@
 ---
 description: Bir fragment'in verisini nasıl çektiğini anlatır: handler sözleşmesi, sabit veri, dependency tag'ler, 404'ler, eşzamanlılık, render context'i, veri paylaşımı, timeout'lar ve template'lerin verilerine göre nasıl kontrol edildiği.
-reference: Data, FragmentBuilder.WithData, FragmentBuilder.WithTitle, FragmentBuilder.WithoutTypeCheck, DataHandler, Load, Value, RenderContext, Get, Once, Effect, ErrNotFound, ErrConflictingData, TemplateTypeError, ErrTemplateType, PanicError
+reference: Data, FragmentBuilder.WithData, FragmentBuilder.WithTitle, FragmentBuilder.WithoutTypeCheck, DataHandler, Load, Value, RenderContext, Key, NewKey, Once, Effect, ErrNotFound, ErrConflictingData, TemplateTypeError, ErrTemplateType, PanicError
 ---
 
 # Data handler'lar
@@ -201,7 +201,7 @@ oluşan bir page, üçünün toplam süresini değil, en yavaşını bekler.
 Garanti edilen sıra şudur:
 
 - **Parent'ın handler'ı, child'larınkiler başlamadan önce biter.** Bir child,
-  parent'ının shared data'ya koyduğu değeri ve parent'ının çözdüğü bir path
+  parent'ının bir key altında sakladığı değeri ve parent'ının çözdüğü bir path
   parametresini okuyabilir.
 - **Sibling'ler aynı anda çalışır.** Her biri kendi goroutine'inde, belirli bir
   sıra olmadan çalışır.
@@ -214,8 +214,8 @@ Bunun yazdığınız koda üç etkisi vardır.
 - **Handler'lar sibling'leriyle eşzamanlı çalışmaya karşı güvenli olmalıdır.**
   Paylaştıkları her şey (bir map, bir sayaç, goroutine-safe olmayan bir client),
   Go'da başka her yerde gerektirdiği özeni burada da gerektirir.
-- **Shared data'ya `rc.Get` ve `rc.Set` üzerinden erişilir,** hiçbir zaman
-  doğrudan `SharedData` map'i üzerinden erişilmez. Ayrıntılar
+- **Paylaşılan değerler bir `collage.Key` üzerinden geçer.** Key'in `Get` ve `Set`
+  metotları render'ın lock'unu tutar. Ayrıntılar
   [aşağıda](#sharing-data-between-fragments).
 - **Template'in render etmediği bir slot'taki fragment de yine başlar.** Template
   biter bitmez bu fragment'in context'i cancel edilir ve hatası yok sayılır.
@@ -233,7 +233,7 @@ her şeydir.
 | `rc.Locale` | URL'nin çözüldüğü locale |
 | `rc.Param(name)`, `rc.PathParams` | Route'taki `{name}` placeholder'larının yakaladığı değerler |
 | `rc.Page` | Render edilen page. Bir action'da, action'ın cevap verdiği URL'nin page'i (v0.33.0'dan beri). **Yalnızca okunur** |
-| `rc.Get(key)`, `rc.Set(key, value)` | Tek bir render'daki fragment'ler arasında paylaşılan değerler |
+| `key.Get(rc)`, `key.Set(rc, value)` | Tek bir render'daki fragment'ler arasında bir `collage.Key` üzerinden paylaşılan değerler |
 | `rc.Context()` | Render context'inin taşıdığı context |
 | `rc.HoistTitle`, `rc.HoistMeta`, `rc.HoistProperty`, `rc.HoistLink`, `rc.HoistAlternate`, `rc.HoistStylesheet`, `rc.Hoist` | Page'in `<head>`'i için tanımlar. Bkz. [Head ve SEO](/docs/head-and-seo) |
 | `rc.Asset(path)` | Mount edilmiş bir dosyanın content-addressed URL'si. Bkz. [Static asset'ler](/docs/assets) |
@@ -249,10 +249,10 @@ Render context'inin kendisiyle ilgili iki kural vardır.
   bitmiş bir request'i tutmak demektir.
 - **`rc.Page`'e yazmayın.** O, register edilmiş tek `*collage.Page`'dir ve aynı anda
   o page'i render eden bütün request'ler tarafından paylaşılır. Bir handler'dan
-  onun `SEO` map'ine ya da `DependencyTags`'ine yazmak, framework'ün canlı state'i
-  üzerinde bir data race'tir. `go test -race` bunu raporlar, production'da ise er
-  geç veriyi bozar. Request'ten request'e değişen her şeyi döndüğünüz veriye ya da
-  shared data'ya koyun.
+  onun `Paths` map'ine ya da `DependencyTags`'ine yazmak, framework'ün canlı
+  state'i üzerinde bir data race'tir. `go test -race` bunu raporlar, production'da
+  ise er geç veriyi bozar. Request'ten request'e değişen her şeyi döndüğünüz veriye
+  ya da bir `collage.Key` altına koyun.
 
 ## Fragment'ler arasında veri paylaşımı
 
@@ -260,29 +260,41 @@ Bir page'deki fragment'ler çoğu zaman aynı şeye ihtiyaç duyar. Yazı page'i
 içeriği, `<head>`'i ve "bu yazarın diğer yazıları" kutusu, hepsi yazının kendisine
 ihtiyaç duyar.
 
-### rc.Set ve collage.Get
+### collage.Key
 
-`rc.Set(key, value)` bir değeri render'ın geri kalanı için saklar.
-`collage.Get[T](rc, key)` ise o değeri saklandığı tiple geri okur:
+`collage.Key`, package seviyesinde bir kez tanımlanan bir isim ve bir tiptir. `Set`
+bir değeri bu key altında render'ın geri kalanı için saklar. `Get` ise o değeri
+aynı tiple geri okur:
 
 ```go
+var postKey = collage.NewKey[*Post]("post")
+
 // in the parent's handler
-rc.Set("post", post)
+postKey.Set(rc, post)
 
 // in a child's handler, which starts after the parent's has returned
-post, ok := collage.Get[*Post](rc, "post")
+post, ok := postKey.Get(rc)
 if !ok {
-	return nil, nil, errors.New("more-by-author: no post in shared data")
+	return nil, nil, errors.New("more-by-author: no post stored under postKey")
 }
 ```
 
-Key altında hiçbir şey saklanmamışsa `ok` false olur. Saklanan değer bir `*Post`
-değilse de false olur. Çağıran taraf için ikisi de aynı anlama gelir: istediği değer
-orada yoktur. Key'ler uygulamanızın kendi namespace'idir. Çakışmayacak isimler
-seçin.
+Key altında hiçbir şey saklanmamışsa `ok` false olur. Okurken type assertion
+gerekmez; yanlış tipte bir yazma ise derlenmez. Bir key, ismi *ve* tipinden oluşur:
+`NewKey[*Post]("post")` ile `NewKey[*Draft]("post")` iki ayrı key'dir ve iki ayrı
+değer tutar. Farklı dosyalarda tanımlanmış iki `NewKey[*Post]("post")` ise tek bir
+key'dir. Key'ler uygulamanızın kendi namespace'idir. Çakışmayacak isimler seçin.
 
-`rc.Get` ve `rc.Set` render'ın lock'unu alır. Eşzamanlı çalışan sibling'lere karşı
-güvenli olmalarının nedeni budur. Çıplak `rc.SharedData` map'i ise güvenli değildir.
+`With`, tanımlanmış bir key'den her değer için ayrı bir key türetir:
+`postKey.With(slug)` key'inin adı `post:<slug>` olur ve aynı tipi tutar. `NewKey`
+boş bir isimle çağrılırsa key'in tanımlandığı satırda panic eder. Zero value olan
+bir `Key` de (`NewKey` ile hiç oluşturulmamış bir struct field'ı) kullanıldığı yerde
+panic eder.
+
+`Get` ve `Set` render'ın lock'unu alır. Eşzamanlı çalışan sibling'lere karşı
+güvenli olmalarının nedeni budur. v0.50.0'dan önce değerler bir `SharedData` map'i
+üzerinde `rc.Set(key, value)` ve `collage.Get[T](rc, key)` ile paylaşılıyordu. Bu
+üçü de kaldırıldı.
 
 Bu yöntem parent'tan child'a doğru çalışır, çünkü parent'ın handler'ı önce biter.
 Sibling'ler arasında çalışmaz. Sibling'ler aynı anda çalıştığı için biri, diğerinin
@@ -297,7 +309,7 @@ başına en fazla bir kez çalıştırır ve sonucu isteyen her fragment'e verir
 ```go
 func loadAuthorCard(ctx context.Context, rc *collage.RenderContext) (Author, []string, error) {
 	slug := rc.Param("slug")
-	post, err := collage.Once(rc, "post:"+slug, func(ctx context.Context) (*Post, error) {
+	post, err := collage.Once(rc, postKey.With(slug), func(ctx context.Context) (*Post, error) {
 		return store.Post(ctx, slug)
 	})
 	if err != nil {
@@ -308,8 +320,8 @@ func loadAuthorCard(ctx context.Context, rc *collage.RenderContext) (Author, []s
 ```
 
 İlk çağıran veriyi çeker. Diğerleri onu bekler ve onun ürettiği sonucu alır. Akla
-ilk gelen alternatif şudur: `rc.Get` ile bakmak, bulunamazsa veriyi çekmek, sonra
-`rc.Set` ile yazmak. Bu yaklaşımda kontrol ile yazma arasında bir boşluk kalır. İki
+ilk gelen alternatif şudur: `Get` ile bakmak, bulunamazsa veriyi çekmek, sonra
+`Set` ile yazmak. Bu yaklaşımda kontrol ile yazma arasında bir boşluk kalır. İki
 sibling de bu boşluğa düşer ve ikisi de veriyi çeker.
 
 - **Hata da bir sonuçtur.** Bekleyen herkes aynı hatayı alır. Çekme işlemi her
@@ -319,8 +331,9 @@ sibling de bu boşluğa düşer ve ikisi de veriyi çeker.
   şey yoktur.
 - **Kendi context'i sona eren bekleyen taraf beklemeyi bırakır** ve o hatayı
   döner.
-- **Bir key, bir tip.** Aynı key'i iki farklı tiple istemek sessizce boş bir değer
-  dönmez, `ErrOnceTypeMismatch` verir.
+- **Değerleri kendine aittir.** `Once`'ın çektiği değer `Get` ile okunamaz, `Set`'in
+  sakladığı değer de `Once`'a verilmez. Adı aynı, tipi farklı iki key iki ayrı çekme
+  işlemidir. v0.50.0'dan önce bu durum `ErrOnceTypeMismatch` hatasıydı.
 
 ### collage.Cached
 
@@ -329,7 +342,9 @@ request'ler arasında paylaştırır. Böylece aynı yazarın otuz yazısı, yaz
 bir kez çeker.
 
 ```go
-author, err := collage.Cached(rc, "author:"+id, time.Hour, []string{"author:" + id},
+var authorKey = collage.NewKey[Author]("author")
+
+author, err := collage.Cached(rc, authorKey.With(id), time.Hour, []string{"author:" + id},
 	func(ctx context.Context) (Author, error) { return api.Author(ctx, id) })
 ```
 
@@ -354,7 +369,7 @@ yalnızca hata dönen bir handler'ı adapte eder:
 ```go
 seo := collage.NewFragment("post-seo", "fragments/empty.html").
 	WithData(collage.Effect(func(ctx context.Context, rc *collage.RenderContext) error {
-		post, err := collage.Once(rc, "post:"+rc.Param("slug"), func(ctx context.Context) (*Post, error) {
+		post, err := collage.Once(rc, postKey.With(rc.Param("slug")), func(ctx context.Context) (*Post, error) {
 			return store.Post(ctx, rc.Param("slug"))
 		})
 		if err != nil {

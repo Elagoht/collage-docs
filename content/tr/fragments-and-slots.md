@@ -204,7 +204,7 @@ birini çağırabilir. Bu yüzden o fragment'in bağlamaları kontrol edilmez.
 
 Bir child, parent'ının verisini görmez. `fragments/author.html` içinde `.`, post
 değil, `loadAuthor`'ın döndüğü değerdir. Parent'ın çektiği bir şeye ihtiyacı olan
-bir child, bunu render'ın shared data'sından okur. Ya da veriyi `collage.Once`
+bir child, bunu parent'ının set ettiği bir `collage.Key` üzerinden okur. Ya da veriyi `collage.Once`
 veya `collage.Cached` ile kendisi ister, böylece veri yalnızca bir kez çekilir.
 Bkz. [Data handler'lar](/docs/data-handlers#sharing-data-between-fragments).
 
@@ -331,18 +331,20 @@ type block struct {
 	Text    string
 }
 
+var blocksKey = collage.NewKey[[]block]("blocks")
+
 landing := collage.NewFragment("landing", "pages/landing.html").
 	WithData(collage.Effect(func(ctx context.Context, rc *collage.RenderContext) error {
 		blocks, err := cms.Blocks(ctx, "landing")
 		if err != nil {
 			return err
 		}
-		rc.Set("blocks", blocks)
+		blocksKey.Set(rc, blocks)
 		return nil
 	})).
 	WithSlot("blocks", true, true).
 	WithSlotResolver("blocks", func(rc *collage.RenderContext) ([]*collage.Fragment, error) {
-		blocks, _ := collage.Get[[]block](rc, "blocks")
+		blocks, _ := blocksKey.Get(rc)
 		fragments := make([]*collage.Fragment, 0, len(blocks))
 		for i, b := range blocks {
 			f, err := blockFragment(i, b)

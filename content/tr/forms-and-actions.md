@@ -203,11 +203,13 @@ func ContactPage() *collage.Page {
 		Build()
 }
 
+var contactFormKey = collage.NewKey[contactView]("contact:form")
+
 func sendContact(ctx context.Context, rc *collage.RenderContext) (*collage.ActionResult, error) {
 	email := strings.TrimSpace(rc.Request.PostFormValue("email"))
 	if !strings.Contains(email, "@") {
-		rc.Set("contact:form", contactView{Error: "That does not look like an email address.", Email: email})
-		// rc.Page, bu action'ın cevap verdiği page'dir: contact page'i.
+		contactFormKey.Set(rc, contactView{Error: "That does not look like an email address.", Email: email})
+		// rc.Page is the page this action answers on: the contact page.
 		return &collage.ActionResult{Status: http.StatusUnprocessableEntity, Page: rc.Page}, nil
 	}
 	if err := messages.Send(ctx, email, rc.Request.PostFormValue("message")); err != nil {
@@ -218,7 +220,7 @@ func sendContact(ctx context.Context, rc *collage.RenderContext) (*collage.Actio
 
 func contactData(_ context.Context, rc *collage.RenderContext) (contactView, error) {
 	// Set by the action when this render is its answer; empty on an ordinary GET.
-	view, _ := collage.Get[contactView](rc, "contact:form")
+	view, _ := contactFormKey.Get(rc)
 	return view, nil
 }
 ```
@@ -560,7 +562,9 @@ arasında hiçbir şey paylaşmaz. Aynı veriyi okuyan fragment'ler için
 invalidate edilene kadar render'lar arasında saklar:
 
 ```go
-stats, err := collage.Cached(rc, "system:stats", time.Second, nil,
+var statsKey = collage.NewKey[monitor.Stats]("system:stats")
+
+stats, err := collage.Cached(rc, statsKey, time.Second, nil,
 	func(ctx context.Context) (monitor.Stats, error) { return monitor.Collect(ctx) })
 ```
 
@@ -646,8 +650,10 @@ geçmediğini form'un fragment'ini hatalarla birlikte yeniden ve 422 status'uyla
 döndürerek söyler (collage-live v0.2.0'dan beri):
 
 ```go
+var problemsKey = collage.NewKey[[]string]("problems")
+
 if problems := validate(rc); len(problems) > 0 {
-	rc.Set("problems", problems)
+	problemsKey.Set(rc, problems)
 	result := collage.RenderFragment(formFragment)
 	result.Status = http.StatusUnprocessableEntity
 	return result, nil

@@ -1,6 +1,6 @@
 ---
 description: collage'ın render edilmiş page'leri ve onları oluşturan veriyi nasıl cache'lediği, neyi atacağını nasıl bildiği.
-reference: CacheConfig, Cached, Once, TaggedCache, SkipCache, Vary, PageBuilder.Static, PageBuilder.Incremental, PageBuilder.Dynamic, FragmentBuilder.Static, FragmentBuilder.Shared, StrategyAuto, PathTag
+reference: CacheConfig, Cached, Once, Key, TaggedCache, SkipCache, Vary, PageBuilder.Static, PageBuilder.Incremental, PageBuilder.Dynamic, FragmentBuilder.Static, FragmentBuilder.Shared, StrategyAuto, PathTag
 ---
 
 # Caching
@@ -571,9 +571,11 @@ static export, yazarı otuz kez çeker.
 `collage.Cached` yazarı saklar:
 
 ```go
+var authorKey = collage.NewKey[Author]("author")
+
 func authorCard(ctx context.Context, rc *collage.RenderContext) (Author, []string, error) {
 	id := rc.Param("author")
-	author, err := collage.Cached(rc, "author:"+id, time.Hour, []string{"author:" + id},
+	author, err := collage.Cached(rc, authorKey.With(id), time.Hour, []string{"author:" + id},
 		func(ctx context.Context) (Author, error) {
 			return api.Author(ctx, id)
 		})
@@ -582,7 +584,7 @@ func authorCard(ctx context.Context, rc *collage.RenderContext) (Author, []strin
 ```
 
 ```go
-func Cached[T any](rc *RenderContext, key string, ttl time.Duration, tags []string,
+func Cached[T any](rc *RenderContext, key Key[T], ttl time.Duration, tags []string,
 	fetch func(context.Context) (T, error)) (T, error)
 ```
 
@@ -593,6 +595,13 @@ edilsin, sonuç aynıdır. (Kapalıyken ve development'ta bir store yoktur;
 [aşağıya](#where-it-keeps-nothing) bakın.) Bir [document'ın](/docs/documents)
 handler'ı da aynı store'u paylaşır. Böylece bu yazarları okuyan bir sitemap ya da
 feed, hiçbirini yeniden çekmez.
+
+Key olarak bir [`collage.Key`](/docs/data-handlers#collagekey) verilir. Tek bir
+render'ın fragment'leri de değerleri aynı türden key'lerle paylaşır. Key bir kez tanımlanan
+bir isim ve bir tiptir; değişen kısmı `With` ekler. `authorKey.With("ada")`
+key'inin adı `author:ada` olur. Key'in tipinden başka bir şey dönen bir `fetch`
+derlenmez. Tag'ler düz string olarak kalır (burada `"author:" + id`), çünkü
+`InvalidateTags` onlarla çağrılır. v0.50.0'dan önce key bir string'di.
 
 ### İki cache için tek tag kümesi
 
@@ -613,8 +622,10 @@ yerine geçmeleri gereken stale yazar verisinden yeniden render edilir.
 ### Nasıl davranır
 
 - **Key sizindir.** Key, değeri bütün uygulama genelinde adlandırır. Bu yüzden onu
-  çektiğiniz şey kadar spesifik yapın: `author` değil, `author:ada`. Aynı key'i
-  iki farklı tip olarak istemek `collage.ErrCachedTypeMismatch` hatasına yol açar.
+  çektiğiniz şey kadar spesifik yapın: `authorKey` değil, `authorKey.With(id)`.
+  Key, ismi ve tipinden oluşur. Bu yüzden adı aynı, tipi farklı iki key yanlış tiple
+  okunan tek bir değer değil, iki ayrı değer tutar (v0.50.0'dan önce bu durum
+  `collage.ErrCachedTypeMismatch` hatasıydı).
 - **Key başına aynı anda tek bir çekme işlemi.** Bir key çekilirken onu isteyen
   render'lar kendi çekme işlemlerini başlatmaz, süren işlemi bekler.
 - **Hatalar saklanmaz.** Bekleyen herkes hatayı alır. Bir sonraki render yeniden
@@ -659,14 +670,16 @@ Cache'lenmiş bir page render edilmez, bu yüzden veri çekme işlemlerinin hiç
 
 Page cache host başınadır; `collage.Cached` değildir. Store'u process başına tektir
 ve yalnızca verdiğiniz key ile anahtarlanır. Bu yüzden birden fazla müşteriye hizmet
-veren bir sitede (örneğin elagoht/tenant) `Cached(rc, "posts", ...)` acme'nin
+veren bir sitede (örneğin elagoht/tenant) `Cached(rc, postsKey, ...)` acme'nin
 post'larını bir kez çeker ve globex'e de verir. Müşteriyi key'e ve tag'lere koyun;
 böylece bir müşterinin verisini invalidate etmek ötekilere dokunmaz:
 
 ```go
+var postsKey = collage.NewKey[[]Post]("posts")
+
 func posts(ctx context.Context, rc *collage.RenderContext) ([]Post, []string, error) {
 	id, _ := tenant.ID(rc)
-	list, err := collage.Cached(rc, "posts:"+id, time.Hour, []string{"posts:" + id},
+	list, err := collage.Cached(rc, postsKey.With(id), time.Hour, []string{"posts:" + id},
 		func(ctx context.Context) ([]Post, error) { return db.Posts(ctx, id) })
 	return list, nil, err
 }

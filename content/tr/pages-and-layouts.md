@@ -591,7 +591,7 @@ Bir page'e değer üzerinden başvuran her şey o değeri kullanmalıdır:
 - **`rc.Page` de aynı değerdir.** Bu değeri, page'i render eden bütün request'ler
   ve onlara hizmet eden bütün goroutine'ler ortak kullanır. Onu dilediğiniz gibi
   okuyun, ama hiçbir zaman ona yazmayın. Request'ten request'e değişen her şey, bir
-  handler'ın döndüğü veride ya da render'ın shared data'sında yer almalıdır.
+  handler'ın döndüğü veride ya da bir `collage.Key` altında yer almalıdır.
   Ayrıntılar için [Data handler'lar](/docs/data-handlers#the-render-context)
   sayfasına bakın.
 

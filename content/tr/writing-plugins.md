@@ -1,6 +1,6 @@
 ---
 description: Plugin sözleşmesi, Host ve ConfigHost'un sundukları, her hook ve neyi değiştirebileceği, testleriyle birlikte eksiksiz bir plugin.
-reference: Plugin, Host, ConfigHost, Configurer, Command, BeforeRenderHook, BeforeActionHook, BeforeActionEvent, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, RequestHook, RouteOf, RouteInfo, Route, ClientIP
+reference: Plugin, Host, ConfigHost, ConfigReader, PluginConfig, Configurer, Command, BeforeRenderHook, BeforeActionHook, BeforeActionEvent, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, RequestHook, RouteOf, RouteInfo, Route, ClientIP, Key, NewKey, RenderValues
 ---
 
 # Plugin yazmak
@@ -81,7 +81,7 @@ reddeder.
 
 | | `ConfigHost` (Configure) | `Host` (Init) |
 | --- | --- | --- |
-| `DevMode`, `Logger`, `Config` | evet | evet |
+| `DevMode`, `Logger`, `collage.PluginConfig(host, …)` | evet | evet |
 | `AddTemplateFunc`, `AddRenderFunc`, `WrapMount` | evet | — |
 | `Pages`, `Page`, `InvalidateTags` | — | evet |
 | `URL`, `FragmentURL`, `Locales`, `PageURLs` | — | evet |
@@ -100,7 +100,7 @@ ulaşabileceği bir cache olmazdı.
 | --- | --- |
 | `DevMode() bool` | Uygulamanın development modunda çalışıp çalışmadığını söyler. |
 | `Logger() *slog.Logger` | Uygulamanın logger'ını döner. |
-| `Config(v) error` | Bu plugin'in config bölümünü `v`'ye decode eder. Bkz. [Yapılandırma](#configuration). |
+| `ConfigReader` (embed edilmiş) | `collage.PluginConfig(host, defaults)` bu plugin'in config bölümünü bunun üzerinden okur. Bkz. [Yapılandırma](#configuration). |
 | `AddTemplateFunc(name, fn) error` | Bir template fonksiyonu ekler. Ad daha önce eklenmişse `ErrDuplicateTemplateFunc` döner; ekleyen başka bir plugin de olabilir, aynı plugin'in önceki bir çağrısı da. |
 | `WrapMount(wrap func(fs.FS) fs.FS)` | Mount edilen her dosya sistemine uygulanacak bir dönüşümü register eder. Wrapper'lar register edildikleri sırayla uygulanır. |
 | `AddRenderFunc(name, factory) error` | Her render için o render'ın `*RenderContext`'inden yeniden üretilen bir template fonksiyonu ekler. Bkz. [Template fonksiyonları](#template-functions) (v0.21.0'dan beri). |
@@ -111,7 +111,7 @@ ulaşabileceği bir cache olmazdı.
 | --- | --- |
 | `DevMode() bool` | Uygulamanın development modunda çalışıp çalışmadığını söyler. |
 | `Logger() *slog.Logger` | Uygulamanın logger'ını döner. |
-| `Config(v) error` | Bu plugin'in config bölümünü `v`'ye decode eder. |
+| `ConfigReader` (embed edilmiş) | `collage.PluginConfig(host, defaults)` bu plugin'in config bölümünü bunun üzerinden okur. |
 | `Pages() []*collage.Page` | Register edilmiş bütün page'leri döner. Her biri bir defensive copy'dir. |
 | `Page(name) (*collage.Page, bool)` | Adı verilen page'i defensive copy olarak döner. |
 | `InvalidateTags(ctx, tags...) error` | Bu tag'lerden herhangi biriyle oluşturulmuş bütün cache entry'lerini düşürür. |
@@ -142,11 +142,14 @@ v0.21.0'da, `ConfigHost`'taki `AddRenderFunc` ile birlikte eklendi. `BuildID` ve
 `ServeStatus` ise v0.24.0'da geldi. **Bunların her biri bir test double'ı için
 breaking change'dir:** `Host`'u ya da `ConfigHost`'u implement eden bir test
 double'ının da yeni metotlara ihtiyacı vardır. v0.24.0'dan beri bunlar `BuildID` ve
-`ServeStatus`'tur.
+`ServeStatus`'tur. v0.50.0'dan beri ikisi de `collage.ConfigReader`'ı içerir. Onun
+tek metodu export edilmemiştir; bu yüzden onu yalnızca collage'ın kendi host'ları
+karşılar. Plugin'i bunun yerine gerçek bir uygulama üzerinden test edin. Bkz.
+[Bir plugin'i test etmek](#testing-a-plugin).
 
 **`Host`, bir plugin'in neye ulaşabileceğini sınırlar; neyi değiştirebileceğini
 sınırlamaz.** `Pages` ve `Page`, page struct'ının bir kopyasını döner. `Paths`,
-`Redirects`, `SEO` ve `DependencyTags` container'ları da kopyalanır. Bu yüzden
+`Redirects` ve `DependencyTags` container'ları da kopyalanır. Bu yüzden
 bunları düzenlemek uygulamanın kendi page'ine dokunmaz. Ancak kopyanın içindeki
 fragment pointer'ları hâlâ paylaşılır. Aşağıdaki event'ler de kopyayı değil, *canlı*
 page'i taşır, çünkü her request'te bir page'i ve fragment ağacını kopyalamak hot
@@ -226,7 +229,7 @@ sunucusunda da yapabilirdi.
 | `PageResolvedHook` | `OnPageResolved` | `PageResolvedEvent` | Her page request'inde bir kez, routing'in ve page'in guard'larının hemen ardından; cache hit'ler dahil | hiçbir şeyi |
 | `BeforeRenderHook` | `OnBeforeRender` | `BeforeRenderEvent` | Yeni bir page render'ından önce | event'te hiçbir şeyi; `ev.Context` üzerinden hoist edebilir |
 | `BeforeActionHook` | `OnBeforeAction` | `BeforeActionEvent` | Bir action'ın handler'ından önce, guard'larından, body sınırından ve forgery kontrolünden sonra (v0.31.0'dan beri) | `ev.Result`; handler'ın yerine cevap verir |
-| `AfterRenderHook` | `OnAfterRender` | `AfterRenderEvent` | Bir page render'ı başarıyla bittikten sonra | `ev.HTML`; `ev.Warn` ve `ev.Error` ile raporlar |
+| `AfterRenderHook` | `OnAfterRender` | `AfterRenderEvent` | Bir page render'ı başarıyla bittikten sonra. `ev.Values`'u taşır (bir key'in `In` metoduyla okunur) | `ev.HTML`; `ev.Warn` ve `ev.Error` ile raporlar |
 | `PersonaliseHook` | `OnPersonalise` | `PersonaliseEvent` | Cache'ten sonra, bir okuyucuya giden her HTML response'u için (v0.43.0'dan beri) | `ev.Body`, `ev.Header`, `ev.Personal` |
 | `DocumentRenderedHook` | `OnDocumentRendered` | `DocumentRenderedEvent` | Bir document handler'ı body'sini ürettikten sonra | `ev.Body` |
 | `CacheWriteHook` | `OnCacheWrite` | `CacheWriteEvent` | Bir page ya da document cache'e yazılmadan önce | `ev.Skip`, `ev.TTL`, `ev.Tags` |
@@ -421,7 +424,7 @@ type AfterRenderEvent struct {
 	HTML     []byte // replace it to post-process the page
 	// Fragments: each fragment's time and failure, as collage.FragmentReport
 	// DependencyTags: the tags the render depended on
-	// Data: the render's shared data, the map behind rc.Set and rc.Get
+	// Values: the render's shared values, read with a collage.Key's In
 	// Findings: what ev.Warn and ev.Error reported so far
 }
 ```
@@ -432,12 +435,38 @@ action'ın `RenderPage` ile cevap olarak döndüğü page ve static build'ler i�
 içeriktir. Bir cache-write hook'u yazmayı atlamadıkça, cache'e yazılan içerik de
 odur. Sonraki plugin'ler, öncekilerin ürettiği içeriği görür.
 
-`ev.Data`, render'ın shared data'sıdır. Fragment'lerin `rc.Set` ve `rc.Get` ile
-okuyup yazdığı map'in ta kendisidir. Yani page'in *neyden* oluşturulduğunu gösterir.
+`ev.Values` (bir `*collage.RenderValues`), page'in fragment'lerinin key'ler
+üzerinden paylaştığı değerlerdir. Yani page'in *neyden* oluşturulduğunu gösterir.
 Markup'ı geri parse etmek yerine doğrudan makalenin kendisini isteyen bir plugin
-bunu kullanır. İçinde ne olduğu tamamen uygulamanın kendi convention'ına bağlıdır;
-framework oraya hiçbir şey koymaz. Bu canlı map'tir. Okumakta sakınca yoktur, ama
-hook bittikten sonra elde tutarsanız request state'ini tutmuş olursunuz.
+bunu kullanır. Hook'un bir `RenderContext`'i yoktur. Bu yüzden değerleri key'in
+`In` metoduyla okur:
+
+```go
+var ArticleKey = collage.NewKey[Article]("jsonld:article")
+
+func (p *Plugin) OnAfterRender(_ context.Context, ev *collage.AfterRenderEvent) error {
+	article, ok := ArticleKey.In(ev.Values)
+	if !ok {
+		return nil // this page stored no article
+	}
+	ev.Hoist("head", "jsonld", p.script(article))
+	return nil
+}
+```
+
+Değerler opaktır. Bir plugin yalnızca key'ine sahip olduğu değeri okur; değerleri
+listelemenin bir yolu yoktur. Uygulamanın kendisine bir şey vermesini isteyen bir
+plugin key'i export eder, uygulama da değeri onun altında saklar. Kendi render
+fonksiyonlarından hook'una state taşıyan bir plugin ise key'i export etmez.
+Framework oraya hiçbir şey koymaz. Değerler render'ın kendisine aittir, bir kopya
+değildir. Hook bittikten sonra onları elde tutarsanız request state'ini tutmuş
+olursunuz.
+
+Key'in adına plugin'in kendi adıyla başlayın: `"jsonld:article"`,
+`"validate:errors"`. Key yalnızca ismi ve tipinden ibarettir. Bu yüzden her biri
+`NewKey[string]("errors")` tanımlayan iki plugin aynı değeri paylaşır ve onu en son
+set eden kazanır. v0.50.0'dan önce bunun yerine render'ın paylaşılan map'i
+`ev.Data` vardı.
 
 `ev.Fragments` ve `ev.DependencyTags` (v0.24.0'dan beri), render'ın nasıl geçtiğini
 bildirir. Bir development aracının page'in yanında göstermesi içindir. Her
@@ -874,8 +903,10 @@ taşıdığı şeyleri okuyabilir: bir `BeforeRender` hook'unun ayarladığı no
 render'ın locale'i gibi:
 
 ```go
+var nonceKey = collage.NewKey[string]("csp:nonce")
+
 host.AddRenderFunc("nonce", func(rc *collage.RenderContext) any {
-	nonce, _ := collage.Get[string](rc, "csp:nonce")
+	nonce, _ := nonceKey.Get(rc)
 	return func() string { return nonce }
 })
 ```
@@ -1003,9 +1034,10 @@ eklemesi gerekir. Bkz. [collage CLI](/docs/cli#plugin-commands).
 
 ## Yapılandırma
 
-Bir plugin, `Config.PluginConfig` içindeki kendi bölümünü `host.Config` ile tipli
-bir struct'a okur. `host.Config` her iki aşamada da kullanılabilir. Önce varsayılan
-değerlerinizi atayın; `Config`, uygulamanın bölümünü onların üzerine decode eder:
+Bir plugin, `Config.PluginConfig` içindeki kendi bölümünü
+`collage.PluginConfig(host, defaults)` ile tipli bir struct'a okur. Bu fonksiyon
+`Host`'u da `ConfigHost`'u da kabul eder ve varsayılan değerlerin tipini döner.
+Uygulamanın bölümünü varsayılan değerlerin bir kopyasının üzerine decode eder:
 
 ```go
 type Config struct {
@@ -1014,16 +1046,22 @@ type Config struct {
 }
 
 func (p *Plugin) Configure(_ context.Context, host collage.ConfigHost) error {
-	p.cfg = Config{Generator: "collage"} // defaults
-	return host.Config(&p.cfg)           // overlaid by the application's section, if any
+	cfg, err := collage.PluginConfig(host, Config{Generator: "collage"}) // defaults, overlaid by the application's section
+	p.cfg = cfg
+	return err
 }
 ```
 
-- **Bölüm yoksa `v`'ye dokunulmaz.** Böylece "yapılandırılmamış" ile "zero value'ya
-  yapılandırılmış" iki farklı durum olarak kalır.
-- **Bölüm varsa ama bozuksa bu bir hatadır.** Operatör bir şey yazmıştır. Onun
-  yerine varsayılan değerlerle çalışmak, tam da bu kuralın engellediği sessiz hata
-  olurdu.
+- **Bölüm yoksa, boşsa ya da `null` ise varsayılan değerler olduğu gibi döner.**
+  Böylece "yapılandırılmamış" ile "zero value'ya yapılandırılmış" iki farklı durum
+  olarak kalır.
+- **Bölüm varsa ama bozuksa bu, plugin'in adını veren bir hatadır**
+  (`collage: plugin "acme/stamp" configuration: …`) ve varsayılan değerlerle
+  birlikte döner. Operatör bir şey yazmıştır. Sessizce varsayılan değerlerle
+  çalışmak bunu gizlerdi.
+- Varsayılan değerlerin içindeki bir map ya da slice'a yerinde decode edilir. Bu
+  yüzden varsayılan değerleri çağrılar arasında paylaşılan tek bir değer olarak
+  değil, çağrının içinde bir literal olarak yazın.
 - Bölüm, varsayılan değerlerinizin üzerine `json.Unmarshal` ile decode edilir ve onun
   kurallarına uyar. JSON'daki bir scalar ya da slice, varsayılan değerinizin yerini
   alır; slice'lar merge edilmez. Bir map'e decode edilen JSON object'i, kendi
@@ -1033,6 +1071,9 @@ func (p *Plugin) Configure(_ context.Context, host collage.ConfigHost) error {
 - Register edilmiş hiçbir plugin'e karşılık gelmeyen bir key, uygulama için bir startup
   hatasıdır (`ErrUnknownPluginConfig`). Bu yüzden config'inizin adresi tamamen
   `Name`'inizden ibarettir. Onu değiştirmek bir breaking change'dir.
+
+v0.50.0'dan önce bir plugin varsayılan değerlerini bir field'a atar ve
+`host.Config(&cfg)` çağırırdı.
 
 README'nizde her key'i, tipini ve varsayılan değerini belgeleyin. `New()`'un yanında
 bir `NewWith(Config)` constructor'ı da sunarsanız, bir uygulama sizi Go kodunda da
@@ -1139,10 +1180,11 @@ func (p *Plugin) Version() string { return "0.1.0" }
 // Configure runs inside collage.New, before templates are parsed: the one
 // moment a template function can still be added.
 func (p *Plugin) Configure(_ context.Context, host collage.ConfigHost) error {
-	p.cfg = Config{Generator: "collage"} // the defaults
-	if err := host.Config(&p.cfg); err != nil {
+	cfg, err := collage.PluginConfig(host, Config{Generator: "collage"}) // the defaults
+	if err != nil {
 		return err // a section that is present but malformed
 	}
+	p.cfg = cfg
 	return host.AddTemplateFunc("generator", func() string { return p.cfg.Generator })
 }
 

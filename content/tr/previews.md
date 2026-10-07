@@ -232,11 +232,13 @@ for _, action := range []*collage.Action{preview.Start(app), preview.Exit()} {
 Bir data handler, request bir preview ise taslakları ister:
 
 ```go
+var postKey = collage.NewKey[cms.Post]("post")
+
 func postData(ctx context.Context, rc *collage.RenderContext) (postView, []string, error) {
 	slug := rc.Param("slug")
 	tags := []string{"post:" + slug}
 
-	post, err := collage.Cached(rc, "post:"+slug, time.Hour, tags,
+	post, err := collage.Cached(rc, postKey.With(slug), time.Hour, tags,
 		func(ctx context.Context) (cms.Post, error) {
 			return cmsClient.Post(ctx, slug, cms.Options{Drafts: preview.Drafts(ctx)})
 		})

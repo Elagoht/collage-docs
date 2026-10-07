@@ -182,12 +182,15 @@ Bkz. [Static asset'ler](/docs/assets) ve
 | `ErrMaxDepthExceeded` | `collage: max fragment depth exceeded` | Fragment ağacı engine'in izin verdiğinden daha derin iç içe geçer. | Neredeyse her zaman sebep, doğrudan ya da dolaylı olarak kendi slot'una bağlanmış bir fragment'tir. |
 | `ErrNoRootFragment` | `collage: page has no root fragment` | Bir page'in ne layout'u ne de içeriği vardır. | — |
 | `ErrPageNotFound` | `collage: no page at path` | `App.RenderPath` path'te hiçbir page bulamamıştır. | — |
-| `ErrOnceTypeMismatch` | `collage: once key fetched as two different types` | Tek bir render içinde iki `collage.Once` çağrısı aynı key'i farklı tiplerle istemiştir. | Key'ler çakışmaktadır; onlara namespace verin. |
-| `ErrCachedTypeMismatch` | `collage: Cached key holds a value of a different type` | İki `collage.Cached` çağrısı aynı key'i farklı tiplerle istemiştir. | Yukarıdakiyle aynı. |
 | `ErrCachedFetchPanicked` | `collage: data fetch panicked` | Bir `collage.Cached` çağrısı başka bir render'ın çekme işlemini beklemiştir ve o çekme işlemi panic'e düşmüştür (v0.34.1'den beri). Panic'in kendisi, çekme işlemi kendisine ait olan render'a gider. | Key yeniden serbesttir: bir sonraki render veriyi çeker. Panic'e neden olan şeyi düzeltin. |
 | `ErrDictOddArgs` | `collage: dict requires an even number of arguments` | `{{dict}}`'e değeri olmayan bir key verilmiştir. | Her key'i bir değerle eşleştirin. |
 | `ErrDictKeyNotString` | `collage: dict key must be a string` | Bir `{{dict}}` key'i string değildir. | Key'i tırnak içine alın. |
 | `ErrCSRFDisabled` | `collage: csrfToken used but request-forgery protection is disabled` | `Security.DisableCSRF` ayarlanmış bir uygulamada bir template `{{csrfToken}}` çağırır. | Çağrıyı kaldırın ya da korumayı yeniden açın. |
+
+v0.50.0'dan önce `ErrOnceTypeMismatch` ve `ErrCachedTypeMismatch`, tek bir key'in
+iki farklı tiple istendiğini bildiriyordu. Bir
+[`collage.Key`](/docs/data-handlers#collagekey) ismi ve tipinden oluşur. Bu yüzden böyle
+iki key artık iki ayrı değer tutar ve iki hata da kaldırıldı.
 
 Bir data handler'daki, bir slot resolver'daki ya da bir template fonksiyonundaki panic
 process'i çökertmez. Panic bir `collage.PanicError`'a dönüşür ve fragment diğer her
