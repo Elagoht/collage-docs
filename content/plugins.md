@@ -575,7 +575,7 @@ app.RegisterPage(collage.NewPage("post").
 }
 ```
 
-- v0.2.0 needs collage v0.49.0 or later, and its handlers are `collage.Data`:
+- v0.2.2 needs collage v0.50.0 or later (v0.2.0 needed v0.49.0); its handlers are `collage.Data`:
   `WithData(md.Handler())`. v0.1.3 needed v0.34.2 and does not build against
   v0.49.0, which removed the `collage.DataHandlerFunc` it returned. It can go in
   `Config.Plugins` or `RegisterPlugin`: it reads its configuration and files when

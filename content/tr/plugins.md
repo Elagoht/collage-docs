@@ -606,7 +606,7 @@ app.RegisterPage(collage.NewPage("post").
 }
 ```
 
-- v0.2.0, collage v0.49.0 ya da sonrasını gerektirir ve handler'ları
+- v0.2.2, collage v0.50.0 ya da sonrasını gerektirir (v0.2.0 v0.49.0'ı gerektiriyordu); handler'ları
   `collage.Data`'dır: `WithData(md.Handler())`. v0.1.3 v0.34.2'yi gerektiriyordu
   ve döndürdüğü `collage.DataHandlerFunc`'ı kaldıran v0.49.0 ile build edilmez.
   `Config.Plugins` içinde ya da `RegisterPlugin` ile register
