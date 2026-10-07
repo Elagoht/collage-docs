@@ -439,8 +439,7 @@ log.Fatal(srv.ListenAndServeTLS(certFile, keyFile))
 Doing that means you own the timeouts and the signal handling that `ListenAndServe`
 did for you, and you call `app.Shutdown(ctx)` yourself so plugins shut down. That
 call tells `DrainHook` plugins, but does not wait out `DrainDelay`: the `App` knows
-of no server of yours to keep serving. Turn readiness false, wait, and stop your
-server yourself before calling it.
+of no server of yours to keep serving. Stop your server before calling it.
 
 
 ## Behind a proxy: `TrustedProxies`

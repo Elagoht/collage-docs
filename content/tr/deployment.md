@@ -214,7 +214,7 @@ birinde graceful shutdown yapar. `app.Shutdown(ctx)`'i kendiniz çağırdığın
 aynısı olur. Sıra sabittir:
 
 1. **Drain.** [`DrainHook`](/docs/writing-plugins#streams-and-shutdown)'u
-   implemente eden her plugin'e bir kez haber verilir. Bir health plugin'i
+   implement eden her plugin'e bir kez haber verilir. Bir health plugin'i
    readiness check'ini burada false'a çevirir. Keep-alive'lar kapatılır: boşta
    bekleyen keep-alive bağlantıları hemen, meşgul olanlar ise o anki
    response'larından sonra kapanır. Bu bağlantıların client'ları load balancer
@@ -250,8 +250,8 @@ ctx'e en az `DrainDelay` artı request'lerinizin ihtiyaç duyduğu süre kadar b
 deadline verin. Aksi halde drain, request'lere kalacak süreyi tüketir.
 
 Bekleme erken de bitebilir. İkinci bir `SIGINT` ya da `SIGTERM` (Ctrl-C'ye iki kez
-basmak) beklemeyi hemen bitirir ve doğrudan sunucunun durdurulmasına geçer. Done
-olmuş (bitmiş) bir `Shutdown` ctx'i de aynısını yapar. Development modunda `DrainDelay` yok
+basmak) beklemeyi hemen bitirir ve doğrudan sunucunun durdurulmasına geçer. Bitmiş
+bir `Shutdown` ctx'i de aynısını yapar. Development modunda `DrainDelay` yok
 sayılır, böylece restart'lar anında olur. `OnDrain` ise yine çağrılır. Henüz hiçbir
 şey hizmet vermezken yapılan bir `Shutdown` plugin'lere haber verir ama beklemez,
 çünkü drain edilecek trafik yoktur.
@@ -469,8 +469,8 @@ Bu durumda `ListenAndServe`'ün sizin yerinize hallettiği timeout'lar ve signal
 handling artık sizin sorumluluğunuzdadır. Plugin'lerin kapanması için
 `app.Shutdown(ctx)`'i de kendiniz çağırırsınız. Bu çağrı `DrainHook` plugin'lerine
 haber verir ama `DrainDelay` kadar beklemez, çünkü `App` hizmet vermeye devam
-edecek bir sunucunuzdan haberdar değildir. Readiness'i false'a çevirin, bekleyin
-ve onu çağırmadan önce sunucunuzu kendiniz durdurun.
+edecek bir sunucunuzdan haberdar değildir. Onu çağırmadan önce sunucunuzu
+durdurun.
 
 
 ## Bir proxy'nin arkasında: `TrustedProxies`
