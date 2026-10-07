@@ -588,9 +588,19 @@ sırasında olduğu gibi kontrol edebilir (bkz.
 "types": {
   "blog.Post": {
     "kind": "struct",
-    "fields": [{"name": "Title", "type": "string"}, {"name": "Author", "type": "*blog.User"}],
+    "fields": [
+      {"name": "Base", "type": "blog.Base", "embedded": true},
+      {"name": "ID", "type": "int"},
+      {"name": "Title", "type": "string"},
+      {"name": "Author", "type": "*blog.User"},
+      {"name": "Comments", "type": "blog.Comments"},
+      {"name": "Related", "type": "blog.Tags"}
+    ],
     "methods": [{"name": "URL", "args": 0, "returns": "string"}]
   },
+  "blog.Base": {"kind": "struct", "fields": [{"name": "ID", "type": "int"}]},
+  "blog.Comments": {"kind": "slice", "elem": "blog.Comment"},
+  "blog.Tags": {"kind": "map", "key": "string", "elem": "[]blog.Post"},
   "blog.User": {"kind": "struct", "fields": [{"name": "Name", "type": "string"}]}
 }
 ```
@@ -605,7 +615,12 @@ sırasında olduğu gibi kontrol edebilir (bkz.
   tipleri ve method sonuçları üzerinden ulaşılabilen her isimli tipi tutar. Her
   tip Go adıyla key'lenir ve export edilmiş alanlarını (promote edilenler dahil)
   ve kendisinin ve pointer'ının bir şey dönen export edilmiş method'larını
-  içerir. Bir tip bir kez listelenir, diğer her yerde adıyla anılır. Böylece
+  içerir. Export edilmiş bir embedded alan da bir alandır: template ona
+  `{{.Base}}` diye ulaşır. Bu alan `"embedded": true` taşır, promote ettiği
+  alanlar da her zamanki gibi yanında listelenir (v0.51.1'den beri). İsimli bir
+  pointer, slice, array, map ya da chan, tuttuğu tipi `elem` ile verir. Map
+  ayrıca `key` de taşır (v0.51.1'den beri). Bir tip bir kez listelenir, diğer
+  her yerde adıyla anılır. Böylece
   özyinelemeli bir tip sonsuza gitmez. İsimsiz bir struct, Go yazımıyla
   listelenir. Diğer isimsiz bileşik tipler bir tip string'inin içinde yazılır
   (`[]blog.Comment`). `time.Time` ve `template.HTML` gibi standart kütüphane

@@ -557,9 +557,19 @@ complete `{{.` and check a field name the way registration does — see
 "types": {
   "blog.Post": {
     "kind": "struct",
-    "fields": [{"name": "Title", "type": "string"}, {"name": "Author", "type": "*blog.User"}],
+    "fields": [
+      {"name": "Base", "type": "blog.Base", "embedded": true},
+      {"name": "ID", "type": "int"},
+      {"name": "Title", "type": "string"},
+      {"name": "Author", "type": "*blog.User"},
+      {"name": "Comments", "type": "blog.Comments"},
+      {"name": "Related", "type": "blog.Tags"}
+    ],
     "methods": [{"name": "URL", "args": 0, "returns": "string"}]
   },
+  "blog.Base": {"kind": "struct", "fields": [{"name": "ID", "type": "int"}]},
+  "blog.Comments": {"kind": "slice", "elem": "blog.Comment"},
+  "blog.Tags": {"kind": "map", "key": "string", "elem": "[]blog.Post"},
   "blog.User": {"kind": "struct", "fields": [{"name": "Name", "type": "string"}]}
 }
 ```
@@ -571,7 +581,11 @@ complete `{{.` and check a field name the way registration does — see
 - **`types`** holds every named type reachable from some fragment's data type —
   through fields, element and key types, and method results — keyed by its Go
   name, with its exported fields (promoted ones included) and the exported methods
-  of it and its pointer that return something. A type is listed once and named
+  of it and its pointer that return something. An exported embedded field is a
+  field too — a template reaches it as `{{.Base}}` — and carries
+  `"embedded": true`; the fields it promotes are listed beside it as usual (since
+  v0.51.1). A named pointer, slice, array, map or chan carries `elem`, the type
+  it holds, and a map also `key` (since v0.51.1). A type is listed once and named
   everywhere else, so a recursive type ends. An unnamed struct is listed under its
   Go spelling; other unnamed composites are written inline in a type string
   (`[]blog.Comment`). Standard library types such as `time.Time` and
