@@ -489,8 +489,9 @@ Plugins: []collage.Plugin{redirects.New(redirects.Options{FS: siteFS})},
   malformed line, a rule no request can reach, rules that send a reader round in a
   circle. Since v0.2.0 so does a control character in a rule, or a target
   beginning `/\`, which a browser reads as another host.
-- Since v0.2.0 it no longer writes `_redirects` (breaking; `noRedirectsFile` is
-  ignored). It is a [`RedirectSource`](/docs/writing-plugins#redirectsource): a
+- Since v0.2.0 it no longer serves or writes `_redirects` (breaking):
+  `Options.NoRedirectsFile` and `RedirectsFile()` are gone, and a `noRedirectsFile`
+  key in configuration is ignored. It is a [`RedirectSource`](/docs/writing-plugins#redirectsource): a
   static build takes its rules, and [elagoht/deploy](#elagohtdeploy) writes them
   in the host's format. Without a deploy plugin nothing is written.
 - A rule collage's pattern syntax cannot say is still served, but left out of the
@@ -1100,7 +1101,7 @@ Plugins: []collage.Plugin{ratelimit.New(ratelimit.Options{
 }
 ```
 
-- v0.1.6 needs collage v0.50.0 or later (v0.1.3 was the last for v0.24.0). With no options, every form and action — every
+- v0.1.7 needs collage v0.52.0 or later (v0.1.6 was the last for v0.50.0). With no options, every form and action — every
   method but `GET`, `HEAD` and `OPTIONS` — is limited to a burst of ten, then one
   request every two seconds.
 - The first rule a request matches counts it, so put narrow rules first; each rule
@@ -1110,8 +1111,8 @@ Plugins: []collage.Plugin{ratelimit.New(ratelimit.Options{
   `trustProxy`, and the address is read from `X-Forwarded-For`, believed only from
   a trusted proxy. `KeyFunc`, in Go, keys by something else.
 - Buckets are kept in memory, so limits are per process.
-- Since v0.1.7 (collage v0.52.0) a static build's header capture is not limited and
-  gets no `RateLimit` headers.
+- Since v0.1.7 a static build's header capture is not limited and gets no
+  `RateLimit` headers.
 
 #### elagoht/basicauth
 

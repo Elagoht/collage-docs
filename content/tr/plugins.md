@@ -518,8 +518,9 @@ Plugins: []collage.Plugin{redirects.New(redirects.Options{FS: siteFS})},
   dolaştıran kurallar. v0.2.0'dan beri bir kuralda control karakteri olması ya da
   bir hedefin, tarayıcının başka bir host olarak okuduğu `/\` ile başlaması da
   uygulamanın başlamasını engeller.
-- v0.2.0'dan beri `_redirects` yazmaz (geriye uyumsuz; `noRedirectsFile` yok
-  sayılır). Plugin bir [`RedirectSource`](/docs/writing-plugins#redirectsource)'tur:
+- v0.2.0'dan beri `_redirects`'i ne sunar ne de yazar. Bu bir breaking
+  change'dir: `Options.NoRedirectsFile` ve `RedirectsFile()` kaldırıldı, config'teki
+  `noRedirectsFile` key'i ise yok sayılır. Plugin bir [`RedirectSource`](/docs/writing-plugins#redirectsource)'tur:
   static build kurallarını alır, [elagoht/deploy](#elagohtdeploy) da onları host'un
   biçiminde yazar. Bir deploy plugin'i yoksa hiçbir şey yazılmaz.
 - Collage'ın pattern sözdiziminin ifade edemediği bir kural yine sunulur, ama
@@ -1147,7 +1148,7 @@ Plugins: []collage.Plugin{ratelimit.New(ratelimit.Options{
 }
 ```
 
-- v0.1.6, collage v0.50.0 ya da sonrasını gerektirir (v0.1.3, collage v0.24.0 için son sürümdü). Hiç seçenek verilmezse her form ve
+- v0.1.7, collage v0.52.0 ya da sonrasını gerektirir (v0.1.6, collage v0.50.0 için son sürümdü). Hiç seçenek verilmezse her form ve
   action, yani `GET`, `HEAD` ve `OPTIONS` dışındaki her metot, önce ondan oluşan bir
   burst'le, ardından iki saniyede bir request'le sınırlanır.
 - Bir request'i, eşleştiği ilk kural sayar. Bu yüzden dar kuralları başa koyun; her
@@ -1158,8 +1159,8 @@ Plugins: []collage.Plugin{ratelimit.New(ratelimit.Options{
   güvenilen bir proxy'den geldiğinde inanılır. Go'daki `KeyFunc` başka bir şeye göre
   key üretir.
 - Bucket'lar memory'de tutulur, bu yüzden sınırlar process başınadır.
-- v0.1.7'den (collage v0.52.0) beri static bir build'in header yakalaması
-  sınırlanmaz ve `RateLimit` header'larını almaz.
+- v0.1.7'den beri static bir build'in header yakalaması sınırlanmaz ve
+  `RateLimit` header'larını almaz.
 
 #### elagoht/basicauth
 
