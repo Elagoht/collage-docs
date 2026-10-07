@@ -627,8 +627,8 @@ sırasında olduğu gibi kontrol edebilir (bkz.
   tipleri ayrıntılandırılmaz, yalnızca adıyla anılır. Hiçbir fragment'in bilinen bir veri
   tipi yoksa `types` yazılmaz. İki farklı tipin paylaştığı bir key (`models`
   adlı iki paketteki `models.User`) alan ve method içermeden
-  `{"kind": "struct", "ambiguous": true}` olarak yazılır, editör onu bilinmeyen
-  sayar (v0.51.2'den beri).
+  `{"kind": "struct", "ambiguous": true}` olarak yazılır ve editör onu bilinmeyen
+  bir tip sayar (v0.51.2'den beri).
 
 Bunlar eklemedir: çıktının `version`'ı hâlâ `1`'dir.
 
