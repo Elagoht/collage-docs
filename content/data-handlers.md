@@ -481,13 +481,34 @@ variable keeps the type it was given for its scope.
   given the wrong number of arguments; a field or map key given arguments; a
   method or function returning more than a value and an error; `call` on
   something that is not a function.
-- **`range`, `len` and `index` on the wrong kind**: ranging over a string or a
-  struct, or over an integer with two variables; `len` of a struct; `index` into
-  a struct.
+- **`range`, `len`, `index` and `slice` on the wrong kind**: ranging over a
+  string or a struct, or over an integer with two variables; `len` of a struct;
+  `index` into a struct; `slice` of anything but a string, a slice or an array,
+  of a string by three indexes, or of an array `text/template` cannot take the
+  address of (`{{slice .Days 0}}` on data passed by value: pass the pointer). A
+  slice, array or string is indexed and sliced by integers, and a map by a key
+  of its own key type: `{{index .ByID "7"}}` on a `map[int]Post` is reported.
 - **Number constants**, typed as `text/template` types them: `1` is an `int`,
   `1.5` a `float64`, `1i` a `complex128`, `'a'` an `int`. So `{{(1.5).Nope}}` and
   `{{len 1}}` are reported, as are a constant too large for an `int` and `nil`
   used as a command.
+- **An argument its parameter cannot take** (from v0.51.0), judged as
+  `text/template` judges it when it calls a template function or a method:
+  - a constant by the parameter's kind: an integer parameter takes a number
+    written as an integer, an unsigned one a non-negative integer, a float one
+    any number but a complex one, a string or bool one a string or a bool. So
+    `{{upper 1}}`, `{{printf 1}}`, `{{uint -1}}` and `{{i8 1.5}}` are reported,
+    and `nil` goes only where a nil can;
+  - any other value must be assignable to the parameter, or be a pointer to
+    something that is, or be addressable where the parameter is its pointer. So
+    `{{upper .Count}}` with an `int` field and `{{edit .Owner}}` for a
+    `func(*User)` on data passed by value are reported, while `{{show .Author}}`
+    for a `func(User)` with a `*User` field is fine. A variadic parameter takes
+    its element type, and the value piped in, `{{.Count | upper}}`, is judged
+    like any other argument;
+  - `call` checks what it passes as `text/template`'s `call` does: a value
+    assignable to the parameter, or an integer converted to another integer
+    type, and nothing else.
 
 What the render can never reach is not reported. An `{{if}}` or `{{with}}` whose
 condition is a literal — `true`, `false`, `0`, `1`, `""`, `"x"`, or `not` of one —
@@ -506,13 +527,21 @@ for `and`; `true`, a non-zero number or a non-empty string for `or`. So
   or function returns, which `text/template` unwraps into whatever it holds.
 - **A fragment with no data.** Reading a field of nil data is not an error in
   `html/template`: `{{.Title}}` renders nothing. A fragment without `WithData`, or
-  with `collage.Effect`, is still walked, but only its function calls and their
-  argument counts are checked.
+  with `collage.Effect`, is still walked, but only its function calls are
+  checked: their argument counts, and the arguments not read from `.`.
 - **Nil pointers inside the data.** `{{.Author.Name}}` with a nil `Author` fails
   when it renders, and whether it is nil is the data's business, not the type's.
-- **Argument types.** Only the number of arguments is checked: `text/template`
-  converts some arguments itself, and second-guessing it is where false alarms
-  would come from. A number passed as an argument is not judged either.
+- **An argument whose fit the render decides.** A value of an interface type,
+  a `reflect.Value`, a parameter of type `any` or `reflect.Value`, and a map
+  entry handed to a parameter that can be nil (a key the map does not hold
+  arrives as nil, which that parameter takes) are not judged. Nor are the
+  arguments of a method of a value read by a map key, which the render never
+  calls when the key is missing, nor an index out of range. A plugin's render
+  functions take anything as far as the check knows, so their arguments are
+  left to the plugin.
+- **An integer constant's range.** `text/template` converts a constant to an
+  integer parameter without a range check, so `{{i8 300}}` renders 44 rather
+  than failing.
 
 ### Reading the error
 

@@ -512,13 +512,38 @@ boyunca verildiği tipi korur.
   template fonksiyonu ya da built-in; argüman verilen bir alan ya da map key'i;
   bir değer ve bir hatadan fazlasını dönen bir method ya da fonksiyon; fonksiyon
   olmayan bir şey üzerinde `call`.
-- **Yanlış türdeki değerler üzerinde `range`, `len` ve `index`:** bir string ya da struct üzerinde
-  range, iki değişkenle bir tamsayı üzerinde range, bir struct'ın `len`'i, bir
-  struct'a `index`.
+- **Yanlış türdeki değerler üzerinde `range`, `len`, `index` ve `slice`:** bir
+  string ya da struct üzerinde range, iki değişkenle bir tamsayı üzerinde range,
+  bir struct'ın `len`'i, bir struct'a `index`. String, slice ya da array dışında
+  bir şeyin `slice`'ı, bir string'in üç index'le `slice`'ı ve `text/template`'in
+  adresini alamadığı bir array'in `slice`'ı da bildirilir. Örneğin veri değer
+  olarak verildiğinde `{{slice .Days 0}}` bildirilir; çözüm pointer'ı vermektir.
+  Slice, array ve string tamsayılarla index'lenir ve slice'lanır. Map ise kendi
+  key tipindeki bir key'le index'lenir: bir `map[int]Post` üzerinde
+  `{{index .ByID "7"}}` bildirilir.
 - **Sayı sabitleri**, `text/template`'in onlara verdiği tipi alır: `1` bir `int`,
   `1.5` bir `float64`, `1i` bir `complex128`, `'a'` bir `int`'tir. Bu yüzden
   `{{(1.5).Nope}}` ve `{{len 1}}` bildirilir. `int`'e sığmayacak kadar büyük bir
   sabit ve komut olarak kullanılan `nil` de bildirilir.
+- **Parametresinin alamayacağı bir argüman** (v0.51.0'dan itibaren).
+  `text/template` bir template fonksiyonunu ya da method'u çağırırken argümanı
+  nasıl değerlendiriyorsa kontrol de öyle değerlendirir:
+  - Bir sabit, parametrenin türüne göre değerlendirilir. Tamsayı parametresi
+    tamsayı olarak yazılmış bir sayıyı alır, unsigned parametre negatif olmayan
+    bir tamsayıyı alır. Float parametresi complex olmayan her sayıyı, string ya
+    da bool parametresi de bir string'i ya da bool'u alır. Bu yüzden
+    `{{upper 1}}`, `{{printf 1}}`, `{{uint -1}}` ve `{{i8 1.5}}` bildirilir.
+    `nil` de yalnızca nil alabilen bir parametreye verilebilir.
+  - Diğer her değer parametreye atanabilir olmalı, atanabilir bir şeyin
+    pointer'ı olmalı ya da parametre onun pointer'ıysa adreslenebilir olmalıdır.
+    Bu yüzden `int` bir alanla `{{upper .Count}}` ve veri değer olarak
+    verildiğinde bir `func(*User)` için `{{edit .Owner}}` bildirilir. `*User`
+    tipinde bir alanla bir `func(User)` için `{{show .Author}}` ise sorun
+    değildir. Variadic bir parametre kendi eleman tipini alır. Pipe ile verilen
+    değer de (`{{.Count | upper}}`) diğer argümanlar gibi değerlendirilir.
+  - `call`, ilettiği değerleri `text/template`'in `call`'u gibi kontrol eder:
+    parametreye atanabilir bir değer ya da başka bir tamsayı tipine
+    dönüştürülen bir tamsayı geçer, başka hiçbir şey geçmez.
 
 Render'ın hiç ulaşamayacağı şeyler bildirilmez. Koşulu bir literal olan bir
 `{{if}}` ya da `{{with}}` (`true`, `false`, `0`, `1`, `""`, `"x"` ya da bunlardan
@@ -540,13 +565,20 @@ bir string. Bu yüzden `{{and 0 .Nope}}` hiçbir şey bildirmez. `{{and 1 .Nope}
 - **Verisi olmayan bir fragment.** nil verinin bir alanını okumak `html/template`'te
   hata değildir: `{{.Title}}` hiçbir şey render etmez. `WithData` kullanmayan ya
   da `collage.Effect` kullanan bir fragment yine dolaşılır, ama yalnızca fonksiyon
-  çağrıları ve bunların argüman sayıları kontrol edilir.
+  çağrıları kontrol edilir: argüman sayıları ve `.`'dan okunmayan argümanlar.
 - **Verinin içindeki nil pointer'lar.** `Author` nil ise `{{.Author.Name}}` render
   edilirken başarısız olur. Onun nil olup olmadığı tipin değil, verinin işidir.
-- **Argüman tipleri.** Yalnızca argüman sayısı kontrol edilir. `text/template`
-  bazı argümanları kendisi dönüştürür ve onun yerine karar vermeye çalışmak
-  yanlış alarmların kaynağı olurdu. Argüman olarak verilen bir sayının tipine de
-  bakılmaz.
+- **Uyup uymadığına render'ın karar verdiği bir argüman.** Interface tipinde bir
+  değer, bir `reflect.Value`, `any` ya da `reflect.Value` tipinde bir parametre
+  ve nil alabilen bir parametreye verilen bir map elemanı değerlendirilmez. Map'te
+  olmayan bir key nil olarak gelir ve o parametre nil'i alır. Bir map key'iyle
+  okunan bir değerin method'una verilen argümanlar da değerlendirilmez, çünkü key
+  yoksa render o method'u hiç çağırmaz. Aralık dışındaki bir index de
+  bildirilmez. Kontrol açısından bir plugin'in render fonksiyonları her şeyi
+  alır, bu yüzden argümanları plugin'e bırakılır.
+- **Bir tamsayı sabitinin aralığı.** `text/template` bir sabiti tamsayı
+  parametresine aralık kontrolü yapmadan dönüştürür. Bu yüzden `{{i8 300}}`
+  başarısız olmaz, 44 render eder.
 
 ### Hatayı okumak
 
