@@ -1,6 +1,6 @@
 ---
 description: The plugin contract, what Host and ConfigHost expose, every hook and what it may change, and a complete plugin with its tests.
-reference: Plugin, Host, ConfigHost, ConfigReader, PluginConfig, Configurer, Command, BeforeRenderHook, BeforeActionHook, BeforeActionEvent, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, BuiltRedirect, RedirectSource, IsCapture, RequestHook, RouteOf, RouteInfo, Route, ClientIP, Key, NewKey, RenderValues
+reference: Plugin, Host, ConfigHost, ConfigReader, PluginConfig, Configurer, Command, BeforeRenderHook, BeforeActionHook, BeforeActionEvent, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, DrainHook, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, BuiltRedirect, RedirectSource, IsCapture, RequestHook, RouteOf, RouteInfo, Route, ClientIP, Key, NewKey, RenderValues
 ---
 
 # Writing a plugin
@@ -206,6 +206,25 @@ func (p *Plugin) CloseStreams() { p.hub.close() }
 streams without waiting for them. A handler served through `Handle` can push its
 write deadline forward with `http.NewResponseController(w).SetWriteDeadline`, and
 take the connection over with `Hijack`, as it could on a bare `net/http` server.
+
+A plugin that must know the server is about to stop taking traffic — readiness
+turning false, new work refused — implements `DrainHook` (since v0.53.0):
+
+```go
+var _ collage.DrainHook = (*Plugin)(nil)
+
+func (p *Plugin) OnDrain() { p.draining.Store(true) }
+```
+
+`OnDrain` is called once, when the drain starts: before
+[`Server.DrainDelay`](/docs/deployment#graceful-shutdown-and-draining) is waited out
+and before `CloseStreams`, and even when `DrainDelay` is 0. It must not block — the
+server goes on serving while the drain lasts, and a slow hook delays every step
+after it. A panic in it is contained and logged at Warn with the plugin's name.
+Like `Shutdown`, it reaches every registered plugin, including one whose `Init`
+never ran — a `Shutdown` before the application started, which calls it without
+waiting — or failed and was rolled back, so it must tolerate being called on a
+plugin that was never initialised.
 
 ## The hooks
 
@@ -1261,11 +1280,13 @@ app, err := collage.New(&collage.Config{
    failed start already rolled back all get the call. So `Shutdown` must be safe
    to call without `Init` and more than once. Every plugin gets its turn even if one
    fails, and the errors are joined. A plugin implementing `StreamCloser` has its
-   `CloseStreams` called earlier, when shutdown begins — see
+   `CloseStreams` called earlier, when shutdown begins, and a plugin implementing
+   `DrainHook` has its `OnDrain` called before that, when the drain starts — see
    [Streams and shutdown](#streams-and-shutdown).
 
-   With `ListenAndServe`, plugins are shut down after the server has drained its
-   requests, or once `Server.ShutdownTimeout` has passed if it has not — past the
+   With `ListenAndServe`, plugins are shut down after the drain's
+   `Server.DrainDelay` and after the server has finished its requests, or once
+   `Server.ShutdownTimeout` has passed if it has not — past the
    deadline a request may still be running. With a server you own, the `App` knows
    of none: stop your server first, then call `App.Shutdown`, or a plugin can be
    torn out from under an in-flight request.

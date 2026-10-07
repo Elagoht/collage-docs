@@ -129,6 +129,7 @@ spelling it was posted to.
 | `WriteTimeout` | `time.Duration` | `30s` | How long writing a response may take. |
 | `IdleTimeout` | `time.Duration` | `60s` | How long a keep-alive connection may sit idle. |
 | `ShutdownTimeout` | `time.Duration` | `10s` | How long graceful shutdown waits for in-flight requests. |
+| `DrainDelay` | `time.Duration` | `0` | How long the server keeps serving, keep-alives off, once a shutdown starts and before the port closes; ignored in development (since v0.53.0). See [Deployment](/docs/deployment#graceful-shutdown-and-draining). |
 | `MaxBodyBytes` | `int64` | 4 MiB | Bound on a request body when the action it routes to sets none — applied before middleware since v0.34.0. |
 | `TrustedProxies` | `[]string` | none | Addresses and CIDR ranges of the proxies in front of the server, whose `X-Forwarded-For` is believed (since v0.47.0). |
 
@@ -384,7 +385,7 @@ render of the same key that was already running.
 | `Cache.Enabled`, no `Store`, `Type` `"disk"`, and `Cache.Dir` empty | `ErrEmptyCacheDir` |
 | `Locale.Default` empty | `ErrEmptyLocaleDefault` |
 | `Locale.Default` not in `Locale.Supported` | `ErrLocaleDefaultNotSupported` |
-| A negative `Server.ReadTimeout`, `WriteTimeout`, `IdleTimeout`, `ShutdownTimeout`, `Template.Timeout` or `Cache.DefaultTTL` | `ErrNegativeDuration` |
+| A negative `Server.ReadTimeout`, `WriteTimeout`, `IdleTimeout`, `ShutdownTimeout`, `DrainDelay`, `Template.Timeout` or `Cache.DefaultTTL` | `ErrNegativeDuration` |
 
 The negative-duration error is one sentinel for all six fields; the message names
 the one that failed, such as `server.read_timeout`. Because defaults are applied

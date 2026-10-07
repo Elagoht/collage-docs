@@ -1,6 +1,6 @@
 ---
 description: Plugin sözleşmesi, Host ve ConfigHost'un sundukları, her hook ve neyi değiştirebileceği, testleriyle birlikte eksiksiz bir plugin.
-reference: Plugin, Host, ConfigHost, ConfigReader, PluginConfig, Configurer, Command, BeforeRenderHook, BeforeActionHook, BeforeActionEvent, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, BuiltRedirect, RedirectSource, IsCapture, RequestHook, RouteOf, RouteInfo, Route, ClientIP, Key, NewKey, RenderValues
+reference: Plugin, Host, ConfigHost, ConfigReader, PluginConfig, Configurer, Command, BeforeRenderHook, BeforeActionHook, BeforeActionEvent, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, DrainHook, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, BuiltRedirect, RedirectSource, IsCapture, RequestHook, RouteOf, RouteInfo, Route, ClientIP, Key, NewKey, RenderValues
 ---
 
 # Plugin yazmak
@@ -220,6 +220,27 @@ Stream'leri onları beklemeden sonlandırmalıdır. `Handle` ile sunulan bir han
 write deadline'ını `http.NewResponseController(w).SetWriteDeadline` ile ileri
 alabilir ve bağlantıyı `Hijack` ile devralabilir. Bunları çıplak bir `net/http`
 sunucusunda da yapabilirdi.
+
+Sunucunun trafik almayı bırakmak üzere olduğunu bilmesi gereken bir plugin
+(readiness'i false'a çeviren, yeni işleri reddeden bir plugin) `DrainHook`'u
+implement eder (v0.53.0'dan beri):
+
+```go
+var _ collage.DrainHook = (*Plugin)(nil)
+
+func (p *Plugin) OnDrain() { p.draining.Store(true) }
+```
+
+`OnDrain`, drain başladığında bir kez çağrılır:
+[`Server.DrainDelay`](/docs/deployment#graceful-shutdown-and-draining) beklenmeden
+ve `CloseStreams`'ten önce. `DrainDelay` 0 olduğunda bile çağrılır. Bloklamamalıdır:
+drain sürdüğü sürece sunucu hizmet vermeye devam eder ve yavaş bir hook kendinden
+sonraki her adımı geciktirir. İçindeki bir panic yakalanır ve plugin'in adıyla Warn
+seviyesinde loglanır. `Shutdown` gibi register edilmiş her plugin'e ulaşır. Buna
+`Init`'i hiç çalışmamış bir plugin de dahildir: uygulama başlamadan önce yapılan bir
+`Shutdown`, onu beklemeden çağırır. `Init`'i başarısız olup geri alınmış bir plugin
+de bu çağrıyı alır. Bu yüzden hiç initialize edilmemiş bir plugin'de çağrılmayı
+tolere etmelidir.
 
 ## Hook'lar
 
@@ -1326,11 +1347,12 @@ app, err := collage.New(&collage.Config{
    çağrıyı alır. Bu yüzden `Shutdown`, `Init` olmadan ve birden fazla kez
    çağrıldığında güvenli olmalıdır. Biri başarısız olsa bile her plugin sırasını
    alır ve hatalar join edilir. `StreamCloser`'ı implement eden bir plugin'in
-   `CloseStreams`'i daha önce, shutdown başlarken çağrılır. Bkz.
-   [Stream'ler ve shutdown](#streams-and-shutdown).
+   `CloseStreams`'i daha önce, shutdown başlarken çağrılır. `DrainHook`'u
+   implement eden bir plugin'in `OnDrain`'i ise ondan da önce, drain başlarken
+   çağrılır. Bkz. [Stream'ler ve shutdown](#streams-and-shutdown).
 
-   `ListenAndServe` kullanıyorsanız, plugin'ler sunucu request'lerini boşalttıktan
-   sonra shutdown edilir. Sunucu bunu bitiremezse, `Server.ShutdownTimeout`
+   `ListenAndServe` kullanıyorsanız, plugin'ler drain'in `Server.DrainDelay`'inden
+   ve sunucu request'lerini bitirdikten sonra shutdown edilir. Sunucu bunu bitiremezse, `Server.ShutdownTimeout`
    dolduğunda shutdown edilirler. Bu süre dolduktan sonra hâlâ çalışan bir request
    olabilir. Sunucuyu kendiniz yönetiyorsanız, `App`'in bu sunucudan haberi yoktur.
    Önce sunucunuzu durdurun, sonra `App.Shutdown`'ı çağırın. Aksi hâlde bir plugin,

@@ -207,45 +207,123 @@ if err := json.Unmarshal(pluginConfigJSON, &pluginConfig); err != nil {
 
 systemd kullanıyorsanız dosyayı unit'in `WorkingDirectory`'sinde tutun.
 
-## Graceful shutdown
+## Graceful shutdown ve drain
 
-`app.ListenAndServe`, `SIGINT` ve `SIGTERM` sinyallerini yakalar. Bunlardan biri
-geldiğinde yeni bağlantı kabul etmeyi bırakır. Devam eden request'lerin bitmesi için
-en fazla `Server.ShutdownTimeout` kadar (varsayılan 10 saniye) bekler. Ardından her
-plugin'in `Shutdown`'ını çalıştırır ve `nil` döner. `SIGTERM` gönderip bekleyen bir
-container runtime, sizin hiçbir şey eklemenize gerek kalmadan temiz bir drain elde
-eder. Üretilen systemd unit'i `TimeoutStopSec=30` ayarlar. Bu süre shutdown
-timeout'undan rahatça uzundur, böylece systemd hâlâ drain eden bir process'i
-öldürmez.
+`app.ListenAndServe`, `SIGINT` ve `SIGTERM` sinyallerini yakalar ve ikisinden
+birinde graceful shutdown yapar. `app.Shutdown(ctx)`'i kendiniz çağırdığınızda da
+aynısı olur. Sıra sabittir:
 
-Drain için süre yetmezse, yani timeout dolduğunda hâlâ açık bir request varsa,
-plugin'ler yine de kapatılır. `ListenAndServe` de bunu bildiren bir hata döner
-(`collage: server shutdown: context deadline exceeded`). `Shutdown`'ı başarısız olan
-bir plugin için de aynı şekilde hata döner. Scaffold'daki `main.go` bu hatayı
-`log.Fatalf`'e verir. Bu yüzden process 0 yerine 1 status koduyla çıkar. Durdurma
-sırasında sıfırdan farklı bir exit kodunu crash olarak gören bir platform bunu crash
-olarak raporlar.
+1. **Drain.** [`DrainHook`](/docs/writing-plugins#streams-and-shutdown)'u
+   implemente eden her plugin'e bir kez haber verilir. Bir health plugin'i
+   readiness check'ini burada false'a çevirir. Keep-alive'lar kapatılır: boşta
+   bekleyen keep-alive bağlantıları hemen, meşgul olanlar ise o anki
+   response'larından sonra kapanır. Bu bağlantıların client'ları load balancer
+   üzerinden yeniden bağlanır. Port açık kalır ve request'lere
+   `Server.DrainDelay` boyunca (v0.53.0'dan beri) normal şekilde cevap verilir.
+2. **Stream'ler.** Development reload stream'leri ve plugin stream'leri kapatılır.
+   Bunlar kendiliğinden hiç bitmez.
+3. **Sunucu.** Port kapanır. Devam eden request'lerin bitmesi için en fazla
+   `Server.ShutdownTimeout` kadar (varsayılan 10 saniye) beklenir.
+4. **Plugin'ler.** Her plugin'in `Shutdown`'ı çalışır ve `ListenAndServe` `nil`
+   döner.
 
-`ShutdownTimeout`'u artırırsanız platformunuzun grace period'unu da onunla birlikte
-artırın.
+`DrainDelay` varsayılan olarak 0'dır, yani hiç beklenmez. nginx, Caddy ya da
+Cloudflare arkasındaki tek bir instance, v0.53.0'dan önce olduğu kadar hızlı durur.
+Port kapanmadan önce bir load balancer'ın instance'ın ayrıldığını fark etmesi
+gerekiyorsa bu değeri ayarlayın. Değer, load balancer'ın readiness check'inin
+başarısız olması için geçen süreden birkaç saniye uzun olmalıdır:
+
+```go
+app, err := collage.New(&collage.Config{
+	Server: collage.ServerConfig{
+		DrainDelay:      10 * time.Second,
+		ShutdownTimeout: 10 * time.Second,
+	},
+})
+```
+
+**İki süre toplanır.** Bir sinyalde `ShutdownTimeout` drain bittiğinde başlar. Bu
+yüzden bir durdurma `DrainDelay + ShutdownTimeout` kadar sürebilir.
+`app.Shutdown(ctx)`'i kendiniz çağırdığınızda tek bir ctx hem drain'i hem de devam
+eden request'lerin beklenmesini sınırlar, `ShutdownTimeout` ise kullanılmaz. Bu
+ctx'e en az `DrainDelay` artı request'lerinizin ihtiyaç duyduğu süre kadar bir
+deadline verin. Aksi halde drain, request'lere kalacak süreyi tüketir.
+
+Bekleme erken de bitebilir. İkinci bir `SIGINT` ya da `SIGTERM` (Ctrl-C'ye iki kez
+basmak) beklemeyi hemen bitirir ve doğrudan sunucunun durdurulmasına geçer. Done
+olmuş (bitmiş) bir `Shutdown` ctx'i de aynısını yapar. Development modunda `DrainDelay` yok
+sayılır, böylece restart'lar anında olur. `OnDrain` ise yine çağrılır. Henüz hiçbir
+şey hizmet vermezken yapılan bir `Shutdown` plugin'lere haber verir ama beklemez,
+çünkü drain edilecek trafik yoktur.
+
+Process'i durduran şey, onu öldürmeden önce bu toplamdan daha uzun beklemelidir:
+
+- **systemd:** `TimeoutStopSec`, `DrainDelay + ShutdownTimeout`'tan büyük olmalıdır.
+  `collage build -i`'ın yazdığı unit `TimeoutStopSec=30` ayarlar. Bu, varsayılan
+  değerleri karşılar. `DrainDelay`'i artırdığınızda bunu da artırın.
+- **Kubernetes:** `terminationGracePeriodSeconds` bu toplamdan büyük olmalıdır.
+  Readiness probe'unu `/readyz`'ye, liveness probe'unu `/healthz`'ye yönlendirin.
+  Bu iki endpoint'e [elagoht/health](/docs/plugins#elagohthealth) cevap verir.
+  Böylece readiness drain başlar başlamaz başarısız olur ve pod, portu kapanmadan
+  önce Service'ten çıkarılır:
+
+```yaml
+spec:
+  terminationGracePeriodSeconds: 30   # > DrainDelay + ShutdownTimeout
+  containers:
+    - name: app
+      readinessProbe:
+        httpGet: { path: /readyz, port: 8080 }
+        periodSeconds: 2
+        failureThreshold: 1
+      livenessProbe:
+        httpGet: { path: /healthz, port: 8080 }
+        periodSeconds: 10
+        failureThreshold: 3
+```
+
+  Bu readiness probe'uyla 5 saniyelik bir `DrainDelay`, probe'un iki saniyelik
+  periyodunu rahatça karşılar.
+
+Sunucunun beklemesi için süre yetmezse, yani `ShutdownTimeout` dolduğunda hâlâ açık
+bir request varsa, plugin'ler yine de kapatılır. `ListenAndServe` de bunu bildiren
+bir hata döner (`collage: server shutdown: context deadline exceeded`).
+`Shutdown`'ı başarısız olan bir plugin için de aynı şekilde hata döner. Scaffold'daki
+`main.go` bu hatayı `log.Fatalf`'e verir. Bu yüzden process 0 yerine 1 status
+koduyla çıkar. Durdurma sırasında sıfırdan farklı bir exit kodunu crash olarak gören
+bir platform bunu crash olarak raporlar.
+
+`DrainDelay`'i ya da `ShutdownTimeout`'u artırırsanız platformunuzun grace
+period'unu da onunla birlikte artırın.
 
 ## Health check'ler
 
-`collage new` ile scaffold edilen proje, `/healthz` isteğine `status` alanı `ok` olan
-küçük bir JSON body ile cevap verir. Bu bir page değil, bir
-[document](/docs/documents)'tır. Bu yüzden hiçbir template kullanmaz ve bir template
-bozuldu diye başarısız olmaya başlamaz. Dynamic'tir, bu yüzden her check gerçekten
-process'e ulaşır. Handler'ın ürettiği bir document aksini söylemedikçe zaten
-dynamic'tir, scaffold ise bunu `Dynamic()` ile ayrıca açıkça belirtir. Cache'ten
-sunulan bir health check, `ok` artık doğru olmaktan çıktıktan çok sonra da `ok`
-cevabını verirdi.
+Liveness ve readiness, [elagoht/health](/docs/plugins#elagohthealth) plugin'inden
+gelir. `/healthz`, process request'lere cevap verdiği sürece `200` döner. `/readyz`
+ise sizin check'lerinizden biri başarısız olana ya da bir drain başlayana kadar
+`200` döner, sonra `503` dönmeye başlar. Her platformu bu iki path'e yönlendirin:
+yukarıdaki Kubernetes probe'larını ya da bir systemd unit'inin önündeki load
+balancer'ın `/readyz`'deki health check'ini. Böylece readiness, drain başlar
+başlamaz başarısız olur. Plugin'i, bir request'i reddedebilen ya da ona cevap
+verebilen her plugin'den önce listeleyin. Nedenini plugin'in bölümünde
+bulabilirsiniz.
 
-Platformunuzun liveness check'ini bu adrese yönlendirin. Bu check size process'in
-ayakta olduğunu ve request'lere cevap verdiğini söyler. Veritabanınıza
-ulaşılamadığında da başarısız olması gereken bir readiness check istiyorsanız, onu aynı
-şekilde kendi document'ınız olarak yazarsınız. Document bir hata dönerse 500 ile
-cevap verir. Minimal projede, yani `--template demo` olmadan `collage new` ile oluşturulan
-projede `/healthz` yoktur. İsterseniz demo scaffold'undaki `documents/health.go` dosyasını kopyalayın.
+`collage new --template demo` ile scaffold edilen proje, bir `/healthz`
+[document](/docs/documents)'ı ile gelir: `documents/health.go`. `elagoht/health`
+eklendiğinde `/healthz`'ye önce plugin'in middleware'i cevap verir ve document'a
+hiç ulaşılmaz. Startup bunu yakalamaz, çünkü plugin document'ları değil page'leri
+kontrol eder. Document'ı silin ya da plugin'in liveness endpoint'ini `livePath` ile
+başka bir path'e taşıyın.
+
+Plugin'i kullanmayan bir proje de probe'larına kendi document'larıyla cevap
+verebilir. Bunlar yalnızca byte'lar ve bir content type'tır, template içermez. Bu
+yüzden bir template bozuldu diye bir check başarısız olmaya başlamaz. Bunları
+dynamic tutun: cache'ten sunulan bir health check, `ok` artık doğru olmaktan
+çıktıktan çok sonra da `ok` cevabını verirdi. Liveness için demo'daki
+`documents/health.go` kopyalanabilecek bir örnektir. Ancak böyle bir readiness
+document'ı drain'den haberdar değildir, bu yüzden port kapanana kadar `200`
+dönmeye devam eder. Minimal projede, yani `--template demo` olmadan `collage new`
+ile oluşturulan projede hiç `/healthz` yoktur.
 
 ## Production'da page cache
 
@@ -389,7 +467,10 @@ log.Fatal(srv.ListenAndServeTLS(certFile, keyFile))
 
 Bu durumda `ListenAndServe`'ün sizin yerinize hallettiği timeout'lar ve signal
 handling artık sizin sorumluluğunuzdadır. Plugin'lerin kapanması için
-`app.Shutdown(ctx)`'i de kendiniz çağırırsınız.
+`app.Shutdown(ctx)`'i de kendiniz çağırırsınız. Bu çağrı `DrainHook` plugin'lerine
+haber verir ama `DrainDelay` kadar beklemez, çünkü `App` hizmet vermeye devam
+edecek bir sunucunuzdan haberdar değildir. Readiness'i false'a çevirin, bekleyin
+ve onu çağırmadan önce sunucunuzu kendiniz durdurun.
 
 
 ## Bir proxy'nin arkasında: `TrustedProxies`
@@ -437,7 +518,8 @@ izin vermektir. Sıfır bitlik bir girdi (`0.0.0.0/0`, `::/0`) herkese güvenir;
 | `ReadTimeout` | 15s | Header'lar dahil request'in okunmasını. Header'ları yavaş gönderen bir client bağlantıyı açık tutamaz. |
 | `WriteTimeout` | 30s | Response'un yazılmasını. Verisi bundan uzun süren bir page yarıda kesilir. |
 | `IdleTimeout` | 60s | Bir sonraki request'ini bekleyen keep-alive bağlantısını. |
-| `ShutdownTimeout` | 10s | `SIGTERM` geldiğinde yapılan graceful drain'i. |
+| `DrainDelay` | 0 | Bir `SIGTERM`'den sonra, keep-alive'lar kapalı olarak hizmet vermeye devam edilen süreyi; böylece load balancer trafik göndermeyi bırakabilir (v0.53.0'dan beri). |
+| `ShutdownTimeout` | 10s | Drain'den sonra, port kapandığında devam eden request'lerin bitmesini. |
 | `MaxBodyBytes` | 4 MiB | Bir action'ın request body'sini, action kendi sınırını belirlemediyse. Negatif değer sınırsız demektir. |
 
 ```go
@@ -485,7 +567,9 @@ OpenTelemetry trace'lerine dönüştürür.
   iletiliyor.
 - Form'ları buraya post eden diğer her origin (örneğin bir admin subdomain'i)
   `Security.CSRFTrustedOrigins`'te belirtilmiş.
-- Platformun stop grace period'u `Server.ShutdownTimeout`'tan uzun.
-- Liveness check `/healthz`'ye bakıyor.
+- Platformun stop grace period'u `Server.DrainDelay + Server.ShutdownTimeout`'tan
+  uzun.
+- [elagoht/health](/docs/plugins#elagohthealth) ile liveness check `/healthz`'ye,
+  readiness check `/readyz`'ye bakıyor.
 - Build'den önce CI'da `go test ./...` çalışıyor. [Test yazmak](/docs/testing) sayfasına
   bakın.

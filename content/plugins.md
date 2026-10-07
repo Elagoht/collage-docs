@@ -1,5 +1,5 @@
 ---
-description: What a plugin can do, how to register and configure one, and the forty published plugins, grouped by what they are for.
+description: What a plugin can do, how to register and configure one, and the forty-one published plugins, grouped by what they are for.
 reference: Plugin, LoadPluginConfig, ErrUnknownPluginConfig, ErrAppStarted
 ---
 
@@ -95,9 +95,10 @@ Plugins run in the order they were registered: `Config.Plugins` in slice order,
 then any `RegisterPlugin` calls in call order. For hooks that change output, each
 plugin sees what the one before it produced. A plugin that adds to the page
 should usually come before one that compacts it, so the addition is compacted too.
-Two published plugins say where they go:
+Three published plugins say where they go:
 [elagoht/compress](#elagohtcompress) before any plugin that rewrites response
-bodies, and [elagoht/devtoolbar](#elagohtdevtoolbar) last.
+bodies, [elagoht/health](#elagohthealth) before any plugin that can refuse or answer
+a request, and [elagoht/devtoolbar](#elagohtdevtoolbar) last.
 
 ## Configuring plugins
 
@@ -160,7 +161,7 @@ a boolean — is also an error, raised when the plugin reads it.
 
 ## The published plugins
 
-Forty plugins are published alongside the framework, grouped below by what
+Forty-one plugins are published alongside the framework, grouped below by what
 they are for. Each is its own module, with its own README that is the full
 reference; what follows is enough to set one up.
 
@@ -172,7 +173,7 @@ reference; what follows is enough to set one up.
 | [Security](#security) | secure, ratelimit, basicauth, oauth, fail2ban |
 | [Live updates](#live-updates) | live, websocket |
 | [Assets and delivery](#assets-and-delivery) | minimizer, opti-image, bundle, favicon, compress, cdnpurge, offline, deploy |
-| [Operations and development](#operations-and-development) | htmlcheck, devtoolbar, accesslog, prometheus, otel, analytics, tenant, errortrack |
+| [Operations and development](#operations-and-development) | htmlcheck, devtoolbar, accesslog, prometheus, otel, analytics, tenant, errortrack, health |
 
 ### SEO and discovery
 
@@ -1790,7 +1791,8 @@ Plugins: []collage.Plugin{deploy.NewWith(deploy.Config{Target: "netlify"})},
 ### Operations and development
 
 Checking what a site renders, seeing a render in development, and watching a
-running site: access logs, metrics, traces and analytics.
+running site: access logs, metrics, traces, analytics, error reports and health
+probes.
 
 #### elagoht/htmlcheck
 
@@ -2081,6 +2083,72 @@ Plugins: []collage.Plugin{errortrack.New(errortrack.Options{
 - `Capture(ctx, err)` on the plugin you registered reports an error from outside a
   request, such as a background job. Nothing is sent in dev mode unless
   `inDevelopment` is set.
+
+#### elagoht/health
+
+[github.com/Elagoht/collage-health](https://github.com/Elagoht/collage-health)
+answers a platform's liveness and readiness probes, and turns readiness false the
+moment collage starts [draining](/docs/deployment#graceful-shutdown-and-draining)
+for a shutdown, so a load balancer stops sending requests before the port closes.
+The endpoints are answered by its middleware, not by pages or documents, so a
+static export never contains them.
+
+```go
+import "github.com/Elagoht/collage-health"
+
+h := health.New()
+h.Check("db", func(ctx context.Context) error { return db.PingContext(ctx) })
+
+app, err := collage.New(&collage.Config{
+	Server: collage.ServerConfig{DrainDelay: 5 * time.Second, ShutdownTimeout: 10 * time.Second},
+	Plugins: []collage.Plugin{
+		h, // before anything that can refuse or answer a request
+		basicauth.New(basicauth.Options{}),
+		ratelimit.New(ratelimit.Options{}),
+	},
+})
+```
+
+```json
+{
+  "elagoht/health": {
+    "livePath": "/healthz",
+    "readyPath": "/readyz",
+    "checkTimeout": "2s",
+    "cacheFor": "1s",
+    "details": false,
+    "maxInFlight": 0
+  }
+}
+```
+
+- v0.1.0 needs collage v0.53.0 or later, for `DrainHook` and
+  `ServerConfig.DrainDelay`.
+- `/healthz` (`livePath`) answers `200 ok` whenever the process serves a request,
+  and runs no checks. `/readyz` (`readyPath`) answers `200 ok`, `503 unavailable`
+  while a check fails, and `503 draining` once a drain has started. Both answer
+  `GET` and `HEAD` with `Cache-Control: no-store`. A page registered at either
+  path stops the application from starting; a document there is shadowed — the
+  demo scaffold's `/healthz` document is never reached, so delete it or change
+  `livePath`.
+- `h.Check(name, fn)` adds a readiness check, before the application starts. A
+  probe runs every check at once, each under a context that ends after
+  `checkTimeout` (2s); one that errors, panics or has not returned by then fails.
+  A result is reused for `cacheFor` (1s), and probes arriving during a run share
+  it. An error is logged, never sent; with `details` readiness answers JSON naming
+  each check `ok` or `failing` — leave it off where the names say too much.
+- Once a drain starts, readiness is `503 draining` and the checks are not run. Set
+  `DrainDelay` a little longer than the readiness probe's period times its failure
+  threshold.
+- `maxInFlight` (0, no cap) sheds load: a request past the cap is answered
+  `503 overloaded` with `Retry-After: 1` at once, never queued. The cap is global,
+  not per client — that is ratelimit's job — and the probes are never counted or
+  refused.
+- **List it before any plugin that can refuse or answer a request**, so a probe
+  always reaches it: tenant answers a probe's pod-IP host with `404`, basicauth asks
+  it for a password, ratelimit and fail2ban refuse it. compress may sit before it.
+  accesslog listed after it logs neither probes nor shed requests; listed before,
+  it logs both.
 
 ## Plugins that write to the head
 

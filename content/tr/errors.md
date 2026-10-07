@@ -49,7 +49,7 @@ ortaya çıkarlar. Bkz. [Config](/docs/configuration#validation).
 | `ErrUnsupportedCache` | `collage: unsupported cache type` | Cache tipi framework'ün kurabildiği hiçbir şeye karşılık gelmez. | Normalde bu durum daha önce `ErrInvalidCacheType` olarak yakalanır. |
 | `ErrEmptyLocaleDefault` | `collage: empty default locale` | `Locale.Default` boştur. | Bu hataya yalnızca `Validate` üzerinden ulaşılır; `New` onu varsayılan olarak `"en"` yapar. |
 | `ErrLocaleDefaultNotSupported` | `collage: default locale not in supported locales` | `Locale.Supported`, `Locale.Default`'u içermez. | Varsayılan locale'i `Supported`'a ekleyin. |
-| `ErrNegativeDuration` | `collage: negative duration` | Altı süre alanından biri negatiftir; mesaj hangisi olduğunu söyler. | Varsayılan değer için sıfır kullanın. |
+| `ErrNegativeDuration` | `collage: negative duration` | Yedi süre alanından biri negatiftir; mesaj hangisi olduğunu söyler. | Varsayılan değer için sıfır kullanın. |
 
 ## Plugin'ler ve komutlar
 

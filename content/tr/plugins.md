@@ -1,5 +1,5 @@
 ---
-description: Bir plugin'in neler yapabildiği, bir plugin'in nasıl register edilip yapılandırıldığı ve ne işe yaradıklarına göre gruplanmış, yayımlanmış kırk plugin.
+description: Bir plugin'in neler yapabildiği, bir plugin'in nasıl register edilip yapılandırıldığı ve ne işe yaradıklarına göre gruplanmış, yayımlanmış kırk bir plugin.
 reference: Plugin, LoadPluginConfig, ErrUnknownPluginConfig, ErrAppStarted
 ---
 
@@ -105,9 +105,11 @@ slice'taki sırayla, ardından `RegisterPlugin` ile eklenenler çağrı sırası
 çalışır. Çıktıyı değiştiren hook'larda her plugin, kendinden önceki plugin'in
 ürettiği çıktıyı görür. Page'e bir şey ekleyen plugin, genellikle çıktıyı sıkıştıran
 plugin'den önce gelmelidir. Böylece eklenen içerik de sıkıştırılır.
-Yayımlanmış iki plugin nerede duracağını söyler:
+Yayımlanmış üç plugin nerede duracağını söyler:
 [elagoht/compress](#elagohtcompress) response body'lerini yeniden yazan her
-plugin'den önce, [elagoht/devtoolbar](#elagohtdevtoolbar) ise en sona gelir.
+plugin'den önce, [elagoht/health](#elagohthealth) bir request'i reddedebilen ya da
+ona cevap verebilen her plugin'den önce, [elagoht/devtoolbar](#elagohtdevtoolbar)
+ise en sona gelir.
 
 ## Plugin'leri yapılandırmak
 
@@ -174,7 +176,7 @@ beklediği yerde bir string varsa, plugin bu bölümü okuduğunda hata oluşur.
 
 ## Yayımlanmış plugin'ler
 
-Framework ile birlikte kırk plugin yayımlanmıştır. Aşağıda ne işe
+Framework ile birlikte kırk bir plugin yayımlanmıştır. Aşağıda ne işe
 yaradıklarına göre gruplanmışlardır. Her biri ayrı bir modüldür ve her birinin tam
 referans niteliğinde kendi README'si vardır. Aşağıdaki bilgiler bir plugin'i
 kurmanız için yeterlidir.
@@ -187,7 +189,7 @@ kurmanız için yeterlidir.
 | [Güvenlik](#security) | secure, ratelimit, basicauth, oauth, fail2ban |
 | [Canlı güncellemeler](#live-updates) | live, websocket |
 | [Asset'ler ve teslimat](#assets-and-delivery) | minimizer, opti-image, bundle, favicon, compress, cdnpurge, offline, deploy |
-| [Operasyon ve development](#operations-and-development) | htmlcheck, devtoolbar, accesslog, prometheus, otel, analytics, tenant, errortrack |
+| [Operasyon ve development](#operations-and-development) | htmlcheck, devtoolbar, accesslog, prometheus, otel, analytics, tenant, errortrack, health |
 
 ### SEO ve keşfedilebilirlik
 
@@ -1864,7 +1866,8 @@ Plugins: []collage.Plugin{deploy.NewWith(deploy.Config{Target: "netlify"})},
 ### Operasyon ve development
 
 Bir sitenin render ettiğini denetlemek, development'ta bir render'ı görmek ve
-çalışan bir siteyi izlemek: access log'ları, metric'ler, trace'ler ve analytics.
+çalışan bir siteyi izlemek: access log'ları, metric'ler, trace'ler, analytics, hata
+raporları ve health probe'ları.
 
 #### elagoht/htmlcheck
 
@@ -2164,6 +2167,76 @@ Plugins: []collage.Plugin{errortrack.New(errortrack.Options{
 - Kaydettiğiniz plugin üzerindeki `Capture(ctx, err)`, bir arka plan işi gibi request
   dışında oluşan bir hatayı raporlar. `inDevelopment` verilmedikçe dev modda hiçbir şey
   gönderilmez.
+
+#### elagoht/health
+
+[github.com/Elagoht/collage-health](https://github.com/Elagoht/collage-health), bir
+platformun liveness ve readiness probe'larına cevap verir. collage bir shutdown
+için [drain](/docs/deployment#graceful-shutdown-and-draining) etmeye başladığı anda
+readiness'i false'a çevirir. Böylece load balancer, port kapanmadan önce request
+göndermeyi bırakır. Endpoint'lere page'ler ya da document'lar değil, plugin'in
+middleware'i cevap verir. Bu yüzden bir static export bunları hiçbir zaman içermez.
+
+```go
+import "github.com/Elagoht/collage-health"
+
+h := health.New()
+h.Check("db", func(ctx context.Context) error { return db.PingContext(ctx) })
+
+app, err := collage.New(&collage.Config{
+	Server: collage.ServerConfig{DrainDelay: 5 * time.Second, ShutdownTimeout: 10 * time.Second},
+	Plugins: []collage.Plugin{
+		h, // before anything that can refuse or answer a request
+		basicauth.New(basicauth.Options{}),
+		ratelimit.New(ratelimit.Options{}),
+	},
+})
+```
+
+```json
+{
+  "elagoht/health": {
+    "livePath": "/healthz",
+    "readyPath": "/readyz",
+    "checkTimeout": "2s",
+    "cacheFor": "1s",
+    "details": false,
+    "maxInFlight": 0
+  }
+}
+```
+
+- v0.1.0, `DrainHook` ve `ServerConfig.DrainDelay` için collage v0.53.0 ya da
+  sonrasını ister.
+- `/healthz` (`livePath`), process bir request'e cevap verdiği sürece `200 ok`
+  döner ve hiçbir check çalıştırmaz. `/readyz` (`readyPath`) `200 ok` döner; bir
+  check başarısız olduğu sürece `503 unavailable`, bir drain başladıktan sonra ise
+  `503 draining` döner. İkisi de `GET` ve `HEAD`'e `Cache-Control: no-store` ile
+  cevap verir. Bu path'lerden birinde register edilen bir page, uygulamanın
+  başlamasını engeller. Orada duran bir document ise gölgede kalır: demo
+  scaffold'undaki `/healthz` document'ına hiç ulaşılmaz. Onu silin ya da
+  `livePath`'i değiştirin.
+- `h.Check(name, fn)`, uygulama başlamadan önce bir readiness check'i ekler. Bir
+  probe bütün check'leri aynı anda çalıştırır. Her biri `checkTimeout` (2s) sonra
+  biten bir context altında çalışır. Hata dönen, panic eden ya da o süre içinde
+  dönmeyen check başarısız olur. Bir sonuç `cacheFor` (1s) boyunca yeniden
+  kullanılır ve bir çalışma sürerken gelen probe'lar onun sonucunu paylaşır. Bir
+  hata loglanır, hiçbir zaman gönderilmez. `details` ile readiness, her check'i
+  `ok` ya da `failing` olarak adlandıran bir JSON ile cevap verir. İsimler fazla
+  şey söylüyorsa bunu kapalı bırakın.
+- Bir drain başladığında readiness `503 draining` olur ve check'ler çalıştırılmaz.
+  `DrainDelay`'i, readiness probe'unun periyodu ile failure threshold'unun
+  çarpımından biraz uzun tutun.
+- `maxInFlight` (0, sınır yok) load shedding yapar: sınırı aşan request'e hemen
+  `Retry-After: 1` ile `503 overloaded` cevabı verilir, hiçbir zaman kuyruğa
+  alınmaz. Sınır client başına değil, globaldir; client başına sınır ratelimit'in
+  işidir. Probe'lar hiçbir zaman sayılmaz ya da reddedilmez.
+- **Bir request'i reddedebilen ya da ona cevap verebilen her plugin'den önce
+  listeleyin**, böylece bir probe ona her zaman ulaşır: tenant, bir probe'un pod
+  IP'li host'una `404` ile cevap verir, basicauth ondan parola ister, ratelimit ve
+  fail2ban onu reddeder. compress ondan önce durabilir. Ondan sonra listelenen
+  accesslog ne probe'ları ne de shed edilen request'leri loglar; önce
+  listelendiğinde ikisini de loglar.
 
 ## Head'e yazan plugin'ler
 

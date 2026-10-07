@@ -197,38 +197,111 @@ if err := json.Unmarshal(pluginConfigJSON, &pluginConfig); err != nil {
 
 With systemd, keep the file in the unit's `WorkingDirectory`.
 
-## Graceful shutdown
+## Graceful shutdown and draining
 
-`app.ListenAndServe` traps `SIGINT` and `SIGTERM`. On either it stops accepting
-connections, waits up to `Server.ShutdownTimeout` (10 seconds by default) for
-requests in flight to finish, runs every plugin's `Shutdown`, and returns `nil`. A
-container runtime that sends `SIGTERM` and waits gets a clean drain with nothing
-added. The generated systemd unit sets `TimeoutStopSec=30`, comfortably longer than
-the shutdown timeout, so systemd does not kill a process that is still draining.
+`app.ListenAndServe` traps `SIGINT` and `SIGTERM` and shuts down gracefully on
+either; `app.Shutdown(ctx)` does the same when you call it yourself. The order is
+fixed:
 
-If the drain runs out of time — a request still open when the timeout passes — the
-plugins are shut down anyway, and `ListenAndServe` returns an error saying so
-(`collage: server shutdown: context deadline exceeded`), as it does for a plugin
-whose `Shutdown` failed. The scaffold's `main.go` passes that to `log.Fatalf`, so
-the process exits with status 1 rather than 0; a platform that treats a non-zero
-exit on stop as a crash will say so.
+1. **Drain.** Every plugin implementing
+   [`DrainHook`](/docs/writing-plugins#streams-and-shutdown) is told, once — a
+   health plugin turns its readiness check false here. Keep-alives are turned off:
+   idle kept-alive connections close at once, busy ones after their current
+   response, and their clients reconnect through the load balancer. The port stays
+   open and requests are served as normal for `Server.DrainDelay` (since v0.53.0).
+2. **Streams.** Development reload streams and plugin streams are closed; they
+   never end on their own.
+3. **Server.** The port closes, and requests in flight get up to
+   `Server.ShutdownTimeout` (10 seconds by default) to finish.
+4. **Plugins.** Every plugin's `Shutdown` runs, and `ListenAndServe` returns `nil`.
 
-If you raise `ShutdownTimeout`, raise your platform's grace period with it.
+`DrainDelay` is 0 by default: no wait, and a single instance behind nginx, Caddy or
+Cloudflare stops as fast as it did before v0.53.0. Set it when a load balancer has
+to notice the instance is leaving before the port closes — a few seconds longer
+than its readiness check takes to fail:
+
+```go
+app, err := collage.New(&collage.Config{
+	Server: collage.ServerConfig{
+		DrainDelay:      10 * time.Second,
+		ShutdownTimeout: 10 * time.Second,
+	},
+})
+```
+
+**The two add up.** On a signal, `ShutdownTimeout` starts when the drain ends, so a
+stop can take `DrainDelay + ShutdownTimeout`. When you call `app.Shutdown(ctx)`
+yourself, the one ctx bounds both the drain and the wait for requests in flight,
+and `ShutdownTimeout` is not used: give it a deadline of at least `DrainDelay` plus
+the time your requests need, or the drain uses up the time they would have had.
+
+The wait can end early. A second `SIGINT` or `SIGTERM` — Ctrl-C pressed twice —
+ends it at once and goes straight on to stopping the server; so does a `Shutdown`
+ctx that is done. In development mode `DrainDelay` is ignored, so restarts stay
+instant, though `OnDrain` still fires. A `Shutdown` before anything serves tells the
+plugins and does not wait, since there is no traffic to drain.
+
+Whatever stops the process has to wait longer than that sum before it kills it:
+
+- **systemd:** `TimeoutStopSec` greater than `DrainDelay + ShutdownTimeout`. The
+  unit `collage build -i` writes sets `TimeoutStopSec=30`, which covers the
+  defaults; raise it with `DrainDelay`.
+- **Kubernetes:** `terminationGracePeriodSeconds` greater than the sum. Point the
+  readiness probe at `/readyz` and the liveness probe at `/healthz`, served by
+  [elagoht/health](/docs/plugins#elagohthealth), so readiness fails as soon as the
+  drain starts and the pod is taken out of the Service before its port closes:
+
+```yaml
+spec:
+  terminationGracePeriodSeconds: 30   # > DrainDelay + ShutdownTimeout
+  containers:
+    - name: app
+      readinessProbe:
+        httpGet: { path: /readyz, port: 8080 }
+        periodSeconds: 2
+        failureThreshold: 1
+      livenessProbe:
+        httpGet: { path: /healthz, port: 8080 }
+        periodSeconds: 10
+        failureThreshold: 3
+```
+
+  With that readiness probe, a `DrainDelay` of 5 seconds covers its two-second
+  period with room to spare.
+
+If the server's wait runs out of time — a request still open when
+`ShutdownTimeout` passes — the plugins are shut down anyway, and `ListenAndServe`
+returns an error saying so (`collage: server shutdown: context deadline exceeded`),
+as it does for a plugin whose `Shutdown` failed. The scaffold's `main.go` passes
+that to `log.Fatalf`, so the process exits with status 1 rather than 0; a platform
+that treats a non-zero exit on stop as a crash will say so.
+
+If you raise `DrainDelay` or `ShutdownTimeout`, raise your platform's grace period
+with it.
 
 ## Health checks
 
-The project `collage new` scaffolds answers `/healthz` with a small JSON body whose
-`status` is `ok`. It is a [document](/docs/documents), not a page, so it involves no
-template and cannot start failing because one did. It is dynamic — a document
-produced by a handler is, unless it says otherwise, and the scaffold says
-`Dynamic()` explicitly — so every check really reaches the process. A health check
-served from a cache would answer `ok` long after it stopped being true.
+Liveness and readiness come from the [elagoht/health](/docs/plugins#elagohthealth)
+plugin: `/healthz` answers `200` while the process serves requests, and `/readyz`
+answers `200` until a check of yours fails or a drain starts, when it turns `503`.
+Point every platform at those two paths — the Kubernetes probes above, or a load
+balancer's health check at `/readyz` in front of a systemd unit — so readiness
+fails as soon as the drain starts. List the plugin before any plugin that can
+refuse or answer a request; see its entry for why.
 
-Point your platform's liveness check at it. It tells you the process is up and
-serving. A readiness check that should also fail when your database is unreachable
-is a document of your own, written the same way; return an error and it answers 500.
-A minimal project — `collage new` without `--template demo` — has no `/healthz`; copy the
-demo scaffold's `documents/health.go` if you want one.
+The project `collage new --template demo` scaffolds ships a `/healthz`
+[document](/docs/documents), `documents/health.go`. Once `elagoht/health` is added,
+the plugin's middleware answers `/healthz` first and the document is never reached;
+startup does not catch this, because the plugin checks pages, not documents.
+Delete the document, or move the plugin's liveness endpoint with `livePath`.
+
+A project without the plugin can still answer its probes with documents of its own
+— bytes and a content type, no template, so a check cannot start failing because a
+template did. Keep them dynamic: a health check served from a cache would answer
+`ok` long after it stopped being true. The demo's `documents/health.go` is one to
+copy for liveness. Such a readiness document does not know about the drain,
+though, so it keeps answering `200` until the port closes. A minimal project —
+`collage new` without `--template demo` — has no `/healthz` at all.
 
 ## The page cache in production
 
@@ -364,7 +437,10 @@ log.Fatal(srv.ListenAndServeTLS(certFile, keyFile))
 ```
 
 Doing that means you own the timeouts and the signal handling that `ListenAndServe`
-did for you, and you call `app.Shutdown(ctx)` yourself so plugins shut down.
+did for you, and you call `app.Shutdown(ctx)` yourself so plugins shut down. That
+call tells `DrainHook` plugins, but does not wait out `DrainDelay`: the `App` knows
+of no server of yours to keep serving. Turn readiness false, wait, and stop your
+server yourself before calling it.
 
 
 ## Behind a proxy: `TrustedProxies`
@@ -410,7 +486,8 @@ address it likes. An entry with zero bits (`0.0.0.0/0`, `::/0`) trusts everyone;
 | `ReadTimeout` | 15s | Reading a request, headers included — a client that sends headers slowly cannot hold a connection open. |
 | `WriteTimeout` | 30s | Writing the response. A page whose data takes longer than this is cut off. |
 | `IdleTimeout` | 60s | A keep-alive connection waiting for its next request. |
-| `ShutdownTimeout` | 10s | The graceful drain on `SIGTERM`. |
+| `DrainDelay` | 0 | Serving on after a `SIGTERM`, keep-alives off, so a load balancer can stop sending traffic (since v0.53.0). |
+| `ShutdownTimeout` | 10s | Requests in flight finishing once the port has closed, after the drain. |
 | `MaxBodyBytes` | 4 MiB | An action's request body, unless the action sets its own. Negative is unbounded. |
 
 ```go
@@ -456,6 +533,8 @@ OpenTelemetry traces.
 - TLS at the proxy, with `X-Forwarded-Proto` and the browser's `Host` passed on.
 - Any other origin whose forms post here — an admin subdomain — named in
   `Security.CSRFTrustedOrigins`.
-- The platform's stop grace period longer than `Server.ShutdownTimeout`.
-- The liveness check on `/healthz`.
+- The platform's stop grace period longer than `Server.DrainDelay +
+  Server.ShutdownTimeout`.
+- The liveness check on `/healthz` and the readiness check on `/readyz`, with
+  [elagoht/health](/docs/plugins#elagohthealth).
 - `go test ./...` in CI before the build — see [Testing](/docs/testing).

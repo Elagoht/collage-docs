@@ -49,7 +49,7 @@ application. See [Configuration](/docs/configuration#validation).
 | `ErrUnsupportedCache` | `collage: unsupported cache type` | The cache type names nothing the framework can build. | Normally caught earlier as `ErrInvalidCacheType`. |
 | `ErrEmptyLocaleDefault` | `collage: empty default locale` | `Locale.Default` is empty. | Only reachable through `Validate`; `New` defaults it to `"en"`. |
 | `ErrLocaleDefaultNotSupported` | `collage: default locale not in supported locales` | `Locale.Supported` does not include `Locale.Default`. | Add the default to `Supported`. |
-| `ErrNegativeDuration` | `collage: negative duration` | One of the six duration fields is negative; the message names which. | Use zero for the default. |
+| `ErrNegativeDuration` | `collage: negative duration` | One of the seven duration fields is negative; the message names which. | Use zero for the default. |
 
 ## Plugins and commands
 
