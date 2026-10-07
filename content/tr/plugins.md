@@ -237,7 +237,7 @@ func loadArticle(ctx context.Context, rc *collage.RenderContext) (*Article, []st
 }
 ```
 
-- collage v0.24.0 ya da sonrasını gerektirir. `Configure` aşaması yoktur, bu
+- v0.2.9, collage v0.50.0 ya da sonrasını gerektirir (v0.2.7, collage v0.49.0 için son sürümdü). `Configure` aşaması yoktur, bu
   yüzden `RegisterPlugin` de bu plugin'i kabul eder.
 - `Emit` mevcut node'lara ekleme yapar ve plugin register edilmiş olsun ya da
   olmasın çalışır. Node'lar schema.org tipine göre key'lenir. Bu yüzden iç içe bir
@@ -290,8 +290,7 @@ meta.Set(rc, meta.Page{
 }
 ```
 
-- v0.1.2 ve sonrası, collage v0.34.2 ya da sonrasını gerektirir (v0.1.1 v0.23.0'ı
-  gerektiriyordu). v0.2.0'dan (collage v0.42.0) beri `baseURL` boş bırakılabilir:
+- v0.2.2, collage v0.50.0 ya da sonrasını gerektirir (v0.2.1, collage v0.49.0 için son sürümdü). v0.2.0'dan (collage v0.42.0) beri `baseURL` boş bırakılabilir:
   canonical ve `og:` URL'leri o zaman request'in origin'ini izler; yani
   `Config.BaseURL`'ü ya da host başına, elagoht/tenant gibi bir `OriginResolver`
   plugin'inin verdiğini. Üçü de yoksa uygulama başlamaz.
@@ -341,7 +340,7 @@ if err := ogimage.Set(rc, "og/post.html", ogimage.Card{Title: post.Title, Label:
 }
 ```
 
-- v0.1.0, collage v0.40.0 ya da sonrasını ve uygulamanın `Config.BaseURL`'ünü
+- v0.2.2, collage v0.50.0 ya da sonrasını (v0.2.1, collage v0.49.0 için son sürümdü) ve uygulamanın `Config.BaseURL`'ünü
   gerektirir. v0.2.0'dan (collage v0.42.0) beri birden fazla host'a hizmet veren bir
   sitede kartın URL'si request'in origin'ini izler; bu yüzden bir `OriginResolver`
   plugin'i register edilmişse `Config.BaseURL` gerekmez. elagoht/meta'dan sonra register edin ve meta'nın `DefaultImage`'ını
@@ -383,7 +382,7 @@ Plugins: []collage.Plugin{sitemap.New(sitemap.Options{
 }
 ```
 
-- collage v0.21.0 ya da sonrasını gerektirir. Bir sitemap mutlak URL'ler listelediği
+- v0.2.1, collage v0.50.0 ya da sonrasını gerektirir (v0.2.0, collage v0.42.0 için son sürümdü). Bir sitemap mutlak URL'ler listelediği
   için bir origin'e ihtiyaç duyar: `baseURL`, o yoksa `Config.BaseURL` (collage
   v0.39.0), birden fazla host'a hizmet veren bir sitede ise v0.2.0'dan (collage
   v0.42.0) beri bir `OriginResolver` plugin'inin adlandırdığı, request'in kendi
@@ -425,7 +424,7 @@ Plugins: []collage.Plugin{robots.New(robots.Options{
 }
 ```
 
-- collage v0.21.0 ya da sonrasını gerektirir. Hiç kural yoksa her crawler'a her
+- v0.2.3, collage v0.50.0 ya da sonrasını gerektirir (v0.2.0, collage v0.42.0 için son sürümdü). Hiç kural yoksa her crawler'a her
   şeye izin verir. User agent belirtmeyen bir kural `*` içindir.
 - `disallowAll`, kurallar ne derse desin siteyi bütün crawler'lara kapatır ve her
   response'u `X-Robots-Tag: noindex, nofollow` ile gönderir. Bunu bir staging
@@ -457,7 +456,7 @@ Plugins: []collage.Plugin{feed.New(feed.Feed{
 })},
 ```
 
-- collage v0.21.0 ya da sonrasını gerektirir. `Items` bir fonksiyon olduğu için
+- v0.2.0, collage v0.42.0 ya da sonrasını gerektirir (v0.1.2, collage v0.39.0 için son sürümdü). `Items` bir fonksiyon olduğu için
   yalnızca Go'da yapılandırılır.
 - Bir feed RSS olarak `/feed.xml`'de, Atom olarak `/atom.xml`'de sunulur. `RSS` ve
   `Atom` bu path'leri değiştirir, `"-"` ise bir formatı dışarıda bırakır. Birden
@@ -507,7 +506,7 @@ Plugins: []collage.Plugin{redirects.New(redirects.Options{FS: siteFS})},
 }
 ```
 
-- collage v0.24.0 ya da sonrasını gerektirir.
+- v0.1.6, collage v0.50.0 ya da sonrasını gerektirir (v0.1.3, collage v0.24.0 için son sürümdü).
 - Her satırda bir kural vardır: eski path, gittiği yer ve bir status. Status
   yazılmazsa `301`'dir; `302`, `307`, `308` ya da artık olmayan bir page için `-`
   ile birlikte `410` olabilir. Bu durumda sitenin kendi not-found page'i `410`
@@ -547,7 +546,7 @@ Plugins: []collage.Plugin{indexnow.New(indexnow.Options{
 }
 ```
 
-- collage v0.23.0 ya da sonrasını gerektirir. `key` zorunludur. `baseURL` boş
+- v0.2.1, collage v0.50.0 ya da sonrasını gerektirir (v0.2.0, collage v0.42.0 için son sürümdü). `key` zorunludur. `baseURL` boş
   bırakılırsa `Config.BaseURL` alınır; birden fazla host'a hizmet veren bir sitede
   (v0.2.0, collage v0.42.0) origin başına bir submission gönderilir ve iki host'un
   paylaştığı bir origin bir kez gönderilir. `baseURL` verilmişse her entry için o
@@ -606,7 +605,7 @@ app.RegisterPage(collage.NewPage("post").
 }
 ```
 
-- v0.2.2, collage v0.50.0 ya da sonrasını gerektirir (v0.2.0 v0.49.0'ı gerektiriyordu); handler'ları
+- v0.2.2, collage v0.50.0 ya da sonrasını gerektirir (v0.2.0, collage v0.49.0 için son sürümdü); handler'ları
   `collage.Data`'dır: `WithData(md.Handler())`. v0.1.3 v0.34.2'yi gerektiriyordu
   ve döndürdüğü `collage.DataHandlerFunc`'ı kaldıran v0.49.0 ile build edilmez.
   `Config.Plugins` içinde ya da `RegisterPlugin` ile register
@@ -645,8 +644,7 @@ Plugins: []collage.Plugin{highlight.New(highlight.Options{})},
 }
 ```
 
-- v0.2.1, collage v0.26.0 ya da sonrasını gerektirir; v0.2.0 v0.25.0'ı, v0.1.0
-  v0.23.0'ı gerektiriyordu. `Config.Plugins` içinde olmalıdır: `{{highlight}}`'ı ekler.
+- v0.2.5, collage v0.50.0 ya da sonrasını gerektirir (v0.2.3, collage v0.49.0 için son sürümdü). `Config.Plugins` içinde olmalıdır: `{{highlight}}`'ı ekler.
 - `auto` açıkken bir page'in içerdiği her `<pre><code class="language-go">`
   bulunduğu yerde, render başına bir kez renklendirilir. elagoht/markdown ve çoğu
   Markdown renderer'ı bu biçimi yazar. Cache'lenen bir page renklendirildiği hâliyle
@@ -686,7 +684,7 @@ Plugins: []collage.Plugin{toc.New(toc.Options{})},
 }
 ```
 
-- collage v0.23.0 ya da sonrasını gerektirir ve `Config.Plugins` içinde olmalıdır:
+- v0.1.5, collage v0.50.0 ya da sonrasını gerektirir (v0.1.3, collage v0.49.0 için son sürümdü) ve `Config.Plugins` içinde olmalıdır:
   template fonksiyonları ekler.
 - Her fonksiyon bir placeholder yazar. Plugin, page render edildikten sonra onu
   doldurur: `<main>` içindeki `h2`–`h4` heading'lerini iç içe bir liste olarak ve
@@ -722,7 +720,7 @@ Plugins: []collage.Plugin{search.New(search.Options{})},
 }
 ```
 
-- collage v0.23.0 ya da sonrasını gerektirir ve `Config.Plugins` içinde olmalıdır:
+- v0.1.5, collage v0.50.0 ya da sonrasını gerektirir (v0.1.3, collage v0.49.0 için son sürümdü) ve `Config.Plugins` içinde olmalıdır:
   `{{searchBox}}`'ı ekler.
 - **Index bir static build'e aittir.** `collage export`, her page'in title'ından,
   description'ından, heading'lerinden ve metninden `search-index.json`'ı yazar.
@@ -756,7 +754,7 @@ Plugins: []collage.Plugin{i18n.New(i18n.Options{FS: locales})},
 { "elagoht/i18n": { "dir": "locales", "strict": true } }
 ```
 
-- collage v0.22.0 ya da sonrasını gerektirir ve `Config.Plugins` içinde olmalıdır:
+- v0.2.4, collage v0.50.0 ya da sonrasını gerektirir (v0.2.2, collage v0.49.0 için son sürümdü) ve `Config.Plugins` içinde olmalıdır:
   template fonksiyonları ekler.
 - Desteklenen her locale için iç içe key'lerden oluşan bir JSON dosyası olur:
   `locales/<locale>.json`. Desteklenen bir locale'in dosyası yoksa uygulama
@@ -831,8 +829,7 @@ return collage.SeeOther("/welcome"), nil
 }
 ```
 
-- v0.1.2, collage v0.34.2 ya da sonrasını gerektirir (v0.1.1 v0.23.0'ı
-  gerektiriyordu). `Config.Plugins` içinde olmalıdır: `{{fieldError}}`,
+- v0.1.6, collage v0.50.0 ya da sonrasını gerektirir (v0.1.3, collage v0.34.2 için son sürümdü). `Config.Plugins` içinde olmalıdır: `{{fieldError}}`,
   `{{fieldValue}}` ve `{{hasErrors}}`'ı ekler.
 - `{{fieldValue "name" fallback}}`, reddedilen bir gönderimde gönderilen değeri,
   form ilk kez gösterildiğinde ise fallback'i gösterir. Bir profil ya da düzenleme
@@ -893,7 +890,7 @@ Plugins: []collage.Plugin{honeypot.New(honeypot.Options{Key: key})},
 }
 ```
 
-- collage v0.43.0 ya da sonrasını gerektirir (plugin'in v0.4.0'ı) ve
+- v0.4.2, collage v0.50.0 ya da sonrasını gerektirir (v0.4.0, collage v0.43.0 için son sürümdü) ve
   `Config.Plugins` içinde olmalıdır: `{{honeypot}}`'ı ekler.
 - Bir gönderimin ne kadar büyük olabileceğine karışmaz. Form'u `BeforeActionHook`'ta,
   action'ın kendi body sınırıyla kontrol eder. Bu yüzden büyük dosya yükleyen bir
@@ -963,7 +960,7 @@ return collage.SeeOther("/settings"), nil
 }
 ```
 
-- collage v0.22.0 ya da sonrasını gerektirir ve `Config.Plugins` içinde olmalıdır:
+- v0.1.4, collage v0.50.0 ya da sonrasını gerektirir (v0.1.2, collage v0.22.0 için son sürümdü) ve `Config.Plugins` içinde olmalıdır:
   `{{flashes}}`'ı ekler.
 - Mesajlar imzalı, `HttpOnly` bir cookie içinde taşınır. En az 32 rastgele
   byte'lık, her instance'ta aynı olan bir key ayarlayın. Key yoksa her process için
@@ -1014,7 +1011,7 @@ private := collage.NewFragment("private", "layouts/private.html").
 }
 ```
 
-- v0.2.0'dan beri collage v0.29.0 ya da sonrasını gerektirir (öncesinde v0.23.0).
+- v0.2.3, collage v0.50.0 ya da sonrasını gerektirir (v0.2.2, collage v0.49.0 için son sürümdü).
   Template fonksiyonu eklemediği için `RegisterPlugin` de onu kabul eder.
 - **`RequireUser(loginPath)`** (v0.2.0'dan beri), session'ında `session.UserKey`
   (`"user"`) altında bir değer bulunan okuyucuyu içeri alır. Diğer herkesi `303`
@@ -1070,7 +1067,7 @@ Plugins: []collage.Plugin{secure.New(secure.Options{
 }
 ```
 
-- collage v0.43.0 ya da sonrasını gerektirir (plugin'in v0.2.0'ı) ve
+- v0.2.3, collage v0.50.0 ya da sonrasını gerektirir (v0.2.1, collage v0.43.0 için son sürümdü) ve
   `Config.Plugins` içinde olmalıdır: `{{cspNonce}}`'ı ekler. Listedeki yeri fark
   etmez: nonce, `PersonaliseHook` ile cache'ten sonra ve sıkıştırmadan önce
   yerleştirilir; bu yüzden elagoht/compress'ten önce de sonra da listelenebilir.
@@ -1138,7 +1135,7 @@ Plugins: []collage.Plugin{ratelimit.New(ratelimit.Options{
 }
 ```
 
-- collage v0.24.0 ya da sonrasını gerektirir. Hiç seçenek verilmezse her form ve
+- v0.1.6, collage v0.50.0 ya da sonrasını gerektirir (v0.1.3, collage v0.24.0 için son sürümdü). Hiç seçenek verilmezse her form ve
   action, yani `GET`, `HEAD` ve `OPTIONS` dışındaki her metot, önce ondan oluşan bir
   burst'le, ardından iki saniyede bir request'le sınırlanır.
 - Bir request'i, eşleştiği ilk kural sayar. Bu yüzden dar kuralları başa koyun; her
@@ -1175,7 +1172,7 @@ Plugins: []collage.Plugin{basicauth.New(basicauth.Options{
 }
 ```
 
-- collage v0.24.0 ya da sonrasını gerektirir. Hiç kullanıcı yoksa uygulama başlamaz.
+- v0.1.6, collage v0.50.0 ya da sonrasını gerektirir (v0.1.3, collage v0.24.0 için son sürümdü). Hiç kullanıcı yoksa uygulama başlamaz.
 - Parola düz metin olarak, `sha256:` ve hex'i olarak ya da bir bcrypt hash'i olarak
   yazılır. `COLLAGE_BASICAUTH_USERS`, kullanıcıları environment'tan ekler ve
   secret'ları dosyaların dışında tutar.
@@ -1232,7 +1229,7 @@ Plugins: []collage.Plugin{
 }
 ```
 
-- collage v0.44.0 ya da sonrasını (`collage.SafeRedirect` için) ve elagoht/session
+- v0.1.1, collage v0.50.0 ya da sonrasını (v0.1.0, `collage.SafeRedirect`'i ekleyen collage v0.44.0 için son sürümdü) ve elagoht/session
   v0.2.1 ya da sonrasını gerektirir. Session de register edilmelidir: yoksa login
   route'ları `500` döner. `OnLogin` ve `Store` kod olduğu için onları Go'da
   verin. Secret ve key ortam değişkeninde durmalı, sürüm kontrolündeki bir dosyada
@@ -1309,7 +1306,7 @@ Plugins: []collage.Plugin{f2b /* , diğerleri */},
 }
 ```
 
-- collage v0.47.0 ya da sonrasını gerektirir: `Server.TrustedProxies`,
+- v0.1.4, collage v0.50.0 ya da sonrasını gerektirir (v0.1.1, collage v0.49.0 için son sürümdü): `Server.TrustedProxies`,
   `collage.ClientIP` ve collage'ın routing'den önce reddettiği request'leri de gören
   bir `RequestHook` için. `Config.Plugins`'te ilk sıraya koyun; böylece ban kontrolü
   diğer plugin'lerin middleware'inden önce çalışır.
@@ -1391,8 +1388,7 @@ Plugins: []collage.Plugin{live.New()},
 ```
 
 - `Config.Plugins` içinde olmalıdır, çünkü layout'un client'ı eklemek için çağırdığı
-  `{{liveClient}}`'ı ekler. v0.4.0, v0.3.0 ve v0.2.1, collage v0.20.0 ya da sonrasını gerektirir;
-  v0.2.0 v0.19.0'ı, v0.1.0 ise v0.18.0'ı gerektiriyordu.
+  `{{liveClient}}`'ı ekler. v0.4.2, collage v0.50.0 ya da sonrasını gerektirir (v0.4.1, collage v0.49.0 için son sürümdü).
 - Container'ın sahibi page'dir, içindekinin sahibi fragment'tir.
   `data-collage-interval` belli aralıklarla fetch eder, `data-collage-push`
   fragment'i stream'den alır, `data-collage-swap="morph"` DOM'u yerinde patch eder.
@@ -1482,8 +1478,8 @@ lv := live.New()
 Plugins: []collage.Plugin{lv, websocket.New(lv)},
 ```
 
-- collage-live'ı da bu plugin'den önce register edin. v0.2.1, collage v0.24.0 ve
-  collage-live v0.2.1 ya da sonrasını gerektirir.
+- collage-live'ı da bu plugin'den önce register edin. v0.2.4, collage v0.50.0 ve
+  collage-live v0.4.2 ya da sonrasını gerektirir (v0.2.3, collage v0.49.0 için son sürümdü).
 - Başka hiçbir şey değişmez. Layout yine `{{liveClient}}`'ı içerir, bu artık
   client'a buraya bağlanmasını söyler. Element'ler de yine `data-collage-push`
   taşır. collage-live kendi event stream'ini sunmayı bırakır. WebSocket da aynı
@@ -1523,7 +1519,7 @@ Plugins: []collage.Plugin{minimizer.New()},
 }
 ```
 
-- collage v0.28.0 ya da sonrasını gerektirir ve `Config.Plugins` içinde olmalıdır.
+- v0.1.9, collage v0.50.0 ya da sonrasını gerektirir (v0.1.7, collage v0.28.0 için son sürümdü) ve `Config.Plugins` içinde olmalıdır.
   Mount edilen dosya sistemlerini sarmalar ve bu işlem uygulama kurulurken yapılır.
 - `New()` HTML, JSON ve CSS'i etkinleştirir. JavaScript varsayılan olarak
   kapalıdır, `{"js": true}` ile açabilirsiniz.
@@ -1568,7 +1564,7 @@ Plugins: []collage.Plugin{optiimage.New()},
 }
 ```
 
-- collage v0.24.0 ya da sonrasını gerektirir ve `Config.Plugins` içinde olmalıdır.
+- v0.3.4, collage v0.50.0 ya da sonrasını gerektirir (v0.3.1, collage v0.49.0 için son sürümdü) ve `Config.Plugins` içinde olmalıdır.
 - **`allowedOrigins` boşsa ve `Files` da yoksa plugin devre dışı kalır.**
   Listelemediğiniz bir host'tan hiçbir zaman görsel çekmez. Scheme de origin'in
   bir parçasıdır.
@@ -1627,7 +1623,7 @@ Plugins: []collage.Plugin{bundle.New(bundle.Options{
 }
 ```
 
-- collage v0.23.0 ya da sonrasını gerektirir ve `Config.Plugins` içinde olmalıdır:
+- v0.1.5, collage v0.50.0 ya da sonrasını gerektirir (v0.1.2, collage v0.23.0 için son sürümdü) ve `Config.Plugins` içinde olmalıdır:
   `{{bundle}}`'ı ekler.
 - Çıktı `/_bundle/`'daki bir mount'tan sunulur. Her dosya, esbuild'in içeriğinden
   ürettiği hash'i taşıyan bir adla sunulur ve bir yıl cache'lenir. Build'in
@@ -1668,7 +1664,7 @@ Plugins: []collage.Plugin{favicon.New(favicon.Options{
 }
 ```
 
-- collage v0.23.0 ya da sonrasını gerektirir. Kaynak kare bir PNG, JPEG ya da
+- v0.1.5, collage v0.50.0 ya da sonrasını gerektirir (v0.1.2, collage v0.23.0 için son sürümdü). Kaynak kare bir PNG, JPEG ya da
   GIF'tir; ideal olarak 512 piksel ya da daha büyüktür. Diskten ya da `FS`'ten
   okunur.
 - İkonlar başlangıçta bir kez üretilir ve static document olarak sunulur. Bu yüzden
@@ -1697,7 +1693,7 @@ Plugins: []collage.Plugin{
 }
 ```
 
-- collage v0.23.0 ya da sonrasını gerektirir. **Onu response body'lerini yeniden
+- v0.1.6, collage v0.50.0 ya da sonrasını gerektirir (v0.1.3, collage v0.43.0 için son sürümdü). **Onu response body'lerini yeniden
   yazan her plugin'den önce register edin.** İlk register edilen plugin en dıştaki
   middleware'dir. elagoht/secure ve elagoht/honeypot artık buna ihtiyaç duymaz
   (secure v0.2.0, honeypot v0.4.0, collage v0.43.0): `PersonaliseHook` ile, her
@@ -1743,7 +1739,7 @@ Plugins: []collage.Plugin{cdnpurge.New(cdnpurge.Options{
 }
 ```
 
-- collage v0.23.0 ya da sonrasını gerektirir. `cloudflare` ile `webhook`'tan en az
+- v0.2.4, collage v0.50.0 ya da sonrasını gerektirir (v0.2.1, collage v0.49.0 için son sürümdü). `cloudflare` ile `webhook`'tan en az
   biri ve bir origin zorunludur: `baseURL`, `Config.BaseURL` ya da bir origin
   resolver.
 - Tam olarak [bir invalidation'ın düşürdüğü path'leri](/docs/caching#invalidating-by-path)
@@ -1789,7 +1785,7 @@ Plugins: []collage.Plugin{offline.New(offline.Options{
 }
 ```
 
-- collage v0.24.0 ya da sonrasını gerektirir ve `Config.Plugins` içinde olmalıdır:
+- v0.1.5, collage v0.50.0 ya da sonrasını gerektirir (v0.1.3, collage v0.24.0 için son sürümdü) ve `Config.Plugins` içinde olmalıdır:
   `/sw.js`'de sunulan worker'ı kuran `{{offlineScript}}`'i ekler.
 - Page'ler önce ağdan çekilir ve saklanır. `assets` altındaki static dosyalar
   stale-while-revalidate ile sunulur. Ne ulaşılabilen ne de saklanan bir page için
@@ -1833,7 +1829,7 @@ Plugins: []collage.Plugin{htmlcheck.New(htmlcheck.Options{})},
 }
 ```
 
-- collage v0.22.0 ya da sonrasını gerektirir.
+- v0.1.5, collage v0.50.0 ya da sonrasını gerektirir (v0.1.2, collage v0.22.0 için son sürümdü).
 - Development'ta her page render edilirken denetlenir ve bulunanlar page'in
   üzerinde gösterilir. Static build'de önce her page, sonra build'in bütünü
   denetlenir: iki page'in paylaştığı title'lar, build'in yazmadığı page'lere
@@ -1865,7 +1861,7 @@ Plugins: []collage.Plugin{
 },
 ```
 
-- collage v0.24.0 ya da sonrasını gerektirir ve yapılandırılacak bir şeyi yoktur.
+- v0.2.4, collage v0.49.0 ya da sonrasını gerektirir (v0.2.3, collage v0.24.0 için son sürümdü) ve yapılandırılacak bir şeyi yoktur.
 - **Onu en son register edin:** saydığı finding'ler, ondan önce çalışan
   plugin'lerinkidir.
 - `DevMode` olmadan başlatılan bir sunucuda ve bir static build'de hiçbir şey
@@ -1897,7 +1893,7 @@ Plugins: []collage.Plugin{accesslog.New(accesslog.Options{})},
 }
 ```
 
-- collage v0.24.0 ya da sonrasını gerektirir.
+- v0.1.8, collage v0.50.0 ya da sonrasını gerektirir (v0.1.5, collage v0.49.0 için son sürümdü).
 - Satırda metot, query'siz path, status, byte sayısı, süre, istemci adresi, user
   agent, referer ve request id bulunur. Satır uygulamanın logger'ıyla ya da
   `Options.Logger` ile yazılır; bir `5xx`, `ERROR` seviyesinde log'lanır.
@@ -1931,8 +1927,7 @@ app, err := collage.New(&collage.Config{
 }
 ```
 
-- v0.2.0, collage v0.25.0 ya da sonrasını gerektirir; v0.1.1 v0.24.0'ı
-  gerektiriyordu. Tek değeri hem uygulamanın `Metrics`'i hem de bir plugin olarak
+- v0.2.6, collage v0.50.0 ya da sonrasını gerektirir (v0.2.3, collage v0.49.0 için son sürümdü). Tek değeri hem uygulamanın `Metrics`'i hem de bir plugin olarak
   verin. Birincisi olmadan hiçbir şey ölçülmez, ikincisi
   olmadan hiçbir şey sunulmaz.
 - Hiçbir label bir request'ten alınmaz. v0.2.0'dan beri `route`, `collage.RouteOf`'un
@@ -1967,8 +1962,7 @@ app, err := collage.New(&collage.Config{
 { "elagoht/otel": { "skip": ["/healthz"] } }
 ```
 
-- v0.2.1, collage v0.26.0 ya da sonrasını gerektirir; v0.2.0 v0.25.0'ı, v0.1.0
-  v0.23.0'ı gerektiriyordu. Tracer olarak `collage.http`, `collage.render` ve
+- v0.2.8, collage v0.50.0 ya da sonrasını gerektirir (v0.2.5, collage v0.49.0 için son sürümdü). Tracer olarak `collage.http`, `collage.render` ve
   `collage.fragment`'i span'lere dönüştürür. Plugin olarak da çağıranın trace
   context'ini header'lardan okur; bunu collage'ın kendi span'inden önce çalışan bir
   `RequestHook` içinde yapar. İkisi de tek başına çalışır.
@@ -2006,7 +2000,7 @@ Plugins: []collage.Plugin{analytics.New(analytics.Options{
 }
 ```
 
-- collage v0.23.0 ya da sonrasını gerektirir ve layout'ta `{{hoist "head"}}` ister.
+- v0.1.5, collage v0.50.0 ya da sonrasını gerektirir (v0.1.2, collage v0.23.0 için son sürümdü) ve layout'ta `{{hoist "head"}}` ister.
 - Plausible, Umami ve GoatCounter ziyaretleri cookie olmadan sayar. Google Analytics
   4 cookie ayarlar; onu `requireConsent` ile kullanın.
 - `respectDnt` ya da `requireConsent` ile siteden sunulan küçük bir loader, herhangi
@@ -2045,7 +2039,7 @@ Plugins: []collage.Plugin{tenant.NewWith(tenant.Options{
 }
 ```
 
-- collage v0.42.0 ya da sonrasını ister; `tenants` ya da bir `Resolve` fonksiyonu
+- v0.1.2, collage v0.50.0 ya da sonrasını ister (v0.1.1, collage v0.49.0 için son sürümdü); `tenants` ya da bir `Resolve` fonksiyonu
   (yalnızca Go) gerekir.
 - Hiçbir tenant'a ait olmayan host, site'ın kendi 404 page'iyle 404 alır. Başarısız
   olan ya da panic eden bir resolver `Retry-After` ile 503 alır ve bu cache'lenmez.
@@ -2088,7 +2082,7 @@ Plugins: []collage.Plugin{errortrack.New(errortrack.Options{
 }
 ```
 
-- collage v0.45.0 ya da sonrasını ister; `ErrorEvent`'i status'ü ve request'i taşır.
+- v0.1.4, collage v0.50.0 ya da sonrasını ister (v0.1.1, collage v0.49.0 için son sürümdü); `ErrorEvent`'i status'ü ve request'i taşır.
   Ayrıca bir `DSN` ya da `DSNEnv` gerekir: yoksa başlangıç başarısız olur. Bunun tek
   istisnası `inDevelopment` verilmemiş dev moddur; orada hiçbir şey gönderilmez ve DSN
   gerekmez. DSN bir kimlik bilgisidir; `collage.json`'a değil, ortam değişkenine koyun.

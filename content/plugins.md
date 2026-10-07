@@ -220,7 +220,7 @@ func loadArticle(ctx context.Context, rc *collage.RenderContext) (*Article, []st
 }
 ```
 
-- It needs collage v0.24.0 or later. It has no `Configure` phase, so
+- v0.2.9 needs collage v0.50.0 or later (v0.2.7 was the last for v0.49.0). It has no `Configure` phase, so
   `RegisterPlugin` accepts it too.
 - `Emit` appends and works whether or not the plugin is registered. Nodes are keyed
   by schema.org type, so a nested fragment's `Article` replaces one declared
@@ -272,7 +272,7 @@ meta.Set(rc, meta.Page{
 }
 ```
 
-- v0.1.2 and later need collage v0.34.2 or later; v0.1.1 needed v0.23.0. `baseURL`
+- v0.2.2 needs collage v0.50.0 or later (v0.2.1 was the last for v0.49.0). `baseURL`
   may be left empty since v0.2.0 (collage v0.42.0): the canonical and `og:` URLs then
   follow the request's origin, `Config.BaseURL` or, per host, what an
   `OriginResolver` plugin such as elagoht/tenant gives. The application does not
@@ -323,7 +323,7 @@ if err := ogimage.Set(rc, "og/post.html", ogimage.Card{Title: post.Title, Label:
 }
 ```
 
-- v0.1.0 needs collage v0.40.0 or later, and the application's `Config.BaseURL`;
+- v0.2.2 needs collage v0.50.0 or later (v0.2.1 was the last for v0.49.0), and the application's `Config.BaseURL`;
   since v0.2.0 (collage v0.42.0) a card's URL follows the request's origin on a site
   served on several hosts, so `Config.BaseURL` is not required when an
   `OriginResolver` plugin is registered. Register it after elagoht/meta, and leave meta's `DefaultImage` unset.
@@ -363,7 +363,7 @@ Plugins: []collage.Plugin{sitemap.New(sitemap.Options{
 }
 ```
 
-- It needs collage v0.21.0 or later. A sitemap lists absolute URLs, so it needs an
+- v0.2.1 needs collage v0.50.0 or later (v0.2.0 was the last for v0.42.0). A sitemap lists absolute URLs, so it needs an
   origin: `baseURL`, else `Config.BaseURL` (collage v0.39.0), and since
   v0.2.0 (collage v0.42.0) the request's own origin on a site served on several
   hosts, as an `OriginResolver` plugin names it. The application does not start with
@@ -401,7 +401,7 @@ Plugins: []collage.Plugin{robots.New(robots.Options{
 }
 ```
 
-- It needs collage v0.21.0 or later. With no rules it allows every crawler
+- v0.2.3 needs collage v0.50.0 or later (v0.2.0 was the last for v0.42.0). With no rules it allows every crawler
   everything; a rule with no user agents is for `*`.
 - `disallowAll` closes the site to every crawler, whatever the rules say, and
   sends every response with `X-Robots-Tag: noindex, nofollow`. Set it in the
@@ -432,7 +432,7 @@ Plugins: []collage.Plugin{feed.New(feed.Feed{
 })},
 ```
 
-- It needs collage v0.21.0 or later. It is configured in Go only, since `Items` is
+- v0.2.0 needs collage v0.42.0 or later (v0.1.2 was the last for v0.39.0). It is configured in Go only, since `Items` is
   a function.
 - A feed is served at `/feed.xml` as RSS and `/atom.xml` as Atom; `RSS` and `Atom`
   move them, and `"-"` leaves a format out. Several feeds each take a `Name` and
@@ -478,7 +478,7 @@ Plugins: []collage.Plugin{redirects.New(redirects.Options{FS: siteFS})},
 }
 ```
 
-- It needs collage v0.24.0 or later.
+- v0.1.6 needs collage v0.50.0 or later (v0.1.3 was the last for v0.24.0).
 - One rule a line: the old path, where it went, and a status — `301` when left out,
   or `302`, `307`, `308`, or `410` with `-` for a page that is gone, answered with
   the site's own not-found page and status `410`. `/blog/*` is a prefix, and
@@ -517,7 +517,7 @@ Plugins: []collage.Plugin{indexnow.New(indexnow.Options{
 }
 ```
 
-- It needs collage v0.23.0 or later. `key` is required. `baseURL` may be left empty
+- v0.2.1 needs collage v0.50.0 or later (v0.2.0 was the last for v0.42.0). `key` is required. `baseURL` may be left empty
   to take `Config.BaseURL`; on a site served on several hosts (v0.2.0, collage
   v0.42.0) one submission is sent per origin, and an origin two hosts share is sent
   once. With `baseURL` set it is used for every entry.
@@ -575,7 +575,7 @@ app.RegisterPage(collage.NewPage("post").
 }
 ```
 
-- v0.2.2 needs collage v0.50.0 or later (v0.2.0 needed v0.49.0); its handlers are `collage.Data`:
+- v0.2.2 needs collage v0.50.0 or later (v0.2.0 was the last for v0.49.0); its handlers are `collage.Data`:
   `WithData(md.Handler())`. v0.1.3 needed v0.34.2 and does not build against
   v0.49.0, which removed the `collage.DataHandlerFunc` it returned. It can go in
   `Config.Plugins` or `RegisterPlugin`: it reads its configuration and files when
@@ -613,7 +613,7 @@ Plugins: []collage.Plugin{highlight.New(highlight.Options{})},
 }
 ```
 
-- v0.2.0 needs collage v0.25.0 or later; v0.1.0 needed v0.23.0. It must go in
+- v0.2.5 needs collage v0.50.0 or later (v0.2.3 was the last for v0.49.0). It must go in
   `Config.Plugins`: it adds `{{highlight}}`.
 - With `auto` on, every `<pre><code class="language-go">` a page holds — what
   elagoht/markdown and most Markdown renderers write — is coloured where it
@@ -652,7 +652,7 @@ Plugins: []collage.Plugin{toc.New(toc.Options{})},
 }
 ```
 
-- It needs collage v0.23.0 or later, and must go in `Config.Plugins`: it adds
+- v0.1.5 needs collage v0.50.0 or later (v0.1.3 was the last for v0.49.0), and must go in `Config.Plugins`: it adds
   template functions.
 - Each function writes a placeholder, and the plugin fills it in once the page has
   rendered: the `h2` to `h4` inside `<main>`, as a nested list, and the words
@@ -688,7 +688,7 @@ Plugins: []collage.Plugin{search.New(search.Options{})},
 }
 ```
 
-- It needs collage v0.23.0 or later, and must go in `Config.Plugins`: it adds
+- v0.1.5 needs collage v0.50.0 or later (v0.1.3 was the last for v0.49.0), and must go in `Config.Plugins`: it adds
   `{{searchBox}}`.
 - **The index is a static build's.** `collage export` writes `search-index.json`
   from each page's title, description, headings and text; a running server has
@@ -721,7 +721,7 @@ Plugins: []collage.Plugin{i18n.New(i18n.Options{FS: locales})},
 { "elagoht/i18n": { "dir": "locales", "strict": true } }
 ```
 
-- It needs collage v0.22.0 or later, and must go in `Config.Plugins`: it adds
+- v0.2.4 needs collage v0.50.0 or later (v0.2.2 was the last for v0.49.0), and must go in `Config.Plugins`: it adds
   template functions.
 - One JSON file of nested keys per supported locale, `locales/<locale>.json`; the
   application does not start while a supported locale has none.
@@ -792,7 +792,7 @@ return collage.SeeOther("/welcome"), nil
 }
 ```
 
-- v0.1.2 needs collage v0.34.2 or later; v0.1.1 needed v0.23.0. It must go in
+- v0.1.6 needs collage v0.50.0 or later (v0.1.3 was the last for v0.34.2). It must go in
   `Config.Plugins`: it adds `{{fieldError}}`, `{{fieldValue}}` and `{{hasErrors}}`.
 - `{{fieldValue "name" fallback}}` shows what was submitted when a submission was
   refused, and the fallback when the form is shown for the first time — the value
@@ -851,7 +851,7 @@ Plugins: []collage.Plugin{honeypot.New(honeypot.Options{Key: key})},
 }
 ```
 
-- It needs collage v0.43.0 or later (v0.4.0 of the plugin), and must go in
+- v0.4.2 needs collage v0.50.0 or later (v0.4.0 was the last for v0.43.0), and must go in
   `Config.Plugins`: it adds `{{honeypot}}`.
 - It has no say in how large a submission may be. It checks the form in
   `BeforeActionHook`, through the action's own body limit, so a form that uploads
@@ -918,7 +918,7 @@ return collage.SeeOther("/settings"), nil
 }
 ```
 
-- It needs collage v0.22.0 or later, and must go in `Config.Plugins`: it adds
+- v0.1.4 needs collage v0.50.0 or later (v0.1.2 was the last for v0.22.0), and must go in `Config.Plugins`: it adds
   `{{flashes}}`.
 - The messages travel in a signed, `HttpOnly` cookie. Set a key of at least 32
   random bytes, the same on every instance; without one a key is made per process
@@ -969,7 +969,7 @@ private := collage.NewFragment("private", "layouts/private.html").
 }
 ```
 
-- It needs collage v0.29.0 or later since v0.2.0 (v0.23.0 before it). It adds no
+- v0.2.3 needs collage v0.50.0 or later (v0.2.2 was the last for v0.49.0). It adds no
   template function, so `RegisterPlugin` accepts it too.
 - **`RequireUser(loginPath)`** (since v0.2.0) lets through a reader whose session
   holds a value under `session.UserKey` (`"user"`), and sends everyone else `303` to
@@ -1024,7 +1024,7 @@ Plugins: []collage.Plugin{secure.New(secure.Options{
 }
 ```
 
-- It needs collage v0.43.0 or later (v0.2.0 of the plugin), and must go in
+- v0.2.3 needs collage v0.50.0 or later (v0.2.1 was the last for v0.43.0), and must go in
   `Config.Plugins`: it adds `{{cspNonce}}`. Its place in the list does not matter:
   the nonce goes in after the cache and before compression, through
   `PersonaliseHook`, so it works whether it is listed before or after
@@ -1088,7 +1088,7 @@ Plugins: []collage.Plugin{ratelimit.New(ratelimit.Options{
 }
 ```
 
-- It needs collage v0.24.0 or later. With no options, every form and action — every
+- v0.1.6 needs collage v0.50.0 or later (v0.1.3 was the last for v0.24.0). With no options, every form and action — every
   method but `GET`, `HEAD` and `OPTIONS` — is limited to a burst of ten, then one
   request every two seconds.
 - The first rule a request matches counts it, so put narrow rules first; each rule
@@ -1124,7 +1124,7 @@ Plugins: []collage.Plugin{basicauth.New(basicauth.Options{
 }
 ```
 
-- It needs collage v0.24.0 or later. The application does not start with no users.
+- v0.1.6 needs collage v0.50.0 or later (v0.1.3 was the last for v0.24.0). The application does not start with no users.
 - A password is written in plain text, as `sha256:` and its hex, or as a bcrypt
   hash. `COLLAGE_BASICAUTH_USERS` adds users from the environment, keeping secrets
   out of files.
@@ -1180,7 +1180,7 @@ Plugins: []collage.Plugin{
 }
 ```
 
-- It needs collage v0.44.0 or later (for `collage.SafeRedirect`) and elagoht/session
+- v0.1.1 needs collage v0.50.0 or later (v0.1.0 was the last for v0.44.0, which added `collage.SafeRedirect`) and elagoht/session
   v0.2.1 or later, registered too: without it the login routes answer `500`.
   `OnLogin` and `Store` are code, so set them in Go; the secret and the key belong
   in the environment, not in a file under version control.
@@ -1253,7 +1253,7 @@ Plugins: []collage.Plugin{f2b /* , the rest */},
 }
 ```
 
-- It needs collage v0.47.0 or later, for `Server.TrustedProxies`, `collage.ClientIP`
+- v0.1.4 needs collage v0.50.0 or later (v0.1.1 was the last for v0.49.0), for `Server.TrustedProxies`, `collage.ClientIP`
   and a `RequestHook` that sees requests collage rejects before routing. List it
   first in `Config.Plugins`, so its ban check runs before the other plugins'
   middleware.
@@ -1332,8 +1332,7 @@ Plugins: []collage.Plugin{live.New()},
 ```
 
 - It must go in `Config.Plugins`: it adds `{{liveClient}}`, which the layout calls
-  to include the client. v0.4.0, v0.3.0 and v0.2.1 need collage v0.20.0 or later; v0.2.0 needed
-  v0.19.0, and v0.1.0 v0.18.0.
+  to include the client. v0.4.2 needs collage v0.50.0 or later (v0.4.1 was the last for v0.49.0).
 - The page owns the container and the fragment owns what is inside it.
   `data-collage-interval` fetches on an interval, `data-collage-push` takes the
   fragment from the stream, `data-collage-swap="morph"` patches the DOM in place,
@@ -1418,8 +1417,8 @@ lv := live.New()
 Plugins: []collage.Plugin{lv, websocket.New(lv)},
 ```
 
-- Register collage-live as well, before this plugin. v0.2.1 needs collage v0.24.0
-  and collage-live v0.2.1 or later.
+- Register collage-live as well, before this plugin. v0.2.4 needs collage v0.50.0
+  and collage-live v0.4.2 or later (v0.2.3 was the last for v0.49.0).
 - Nothing else changes: the layout still includes `{{liveClient}}`, which now tells
   the client to connect here, and elements still say `data-collage-push`.
   collage-live stops serving its event stream. The WebSocket is opened from the
@@ -1458,7 +1457,7 @@ Plugins: []collage.Plugin{minimizer.New()},
 }
 ```
 
-- It needs collage v0.28.0 or later, and must go in `Config.Plugins`: it wraps the
+- v0.1.9 needs collage v0.50.0 or later (v0.1.7 was the last for v0.28.0), and must go in `Config.Plugins`: it wraps the
   mounted filesystems, which happens while the application is built.
 - `New()` enables HTML, JSON and CSS. JavaScript is off by default; turn it on with
   `{"js": true}`. `minimizer.NewWith(minimizer.Config{...})` sets every switch
@@ -1499,7 +1498,7 @@ Plugins: []collage.Plugin{optiimage.New()},
 }
 ```
 
-- It needs collage v0.24.0 or later, and must go in `Config.Plugins`.
+- v0.3.4 needs collage v0.50.0 or later (v0.3.1 was the last for v0.49.0), and must go in `Config.Plugins`.
 - **An empty `allowedOrigins`, with no `Files`, disables it.** It never fetches
   from a host you did not list, and the scheme is part of the origin.
 - **The site's own images come from its files** (since v0.3.0):
@@ -1556,7 +1555,7 @@ Plugins: []collage.Plugin{bundle.New(bundle.Options{
 }
 ```
 
-- It needs collage v0.23.0 or later, and must go in `Config.Plugins`: it adds
+- v0.1.5 needs collage v0.50.0 or later (v0.1.2 was the last for v0.23.0), and must go in `Config.Plugins`: it adds
   `{{bundle}}`.
 - The output is served from a mount at `/_bundle/`, each file under esbuild's hash
   of its content and cached for a year. A name the build did not produce fails the
@@ -1596,7 +1595,7 @@ Plugins: []collage.Plugin{favicon.New(favicon.Options{
 }
 ```
 
-- It needs collage v0.23.0 or later. The source is a square PNG, JPEG or GIF,
+- v0.1.5 needs collage v0.50.0 or later (v0.1.2 was the last for v0.23.0). The source is a square PNG, JPEG or GIF,
   ideally 512 pixels or larger, read from disk or from `FS`.
 - The icons are made once at startup and served as static documents, so a static
   build writes them. An SVG is passed through, never rasterised.
@@ -1624,7 +1623,7 @@ Plugins: []collage.Plugin{
 }
 ```
 
-- It needs collage v0.23.0 or later. **Register it before any plugin that rewrites
+- v0.1.6 needs collage v0.50.0 or later (v0.1.3 was the last for v0.43.0). **Register it before any plugin that rewrites
   response bodies**: the first plugin registered is the outermost middleware.
   elagoht/secure and elagoht/honeypot no longer need this (secure v0.2.0, honeypot
   v0.4.0, collage v0.43.0): they rewrite through `PersonaliseHook`, inside every
@@ -1670,7 +1669,7 @@ Plugins: []collage.Plugin{cdnpurge.New(cdnpurge.Options{
 }
 ```
 
-- It needs collage v0.23.0 or later. At least one of `cloudflare` and `webhook` is
+- v0.2.4 needs collage v0.50.0 or later (v0.2.1 was the last for v0.49.0). At least one of `cloudflare` and `webhook` is
   required, and an origin: `baseURL`, `Config.BaseURL` or an origin resolver.
 - It purges exactly the [paths an invalidation dropped](/docs/caching#invalidating-by-path),
   under `baseURL`. Without one it falls back to `Config.BaseURL`, and since v0.2.0
@@ -1714,7 +1713,7 @@ Plugins: []collage.Plugin{offline.New(offline.Options{
 }
 ```
 
-- It needs collage v0.24.0 or later, and must go in `Config.Plugins`: it adds
+- v0.1.5 needs collage v0.50.0 or later (v0.1.3 was the last for v0.24.0), and must go in `Config.Plugins`: it adds
   `{{offlineScript}}`, which installs the worker served at `/sw.js`.
 - Pages are fetched network-first and kept; static files under `assets` are served
   stale-while-revalidate; a page neither reachable nor kept gets the `fallback`
@@ -1756,7 +1755,7 @@ Plugins: []collage.Plugin{htmlcheck.New(htmlcheck.Options{})},
 }
 ```
 
-- It needs collage v0.22.0 or later.
+- v0.1.5 needs collage v0.50.0 or later (v0.1.2 was the last for v0.22.0).
 - In development each page is checked as it renders, and what is found is shown
   over the page. In a static build every page is checked, then the build as a
   whole — titles two pages share, links to pages the build did not write — and an
@@ -1787,7 +1786,7 @@ Plugins: []collage.Plugin{
 },
 ```
 
-- It needs collage v0.24.0 or later, and has nothing to configure.
+- v0.2.4 needs collage v0.49.0 or later (v0.2.3 was the last for v0.24.0), and has nothing to configure.
 - **Register it last**: the findings it counts are those of the plugins that ran
   before it.
 - On a server without `DevMode` and in a static build it does nothing at all. The
@@ -1818,7 +1817,7 @@ Plugins: []collage.Plugin{accesslog.New(accesslog.Options{})},
 }
 ```
 
-- It needs collage v0.24.0 or later.
+- v0.1.8 needs collage v0.50.0 or later (v0.1.5 was the last for v0.49.0).
 - The line has the method, path without its query, status, bytes, duration, client
   address, user agent, referer and request id, through the application's logger or
   `Options.Logger`; a `5xx` is logged at `ERROR`.
@@ -1850,7 +1849,7 @@ app, err := collage.New(&collage.Config{
 }
 ```
 
-- v0.2.0 needs collage v0.25.0 or later; v0.1.1 needed v0.24.0. Hand the one value
+- v0.2.6 needs collage v0.50.0 or later (v0.2.3 was the last for v0.49.0). Hand the one value
   over as both the application's `Metrics` and a plugin: without the first nothing
   is measured, without the second nothing is served.
 - No label is taken from a request. Since v0.2.0 `route` is what
@@ -1884,7 +1883,7 @@ app, err := collage.New(&collage.Config{
 { "elagoht/otel": { "skip": ["/healthz"] } }
 ```
 
-- v0.2.1 needs collage v0.26.0 or later; v0.2.0 needed v0.25.0, v0.1.0 v0.23.0. As the tracer it
+- v0.2.8 needs collage v0.50.0 or later (v0.2.5 was the last for v0.49.0). As the tracer it
   turns `collage.http`, `collage.render` and `collage.fragment` into spans; as a
   plugin it reads the caller's trace context from the headers, in a `RequestHook`
   that runs before collage's own span. Each works alone.
@@ -1921,7 +1920,7 @@ Plugins: []collage.Plugin{analytics.New(analytics.Options{
 }
 ```
 
-- It needs collage v0.23.0 or later, and `{{hoist "head"}}` in the layout.
+- v0.1.5 needs collage v0.50.0 or later (v0.1.2 was the last for v0.23.0), and `{{hoist "head"}}` in the layout.
 - Plausible, Umami and GoatCounter count visits without cookies. Google Analytics
   4 sets cookies; use it with `requireConsent`.
 - With `respectDnt` or `requireConsent`, a small loader served from the site
@@ -1960,7 +1959,7 @@ Plugins: []collage.Plugin{tenant.NewWith(tenant.Options{
 }
 ```
 
-- It needs collage v0.42.0 or later, and `tenants` or a `Resolve` function (Go only).
+- v0.1.2 needs collage v0.50.0 or later (v0.1.1 was the last for v0.49.0), and `tenants` or a `Resolve` function (Go only).
 - A host that is no tenant's is answered 404 with the site's own 404 page. A
   resolver that fails or panics is answered 503 with a `Retry-After`, and that is
   not cached. A "no tenant" answer is, for `ttl` (`"1m"`); `maxHosts` (10000)
@@ -2001,7 +2000,7 @@ Plugins: []collage.Plugin{errortrack.New(errortrack.Options{
 }
 ```
 
-- It needs collage v0.45.0 or later, whose `ErrorEvent` carries the status and the
+- v0.1.4 needs collage v0.50.0 or later (v0.1.1 was the last for v0.49.0), whose `ErrorEvent` carries the status and the
   request, and a `DSN` or `DSNEnv`: startup fails without one, except in dev mode
   without `inDevelopment`, where nothing is sent and no DSN is needed. The DSN is a
   credential; keep it in the environment, not in `collage.json`.
