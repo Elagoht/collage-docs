@@ -1189,7 +1189,7 @@ Plugins: []collage.Plugin{basicauth.New(basicauth.Options{
 }
 ```
 
-- v0.1.6, collage v0.50.0 ya da sonrasını gerektirir (v0.1.3, collage v0.24.0 için son sürümdü). Hiç kullanıcı yoksa uygulama başlamaz.
+- v0.1.7, collage v0.53.0 ya da sonrasını gerektirir (v0.1.6, collage v0.50.0 için son sürümdü). Hiç kullanıcı yoksa uygulama başlamaz.
 - Parola düz metin olarak, `sha256:` ve hex'i olarak ya da bir bcrypt hash'i olarak
   yazılır. `COLLAGE_BASICAUTH_USERS`, kullanıcıları environment'tan ekler ve
   secret'ları dosyaların dışında tutar.
@@ -1198,6 +1198,10 @@ Plugins: []collage.Plugin{basicauth.New(basicauth.Options{
 - Kimliği doğrulanmış her response'ta `public`, `private` ile değiştirilir ve
   response `Vary: Authorization` taşır. Böylece öndeki bir CDN, bir page'i sormadan
   sonraki okuyucuya vermez. Siteyi HTTPS üzerinden sunun.
+- Static build'in header yakalaması geçirilir; böylece deploy edilen bir page bir
+  `401`'in header'larını taşımaz. Korunan bir path'in altına dosya yazan bir build
+  `basicauth-exported` uyarısı verir: static bir host bu dosyaları parolasız sunar.
+  Onları host'ta koruyun ya da build'in dışında bırakın.
 
 #### elagoht/oauth
 
@@ -1323,10 +1327,11 @@ Plugins: []collage.Plugin{f2b /* , diğerleri */},
 }
 ```
 
-- v0.1.4, collage v0.50.0 ya da sonrasını gerektirir (v0.1.1, collage v0.49.0 için son sürümdü): `Server.TrustedProxies`,
+- v0.1.6, collage v0.52.0 ya da sonrasını gerektirir (v0.1.4, collage v0.50.0 için son sürümdü): `Server.TrustedProxies`,
   `collage.ClientIP` ve collage'ın routing'den önce reddettiği request'leri de gören
-  bir `RequestHook` için. `Config.Plugins`'te ilk sıraya koyun; böylece ban kontrolü
-  diğer plugin'lerin middleware'inden önce çalışır.
+  bir `RequestHook` için. `Config.Plugins`'te ilk sıraya koyun, elagoht/health kullanılıyorsa onun
+  arkasına; böylece ban kontrolü diğer plugin'lerin middleware'inden önce çalışır ve
+  health'in probe'ları bir ban yüzünden reddedilmez.
 - **Bir reverse proxy ya da CDN'in arkasında `Server.TrustedProxies`'i ayarlayın.**
   Ayarlanmazsa istemci proxy'nin kendisi olur: tek bir tarayıcı bot proxy'nizin
   banlanmasına, onunla birlikte her ziyaretçinin banlanmasına yol açar. Bir CDN'in
@@ -1711,11 +1716,12 @@ Plugins: []collage.Plugin{
 }
 ```
 
-- v0.1.6, collage v0.50.0 ya da sonrasını gerektirir (v0.1.3, collage v0.43.0 için son sürümdü). **Onu response body'lerini yeniden
+- v0.1.7, collage v0.50.0 ya da sonrasını gerektirir (v0.1.3, collage v0.43.0 için son sürümdü). **Onu response body'lerini yeniden
   yazan her plugin'den önce register edin.** İlk register edilen plugin en dıştaki
   middleware'dir. elagoht/secure ve elagoht/honeypot artık buna ihtiyaç duymaz
   (secure v0.2.0, honeypot v0.4.0, collage v0.43.0): `PersonaliseHook` ile, her
-  middleware'in içinde yeniden yazarlar.
+  middleware'in içinde yeniden yazarlar. elagoht/health, compress'ten önce de sonra da
+  listelenebilir.
 - En az `minSize` byte'lık metin türleri, request'in kabul ettiği en iyi encoding ile
   sıkıştırılır. `text/event-stream`, bir WebSocket ve bir `Range` request'ine
   dokunulmaz.
@@ -1951,7 +1957,7 @@ Plugins: []collage.Plugin{accesslog.New(accesslog.Options{})},
 ```json
 {
   "elagoht/accesslog": {
-    "skip": ["/_collage/", "/healthz", "/static/"],
+    "skip": ["/_collage/", "/healthz", "/readyz", "/static/"],
     "sample": 0.25,
     "trustProxy": true,
     "requestIdHeader": "X-Request-ID"
@@ -1959,7 +1965,8 @@ Plugins: []collage.Plugin{accesslog.New(accesslog.Options{})},
 }
 ```
 
-- v0.1.8, collage v0.50.0 ya da sonrasını gerektirir (v0.1.5, collage v0.49.0 için son sürümdü).
+- v0.1.10, collage v0.53.0 ya da sonrasını gerektirir (v0.1.8, collage v0.50.0 için son sürümdü).
+  elagoht/health'in path'leri olan `/healthz` ve `/readyz` varsayılan olarak atlanır.
 - Satırda metot, query'siz path, status, byte sayısı, süre, istemci adresi, user
   agent, referer ve request id bulunur. Satır uygulamanın logger'ıyla ya da
   `Options.Logger` ile yazılır; bir `5xx`, `ERROR` seviyesinde log'lanır.
@@ -2105,7 +2112,7 @@ Plugins: []collage.Plugin{tenant.NewWith(tenant.Options{
 }
 ```
 
-- v0.1.2, collage v0.50.0 ya da sonrasını ister (v0.1.1, collage v0.49.0 için son sürümdü); `tenants` ya da bir `Resolve` fonksiyonu
+- v0.1.3, collage v0.53.0 ya da sonrasını ister (v0.1.2, collage v0.50.0 için son sürümdü); `tenants` ya da bir `Resolve` fonksiyonu
   (yalnızca Go) gerekir.
 - Hiçbir tenant'a ait olmayan host, site'ın kendi 404 page'iyle 404 alır. Başarısız
   olan ya da panic eden bir resolver `Retry-After` ile 503 alır ve bu cache'lenmez.
@@ -2117,7 +2124,10 @@ Plugins: []collage.Plugin{tenant.NewWith(tenant.Options{
 - `elagoht/sitemap`, `feed`, `meta`, `ogimage`, `indexnow`, `cdnpurge` ve `robots`
   v0.2.0'dan itibaren host'u izler.
 - `acme.localhost` `collage dev` ile çalışır. Static build'in host'u yoktur; tenant'sız
-  render eder ve `tenant/no-host` uyarısı verir.
+  render eder ve `tenant/no-host` uyarısı verir. Static export, `Config.BaseURL`'ün
+  host'unun site'ıdır ve tenant'sız render edilir; tenant başına export desteklenmez.
+  Header yakalaması o host olarak cevaplanır; bu yüzden o host bir tenant'ın olmalı ya
+  da `bypass`'ta listelenmeli.
 
 #### elagoht/errortrack
 

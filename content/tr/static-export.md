@@ -450,7 +450,15 @@ Yakalamanın bulduğu şeyler build'in finding'lerinde uyarı olarak raporlanır
 | `capture-status` | Bir dosya 2xx dışında bir status ile ya da iki farklı status ile cevaplandı. |
 | `capture-failed` | Bir path cevaplanmadı (her request'in bir süre sınırı vardır) ya da yakalama hiç çalışmadı. |
 | `capture-dev-mode` | Build development modunda çalıştı. Bu moddaki header'lar (`Cache-Control: no-store`) deploy edilecek header'lar değildir. |
-| `capture-personal` | Bazı page'ler, cevaplar arasında değişen bir header'ın yanında `Cache-Control` `private` ya da `no-store` ile cevaplandı. O header dışarıda bırakıldığı için dosya artık kişiye özel değildir; `Cache-Control` yalnızca host'un onu cache'lemesini engeller. |
+| `capture-personal` | Bazı page'ler, cevaplar arasında değişen bir header'ın yanında `Cache-Control` `private` ya da `no-store` ile cevaplandı. O header dışarıda bırakıldığı için dosya artık kişiye özel değildir; `Cache-Control` yalnızca host'un onu cache'lemesini engeller. Bir `PersonaliseHook` buna yol açamaz ve bir development build'i bunu vermez. |
+
+`Personal` set eden bir `PersonaliseHook`, örneğin elagoht/secure'un CSP nonce'ı,
+yakalamanın `private, no-store` ile cevaplanmasına yol açmaz. Yakalama hook'u
+çalıştırır ama `Personal`'ı bir kenara koyar. Böylece export edilen bir nonce page'i,
+strateji'sinin verdiği `Cache-Control`'ü alır (incremental bir page için
+`public, max-age=…`). Okuyucunun request'i değişmez. Bir development build'i
+`capture-personal` vermez: onun `no-store`'u zaten `capture-dev-mode`'un uyardığı
+şeydir.
 
 Middleware yakalama request'lerini görür. Trafiği sayan ya da sınırlayan bir
 middleware (analytics, bir rate limiter, bir ban listesi),

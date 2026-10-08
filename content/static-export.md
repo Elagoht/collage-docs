@@ -424,7 +424,14 @@ What the capture found is reported as warnings in the build's findings:
 | `capture-status` | A file was answered with a status other than 2xx, or with two different statuses. |
 | `capture-failed` | A path was not answered — each request has a deadline — or the capture did not run at all. |
 | `capture-dev-mode` | The build ran in development mode, whose headers (`Cache-Control: no-store`) are not the ones to deploy. |
-| `capture-personal` | Pages answered with `Cache-Control` `private` or `no-store` beside a header that differs between answers. That header is left out, so the file is no longer personal, and the `Cache-Control` only keeps a host from caching it. |
+| `capture-personal` | Pages answered with `Cache-Control` `private` or `no-store` beside a header that differs between answers. That header is left out, so the file is no longer personal, and the `Cache-Control` only keeps a host from caching it. A `PersonaliseHook` cannot cause it, and a development build does not raise it. |
+
+A `PersonaliseHook` that sets `Personal`, such as a CSP nonce from elagoht/secure, does
+not make the capture answer `private, no-store`: the capture runs the hook but sets
+`Personal` aside, so an exported nonce page gets the `Cache-Control` its strategy
+gives (`public, max-age=…` for an incremental page). A reader's request is unchanged.
+A development build does not raise `capture-personal`: its `no-store` is what
+`capture-dev-mode` already warns about.
 
 Middleware sees the capture requests. One that counts or limits traffic —
 analytics, a rate limiter, a ban list — lets a request through untouched when

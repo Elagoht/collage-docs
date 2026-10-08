@@ -1140,7 +1140,7 @@ Plugins: []collage.Plugin{basicauth.New(basicauth.Options{
 }
 ```
 
-- v0.1.6 needs collage v0.50.0 or later (v0.1.3 was the last for v0.24.0). The application does not start with no users.
+- v0.1.7 needs collage v0.53.0 or later (v0.1.6 was the last for v0.50.0). The application does not start with no users.
 - A password is written in plain text, as `sha256:` and its hex, or as a bcrypt
   hash. `COLLAGE_BASICAUTH_USERS` adds users from the environment, keeping secrets
   out of files.
@@ -1149,6 +1149,10 @@ Plugins: []collage.Plugin{basicauth.New(basicauth.Options{
 - Every authenticated response has `public` replaced by `private` and carries
   `Vary: Authorization`, so a CDN in front does not hand a page to the next reader
   without asking. Serve it over HTTPS.
+- A static build's header capture is let through, so a deployed page does not carry
+  a `401`'s headers. A build that writes files under a protected path warns
+  `basicauth-exported`: a static host serves them without a password, so protect
+  them at the host or leave them out of the build.
 
 #### elagoht/oauth
 
@@ -1269,10 +1273,11 @@ Plugins: []collage.Plugin{f2b /* , the rest */},
 }
 ```
 
-- v0.1.4 needs collage v0.50.0 or later (v0.1.1 was the last for v0.49.0), for `Server.TrustedProxies`, `collage.ClientIP`
+- v0.1.6 needs collage v0.52.0 or later (v0.1.4 was the last for v0.50.0), for `Server.TrustedProxies`, `collage.ClientIP`
   and a `RequestHook` that sees requests collage rejects before routing. List it
-  first in `Config.Plugins`, so its ban check runs before the other plugins'
-  middleware.
+  first in `Config.Plugins`, after `elagoht/health` when that is used, so its ban
+  check runs before the other plugins' middleware and health's probes are not
+  refused by a ban.
 - **Behind a reverse proxy or a CDN, set `Server.TrustedProxies`.** Without it the
   proxy is the client: one scanner gets your proxy banned, and with it every
   visitor. List every hop, a CDN's published ranges included. If you forget, a
@@ -1640,11 +1645,11 @@ Plugins: []collage.Plugin{
 }
 ```
 
-- v0.1.6 needs collage v0.50.0 or later (v0.1.3 was the last for v0.43.0). **Register it before any plugin that rewrites
+- v0.1.7 needs collage v0.50.0 or later (v0.1.3 was the last for v0.43.0). **Register it before any plugin that rewrites
   response bodies**: the first plugin registered is the outermost middleware.
   elagoht/secure and elagoht/honeypot no longer need this (secure v0.2.0, honeypot
   v0.4.0, collage v0.43.0): they rewrite through `PersonaliseHook`, inside every
-  middleware.
+  middleware. `elagoht/health` may be listed before or after compress.
 - Text types of at least `minSize` bytes are compressed with the best encoding the
   request accepts. `text/event-stream`, a WebSocket and a `Range` request are left
   alone.
@@ -1873,7 +1878,7 @@ Plugins: []collage.Plugin{accesslog.New(accesslog.Options{})},
 ```json
 {
   "elagoht/accesslog": {
-    "skip": ["/_collage/", "/healthz", "/static/"],
+    "skip": ["/_collage/", "/healthz", "/readyz", "/static/"],
     "sample": 0.25,
     "trustProxy": true,
     "requestIdHeader": "X-Request-ID"
@@ -1881,7 +1886,8 @@ Plugins: []collage.Plugin{accesslog.New(accesslog.Options{})},
 }
 ```
 
-- v0.1.8 needs collage v0.50.0 or later (v0.1.5 was the last for v0.49.0).
+- v0.1.10 needs collage v0.53.0 or later (v0.1.8 was the last for v0.50.0). `/healthz` and
+  `/readyz`, the paths of `elagoht/health`, are skipped by default.
 - The line has the method, path without its query, status, bytes, duration, client
   address, user agent, referer and request id, through the application's logger or
   `Options.Logger`; a `5xx` is logged at `ERROR`.
@@ -2023,7 +2029,7 @@ Plugins: []collage.Plugin{tenant.NewWith(tenant.Options{
 }
 ```
 
-- v0.1.2 needs collage v0.50.0 or later (v0.1.1 was the last for v0.49.0), and `tenants` or a `Resolve` function (Go only).
+- v0.1.3 needs collage v0.53.0 or later (v0.1.2 was the last for v0.50.0), and `tenants` or a `Resolve` function (Go only).
 - A host that is no tenant's is answered 404 with the site's own 404 page. A
   resolver that fails or panics is answered 503 with a `Retry-After`, and that is
   not cached. A "no tenant" answer is, for `ttl` (`"1m"`); `maxHosts` (10000)
@@ -2034,7 +2040,10 @@ Plugins: []collage.Plugin{tenant.NewWith(tenant.Options{
 - `elagoht/sitemap`, `feed`, `meta`, `ogimage`, `indexnow`, `cdnpurge` and `robots`
   follow the host from v0.2.0.
 - `acme.localhost` works through `collage dev`. A static build has no host, so it
-  renders without a tenant and warns `tenant/no-host`.
+  renders without a tenant and warns `tenant/no-host`. A static export is the site of
+  `Config.BaseURL`'s host, rendered without a tenant; exporting per tenant is not
+  supported. Its header capture is answered as that host, so it must be a tenant's
+  or listed in `bypass`.
 
 #### elagoht/errortrack
 
