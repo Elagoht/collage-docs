@@ -2232,9 +2232,10 @@ if err := mail.Enqueue(r.Context(), Email{To: to}); err != nil {
   not have. Embed it, about 450 KB, with `import _ "time/tzdata"` in `main`. The
   scaffold's distroless image ships zoneinfo already.
 - `NewQueue[T]` hands items of type `T` to a function, with no type assertion.
-  `Workers` (1) handle items at once, `Capacity` (1000) bounds how many wait,
-  `MaxAttempts` (1) retries with a backoff from 1s up to a minute, and `OnFailure`
-  is called once with the last error. `Enqueue` never blocks: it returns
+  `Workers` (1) is how many items are handled at the same time, `Capacity` (1000)
+  bounds how many wait, and `MaxAttempts` (1, no retry) is how many times an item
+  is tried; each retry waits 1s, 2s, 4s… capped at a minute. `OnFailure` is called
+  once with the last error. `Enqueue` never blocks: it returns
   `ErrQueueFull` on a full queue, and `ErrDraining` only once the plugin's
   `Shutdown` has begun. The drain refuses nothing, since the server still serves
   then. Items live in memory and are lost if the process ends.

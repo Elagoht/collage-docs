@@ -1874,8 +1874,8 @@ Plugins: []collage.Plugin{deploy.NewWith(deploy.Config{Target: "netlify"})},
 
 Bir sitenin render ettiğini denetlemek, development'ta bir render'ı görmek ve
 çalışan bir siteyi izlemek: access log'ları, metric'ler, trace'ler, analytics, hata
-raporları ve health probe'ları. Bir de sitenin çalıştırdığı zamanlanmış job'lar ve
-arka plan queue'ları.
+raporları, health probe'ları ve sitenin çalıştırdığı zamanlanmış job'larla arka plan
+queue'ları.
 
 #### elagoht/htmlcheck
 
@@ -2327,8 +2327,9 @@ if err := mail.Enqueue(r.Context(), Email{To: to}); err != nil {
   binary'ye gömün. Scaffold'un distroless image'ı zoneinfo'yu zaten içerir.
 - `NewQueue[T]`, `T` tipindeki item'ları type assertion olmadan bir fonksiyona
   verir. `Workers` (1) aynı anda işlenen item sayısıdır, `Capacity` (1000) kaç
-  item'ın bekleyebileceğini sınırlar. `MaxAttempts` (1), 1s'den bir dakikaya kadar
-  artan bir backoff ile tekrar dener. `OnFailure` son hatayla bir kez çağrılır.
+  item'ın bekleyebileceğini sınırlar. `MaxAttempts` (1, yani tekrar yok) bir
+  item'ın kaç kez deneneceğidir. Her tekrardan önce 1s, 2s, 4s… şeklinde, en fazla
+  bir dakika beklenir. `OnFailure` son hatayla bir kez çağrılır.
   `Enqueue` hiçbir zaman bloklamaz: dolu bir queue'da `ErrQueueFull`, yalnızca
   plugin'in `Shutdown`'ı başladıktan sonra ise `ErrDraining` döner. Drain hiçbir
   şeyi reddetmez, çünkü sunucu o sırada hâlâ hizmet verir. Item'lar bellekte durur
