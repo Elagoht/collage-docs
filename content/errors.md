@@ -49,7 +49,7 @@ application. See [Configuration](/docs/configuration#validation).
 | `ErrUnsupportedCache` | `collage: unsupported cache type` | The cache type names nothing the framework can build. | Normally caught earlier as `ErrInvalidCacheType`. |
 | `ErrEmptyLocaleDefault` | `collage: empty default locale` | `Locale.Default` is empty. | Only reachable through `Validate`; `New` defaults it to `"en"`. |
 | `ErrLocaleDefaultNotSupported` | `collage: default locale not in supported locales` | `Locale.Supported` does not include `Locale.Default`. | Add the default to `Supported`. |
-| `ErrNegativeDuration` | `collage: negative duration` | One of the seven duration fields is negative; the message names which. | Use zero for the default. |
+| `ErrNegativeDuration` | `collage: negative duration` | One of the eight duration fields is negative; the message names which. | Use zero for the default. |
 
 ## Plugins and commands
 
@@ -237,6 +237,7 @@ value at registration and on a request.
 | `ErrDuplicateAction` | `collage: duplicate action` | A second action was registered under a name already taken. | — |
 | `ErrNoActionPaths` | `collage: action has no paths` | A standalone action has no `WithPath`. | An action on a page takes the page's paths; one on its own needs its own. |
 | `ErrNoActionHandler` | `collage: action has no handler` | An action has no `WithHandler`. | — |
+| `ErrInvalidActionMethod` | `collage: invalid action method` | An action declares `OPTIONS`, `TRACE` or `CONNECT`, which the server answers itself (since v0.56.0); the message names the action and the method. | Remove it from `WithMethods`. A CORS preflight belongs in a middleware. |
 | `ErrNoMethods` | `collage: action declares no methods` | An action answers no method. | `WithMethods(http.MethodPost)`, or `WithAction` on a page. |
 | `ErrNilFragmentPath` | `collage: fragment path has no fragment` | `WithFragmentPath` was given a `nil` fragment. | — |
 | `ErrUnregisteredPage` | `collage: action answered with a page that was never registered` | An action's `RenderPage` returned a page that was not registered. The request fails with a 500. | Register the page, and answer with that same value rather than building one in the handler. |

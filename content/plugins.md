@@ -434,7 +434,7 @@ Plugins: []collage.Plugin{feed.New(feed.Feed{
 })},
 ```
 
-- v0.2.0 needs collage v0.42.0 or later (v0.1.2 was the last for v0.39.0). It is configured in Go only, since `Items` is
+- v0.2.2 needs collage v0.55.0 or later (v0.2.0 was the last for v0.42.0). It is configured in Go only, since `Items` is
   a function.
 - A feed is served at `/feed.xml` as RSS and `/atom.xml` as Atom; `RSS` and `Atom`
   move them, and `"-"` leaves a format out. Several feeds each take a `Name` and
@@ -443,6 +443,12 @@ Plugins: []collage.Plugin{feed.New(feed.Feed{
   `{{hoist "head"}}` in the layout; `NoDiscovery` keeps a feed out of the heads.
 - It is a static document: cached, exported, and made again when one of its
   `Tags` is invalidated.
+- **Links are written only as `http` or `https`** (since v0.2.1). An item link, a
+  URL-shaped `ID`, or the channel link with any other scheme (`javascript:`, `data:`,
+  `file:`, however it is spelled) is dropped and logged once at `WARN`, with the scheme
+  and not the link. A feed's own `Link`, `RSS` or `Atom` with such a scheme stops the
+  application from starting with `ErrUnsafeLink`. An absolute `http` or `https` link
+  is written as given (v0.2.2; v0.2.1 re-encoded a non-ASCII path).
 - Without a `BaseURL` of its own, a feed's links follow the request's origin,
   `Config.BaseURL` or an `OriginResolver` plugin's, so one feed serves each host its
   own links (v0.2.0, collage v0.42.0). A `BaseURL` set on the feed always wins.
@@ -1480,8 +1486,10 @@ Plugins: []collage.Plugin{minimizer.New()},
 }
 ```
 
-- v0.1.9 needs collage v0.50.0 or later (v0.1.7 was the last for v0.28.0), and must go in `Config.Plugins`: it wraps the
-  mounted filesystems, which happens while the application is built.
+- v0.1.10 needs collage v0.55.0 or later (v0.1.9 was the last for v0.50.0), and must go in `Config.Plugins`: it wraps the
+  mounted filesystems, which happens while the application is built. v0.1.10 fixes a
+  data race in the byte totals behind the shutdown summary, which pages rendering at the
+  same time could make wrong.
 - `New()` enables HTML, JSON and CSS. JavaScript is off by default; turn it on with
   `{"js": true}`. `minimizer.NewWith(minimizer.Config{...})` sets every switch
   yourself and bypasses those defaults.
@@ -1521,7 +1529,7 @@ Plugins: []collage.Plugin{optiimage.New()},
 }
 ```
 
-- v0.3.4 needs collage v0.50.0 or later (v0.3.1 was the last for v0.49.0), and must go in `Config.Plugins`.
+- v0.3.5 needs collage v0.55.0 or later (v0.3.4 was the last for v0.50.0), and must go in `Config.Plugins`.
 - **An empty `allowedOrigins`, with no `Files`, disables it.** It never fetches
   from a host you did not list, and the scheme is part of the origin.
 - **The site's own images come from its files** (since v0.3.0):
@@ -1531,6 +1539,12 @@ Plugins: []collage.Plugin{optiimage.New()},
   own public address, and a test or an export needs no network. The file's content
   is part of the image's name, so a changed file is a new name. `Files` has no
   JSON form.
+- **An image from an origin is not `immutable`** (since v0.3.5). Its name is made from
+  the recipe (URL, size, format), not from the content, so the origin can change the
+  file under the same name. It is served with `public, max-age=<originMaxAge>`;
+  `originMaxAge` is a duration, `"24h"` by default, at least one second. An image of
+  the site's own `Files`, whose name carries its content's digest, keeps
+  `public, max-age=31536000, immutable`.
 - Only images with both `width` and `height` as pixel counts are rewritten; that
   declared size is the only honest target size there is.
 - Nothing is fetched during the render. The page links a content-addressed name
@@ -1646,7 +1660,7 @@ Plugins: []collage.Plugin{
 }
 ```
 
-- v0.1.7 needs collage v0.50.0 or later (v0.1.3 was the last for v0.43.0). **Register it before any plugin that rewrites
+- v0.1.8 needs collage v0.55.0 or later (v0.1.7 was the last for v0.50.0). **Register it before any plugin that rewrites
   response bodies**: the first plugin registered is the outermost middleware.
   elagoht/secure and elagoht/honeypot no longer need this (secure v0.2.0, honeypot
   v0.4.0, collage v0.43.0): they rewrite through `PersonaliseHook`, inside every
@@ -1660,6 +1674,11 @@ Plugins: []collage.Plugin{
   has `private` or `no-store`, such as a page carrying elagoht/secure's nonce, is
   still compressed but never kept (v0.1.3): it changes every time, so what was
   kept would never be reused.
+- **`skipPrivate`** (since v0.1.8, `false` by default) sends a response whose
+  `Cache-Control` carries `private` or `no-store` uncompressed, against BREACH: when a
+  response holds a secret, such as a forgery token, next to input the page reflects,
+  its compressed size can leak the secret a character at a time. Nothing changes unless
+  it is turned on. The README's BREACH section lists the other mitigations.
 - A static build writes a `.br` and a `.gz` beside every compressible file, for a
   host that serves precompressed files; `noPrecompress` turns it off.
 
@@ -1887,7 +1906,7 @@ Plugins: []collage.Plugin{accesslog.New(accesslog.Options{})},
 }
 ```
 
-- v0.1.10 needs collage v0.53.0 or later (v0.1.8 was the last for v0.50.0). `/healthz` and
+- v0.1.11 needs collage v0.55.0 or later (v0.1.10 was the last for v0.53.0). `/healthz` and
   `/readyz`, the paths of `elagoht/health`, are skipped by default.
 - The line has the method, path without its query, status, bytes, duration, client
   address, user agent, referer and request id, through the application's logger or
@@ -1896,6 +1915,10 @@ Plugins: []collage.Plugin{accesslog.New(accesslog.Options{})},
   is sent back and read with `accesslog.RequestID(ctx)`.
 - `sample` logs a fraction of `2xx` responses, never of the rest. `trustProxy`
   reads the client's address from `X-Forwarded-For`, from trusted proxies only.
+- **The referer is logged without its query** (since v0.1.11): its scheme, host and path
+  only, with no query, fragment or user info, where a reset token or a session id can
+  travel. One that does not parse is logged as `""`. `fullReferer: true` logs the header
+  exactly as before.
 
 #### elagoht/prometheus
 

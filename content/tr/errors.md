@@ -49,7 +49,7 @@ ortaya çıkarlar. Bkz. [Config](/docs/configuration#validation).
 | `ErrUnsupportedCache` | `collage: unsupported cache type` | Cache tipi framework'ün kurabildiği hiçbir şeye karşılık gelmez. | Normalde bu durum daha önce `ErrInvalidCacheType` olarak yakalanır. |
 | `ErrEmptyLocaleDefault` | `collage: empty default locale` | `Locale.Default` boştur. | Bu hataya yalnızca `Validate` üzerinden ulaşılır; `New` onu varsayılan olarak `"en"` yapar. |
 | `ErrLocaleDefaultNotSupported` | `collage: default locale not in supported locales` | `Locale.Supported`, `Locale.Default`'u içermez. | Varsayılan locale'i `Supported`'a ekleyin. |
-| `ErrNegativeDuration` | `collage: negative duration` | Yedi süre alanından biri negatiftir; mesaj hangisi olduğunu söyler. | Varsayılan değer için sıfır kullanın. |
+| `ErrNegativeDuration` | `collage: negative duration` | Sekiz süre alanından biri negatiftir; mesaj hangisi olduğunu söyler. | Varsayılan değer için sıfır kullanın. |
 
 ## Plugin'ler ve komutlar
 
@@ -243,6 +243,7 @@ ve request'te aynı değerdir.
 | `ErrDuplicateAction` | `collage: duplicate action` | Alınmış bir isimle ikinci bir action register edilmiştir. | — |
 | `ErrNoActionPaths` | `collage: action has no paths` | Bağımsız bir action'ın `WithPath`'i yoktur. | Bir page'e bağlı action page'in path'lerini alır; tek başına duran bir action'ın kendi path'leri olmalıdır. |
 | `ErrNoActionHandler` | `collage: action has no handler` | Bir action'ın `WithHandler`'ı yoktur. | — |
+| `ErrInvalidActionMethod` | `collage: invalid action method` | Bir action, sunucunun kendisinin cevapladığı `OPTIONS`, `TRACE` ya da `CONNECT`'i bildirir (v0.56.0'dan beri). Mesaj action'ın ve method'un adını verir. | Onu `WithMethods`'tan çıkarın. CORS preflight'ı bir middleware'e aittir. |
 | `ErrNoMethods` | `collage: action declares no methods` | Bir action hiçbir method'a cevap vermez. | `WithMethods(http.MethodPost)` kullanın ya da page'de `WithAction` kullanın. |
 | `ErrNilFragmentPath` | `collage: fragment path has no fragment` | `WithFragmentPath`'e `nil` bir fragment verilmiştir. | — |
 | `ErrUnregisteredPage` | `collage: action answered with a page that was never registered` | Bir action'ın `RenderPage`'i register edilmemiş bir page dönmüştür. Request 500 ile başarısız olur. | Page'i register edin ve handler içinde yeni bir page kurmak yerine aynı değerle cevap verin. |

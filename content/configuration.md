@@ -126,12 +126,13 @@ spelling it was posted to.
 | `Host` | `string` | `"localhost"` | Address the server listens on. |
 | `Port` | `int` | `6060` (`3000` before v0.32.0) | TCP port, `1`–`65535`. |
 | `ReadTimeout` | `time.Duration` | `15s` | How long reading a request may take. |
+| `ReadHeaderTimeout` | `time.Duration` | `0` | How long reading the request headers alone may take. Zero uses `ReadTimeout` (since v0.56.0). |
 | `WriteTimeout` | `time.Duration` | `30s` | How long writing a response may take. |
 | `IdleTimeout` | `time.Duration` | `60s` | How long a keep-alive connection may sit idle. |
 | `ShutdownTimeout` | `time.Duration` | `10s` | How long graceful shutdown waits for in-flight requests. |
 | `DrainDelay` | `time.Duration` | `0` | How long the server keeps serving, keep-alives off, once a shutdown starts and before the port closes; ignored in development (since v0.53.0). See [Deployment](/docs/deployment#graceful-shutdown-and-draining). |
 | `MaxBodyBytes` | `int64` | 4 MiB | Bound on a request body when the action it routes to sets none — applied before middleware since v0.34.0. |
-| `TrustedProxies` | `[]string` | none | Addresses and CIDR ranges of the proxies in front of the server, whose `X-Forwarded-For` is believed (since v0.47.0). |
+| `TrustedProxies` | `[]string` | none | Addresses and CIDR ranges of the proxies in front of the server, whose `X-Forwarded-For` is believed (since v0.47.0), and, when the list is set, whose `X-Forwarded-Proto` is (since v0.56.0). |
 
 `Host` defaults to `localhost`, which is unreachable from outside the machine — in
 a container, set it to `0.0.0.0`. A scaffolded project fills `Host` and `Port` from
@@ -165,6 +166,8 @@ never the proxy. List every hop, a CDN's published ranges included, and only pro
 you run or your platform's documented ranges. Trusting a range a client can send from
 lets that client name any address it likes; a range with zero bits (`0.0.0.0/0`,
 `::/0`) trusts everyone, and `collage.New` logs a Warn for it.
+Since v0.56.0 the same list decides whose `X-Forwarded-Proto` marks the forgery cookie
+`Secure`; empty, that header is believed from anyone, as before.
 See [Deployment](/docs/deployment#behind-a-proxy-trustedproxies).
 
 ## SecurityConfig
@@ -385,9 +388,9 @@ render of the same key that was already running.
 | `Cache.Enabled`, no `Store`, `Type` `"disk"`, and `Cache.Dir` empty | `ErrEmptyCacheDir` |
 | `Locale.Default` empty | `ErrEmptyLocaleDefault` |
 | `Locale.Default` not in `Locale.Supported` | `ErrLocaleDefaultNotSupported` |
-| A negative `Server.ReadTimeout`, `WriteTimeout`, `IdleTimeout`, `ShutdownTimeout`, `DrainDelay`, `Template.Timeout` or `Cache.DefaultTTL` | `ErrNegativeDuration` |
+| A negative `Server.ReadTimeout`, `ReadHeaderTimeout`, `WriteTimeout`, `IdleTimeout`, `ShutdownTimeout`, `DrainDelay`, `Template.Timeout` or `Cache.DefaultTTL` | `ErrNegativeDuration` |
 
-The negative-duration error is one sentinel for all six fields; the message names
+The negative-duration error is one sentinel for all eight fields; the message names
 the one that failed, such as `server.read_timeout`. Because defaults are applied
 first, a zero port or an empty default locale never reaches validation from `New`
 — only a value you set explicitly can fail. Match these with `errors.Is`; the full

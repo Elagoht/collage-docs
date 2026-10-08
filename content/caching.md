@@ -349,6 +349,16 @@ default: a data handler receives the whole request and may read
 `rc.Request.URL.Query()`, so `?page=2` could be a different page, and collage
 cannot know.
 
+This default is deliberate and will not change. Dropping the query, or keeping only
+an allowlist of it, by default would make every page that reads a parameter it did
+not declare share one entry across all values of it: `?page=2` served as page one,
+one visitor's filter served to the next, and nothing would fail to say so. A page
+opts into a smaller key with `WithCacheParams`; the framework never guesses one for
+it. What keeps an unbounded number of query variants from becoming unbounded memory
+is the cache's bounds, not the key: `Cache.MaxEntries`, `Cache.MaxBytes` and the
+tracker's caps (see [the tag index is bounded](#the-tag-index-is-per-process-and-bounded)).
+A client minting variants evicts entries, which costs hit rate, not memory.
+
 It is also expensive. A newsletter link with `?utm_source=newsletter` stores a
 second copy of the page, and a crawler trying variants fills the cache with copies
 nobody asked for, evicting real ones. Say which parameters the page reads:

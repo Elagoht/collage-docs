@@ -459,7 +459,7 @@ Plugins: []collage.Plugin{feed.New(feed.Feed{
 })},
 ```
 
-- v0.2.0, collage v0.42.0 ya da sonrasını gerektirir (v0.1.2, collage v0.39.0 için son sürümdü). `Items` bir fonksiyon olduğu için
+- v0.2.2, collage v0.55.0 ya da sonrasını gerektirir (v0.2.0, collage v0.42.0 için son sürümdü). `Items` bir fonksiyon olduğu için
   yalnızca Go'da yapılandırılır.
 - Bir feed RSS olarak `/feed.xml`'de, Atom olarak `/atom.xml`'de sunulur. `RSS` ve
   `Atom` bu path'leri değiştirir, `"-"` ise bir formatı dışarıda bırakır. Birden
@@ -470,6 +470,13 @@ Plugins: []collage.Plugin{feed.New(feed.Feed{
   dışında tutar.
 - Static bir document'tır: cache'lenir, export edilir ve `Tags`'inden biri
   invalidate edildiğinde yeniden üretilir.
+- **Link'ler yalnızca `http` ya da `https` olarak yazılır** (v0.2.1'den beri). Başka
+  bir scheme taşıyan bir öğe link'i, URL biçimindeki bir `ID` ya da channel link'i
+  (`javascript:`, `data:`, `file:`, nasıl yazılırsa yazılsın) atılır ve link değil,
+  yalnızca scheme'i ile bir kez `WARN` seviyesinde log'lanır. Bir feed'in kendi
+  `Link`'i, `RSS`'i ya da `Atom`'u böyle bir scheme taşırsa uygulama `ErrUnsafeLink`
+  ile başlamaz. Mutlak bir `http` ya da `https` link'i verildiği gibi yazılır
+  (v0.2.2; v0.2.1 ASCII olmayan bir path'i yeniden encode ediyordu).
 - Kendi `BaseURL`'ü yoksa feed'in link'leri request'in origin'ini izler:
   `Config.BaseURL`'ü ya da bir `OriginResolver` plugin'inin verdiğini. Böylece tek
   bir feed her host'a kendi link'lerini sunar (v0.2.0, collage v0.42.0). Feed'e
@@ -1543,8 +1550,10 @@ Plugins: []collage.Plugin{minimizer.New()},
 }
 ```
 
-- v0.1.9, collage v0.50.0 ya da sonrasını gerektirir (v0.1.7, collage v0.28.0 için son sürümdü) ve `Config.Plugins` içinde olmalıdır.
+- v0.1.10, collage v0.55.0 ya da sonrasını gerektirir (v0.1.9, collage v0.50.0 için son sürümdü) ve `Config.Plugins` içinde olmalıdır.
   Mount edilen dosya sistemlerini sarmalar ve bu işlem uygulama kurulurken yapılır.
+  v0.1.10, shutdown özetinin arkasındaki byte toplamlarındaki bir data race'i düzeltir.
+  Aynı anda render edilen page'ler bu toplamları yanlış yapabiliyordu.
 - `New()` HTML, JSON ve CSS'i etkinleştirir. JavaScript varsayılan olarak
   kapalıdır, `{"js": true}` ile açabilirsiniz.
   `minimizer.NewWith(minimizer.Config{...})` ile her ayarı kendiniz belirlersiniz ve
@@ -1588,7 +1597,7 @@ Plugins: []collage.Plugin{optiimage.New()},
 }
 ```
 
-- v0.3.4, collage v0.50.0 ya da sonrasını gerektirir (v0.3.1, collage v0.49.0 için son sürümdü) ve `Config.Plugins` içinde olmalıdır.
+- v0.3.5, collage v0.55.0 ya da sonrasını gerektirir (v0.3.4, collage v0.50.0 için son sürümdü) ve `Config.Plugins` içinde olmalıdır.
 - **`allowedOrigins` boşsa ve `Files` da yoksa plugin devre dışı kalır.**
   Listelemediğiniz bir host'tan hiçbir zaman görsel çekmez. Scheme de origin'in
   bir parçasıdır.
@@ -1599,6 +1608,12 @@ Plugins: []collage.Plugin{optiimage.New()},
   site kendi public adresinden görsel çekmez, bir test ya da export da ağa ihtiyaç
   duymaz. Dosyanın içeriği görselin adının bir parçasıdır, yani değişen bir dosya
   yeni bir ad alır. `Files`'ın JSON karşılığı yoktur.
+- **Bir origin'den gelen görsel `immutable` değildir** (v0.3.5'ten beri). Adı içeriğinden
+  değil, tarifinden (URL, boyut, format) üretilir. Bu yüzden origin dosyayı aynı ad
+  altında değiştirebilir. Görsel `public, max-age=<originMaxAge>` ile sunulur.
+  `originMaxAge` bir süredir, varsayılanı `"24h"`'tır ve en az bir saniye olmalıdır.
+  Adı içeriğinin digest'ini taşıyan, sitenin kendi `Files`'ından bir görsel
+  `public, max-age=31536000, immutable` değerini korur.
 - Yalnızca hem `width` hem de `height` değeri piksel sayısı olarak verilmiş
   görseller yeniden yazılır. Hedef boyut olarak güvenilebilecek tek değer, bu
   belirtilen boyuttur.
@@ -1717,7 +1732,7 @@ Plugins: []collage.Plugin{
 }
 ```
 
-- v0.1.7, collage v0.50.0 ya da sonrasını gerektirir (v0.1.3, collage v0.43.0 için son sürümdü). **Onu response body'lerini yeniden
+- v0.1.8, collage v0.55.0 ya da sonrasını gerektirir (v0.1.7, collage v0.50.0 için son sürümdü). **Onu response body'lerini yeniden
   yazan her plugin'den önce register edin.** İlk register edilen plugin en dıştaki
   middleware'dir. elagoht/secure ve elagoht/honeypot artık buna ihtiyaç duymaz
   (secure v0.2.0, honeypot v0.4.0, collage v0.43.0): `PersonaliseHook` ile, her
@@ -1732,6 +1747,11 @@ Plugins: []collage.Plugin{
   `private` ya da `no-store` taşıyan bir response (örneğin elagoht/secure'ün
   nonce'unu taşıyan bir page) yine sıkıştırılır ama hiç saklanmaz (v0.1.3): her
   seferinde değiştiği için saklanan kopya hiç yeniden kullanılmazdı.
+- **`skipPrivate`** (v0.1.8'den beri, varsayılan `false`), `Cache-Control`'ü `private`
+  ya da `no-store` taşıyan bir response'u BREACH'e karşı sıkıştırmadan gönderir. Bir
+  response, page'in yansıttığı bir girdinin yanında bir forgery token gibi bir sır
+  taşıyorsa, sıkıştırılmış boyutu sırrı karakter karakter sızdırabilir. Açılmadıkça
+  hiçbir şey değişmez. Diğer önlemler README'deki BREACH bölümündedir.
 - Static build, önceden sıkıştırılmış dosyaları sunan bir host için sıkıştırılabilen
   her dosyanın yanına bir `.br` ve bir `.gz` yazar; `noPrecompress` bunu kapatır.
 
@@ -1967,7 +1987,7 @@ Plugins: []collage.Plugin{accesslog.New(accesslog.Options{})},
 }
 ```
 
-- v0.1.10, collage v0.53.0 ya da sonrasını gerektirir (v0.1.8, collage v0.50.0 için son sürümdü).
+- v0.1.11, collage v0.55.0 ya da sonrasını gerektirir (v0.1.10, collage v0.53.0 için son sürümdü).
   elagoht/health'in path'leri olan `/healthz` ve `/readyz` varsayılan olarak atlanır.
 - Satırda metot, query'siz path, status, byte sayısı, süre, istemci adresi, user
   agent, referer ve request id bulunur. Satır uygulamanın logger'ıyla ya da
@@ -1977,6 +1997,10 @@ Plugins: []collage.Plugin{accesslog.New(accesslog.Options{})},
 - `sample`, `2xx` response'ların bir kısmını log'lar, diğerlerinin hiçbirini
   atlamaz. `trustProxy`, istemcinin adresini yalnızca güvenilen proxy'lerden gelen
   `X-Forwarded-For`'dan okur.
+- **Referer query'siz log'lanır** (v0.1.11'den beri): yalnızca scheme, host ve path.
+  Bir reset token'ının ya da session id'sinin taşınabildiği query, fragment ve user
+  info yazılmaz. Parse edilemeyen bir referer `""` olarak log'lanır.
+  `fullReferer: true` header'ı eskisi gibi, olduğu haliyle log'lar.
 
 #### elagoht/prometheus
 

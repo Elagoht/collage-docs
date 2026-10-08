@@ -15,6 +15,15 @@ bir `405` alır. Page, hiçbir şey olmamış gibi render edilmez. Error hook'la
 durumu `collage.ErrMethodNotAllowed` olarak görür. `OPTIONS` da aynı listeden
 cevaplanır.
 
+`OPTIONS`, `TRACE` ve `CONNECT` bir action'a değil, sunucuya aittir. v0.56.0'dan
+beri bunlardan birini bildiren bir action register etmek `collage.ErrInvalidActionMethod`
+ile başarısız olur. Hata, action'ın ve method'un adını verir. Action'ın nasıl
+oluşturulduğu fark etmez: `NewAction(...).WithMethods`, bir page'in `WithAction`'ı ya da
+`WithActionFor`'u aynı sonucu verir. `OPTIONS`'a router kendisi cevap verir. Forgery
+kontrolü de `OPTIONS`'ı `GET` gibi güvenli bir method sayar. Bu yüzden onu sahiplenen
+bir action, hiçbir token kontrol edilmeden state değiştirirdi. CORS preflight'ı bir
+middleware'in işidir ve router'dan önce cevaplanır.
+
 ## Page üzerinde bir action
 
 Olağan durum, bulunduğu page'e post eden bir form'dur. Page'e o method için bir

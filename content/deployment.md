@@ -113,6 +113,10 @@ systemctl daemon-reload && systemctl enable --now mysite
 The scaffolded `main.go` reads four variables. Nothing reads `.env` files in
 production — those are for `collage dev` — so set them wherever the binary runs.
 
+One more is read by the framework itself, not by `main.go`: `COLLAGE_DEV_HOST`, which
+names extra hosts a development server answers (since v0.56.0). Leave it unset in
+production; see [Development mode stays on this machine](#development-mode-stays-on-this-machine).
+
 | Variable | Default | Set it to |
 | --- | --- | --- |
 | `HOST` | `localhost` | `0.0.0.0` in a container. `localhost` accepts nothing from outside the machine, which is right behind a local reverse proxy and wrong everywhere else. |
@@ -519,6 +523,14 @@ documented ranges: trusting a range a client can send from lets that client name
 address it likes. An entry with zero bits (`0.0.0.0/0`, `::/0`) trusts everyone;
 `collage.New` accepts it but logs a Warn saying so.
 
+The same list decides whose `X-Forwarded-Proto` is believed (since v0.56.0). The
+forgery cookie is `Secure` when the request arrived over TLS, and behind a proxy that
+terminates TLS the proxy says so in that header. With `TrustedProxies` set, a request
+whose `RemoteAddr` is not a listed proxy cannot set it: a client reaching the port
+directly over plain http gets a cookie it can send back over plain http. Empty, the
+header is believed from anyone, as it was before the list existed, and that is right
+only when nothing but your proxy can reach the server.
+
 ## Timeouts
 
 `ListenAndServe` applies the timeouts in `Config.Server`:
@@ -526,6 +538,7 @@ address it likes. An entry with zero bits (`0.0.0.0/0`, `::/0`) trusts everyone;
 | Field | Default | Bounds |
 | --- | --- | --- |
 | `ReadTimeout` | 15s | Reading a request, headers included — a client that sends headers slowly cannot hold a connection open. |
+| `ReadHeaderTimeout` | 0 | Reading the request headers alone, so a client sending them a byte at a time is dropped early while a large body still gets the whole `ReadTimeout`. Zero uses `ReadTimeout` (since v0.56.0). |
 | `WriteTimeout` | 30s | Writing the response. A page whose data takes longer than this is cut off. |
 | `IdleTimeout` | 60s | A keep-alive connection waiting for its next request. |
 | `DrainDelay` | 0 | Serving on after a `SIGTERM`, keep-alives off, so a load balancer can stop sending traffic (since v0.53.0). |
@@ -539,6 +552,9 @@ Server: collage.ServerConfig{
 	WriteTimeout: time.Minute,
 },
 ```
+
+`collage dev`'s proxy keeps its own fixed 10s header timeout, in development only. A
+negative value in any of these is `collage.ErrNegativeDuration`.
 
 The time a data handler may take is a different setting: each fragment's
 `WithTimeout`, or `Template.Timeout` (5 seconds) for fragments and documents that
@@ -563,6 +579,59 @@ a request id, through the same logger;
 at `/metrics`; and [elagoht/otel](/docs/plugins#elagohtotel) turns its spans into
 OpenTelemetry traces.
 
+## Development mode stays on this machine
+
+`DevMode` serves things production must not: error pages with stacks and source, the
+reload stream, a development toolbar. Two guards keep them here (since v0.56.0):
+
+- **A foreign `Host` is refused.** In development the server answers `403` to a
+  request whose `Host` is not localhost (or a name under `.localhost`), an IP
+  address, a reserved name, `Server.Host`, or a name in `COLLAGE_DEV_HOST`. The
+  reserved names are `example.com`, `example.net`, `example.org` and names under
+  them, and names under `.example`, `.test` and `.invalid`. This holds when the
+  application is run directly, not only under `collage dev`. A page on another
+  site can make its own name resolve to `127.0.0.1` (DNS rebinding) and would then
+  be same-origin with the development server, but its `Host` is still its own name.
+  Reserved names are allowed because nobody can register one to point at you; they
+  are what tests use (httptest's requests are for `example.com`). A static build's
+  captures are not checked.
+- **A reachable address is warned about.** When `ListenAndServe` binds anything but
+  loopback in development (`0.0.0.0`, `::`, a LAN address), it logs a Warn saying
+  the development pages expose the application's internals. `collage dev` logs the
+  same when its own proxy is bound that way.
+
+**Upgrading:** a `DevMode` test or request that uses a custom `Host` outside the
+reserved names, a tenant domain for example, now gets a `403`. Set the name as
+`Server.Host`, list it in `COLLAGE_DEV_HOST`, or use a reserved name such as
+`tenant.test`.
+
+### Reaching development by another name
+
+`COLLAGE_DEV_HOST` is a comma-separated list of extra names a development server
+answers. Set it for:
+
+- a docker-compose service name, `http://app:6060` from another container;
+- a name in `/etc/hosts` outside the reserved ones;
+- several tenant hosts in one development server (or use `*.localhost` names, which
+  need no setting);
+- reaching a server bound to `0.0.0.0` from a phone by the machine's LAN name. By IP
+  address it needs nothing.
+
+```
+COLLAGE_DEV_HOST=app,mybox.lan
+```
+
+An application in development mode reads it from its own process environment. Run
+directly, set it in the shell or wherever the process gets its environment.
+`collage dev` reads it from the shell or `.env.development`, applies it to its
+proxy, and hands the program the list plus its own `HOST`, since the program
+listens on loopback but sees the browser's `Host`. A refused request's `403` quotes
+the `Host` and names the setting. A tunnel such as ngrok is refused unless you list
+its name, on purpose: it puts the development pages on the internet.
+
+Neither guard applies in production, where `DevMode` is off and the `Host` is
+whatever your DNS sends.
+
 ## A checklist
 
 - `COLLAGE_CSRF_KEY` set, the same on every instance.
@@ -572,7 +641,8 @@ OpenTelemetry traces.
 - `plugins-config.json` in the working directory, or embedded, if you configure
   plugins.
 - `COLLAGE_DEV` unset.
-- TLS at the proxy, with `X-Forwarded-Proto` and the browser's `Host` passed on.
+- TLS at the proxy, with `X-Forwarded-Proto` and the browser's `Host` passed on, and
+  `Server.TrustedProxies` listing the proxy.
 - Any other origin whose forms post here — an admin subdomain — named in
   `Security.CSRFTrustedOrigins`.
 - The platform's stop grace period longer than `Server.DrainDelay +

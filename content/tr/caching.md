@@ -367,6 +367,18 @@ varsayılan budur. Data handler request'in tamamını alır ve
 `rc.Request.URL.Query()`'yi okuyabilir. Yani `?page=2` farklı bir page olabilir ve
 collage bunu bilemez.
 
+Bu varsayılan bilerek böyledir ve değişmeyecektir. Query'yi varsayılan olarak
+çıkarmak ya da yalnızca bir izin listesini tutmak, tanımlamadığı bir parametreyi
+okuyan her page'in o parametrenin tüm değerleri için tek bir entry'yi paylaşmasına
+yol açardı: `?page=2` birinci sayfa diye sunulur, bir ziyaretçinin filtresi
+sonrakine sunulurdu. Üstelik hiçbir şey bunu söylemezdi. Bir page daha küçük bir
+key'i `WithCacheParams` ile kendisi seçer. Framework onun yerine asla tahmin
+yürütmez. Sınırsız sayıda query varyantının sınırsız belleğe dönüşmesini engelleyen
+şey key değil, cache'in sınırlarıdır: `Cache.MaxEntries`, `Cache.MaxBytes` ve
+tracker'ın üst sınırları ([tag index'in sınırlı olması](#the-tag-index-is-per-process-and-bounded)
+bölümüne bakın). Varyant üreten bir client entry'lerin dışarı itilmesine yol açar.
+Bunun bedeli bellek değil, hit oranıdır.
+
 Ama bu yaklaşım pahalıdır da. `?utm_source=newsletter` içeren bir bülten linki,
 page'in ikinci bir kopyasının saklanmasına yol açar. Varyantları deneyen bir crawler
 da cache'i kimsenin istemediği kopyalarla doldurur ve gerçek entry'leri dışarı iter.

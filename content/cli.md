@@ -205,13 +205,21 @@ set to a loopback address of its own. That is how it can
 answer.
 
 Since v0.34.0 `collage dev` answers only a request whose `Host` names this machine
-— `localhost` or a name under it, an IP address — or the `HOST` it was started
-with, and refuses anything else with a `403`. A page on another site can make its
+— `localhost` or a name under it, an IP address, a reserved name such as
+`example.com` or `*.test` (since v0.56.0) — or the `HOST` it was started with, or a
+name in `COLLAGE_DEV_HOST`, and refuses anything else with a `403`. A page on another site can make its
 own name resolve to `127.0.0.1` (DNS rebinding) and would then be same-origin with
 `collage dev`: it could read your pages, the development error pages with their
 stacks, and the program's output. The `Host` it sends is its own name, which it
 cannot change. To reach `collage dev` under another name, start it with `HOST` set
-to it.
+to it, or list the name in `COLLAGE_DEV_HOST`, a comma-separated list such as
+`app,mybox.lan` for a docker-compose service and a LAN name. `collage dev` reads it
+from the shell or the environment file, applies it to its proxy, and starts the
+program with the list plus its own `HOST`, since the program listens on loopback but
+sees the browser's `Host`; the program applies the same rule in development mode.
+Since v0.56.0 `collage dev` also logs a Warn when its own proxy is bound anywhere
+but loopback, since the development pages are then reachable from other machines.
+See [Deployment](/docs/deployment#development-mode-stays-on-this-machine).
 
 What the program prints still reaches the terminal, as the program printed it —
 with one change: its own address is replaced by `collage dev`'s, so its
@@ -372,7 +380,9 @@ export COLLAGE_CSRF_KEY="0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b
   `PORT=4000 collage dev` still works.
 - `COLLAGE_DEV=1` is always set, whatever the file says, and so are the `HOST` and
   `PORT` the program is to listen on. The file's `HOST` and `PORT` are where
-  `collage dev` itself listens, read once when it starts.
+  `collage dev` itself listens, read once when it starts. `COLLAGE_DEV_HOST` is
+  read from the file or the shell too, and the program is given it with
+  `collage dev`'s own `HOST` added.
 - No file is not an error. When a file is read, its name is printed on stderr.
 - The file is read again on every restart, and it is watched, so editing it
   restarts the program with the new values.
@@ -678,7 +688,7 @@ scaffolded one does all three. The third, handing the words after its flags to
 
 | Command | Runs | Your `main.go` must |
 | --- | --- | --- |
-| `collage dev` | `go build -tags collage_dev`, then the binary, with `COLLAGE_DEV=1` and the `HOST` and `PORT` to listen on | turn on development mode when `COLLAGE_DEV` is `1`, and listen on `HOST` and `PORT` |
+| `collage dev` | `go build -tags collage_dev`, then the binary, with `COLLAGE_DEV=1`, the `HOST` and `PORT` to listen on, and `COLLAGE_DEV_HOST` | turn on development mode when `COLLAGE_DEV` is `1`, and listen on `HOST` and `PORT` |
 | `collage export` | `go run . -collage-build -out <dir> [-clean]` | parse `-collage-build`, `-out` and `-clean`, and on `-collage-build` render to `<dir>` instead of serving |
 | `collage inspect` | `go run . collage-inspect` | pass the words after its flags to `collage.DispatchCommands` |
 

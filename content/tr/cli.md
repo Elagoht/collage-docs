@@ -215,13 +215,22 @@ program olmadığında [hataları tarayıcıda gösterebilmesi](#errors-in-the-b
 bu sayede mümkündür.
 
 v0.34.0'dan beri `collage dev` yalnızca `Host`'u bu makineyi adlandıran request'lere
-cevap verir: `localhost` ya da onun altındaki bir ad, bir IP adresi veya
-başlatıldığı `HOST`. Diğer her şeyi `403` ile reddeder. Başka bir sitedeki bir page,
+cevap verir: `localhost` ya da onun altındaki bir ad, bir IP adresi, `example.com`
+ya da `*.test` gibi ayrılmış bir ad (v0.56.0'dan beri), başlatıldığı `HOST` veya
+`COLLAGE_DEV_HOST` içindeki bir ad. Diğer her şeyi `403` ile reddeder. Başka bir sitedeki bir page,
 kendi adının `127.0.0.1`'e çözümlenmesini sağlayabilir (DNS rebinding) ve böylece
 `collage dev` ile same-origin olur. Bu durumda page'lerinizi, stack'leriyle birlikte
 development hata sayfalarını ve programın çıktısını okuyabilirdi. Gönderdiği `Host`
 ise kendi adıdır ve bunu değiştiremez. `collage dev`'e başka bir adla erişmek için
-onu `HOST` bu ada ayarlanmış olarak başlatın.
+onu `HOST` bu ada ayarlanmış olarak başlatın ya da adı `COLLAGE_DEV_HOST` içine
+yazın. Bu, virgülle ayrılmış bir listedir. Örneğin `app,mybox.lan`, bir
+docker-compose servisini ve bir LAN adını verir. `collage dev` onu shell'den ya da
+environment dosyasından okur, kendi proxy'sine uygular ve programı listeyi kendi
+`HOST`'uyla birlikte vererek başlatır. Program loopback'te dinler ama tarayıcının
+`Host`'unu görür. Program da development modunda aynı kuralı uygular.
+v0.56.0'dan beri `collage dev`, kendi proxy'si loopback dışında bir adrese
+bağlandığında ayrıca bir Warn log'lar, çünkü development sayfalarına o zaman başka
+makinelerden erişilebilir. Bkz. [Deployment](/docs/deployment#development-mode-stays-on-this-machine).
 
 Programın yazdıkları terminale programın yazdığı gibi ulaşır, tek bir farkla:
 programın kendi adresi `collage dev`'in adresiyle değiştirilir. Böylece
@@ -389,7 +398,8 @@ export COLLAGE_CSRF_KEY="0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b
 - Dosyada ne yazarsa yazsın `COLLAGE_DEV=1` her zaman ayarlanır. Programın
   dinleyeceği `HOST` ve `PORT` da her zaman ayarlanır. Dosyadaki `HOST` ve `PORT`,
   `collage dev`'in kendisinin dinlediği yerdir ve `collage dev` başlarken bir kez
-  okunur.
+  okunur. `COLLAGE_DEV_HOST` da dosyadan ya da shell'den okunur ve program onu
+  `collage dev`'in kendi `HOST`'u eklenmiş olarak alır.
 - Dosyanın olmaması hata değildir. Bir dosya okunduğunda adı stderr'e yazdırılır.
 - Dosya her yeniden başlatmada tekrar okunur. Dosya izlendiği için onu
   düzenlediğinizde program yeni değerlerle yeniden başlar.
@@ -717,7 +727,7 @@ budur:
 
 | Komut | Çalıştırdığı | `main.go`'nuzun yapması gereken |
 | --- | --- | --- |
-| `collage dev` | önce `go build -tags collage_dev`, sonra binary; `COLLAGE_DEV=1` ve dinlenecek `HOST` ile `PORT` ayarlı olarak | `COLLAGE_DEV` `1` olduğunda development modunu açmak ve `HOST` ile `PORT` üzerinde dinlemek |
+| `collage dev` | önce `go build -tags collage_dev`, sonra binary; `COLLAGE_DEV=1`, dinlenecek `HOST` ile `PORT` ve `COLLAGE_DEV_HOST` ayarlı olarak | `COLLAGE_DEV` `1` olduğunda development modunu açmak ve `HOST` ile `PORT` üzerinde dinlemek |
 | `collage export` | `go run . -collage-build -out <dir> [-clean]` | `-collage-build`, `-out` ve `-clean` flag'lerini parse etmek; `-collage-build` verildiğinde sunmak yerine `<dir>` dizinine render etmek |
 | `collage inspect` | `go run . collage-inspect` | flag'lerden sonraki kelimeleri `collage.DispatchCommands`'a vermek |
 

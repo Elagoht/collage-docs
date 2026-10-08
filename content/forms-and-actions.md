@@ -13,6 +13,14 @@ A request with a method nothing answers is a `405` with an `Allow` header, not t
 page rendered as if nothing had happened, and error hooks see it as
 `collage.ErrMethodNotAllowed`. `OPTIONS` is answered from the same list.
 
+`OPTIONS`, `TRACE` and `CONNECT` belong to the server, not to an action. Since
+v0.56.0, registering an action that declares one fails with
+`collage.ErrInvalidActionMethod`, naming the action and the method, however the
+action was built: `NewAction(...).WithMethods`, or a page's `WithAction` or
+`WithActionFor`. The router answers `OPTIONS` itself, and the forgery check counts
+it as a safe method like `GET`, so an action claiming it would change state with no
+token checked. A CORS preflight is a middleware's job, answered before the router.
+
 ## An action on a page
 
 The ordinary case is a form that posts to the page it sits on. Give the page an

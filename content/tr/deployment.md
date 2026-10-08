@@ -118,6 +118,10 @@ Scaffold edilen `main.go` dört değişken okur. Production'da `.env` dosyaları
 hiçbir şey yoktur, çünkü onlar `collage dev` içindir. Bu değişkenleri binary nerede
 çalışıyorsa orada ayarlayın.
 
+Bir değişkeni daha `main.go` değil, framework'ün kendisi okur: bir development
+sunucusunun cevap vereceği ek host'ları adlandıran `COLLAGE_DEV_HOST` (v0.56.0'dan
+beri). Production'da ayarlamayın. Bkz. [Development modu bu makinede kalır](#development-mode-stays-on-this-machine).
+
 | Değişken | Varsayılan | Değeri |
 | --- | --- | --- |
 | `HOST` | `localhost` | Container'da `0.0.0.0`. `localhost` makinenin dışından gelen hiçbir bağlantıyı kabul etmez. Bu, yerel bir reverse proxy'nin arkasında doğrudur, başka her yerde yanlıştır. |
@@ -551,6 +555,15 @@ gönderebildiği bir aralığa güvenmek, o istemcinin istediği adresi kendine 
 izin vermektir. Sıfır bitlik bir girdi (`0.0.0.0/0`, `::/0`) herkese güvenir;
 `collage.New` onu kabul eder ama bunu söyleyen bir Warn log'lar.
 
+Aynı liste, hangi proxy'nin `X-Forwarded-Proto`'suna inanılacağını da belirler
+(v0.56.0'dan beri). Forgery cookie'si, request TLS üzerinden geldiğinde `Secure`
+olur. TLS'i terminate eden bir proxy'nin arkasında bunu proxy o header ile söyler.
+`TrustedProxies` set edilmişse `RemoteAddr`'ı listedeki bir proxy olmayan bir
+request bu header'ı set edemez. Port'a düz http ile doğrudan ulaşan bir client, düz
+http üzerinden geri gönderebileceği bir cookie alır. Liste boşsa header herkesten
+kabul edilir. Liste var olmadan önce de böyleydi ve yalnızca proxy'nizden başka
+hiçbir şeyin sunucuya ulaşamadığı durumda doğrudur.
+
 ## Timeout'lar
 
 `ListenAndServe`, `Config.Server` içindeki timeout'ları uygular:
@@ -558,6 +571,7 @@ izin vermektir. Sıfır bitlik bir girdi (`0.0.0.0/0`, `::/0`) herkese güvenir;
 | Alan | Varsayılan | Neyi sınırlar |
 | --- | --- | --- |
 | `ReadTimeout` | 15s | Header'lar dahil request'in okunmasını. Header'ları yavaş gönderen bir client bağlantıyı açık tutamaz. |
+| `ReadHeaderTimeout` | 0 | Yalnızca request header'larının okunmasını. Böylece header'ları bir byte'ta bir gönderen bir client erken düşürülür, büyük bir body ise `ReadTimeout`'un tamamını alır. Sıfır, `ReadTimeout`'u kullanır (v0.56.0'dan beri). |
 | `WriteTimeout` | 30s | Response'un yazılmasını. Verisi bundan uzun süren bir page yarıda kesilir. |
 | `IdleTimeout` | 60s | Bir sonraki request'ini bekleyen keep-alive bağlantısını. |
 | `DrainDelay` | 0 | Bir `SIGTERM`'den sonra, keep-alive'lar kapalı olarak hizmet vermeye devam edilen süreyi; böylece load balancer trafik göndermeyi bırakabilir (v0.53.0'dan beri). |
@@ -571,6 +585,10 @@ Server: collage.ServerConfig{
 	WriteTimeout: time.Minute,
 },
 ```
+
+`collage dev`'in proxy'si yalnızca development'ta geçerli, sabit 10 saniyelik kendi
+header timeout'unu kullanır. Bunlardan herhangi birindeki negatif değer
+`collage.ErrNegativeDuration`'dır.
 
 Bir data handler'ın ne kadar sürebileceği ayrı bir ayardır. Bunu her fragment'in
 `WithTimeout`'u belirler. Timeout belirtmeyen fragment'ler ve document'lar için
@@ -596,6 +614,61 @@ request için request id'li bir satır yazar.
 `/metrics`'te sunar. [elagoht/otel](/docs/plugins#elagohtotel) ise span'lerini
 OpenTelemetry trace'lerine dönüştürür.
 
+## Development modu bu makinede kalır
+
+`DevMode`, production'ın sunmaması gereken şeyleri sunar: stack'li ve kaynak kodlu
+hata sayfaları, reload stream'i, bir development toolbar'ı. Bunları burada tutan iki
+koruma vardır (v0.56.0'dan beri):
+
+- **Yabancı bir `Host` reddedilir.** Development'ta sunucu, `Host`'u localhost (ya
+  da `.localhost` altındaki bir ad), bir IP adresi, ayrılmış bir ad, `Server.Host`
+  veya `COLLAGE_DEV_HOST` içindeki bir ad olmayan request'lere `403` ile cevap verir.
+  Ayrılmış adlar `example.com`, `example.net`, `example.org` ve bunların altındaki
+  adlar ile `.example`, `.test` ve `.invalid` altındaki adlardır. Bu kural uygulama
+  doğrudan çalıştırıldığında da geçerlidir, yalnızca `collage dev` altında değil.
+  Başka bir sitedeki bir page kendi adının `127.0.0.1`'e çözümlenmesini sağlayabilir
+  (DNS rebinding) ve böylece development sunucusuyla same-origin olur, ama gönderdiği
+  `Host` yine kendi adıdır. Ayrılmış adlara izin verilir, çünkü hiç kimse onlardan
+  birini size yönlendirmek için register edemez. Test'lerin kullandığı adlar da
+  bunlardır (httptest'in request'leri `example.com` içindir). Bir static build'in
+  capture'ları kontrol edilmez.
+- **Erişilebilir bir adres için uyarı verilir.** Development'ta `ListenAndServe`
+  loopback dışında bir adrese (`0.0.0.0`, `::`, bir LAN adresi) bağlandığında,
+  development sayfalarının uygulamanın iç yapısını açığa çıkardığını söyleyen bir
+  Warn log'lar. `collage dev` de kendi proxy'si öyle bağlandığında aynısını log'lar.
+
+**Yükseltme:** ayrılmış adların dışında özel bir `Host` kullanan bir `DevMode`
+test'i ya da request'i, örneğin bir tenant domain'i, artık `403` alır. Adı
+`Server.Host` olarak set edin, `COLLAGE_DEV_HOST` içine yazın ya da `tenant.test`
+gibi ayrılmış bir ad kullanın.
+
+### Development'a başka bir adla erişmek
+
+`COLLAGE_DEV_HOST`, bir development sunucusunun cevap vereceği ek adların virgülle
+ayrılmış listesidir. Şu durumlarda set edin:
+
+- bir docker-compose servis adı, yani başka bir container'dan `http://app:6060`;
+- ayrılmış adların dışında, `/etc/hosts` içindeki bir ad;
+- tek bir development sunucusunda birkaç tenant host'u (ya da hiçbir ayar
+  gerektirmeyen `*.localhost` adlarını kullanın);
+- `0.0.0.0`'a bağlı bir sunucuya telefondan makinenin LAN adıyla erişmek. IP adresiyle
+  erişmek için hiçbir şey gerekmez.
+
+```
+COLLAGE_DEV_HOST=app,mybox.lan
+```
+
+Development modundaki bir uygulama bunu kendi process ortamından okur. Doğrudan
+çalıştırıyorsanız shell'de ya da process'in ortamını aldığı yerde set edin.
+`collage dev` onu shell'den ya da `.env.development`'tan okur, kendi proxy'sine
+uygular ve programa listeyi kendi `HOST`'uyla birlikte verir. Program loopback'te
+dinler ama tarayıcının `Host`'unu görür. Reddedilen bir request'in `403`'ü `Host`'u
+alıntılar ve ayarın adını verir. ngrok gibi bir tünel, adını listeye yazmadıkça
+reddedilir. Bu bilerek böyledir, çünkü development sayfalarını internete açar.
+
+İki koruma da production'da geçerli değildir. Orada `DevMode` kapalıdır ve `Host`,
+DNS'inizin gönderdiği ne ise odur.
+
 ## Kontrol listesi
 
 - `COLLAGE_CSRF_KEY` ayarlı ve her instance'ta aynı.
@@ -606,7 +679,7 @@ OpenTelemetry trace'lerine dönüştürür.
   da gömülü.
 - `COLLAGE_DEV` ayarlı değil.
 - TLS proxy'de terminate ediliyor; `X-Forwarded-Proto` ve tarayıcının `Host`'u
-  iletiliyor.
+  iletiliyor ve `Server.TrustedProxies` proxy'yi listeliyor.
 - Form'ları buraya post eden diğer her origin (örneğin bir admin subdomain'i)
   `Security.CSRFTrustedOrigins`'te belirtilmiş.
 - Platformun stop grace period'u `Server.DrainDelay + Server.ShutdownTimeout`'tan

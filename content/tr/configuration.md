@@ -134,12 +134,13 @@ action ise hangi yazıma post edildiyse o adreste cevap verir.
 | `Host` | `string` | `"localhost"` | Sunucunun dinlediği adres. |
 | `Port` | `int` | `6060` (v0.32.0'dan önce `3000`) | TCP port'u, `1`–`65535`. |
 | `ReadTimeout` | `time.Duration` | `15s` | Bir request'i okumanın en fazla ne kadar sürebileceği. |
+| `ReadHeaderTimeout` | `time.Duration` | `0` | Yalnızca request header'larını okumanın en fazla ne kadar sürebileceği. Sıfır, `ReadTimeout`'u kullanır (v0.56.0'dan beri). |
 | `WriteTimeout` | `time.Duration` | `30s` | Bir response'u yazmanın en fazla ne kadar sürebileceği. |
 | `IdleTimeout` | `time.Duration` | `60s` | Bir keep-alive bağlantısının en fazla ne kadar boşta bekleyebileceği. |
 | `ShutdownTimeout` | `time.Duration` | `10s` | Graceful shutdown'ın devam eden request'leri ne kadar beklediği. |
 | `DrainDelay` | `time.Duration` | `0` | Bir shutdown başladıktan sonra, port kapanmadan önce sunucunun keep-alive'lar kapalı olarak ne kadar daha hizmet verdiği; development'ta yok sayılır (v0.53.0'dan beri). Bkz. [Deployment](/docs/deployment#graceful-shutdown-and-draining). |
 | `MaxBodyBytes` | `int64` | 4 MiB | Request'in yönlendirildiği action kendi sınırını koymadığında request body'sine uygulanan sınır. v0.34.0'dan beri middleware'den önce uygulanır. |
-| `TrustedProxies` | `[]string` | yok | Sunucunun önündeki proxy'lerin adresleri ve CIDR aralıkları; bunların `X-Forwarded-For`'una inanılır (v0.47.0'dan beri). |
+| `TrustedProxies` | `[]string` | yok | Sunucunun önündeki proxy'lerin adresleri ve CIDR aralıkları; bunların `X-Forwarded-For`'una inanılır (v0.47.0'dan beri). Liste set edilmişse `X-Forwarded-Proto`'suna da inanılır (v0.56.0'dan beri). |
 
 `Host`'un varsayılanı `localhost`'tur ve bu adrese makinenin dışından erişilemez.
 Container içinde bu alanı `0.0.0.0` yapın. Scaffold edilen bir proje `Host` ve
@@ -412,9 +413,9 @@ döner:
 | `Cache.Enabled` açık, `Store` yok, `Type` `"disk"` ve `Cache.Dir` boş | `ErrEmptyCacheDir` |
 | `Locale.Default` boş | `ErrEmptyLocaleDefault` |
 | `Locale.Default`, `Locale.Supported` içinde yok | `ErrLocaleDefaultNotSupported` |
-| `Server.ReadTimeout`, `WriteTimeout`, `IdleTimeout`, `ShutdownTimeout`, `DrainDelay`, `Template.Timeout` ya da `Cache.DefaultTTL` negatif | `ErrNegativeDuration` |
+| `Server.ReadTimeout`, `ReadHeaderTimeout`, `WriteTimeout`, `IdleTimeout`, `ShutdownTimeout`, `DrainDelay`, `Template.Timeout` ya da `Cache.DefaultTTL` negatif | `ErrNegativeDuration` |
 
-Negatif süre hatası altı alanın hepsi için tek bir sentinel error'dır. Mesaj, hataya
+Negatif süre hatası sekiz alanın hepsi için tek bir sentinel error'dır. Mesaj, hataya
 yol açan alanın adını verir, örneğin `server.read_timeout`. Varsayılanlar önce
 uygulandığı için `New` üzerinden gelen sıfır bir port ya da boş bir varsayılan locale
 validation'a hiç ulaşmaz. Yalnızca açıkça set ettiğiniz bir değer hataya yol
