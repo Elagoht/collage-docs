@@ -1,5 +1,5 @@
 ---
-description: What a plugin can do, how to register and configure one, and the forty-two published plugins, grouped by what they are for.
+description: What a plugin can do, how to register and configure one, and the forty-three published plugins, grouped by what they are for.
 reference: Plugin, LoadPluginConfig, ErrUnknownPluginConfig, ErrAppStarted
 ---
 
@@ -162,7 +162,7 @@ a boolean — is also an error, raised when the plugin reads it.
 
 ## The published plugins
 
-Forty-two plugins are published alongside the framework, grouped below by what
+Forty-three plugins are published alongside the framework, grouped below by what
 they are for. Each is its own module, with its own README that is the full
 reference; what follows is enough to set one up.
 
@@ -170,7 +170,7 @@ reference; what follows is enough to set one up.
 | --- | --- |
 | [SEO and discovery](#seo-and-discovery) | jsonld, meta, ogimage, sitemap, robots, feed, redirects, indexnow |
 | [Content](#content) | markdown, highlight, toc, search, i18n |
-| [Forms and state](#forms-and-state) | validate, honeypot, flash, session |
+| [Forms and state](#forms-and-state) | validate, honeypot, flash, session, uploads |
 | [Security](#security) | secure, ratelimit, basicauth, oauth, fail2ban |
 | [Live updates](#live-updates) | live, websocket |
 | [Assets and delivery](#assets-and-delivery) | minimizer, opti-image, bundle, favicon, compress, cdnpurge, offline, deploy |
@@ -770,7 +770,8 @@ Plugins: []collage.Plugin{i18n.New(i18n.Options{FS: locales})},
 ### Forms and state
 
 What a form needs around an [action](/docs/forms-and-actions): validation, spam
-protection, a message shown after the redirect, and a session in a cookie.
+protection, a message shown after the redirect, a session in a cookie, and file
+uploads.
 
 #### elagoht/validate
 
@@ -872,7 +873,7 @@ Plugins: []collage.Plugin{honeypot.New(honeypot.Options{Key: key})},
 }
 ```
 
-- v0.4.2 needs collage v0.50.0 or later (v0.4.0 was the last for v0.43.0), and must go in
+- v0.4.3 needs collage v0.57.0 or later (v0.4.2 was the last for v0.50.0), and must go in
   `Config.Plugins`: it adds `{{honeypot}}`.
 - It has no say in how large a submission may be. It checks the form in
   `BeforeActionHook`, through the action's own body limit, so a form that uploads
@@ -883,6 +884,10 @@ Plugins: []collage.Plugin{honeypot.New(honeypot.Options{Key: key})},
   reaches the action. A form without `{{honeypot}}` is never checked, and nothing
   in the configuration has to name the forms. A JSON body and every `GET` pass
   unchecked.
+- Since v0.4.3 an action built with `WithStreamingBody()` passes unchecked too: its
+  form is never parsed, so there is nothing to check. Before, every streaming upload
+  on a protected path was refused with `400`, or with `silent` dropped — upgrade it
+  together with collage v0.57.0.
 - A process learns the paths from the pages it serves. After a restart or a new
   release, until the form's page has gone out again, a bot posting straight to
   the path is not checked. `protect` lists prefixes checked from the first request;
@@ -1010,6 +1015,89 @@ private := collage.NewFragment("private", "layouts/private.html").
 - The cookie is `HttpOnly` and `SameSite=Lax`, written only when the session
   changed. Keys rotate through `previousKeys`. A session cannot be revoked: it lives
   in the reader's cookie.
+
+#### elagoht/uploads
+
+[github.com/Elagoht/collage-uploads](https://github.com/Elagoht/collage-uploads)
+receives file uploads: it checks each file by its content, stores it under a random
+key, and serves it back without letting it act as your site. It reads a form that
+was already parsed, or streams the body part by part, with the same result.
+
+```go
+import "github.com/Elagoht/collage-uploads"
+
+u := uploads.New(uploads.Dir("var/uploads"))
+
+Plugins: []collage.Plugin{u},
+```
+
+```go
+got, err := u.Receive(rc,
+	uploads.Field("avatar", uploads.Rules{
+		MaxSize:  5 << 20,
+		MaxFiles: 1,
+		Types:    []string{"image/png", "image/jpeg"},
+	}),
+)
+var rule *uploads.Error
+if errors.As(err, &rule) {
+	// Show rule.Field's error beside the form; got.Values holds what was typed.
+	return showFormAgain(rc, got.Values, rule)
+}
+if err != nil {
+	return nil, err
+}
+avatar := got.Files["avatar"][0] // Key, Name, Type, SHA256, Size
+```
+
+```go
+app.Handle("/uploads/", u.Handler())
+```
+
+```json
+{
+  "elagoht/uploads": {
+    "dir": "var/uploads"
+  }
+}
+```
+
+- v0.1.0 needs collage v0.57.0 or later. It adds no template function, so
+  `RegisterPlugin` accepts it too. The configuration is read only when the plugin
+  is built without a store (`New(nil)` or `NewWith`).
+- **Two paths.** On an ordinary action, a plain `<form enctype="multipart/form-data">`
+  with `{{csrfToken}}` works with no JavaScript, and `Receive` reads the parsed
+  form — fine for files up to tens of MB. On an action built with
+  `WithStreamingBody()`, it walks the body with `MultipartReader` and streams each
+  file straight into the store; such an action takes its token only from the
+  `X-CSRF-Token` header, so post to it with `fetch()`. Anything that parses the form
+  first, `validate.Form` included, gives up the stream; read the other fields from
+  `got.Values`. See [Streaming bodies](/docs/forms-and-actions#streaming-bodies).
+- **Typed by content.** A file's type is sniffed from its first 512 bytes; its
+  name, extension and `Content-Type` are never consulted. A broken rule is an
+  `*uploads.Error` with the field and one of `ErrTooLarge`, `ErrType`, `ErrTooMany`
+  or `ErrUnexpectedField`.
+- **All or nothing.** If anything fails — a broken rule, a client that went away, a
+  body over its limit, the store — every file that call stored is deleted before
+  `Receive` returns. Once it succeeds the files are yours: delete them with
+  `u.Store().Delete` if the action fails after that.
+- **`Dir`** keys each file by 128 random bits plus an extension for its sniffed
+  type, so nothing the client sent goes into a path. `Name` is the client's file
+  name, cleaned, for display only. It writes 0600 files in a 0700 directory, never
+  overwrites, and reads only regular files. Metadata — name, owner, upload time —
+  is yours to keep in your database next to the key.
+- **`Handler`** serves a file by key with `X-Content-Type-Options: nosniff`,
+  `Content-Security-Policy: sandbox`, its type sniffed again, and
+  `Content-Disposition: attachment` unless it is a PNG, JPEG, GIF or WebP image. It
+  does no access control: anyone with a key can fetch the file, so serve private
+  files from an action of your own. Never serve the directory directly.
+- **Abuse and disk.** Guard the upload action (a token is not authentication), keep
+  `MaxBodyBytes` and `MaxSize` tight, rate-limit the path, keep the store on a volume
+  of its own, and give the action `WithBodyTimeout`; see
+  [Deployment](/docs/deployment#uploads) for proxies. A crash between `Receive` and
+  your database write leaves files no row points to; sweep the directory for old
+  keys your database does not know, skipping `.upload-*` temp files younger than an
+  hour, which may be uploads in progress.
 
 ### Security
 

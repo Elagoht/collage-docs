@@ -539,7 +539,7 @@ only when nothing but your proxy can reach the server.
 | --- | --- | --- |
 | `ReadTimeout` | 15s | Reading a request, headers included — a client that sends headers slowly cannot hold a connection open. |
 | `ReadHeaderTimeout` | 0 | Reading the request headers alone, so a client sending them a byte at a time is dropped early while a large body still gets the whole `ReadTimeout`. Zero uses `ReadTimeout` (since v0.56.0). |
-| `WriteTimeout` | 30s | Writing the response. A page whose data takes longer than this is cut off. |
+| `WriteTimeout` | 30s | Writing the response. It starts when the request's headers have been read, so it bounds an upload's body too. A page whose data takes longer than this is cut off. |
 | `IdleTimeout` | 60s | A keep-alive connection waiting for its next request. |
 | `DrainDelay` | 0 | Serving on after a `SIGTERM`, keep-alives off, so a load balancer can stop sending traffic (since v0.53.0). |
 | `ShutdownTimeout` | 10s | Requests in flight finishing once the port has closed, after the drain. |
@@ -556,11 +556,63 @@ Server: collage.ServerConfig{
 `collage dev`'s proxy keeps its own fixed 10s header timeout, in development only. A
 negative value in any of these is `collage.ErrNegativeDuration`.
 
+Raising only `ReadTimeout` for uploads is a trap. An upload that takes longer than
+`WriteTimeout` is read, and the handler stores it, but the answer is cut off: the
+client sees the connection close, and tries again. Raising both for the whole server
+lets any slow client hold any endpoint that long. Give the upload action its own
+deadline instead, with `WithBodyTimeout` — see [Uploads](#uploads).
+
 The time a data handler may take is a different setting: each fragment's
 `WithTimeout`, or `Template.Timeout` (5 seconds) for fragments and documents that
 set none. Keep it well under `WriteTimeout`, so a slow upstream turns into a
 fragment's fallback rather than a connection closed halfway through the page. See
 [Configuration](/docs/configuration).
+
+## Uploads
+
+An upload (see [Streaming bodies](/docs/forms-and-actions#streaming-bodies)) meets
+every limit between the browser and the handler, and the defaults of most of them
+are sized for forms.
+
+**The server's deadlines.** The defaults above end any upload after 15s of reading.
+`WithBodyTimeout(d)` (since v0.57.0) on the upload action replaces both deadlines
+with now plus `d` for that action alone, after its page's guards (and, for a
+streaming action, its forgery check). Make `d` at least `MaxBodyBytes` divided by
+the slowest connection you serve, plus the time to answer. An upload whose client
+went away, or ran out of time, is recorded as `400` or `408` and logged at debug,
+not as a server error. A client that left receives nothing, and under
+`WithBodyTimeout` neither does one that ran out of time: its write deadline passed
+with the read one.
+
+**nginx** answers anything over `client_max_body_size` — 1 MiB by default — with
+its own `413`, before collage sees it. By default it also buffers the whole request
+body to its own disk before passing any of it on. The stream, the early refusal of
+a bad file and the upload's progress are all lost, and nginx's temp directory is
+what fills up. For the upload location:
+
+```nginx
+location /upload {
+    client_max_body_size     2g;   # MaxBodyBytes, or a little more
+    proxy_request_buffering  off;  # stream the body through
+    proxy_send_timeout       30m;  # between two writes to collage
+    proxy_read_timeout       30m;  # waiting for collage's answer
+    proxy_pass               http://127.0.0.1:8080;
+}
+```
+
+**Caddy** streams request bodies; its limit, when set, is
+`request_body { max_size 2GB }`.
+
+**Cloudflare and other CDNs** cap the request body by plan — 100 MB on the Free and
+Pro plans when this was written; check Cloudflare's documentation for yours — and
+answer a larger one themselves. Load balancers have caps and idle timeouts of their
+own. Larger files need a hostname that bypasses the CDN, or resumable uploads in
+chunks, which collage does not do.
+
+**[elagoht/health](/docs/plugins#elagohthealth)'s `maxInFlight`** counts every
+request being served, an upload included, for as long as it lasts. Size it for the
+uploads you expect at once, or slow uploads will hold the slots and the rest of the
+site will be answered `503`.
 
 ## Logs
 
@@ -645,6 +697,9 @@ whatever your DNS sends.
   `Server.TrustedProxies` listing the proxy.
 - Any other origin whose forms post here — an admin subdomain — named in
   `Security.CSRFTrustedOrigins`.
+- An upload action with its own `WithMaxBodyBytes` and `WithBodyTimeout`, and the
+  proxy in front allowing that size and streaming it through — see
+  [Uploads](#uploads).
 - The platform's stop grace period longer than `Server.DrainDelay +
   Server.ShutdownTimeout`, plus one second with elagoht/jobs.
 - The liveness check on `/healthz` and the readiness check on `/readyz`, with

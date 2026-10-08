@@ -1,6 +1,6 @@
 ---
 description: The plugin contract, what Host and ConfigHost expose, every hook and what it may change, and a complete plugin with its tests.
-reference: Plugin, Host, ConfigHost, ConfigReader, PluginConfig, Configurer, Command, BeforeRenderHook, BeforeActionHook, BeforeActionEvent, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, DrainHook, ServeHook, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, BuiltRedirect, RedirectSource, IsCapture, RequestHook, RouteOf, RouteInfo, Route, ClientIP, Key, NewKey, RenderValues
+reference: Plugin, Host, ConfigHost, ConfigReader, PluginConfig, Configurer, Command, BeforeRenderHook, BeforeActionHook, BeforeActionEvent, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, DrainHook, ServeHook, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, BuiltRedirect, RedirectSource, IsCapture, RequestHook, ErrStreamingBody, RouteOf, RouteInfo, Route, ClientIP, Key, NewKey, RenderValues
 ---
 
 # Writing a plugin
@@ -430,9 +430,19 @@ being read twice. Use it rather than `ParseMultipartForm` alone, which for a
 URL-encoded body discards the error of reading it, a body past the limit among
 them.
 
+For an action built with `WithStreamingBody()` (since v0.57.0), `ev.Form()` reads
+nothing and returns `collage.ErrStreamingBody`, so a plugin cannot consume the
+stream the handler reads. A plugin that inspects forms must treat that error as
+"this action has no form to check" and let the request through; one that returns
+it fails every upload. A plugin that calls `ev.Request.ParseForm()` itself still
+reads the body, and takes the stream from the handler.
+
 ```go
 func (p *Plugin) OnBeforeAction(_ context.Context, ev *collage.BeforeActionEvent) error {
 	form, err := ev.Form()
+	if errors.Is(err, collage.ErrStreamingBody) {
+		return nil // a streaming action: no form to check
+	}
 	if err != nil {
 		return err // past the action's limit: 413
 	}
@@ -446,7 +456,9 @@ func (p *Plugin) OnBeforeAction(_ context.Context, ev *collage.BeforeActionEvent
 Setting `ev.Result` answers the request with it, exactly as if the handler had
 returned it, and stops dispatch: no later plugin and no handler runs. An error
 fails the request under `"before_action"`, with `413` when it wraps
-`*http.MaxBytesError` and `500` otherwise.
+`*http.MaxBytesError` and `500` otherwise — or, since v0.57.0, `400` (`408` for a
+read deadline) when the body was cut off while the plugin read it, logged at debug
+and handed to no error hook.
 
 ### AfterRenderHook
 

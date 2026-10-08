@@ -1,5 +1,5 @@
 ---
-description: Bir plugin'in neler yapabildiği, bir plugin'in nasıl register edilip yapılandırıldığı ve ne işe yaradıklarına göre gruplanmış, yayımlanmış kırk iki plugin.
+description: Bir plugin'in neler yapabildiği, bir plugin'in nasıl register edilip yapılandırıldığı ve ne işe yaradıklarına göre gruplanmış, yayımlanmış kırk üç plugin.
 reference: Plugin, LoadPluginConfig, ErrUnknownPluginConfig, ErrAppStarted
 ---
 
@@ -177,7 +177,7 @@ beklediği yerde bir string varsa, plugin bu bölümü okuduğunda hata oluşur.
 
 ## Yayımlanmış plugin'ler
 
-Framework ile birlikte kırk iki plugin yayımlanmıştır. Aşağıda ne işe
+Framework ile birlikte kırk üç plugin yayımlanmıştır. Aşağıda ne işe
 yaradıklarına göre gruplanmışlardır. Her biri ayrı bir modüldür ve her birinin tam
 referans niteliğinde kendi README'si vardır. Aşağıdaki bilgiler bir plugin'i
 kurmanız için yeterlidir.
@@ -186,7 +186,7 @@ kurmanız için yeterlidir.
 | --- | --- |
 | [SEO ve keşfedilebilirlik](#seo-and-discovery) | jsonld, meta, ogimage, sitemap, robots, feed, redirects, indexnow |
 | [İçerik](#content) | markdown, highlight, toc, search, i18n |
-| [Form'lar ve state](#forms-and-state) | validate, honeypot, flash, session |
+| [Form'lar ve state](#forms-and-state) | validate, honeypot, flash, session, uploads |
 | [Güvenlik](#security) | secure, ratelimit, basicauth, oauth, fail2ban |
 | [Canlı güncellemeler](#live-updates) | live, websocket |
 | [Asset'ler ve teslimat](#assets-and-delivery) | minimizer, opti-image, bundle, favicon, compress, cdnpurge, offline, deploy |
@@ -808,8 +808,8 @@ Plugins: []collage.Plugin{i18n.New(i18n.Options{FS: locales})},
 ### Form'lar ve state
 
 Bir form'un bir [action](/docs/forms-and-actions) etrafında ihtiyaç duydukları:
-validation, spam koruması, redirect'ten sonra gösterilen bir mesaj ve bir cookie'de
-tutulan session.
+validation, spam koruması, redirect'ten sonra gösterilen bir mesaj, bir cookie'de
+tutulan session ve dosya upload'ları.
 
 #### elagoht/validate
 
@@ -913,7 +913,7 @@ Plugins: []collage.Plugin{honeypot.New(honeypot.Options{Key: key})},
 }
 ```
 
-- v0.4.2, collage v0.50.0 ya da sonrasını gerektirir (v0.4.0, collage v0.43.0 için son sürümdü) ve
+- v0.4.3, collage v0.57.0 ya da sonrasını gerektirir (v0.4.2, collage v0.50.0 için son sürümdü) ve
   `Config.Plugins` içinde olmalıdır: `{{honeypot}}`'ı ekler.
 - Bir gönderimin ne kadar büyük olabileceğine karışmaz. Form'u `BeforeActionHook`'ta,
   action'ın kendi body sınırıyla kontrol eder. Bu yüzden büyük dosya yükleyen bir
@@ -924,6 +924,11 @@ Plugins: []collage.Plugin{honeypot.New(honeypot.Options{Key: key})},
   body'si action'a ulaşmadan önce kontrol edilir. `{{honeypot}}` taşımayan bir form
   hiç kontrol edilmez ve yapılandırmada form'ları tek tek yazmak gerekmez. JSON
   body'ler ve her `GET` kontrol edilmeden geçer.
+- v0.4.3'ten beri `WithStreamingBody()` ile kurulmuş bir action da kontrol
+  edilmeden geçer: form'u hiç parse edilmez, dolayısıyla kontrol edilecek bir şey
+  yoktur. Önceden korunan bir path'teki her streaming upload `400` ile reddedilir,
+  `silent` ile ise sessizce düşürülürdü. Plugin'i collage v0.57.0 ile birlikte
+  yükseltin.
 - Process path'leri servis ettiği page'lerden öğrenir. Bir restart'tan ya da yeni
   bir sürümden sonra, form'un page'i yeniden servis edilene kadar, path'e doğrudan
   POST atan bir bot kontrol edilmez. `protect`, ilk request'ten itibaren kontrol
@@ -1055,6 +1060,93 @@ private := collage.NewFragment("private", "layouts/private.html").
 - Cookie `HttpOnly` ve `SameSite=Lax`'tir ve yalnızca session değiştiğinde yazılır.
   Key'ler `previousKeys` ile döndürülür. Bir session iptal edilemez, çünkü
   okuyucunun cookie'sinde yaşar.
+
+#### elagoht/uploads
+
+[github.com/Elagoht/collage-uploads](https://github.com/Elagoht/collage-uploads)
+dosya upload'larını alır. Her dosyayı içeriğine göre kontrol eder, rastgele bir
+key altında saklar ve sitenizin yerine geçmesine izin vermeden geri sunar. Önceden
+parse edilmiş bir form'u okuyabilir ya da body'yi part part stream edebilir; sonuç
+ikisinde de aynıdır.
+
+```go
+import "github.com/Elagoht/collage-uploads"
+
+u := uploads.New(uploads.Dir("var/uploads"))
+
+Plugins: []collage.Plugin{u},
+```
+
+```go
+got, err := u.Receive(rc,
+	uploads.Field("avatar", uploads.Rules{
+		MaxSize:  5 << 20,
+		MaxFiles: 1,
+		Types:    []string{"image/png", "image/jpeg"},
+	}),
+)
+var rule *uploads.Error
+if errors.As(err, &rule) {
+	// Show rule.Field's error beside the form; got.Values holds what was typed.
+	return showFormAgain(rc, got.Values, rule)
+}
+if err != nil {
+	return nil, err
+}
+avatar := got.Files["avatar"][0] // Key, Name, Type, SHA256, Size
+```
+
+```go
+app.Handle("/uploads/", u.Handler())
+```
+
+```json
+{
+  "elagoht/uploads": {
+    "dir": "var/uploads"
+  }
+}
+```
+
+- v0.1.0, collage v0.57.0 ya da sonrasını gerektirir. Template fonksiyonu
+  eklemediği için `RegisterPlugin` de onu kabul eder. Yapılandırma yalnızca plugin
+  bir store verilmeden kurulduğunda (`New(nil)` ya da `NewWith`) okunur.
+- **İki yol.** Sıradan bir action'da, `{{csrfToken}}` içeren düz bir
+  `<form enctype="multipart/form-data">` JavaScript olmadan çalışır ve `Receive`
+  parse edilmiş form'u okur. Bu, onlarca MB'a kadar dosyalar için uygundur.
+  `WithStreamingBody()` ile kurulmuş bir action'da ise body'yi `MultipartReader`
+  ile dolaşır ve her dosyayı doğrudan store'a stream eder. Böyle bir action
+  token'ı yalnızca `X-CSRF-Token` header'ından alır, bu yüzden ona `fetch()` ile
+  post edin. Form'u önce parse eden her şey (`validate.Form` dahil) stream'i elden
+  verir. Diğer field'ları `got.Values`'tan okuyun.
+  [Streaming body'ler](/docs/forms-and-actions#streaming-bodies) bölümüne bakın.
+- **Tip içerikten belirlenir.** Bir dosyanın tipi ilk 512 byte'ından sniff edilir.
+  Adına, uzantısına ve `Content-Type`'ına hiç bakılmaz. Çiğnenen bir kural,
+  field'ı ve `ErrTooLarge`, `ErrType`, `ErrTooMany` ya da `ErrUnexpectedField`'dan
+  birini taşıyan bir `*uploads.Error`'dır.
+- **Ya hep ya hiç.** Bir şey başarısız olursa (çiğnenen bir kural, giden bir client,
+  limitini aşan bir body, store'un kendisi) o çağrının sakladığı her dosya
+  `Receive` dönmeden önce silinir. Başarılı olduktan sonra dosyalar sizindir. Action
+  bundan sonra başarısız olursa onları `u.Store().Delete` ile silin.
+- **`Dir`**, her dosyanın key'ini 128 rastgele bit ve sniff edilen tipe göre bir
+  uzantıdan üretir. Böylece client'ın gönderdiği hiçbir şey bir path'e girmez.
+  `Name`, client'ın temizlenmiş dosya adıdır ve yalnızca gösterim içindir. 0700'lük
+  bir dizine 0600'lük dosyalar yazar, asla üzerine yazmaz ve yalnızca normal
+  dosyaları okur. Metadata'yı (ad, sahip, upload zamanı) key'in yanında kendi
+  veritabanınızda tutmak size kalır.
+- **`Handler`**, bir dosyayı key'iyle `X-Content-Type-Options: nosniff`,
+  `Content-Security-Policy: sandbox` ve yeniden sniff edilmiş tipiyle sunar. Dosya
+  bir PNG, JPEG, GIF ya da WebP resmi değilse `Content-Disposition: attachment`
+  ekler. Erişim kontrolü yapmaz: key'i olan herkes dosyayı çekebilir. Bu yüzden
+  özel dosyaları kendi action'ınızdan sunun. Dizini asla doğrudan sunmayın.
+- **Kötüye kullanım ve disk.** Upload action'ını koruyun (token bir kimlik
+  doğrulama değildir), `MaxBodyBytes`'ı ve `MaxSize`'ı dar tutun, path'e rate limit
+  koyun, store'u kendine ait bir volume'da tutun ve action'a `WithBodyTimeout`
+  verin. Proxy'ler için [Deployment](/docs/deployment#uploads) sayfasına bakın.
+  `Receive` ile veritabanı yazmanız arasındaki bir çökme, hiçbir satırın
+  göstermediği dosyalar bırakır. Dizini zaman zaman tarayıp veritabanınızın
+  bilmediği eski key'leri silin. Bir saatten yeni `.upload-*` geçici dosyalarını
+  atlayın, çünkü bunlar devam eden upload'lar olabilir.
 
 ### Güvenlik
 

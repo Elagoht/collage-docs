@@ -1,6 +1,6 @@
 ---
 description: Plugin sözleşmesi, Host ve ConfigHost'un sundukları, her hook ve neyi değiştirebileceği, testleriyle birlikte eksiksiz bir plugin.
-reference: Plugin, Host, ConfigHost, ConfigReader, PluginConfig, Configurer, Command, BeforeRenderHook, BeforeActionHook, BeforeActionEvent, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, DrainHook, ServeHook, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, BuiltRedirect, RedirectSource, IsCapture, RequestHook, RouteOf, RouteInfo, Route, ClientIP, Key, NewKey, RenderValues
+reference: Plugin, Host, ConfigHost, ConfigReader, PluginConfig, Configurer, Command, BeforeRenderHook, BeforeActionHook, BeforeActionEvent, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, DrainHook, ServeHook, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, BuiltRedirect, RedirectSource, IsCapture, RequestHook, ErrStreamingBody, RouteOf, RouteInfo, Route, ClientIP, Key, NewKey, RenderValues
 ---
 
 # Plugin yazmak
@@ -452,9 +452,20 @@ döndürür. Parse ettiği parse edilmiş kalır. Böylece handler aynı form'u 
 iki kez okunmaz. Tek başına `ParseMultipartForm` yerine bunu kullanın. O, URL-encoded
 bir body'de okuma hatasını, sınırı aşan bir body'ninkini de, yok sayar.
 
+`WithStreamingBody()` ile kurulmuş bir action için (v0.57.0'dan beri) `ev.Form()`
+hiçbir şey okumaz ve `collage.ErrStreamingBody` döndürür. Böylece bir plugin,
+handler'ın okuyacağı stream'i tüketemez. Form'ları inceleyen bir plugin bu hatayı
+"bu action'ın kontrol edilecek form'u yok" diye yorumlamalı ve request'i
+geçirmelidir. Bu hatayı döndüren bir plugin her upload'u başarısız kılar.
+`ev.Request.ParseForm()`'u kendisi çağıran bir plugin ise body'yi yine okur ve
+stream'i handler'ın elinden alır.
+
 ```go
 func (p *Plugin) OnBeforeAction(_ context.Context, ev *collage.BeforeActionEvent) error {
 	form, err := ev.Form()
+	if errors.Is(err, collage.ErrStreamingBody) {
+		return nil // a streaming action: no form to check
+	}
 	if err != nil {
 		return err // past the action's limit: 413
 	}
@@ -468,7 +479,9 @@ func (p *Plugin) OnBeforeAction(_ context.Context, ev *collage.BeforeActionEvent
 `ev.Result` ayarlanırsa request, handler onu döndürmüş gibi onunla cevaplanır ve
 dispatch durur. Sonraki hiçbir plugin ve handler çalışmaz. Dönen bir hata,
 request'i `"before_action"` altında başarısız kılar. Hata `*http.MaxBytesError`
-sarıyorsa `413`, aksi halde `500` olur.
+sarıyorsa `413`, aksi halde `500` olur. v0.57.0'dan beri body, plugin onu okurken
+yarıda kesildiyse cevap `400` (okuma deadline'ı için `408`) olur. Bu durum debug
+seviyesinde log'lanır ve hiçbir error hook'una verilmez.
 
 ### AfterRenderHook
 

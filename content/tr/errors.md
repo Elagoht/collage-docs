@@ -1,6 +1,6 @@
 ---
 description: collage'ın export ettiği bütün error değerleri, nereden geldiklerine göre gruplanmış hâlde; her birinin ne anlama geldiği ve ne yapmanız gerektiğiyle birlikte.
-reference: ErrCSRFCrossOrigin, ErrCachedFetchPanicked, PanicError, ErrUnknownSlot, ErrConflictingData, ErrTemplateType, TemplateTypeError, ErrNoDocumentHandler, ErrRouteParams, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath, ErrInvalidGuardDecision, ErrGuardRefused, ErrGuarded
+reference: ErrCSRFCrossOrigin, ErrCSRFHeaderRequired, ErrStreamingBody, ErrStreamingBodyMethod, ErrNegativeBodyTimeout, ErrCachedFetchPanicked, PanicError, ErrUnknownSlot, ErrConflictingData, ErrTemplateType, TemplateTypeError, ErrNoDocumentHandler, ErrRouteParams, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath, ErrInvalidGuardDecision, ErrGuardRefused, ErrGuarded
 ---
 
 # Hatalar
@@ -65,6 +65,7 @@ ortaya çıkarlar. Bkz. [Config](/docs/configuration#validation).
 | `ErrDuplicateCommand` | `collage: duplicate command name` | İki komut aynı ismi taşır. | — |
 | `ErrNilApp` | `collage: nil app` | `DispatchCommands`'a nil bir `*App` verilmiştir. | — |
 | `ErrUnknownCommand` | `collage: unknown command` | `DispatchCommands` hiç argüman almamıştır ya da hiçbir plugin'in register etmediği bir isim almıştır. | Scaffold edilen `main.go` bu hatada bir kullanım hatası olarak `2` koduyla çıkar. Sunucu olarak çalışmayı tercih eden bir program ise bu hatada bir sonraki adıma geçebilir. |
+| `ErrStreamingBody` | `collage: the action's body is streamed; it is not parsed as a form` | `BeforeActionEvent.Form()`, `WithStreamingBody()` ile kurulmuş bir action için çağrılmış ve hiçbir şey okumamıştır (v0.57.0'dan beri). | Bunu "bu action'ın kontrol edilecek form'u yok" diye yorumlayın ve request'i geçirin. |
 
 Bkz. [Plugin yazmak](/docs/writing-plugins).
 
@@ -244,6 +245,8 @@ ve request'te aynı değerdir.
 | `ErrNoActionPaths` | `collage: action has no paths` | Bağımsız bir action'ın `WithPath`'i yoktur. | Bir page'e bağlı action page'in path'lerini alır; tek başına duran bir action'ın kendi path'leri olmalıdır. |
 | `ErrNoActionHandler` | `collage: action has no handler` | Bir action'ın `WithHandler`'ı yoktur. | — |
 | `ErrInvalidActionMethod` | `collage: invalid action method` | Bir action, sunucunun kendisinin cevapladığı `OPTIONS`, `TRACE` ya da `CONNECT`'i bildirir (v0.56.0'dan beri). Mesaj action'ın ve method'un adını verir. | Onu `WithMethods`'tan çıkarın. CORS preflight'ı bir middleware'e aittir. |
+| `ErrStreamingBodyMethod` | `collage: a streaming body needs POST, PUT or PATCH` | `WithStreamingBody()` ile kurulmuş bir action `POST`, `PUT` ya da `PATCH`'ten hiçbirine cevap vermez (v0.57.0'dan beri). Mesaj action'ı ve method'larını belirtir. | Bunlardan birini ekleyin ya da `WithStreamingBody()`'yi kaldırın. |
+| `ErrNegativeBodyTimeout` | `collage: an action's body timeout must not be negative` | `WithBodyTimeout`'a negatif bir süre verilmiştir (v0.57.0'dan beri). | Sıfır, sunucunun deadline'larını korur. |
 | `ErrNoMethods` | `collage: action declares no methods` | Bir action hiçbir method'a cevap vermez. | `WithMethods(http.MethodPost)` kullanın ya da page'de `WithAction` kullanın. |
 | `ErrNilFragmentPath` | `collage: fragment path has no fragment` | `WithFragmentPath`'e `nil` bir fragment verilmiştir. | — |
 | `ErrUnregisteredPage` | `collage: action answered with a page that was never registered` | Bir action'ın `RenderPage`'i register edilmemiş bir page dönmüştür. Request 500 ile başarısız olur. | Page'i register edin ve handler içinde yeni bir page kurmak yerine aynı değerle cevap verin. |
@@ -272,10 +275,13 @@ ismiyle wrap edilmiş olarak alır:
 | `ErrCSRFMismatch` | `collage: csrf token does not match` | Token, cookie'deki token değildir. |
 | `ErrCSRFInvalid` | `collage: csrf token is not valid` | Token bu uygulamanın key'iyle imzalanmamıştır. |
 | `ErrCSRFCrossOrigin` | `collage: cross-origin request` | Tarayıcı, gönderimi `Sec-Fetch-Site` ile ya da `Host` olmayan bir `Origin` ile başka bir origin'den gönderilmiş olarak işaretlemiştir. Gönderim, taşıdığı token ne olursa olsun reddedilir (v0.34.0'dan beri; v0.34.1'den beri bu adla). |
+| `ErrCSRFHeaderRequired` | `collage: no csrf token from the header` | `WithStreamingBody()` ile kurulmuş bir action'a yapılan gönderim, böyle bir action'ın baktığı tek yer olan `X-CSRF-Token`'da (ya da `Security.CSRFHeaderName`'de) token taşımamıştır (v0.57.0'dan beri). `ErrCSRFMissing`'i wrap eder, bu yüzden `errors.Is` ikisiyle de eşleşir. |
 
 Yaygın sebepler iki tanedir: `{{csrfToken}}` içermeyen bir form ve her process'te
 yeniden üretilen bir key. Token'ların restart'lardan sonra da geçerli kalması ve
-instance'lar arasında çalışması için `Security.CSRFKey`'i ayarlayın. Boyut limitini
+instance'lar arasında çalışması için `Security.CSRFKey`'i ayarlayın. Streaming bir
+action'a post eden düz bir HTML form'u `ErrCSRFHeaderRequired` ile reddedilir. Form
+header ayarlayamaz, bu yüzden onu `fetch()` ile gönderin. Boyut limitini
 aşan bir body ise **413** ile cevaplanır; limite takılan şey token'ın okunması olsa
 bile böyledir. Bkz. [Form'lar ve action'lar](/docs/forms-and-actions#forgery-protection).
 
@@ -294,7 +300,7 @@ plugin, mesajları okumadan hataları birbirinden ayırabilir. Bkz.
 | `ErrNotFound` | bkz. [Render](#rendering) | `render` | Required bir fragment'in içeriği yoktur; bu bir içerik sorunudur. |
 | `ErrMethodNotAllowed` | `collage: method not allowed` | `route` | Path vardır ama o method'a cevap vermez. Sonuç, cevap verdiği method'ları listeleyen bir `Allow` header'ıyla birlikte 405'tir. Bir document'ın URL'sinde bu 405 düz metindir (v0.11.0'dan beri). |
 | `ErrEmptyRender` | `collage: page rendered no markup` | `render` | Bir page başarıyla render edilmiş ama hiç markup üretmemiştir. Page ister serve edilsin ister bir action'ın cevabı olsun, sonuç 500'dür. Static build'in kaydettiği sentinel de budur. |
-| `ErrCSRFMissing`, `ErrCSRFMismatch`, `ErrCSRFInvalid`, `ErrCSRFCrossOrigin` | bkz. [yukarıda](#request-forgery) | `route` | Forgery kontrolünün reddettiği bir gönderim. |
+| `ErrCSRFMissing`, `ErrCSRFMismatch`, `ErrCSRFInvalid`, `ErrCSRFCrossOrigin`, `ErrCSRFHeaderRequired` | bkz. [yukarıda](#request-forgery) | `route` | Forgery kontrolünün reddettiği bir gönderim. |
 | `ErrInvalidGuardDecision` | `collage: invalid guard decision` | `guard` | Bir page'in [guard](/docs/pages-and-layouts#private-pages-guards)'ı yazılamayacak bir kararla cevap vermiştir (location'ı olmayan bir redirect, bir `200`) ve request 500 ile başarısız olmuştur. Hata dönen bir guard da aynı stage'de, kendi hatasıyla bildirilir. |
 | `ErrGuardRefused` | `collage: the guard refused this reader` | — | Bildirilmez, döndürülür: `RenderFragment`, guard'ı okuyucuyu reddeden bir fragment istemiştir. Fragment stream eden bir plugin o okuyucuya hiçbir şey göndermez. |
 | `ErrEmptyErrorPage` | `collage: error page rendered empty` | `error_page` | Register edilmiş bir error page başarıyla render edilmiş ama hiç markup üretmemiştir. Bu yüzden onun yerine built-in page serve edilmiştir. |
@@ -302,6 +308,14 @@ plugin, mesajları okumadan hataları birbirinden ayırabilir. Bkz.
 | `ErrAssetFailed` | `collage: asset request failed` | `asset` | Mount edilmiş bir dosya request'i 400 ya da üstü bir status ile cevaplanmıştır. Bu tür bütün status'lar için tek bir sentinel vardır. |
 | `ErrHandlerFailed` | `collage: mounted handler failed` | `handler` | `App.Handle` ile mount edilmiş bir handler server error ile cevap vermiştir. |
 | `ErrUnsafeRedirectTarget` | `collage: unsafe redirect target` | `route` | Bir redirect'in hedefi, substitution'dan sonra tek slash'le başlayan relative bir path değildir: `//host`, `/\host` ya da control character içeren bir path'tir. Bir `Location` header'ıyla değil, 500 ile cevaplanır. v0.34.0'dan beri böyle yazılmış bir hedef register sırasında `ErrInvalidPath` ile reddedilir. Yakalanan bir değer ise böyle bir hedef oluşturamaması için escape edilir. |
+
+v0.57.0'dan beri, body limitinin ötesini okuyup ardından başarısız olan bir
+action'ın handler'ı hangi hatayı döndürürse döndürsün `413` olarak bildirilir. Hook
+handler'ın kendi hatasını alır ve `errors.As` onun üzerinde bir `*http.MaxBytesError`
+bulur. Body'si yarıda kesilen bir action (client gitmiş ya da okuma deadline'ı
+geçmiştir) `400` ya da `408` ile cevaplanır ve hiçbir error hook'una ulaşmaz; debug
+seviyesinde log'lanır. Bkz.
+[Streaming body'ler](/docs/forms-and-actions#streaming-bodies).
 
 Alarm kurmaya değer stage `"error_page"`'dir. Hataları bildiren page'in kendisi başarısız
 olmuştur, ama okuyucu yine de makul görünen bir page görmüştür. Bu yüzden size bunu

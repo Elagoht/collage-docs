@@ -1,6 +1,6 @@
 ---
 description: Form post'larını, fetch çağrılarını ve webhook'ları action'larla karşılamak ve onları request forgery'ye karşı korumak.
-reference: NewAction, ActionBuilder, ActionResult, SeeOther, JSONOf, RenderPage, RenderFragment, PageBuilder.WithAction, PageBuilder.WithFragmentPath, ErrDuplicateRoute, ErrUnknownFragmentPath, FetchHeader, LocationHeader
+reference: NewAction, ActionBuilder, ActionResult, SeeOther, JSONOf, RenderPage, RenderFragment, PageBuilder.WithAction, PageBuilder.WithFragmentPath, ActionBuilder.WithStreamingBody, ActionBuilder.WithBodyTimeout, ErrCSRFHeaderRequired, ErrDuplicateRoute, ErrUnknownFragmentPath, FetchHeader, LocationHeader
 ---
 
 # Form'lar ve action'lar
@@ -414,6 +414,10 @@ Bir action'ın cevap olarak verdiği fragment ya da page, diğerleri gibi render
 Dolayısıyla içindeki form da yeni bir token taşır. Kendini değiştiren bir form bu
 sayede çalışmaya devam eder.
 
+`WithStreamingBody()` ile kurulmuş bir action bunun istisnasıdır. Böyle bir action
+token'ı yalnızca header'dan okur, bu yüzden form post eden bir `fetch()` bile
+`X-CSRF-Token`'ı ayarlar. [Streaming body'ler](#streaming-bodies) bölümüne bakın.
+
 ### Token taşıyamayan request'ler
 
 Bir ödeme sağlayıcısının webhook'u ya da tarayıcı olmayan bir şeyin bearer token ile
@@ -462,6 +466,13 @@ if err := rc.Request.ParseForm(); err != nil {
 }
 ```
 
+v0.57.0'dan beri body'si limite ulaşmış bir handler hangi hatayı döndürürse
+döndürsün cevap `413` olur. Bu hata okumanın kendi hatası da olabilir, "upload
+failed" gibi handler'ın kendi hatası da. Eskiden ikincisi `500` olurdu. Handler'ın
+hatası log'da ve error hook'larına verilen hatada `413`'ün yanında korunur ve
+`errors.As` onun üzerinde `*http.MaxBytesError`'ı yine bulur. Bu durum error olarak
+değil, uyarı olarak log'lanır.
+
 Token form'dan kontrol edildiğinde kontrol önce body'yi okur. Bu yüzden limiti aşan
 bir form daha orada, handler'ınız çalışmadan önce reddedilir. Bu durumda da cevap
 `403` değil `413` olur, çünkü okunamayacak kadar büyük bir body forgery değildir.
@@ -476,6 +487,120 @@ reddetmek) ancak action'ın limiti bu kuralın üzerindeyse işler. Aksi halde c
 MB'lık bir fotoğraf, form 5 MB'a izin verdiğini söylese bile sunucu için fazla büyük
 diye reddedilir. Böyle bir action'a dosya ve form'un geri kalanı için yer açın:
 `WithMaxBodyBytes(maxPhoto + 64<<10)`.
+
+## Streaming body'ler
+
+Büyük bir upload alan action, body'sini bir stream olarak okur ve body'yi ondan önce
+hiçbir şey okumamalıdır. v0.57.0'dan beri `WithStreamingBody()` bunu garanti eder:
+
+```go
+app.RegisterAction(collage.NewAction("upload").
+	WithPath("en", "/upload").
+	WithMethods(http.MethodPost).
+	WithStreamingBody().
+	WithMaxBodyBytes(2 << 30).
+	WithHandler(upload).
+	Build())
+```
+
+- **Body okunmamış olarak gelir.** Handler'dan önce hiçbir şey body'den bir form
+  parse etmez. `rc.Request.Body` gönderildiği hâliyle byte'lardır,
+  `rc.Request.Form` ve `rc.Request.MultipartForm` ise nil'dir. Body'yi handler
+  okur, örneğin `rc.Request.MultipartReader()` ile her seferinde bir part.
+  [elagoht/uploads](/docs/plugins#elagohtuploads) plugin'i bunu sizin yerinize
+  yapar.
+- **Token header'da gelir, yalnızca orada.** Token'ı bir form field'ında bulmak
+  body'yi parse etmek demektir, bu yüzden field'a bakılmaz. `X-CSRF-Token` (ya da
+  `Security.CSRFHeaderName`) taşımayan bir request `403` ile reddedilir. Error
+  hook'larına nedeni, header'ı adıyla belirten `collage.ErrCSRFHeaderRequired` ile
+  bildirilir. Okuyucu yalnızca 403'ü görür. Cookie `HttpOnly` olduğu için değeri
+  `{{csrfToken}}`'ın render ettiği input'tan okuyun (adı `_csrf` ya da
+  `Security.CSRFFieldName`):
+
+  ```js
+  const token = form.querySelector('input[name="_csrf"]').value;
+  await fetch(form.action, {
+    method: "POST",
+    headers: {"X-CSRF-Token": token},
+    body: new FormData(form),
+  });
+  ```
+
+- **Düz bir HTML form'u buna post edemez.** Form gönderen bir tarayıcının header
+  ayarlamanın bir yolu yoktur. Bu yüzden token'ı kimsenin okumadığı bir field'da
+  kalır ve request reddedilir. Yukarıdaki gibi `fetch()` ile gönderin.
+  `WithoutCSRF()` kontrolü yine tamamen kapatır ve body yine okunmamış olarak
+  gelir.
+- **`MaxBodyBytes` yine geçerlidir ve artırılmalıdır.** 4 MiB'lık varsayılan limit
+  streaming bir body'yi de diğerleri gibi sınırlar ve handler okurken uygulanır.
+  Limitin ötesini okuyup başarısız olan bir handler, hangi hatayı döndürürse
+  döndürsün `413` ile cevaplanır.
+- **Form'u parse eden her şey stream'i elden verir.** `rc.Request.FormValue`,
+  `ParseMultipartForm`, `validate.Form` gibi bir helper: her biri body'yi handler'dan
+  önce sonuna kadar okur. Hiçbir şey başarısız olmaz. net/http bütün body'yi,
+  `MaxBodyBytes`'a kadar, `os.TempDir()` altındaki geçici dosyalara yazar (birçok
+  Linux sunucusunda bu bir `tmpfs`, yani bellektir) ve upload artık stream
+  edilmez. Body'yi bundan sonra kendisi okuyan bir handler onu tükenmiş bulur. Bunun
+  yerine handler'ın stream'den okuduğu field'ları validate edin. Bir plugin'in
+  `BeforeActionEvent.Form()`'u böyle bir action için tek byte okumadan
+  `collage.ErrStreamingBody` döndürür.
+  [Plugin yazmak](/docs/writing-plugins#beforeactionhook) sayfasına bakın.
+- **Yarıda kesilen bir upload client'ın hatasıdır.** Client gittiği ya da bağlantı
+  koptuğu için body'nin okunması başarısız olur ve handler ardından bir hata
+  döndürürse action `400` ile cevap verir. Okuma deadline'ı geçtiyse cevap `408`
+  olur. Bu durum debug seviyesinde log'lanır ve hiçbir error hook'u çağrılmaz, çünkü
+  iptal edilen bir upload, bir upload'un bitmesinin en sıradan yoludur. Kural olarak
+  bu cevabı kimse almaz. Giden client artık yoktur, `WithBodyTimeout` altında da
+  write deadline'ı read deadline'ı ile birlikte geçmiştir. Bu yüzden status
+  metrikler ve access log içindir. Bu, streaming olsun olmasın her action için
+  geçerlidir.
+
+Register sırasında `POST`, `PUT` ya da `PATCH`'ten hiçbirine cevap vermeyen bir
+action'daki `WithStreamingBody()`, `collage.ErrStreamingBodyMethod` ile reddedilir.
+
+### Uzun upload'lar ve timeout'lar
+
+Sunucunun deadline'ları page'lere göre boyutlanmıştır. `ReadTimeout` (varsayılan
+15s), body dahil bütün request'in okunmasını sınırlar. `WriteTimeout` (30s) ise
+request'in header'ları gelir gelmez başlar, bu yüzden yalnızca response'u değil
+upload'u da sınırlar. Bundan yavaş bir upload başarısız olur. `WriteTimeout`'u aşıp
+artırılmış bir `ReadTimeout`'u aşmayan bir upload daha da kötüdür: handler dosyayı
+kaydeder, client ise cevap alamaz ve yeniden dener.
+
+`WithBodyTimeout(d)` (v0.57.0'dan beri) tek bir action'a kendi deadline'ını verir.
+O action'a gelen bir request için iki deadline'ı da şimdi artı `d` ile değiştirir.
+Böylece sitenin geri kalanı kısa deadline'larını korur. Bunu page'in guard'larından
+sonra ve body'yi herhangi bir şey okumadan önce yapar. Sıradan bir action'da bu,
+body'yi okuyan forgery kontrolünden öncedir. Kontrolü yalnızca bir header okuyan
+streaming bir action'da ise kontrolden sonradır. Böylece token taşımayan bir request
+sunucunun deadline'ları altında reddedilir:
+
+```go
+app.RegisterAction(collage.NewAction("upload").
+	WithPath("en", "/upload").
+	WithMethods(http.MethodPost).
+	WithStreamingBody().
+	WithMaxBodyBytes(2 << 30).
+	WithBodyTimeout(30 * time.Minute).
+	WithHandler(upload).
+	Build())
+```
+
+`d`'yi bütün upload'u ve ardından gelen cevabı kapsayacak şekilde seçin: en az
+`MaxBodyBytes` bölü hizmet vermek istediğiniz en yavaş bağlantı. Varsayılan değer
+olan sıfır, sunucunun deadline'larını korur. Negatif bir değer register sırasında
+`collage.ErrNegativeBodyTimeout` ile reddedilir. Deadline'lar
+`http.ResponseController` üzerinden ayarlanır. Bunun için sunucu ile action
+arasındaki her `ResponseWriter` wrapper'ının `Unwrap`'i implement etmesi gerekir.
+collage'ın kendi wrapper'ları ve `elagoht` plugin'lerininkiler bunu yapar. Biri
+yapmıyorsa request sunucunun deadline'ları altında çalışır ve bir kez uyarı
+log'lanır.
+
+Bu kontrolleri geçen bir request bağlantısını `d` süresince tutabilir. Token ise
+form'u yükleyen herkese bedavadır. Upload'u bir page guard'ı ya da bir auth
+middleware'i ile koruyun. Bunlar bütün bu adımlardan önce çalışır. Handler'ın
+içindeki bir kontrol ise `d` verildikten sonra çalışır. Öndeki bir proxy'nin
+nelere ihtiyaç duyduğu [Deployment](/docs/deployment#uploads) sayfasındadır.
 
 ## Action'ın değiştirdiğini invalidate etmek
 

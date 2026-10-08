@@ -572,7 +572,7 @@ hiçbir şeyin sunucuya ulaşamadığı durumda doğrudur.
 | --- | --- | --- |
 | `ReadTimeout` | 15s | Header'lar dahil request'in okunmasını. Header'ları yavaş gönderen bir client bağlantıyı açık tutamaz. |
 | `ReadHeaderTimeout` | 0 | Yalnızca request header'larının okunmasını. Böylece header'ları bir byte'ta bir gönderen bir client erken düşürülür, büyük bir body ise `ReadTimeout`'un tamamını alır. Sıfır, `ReadTimeout`'u kullanır (v0.56.0'dan beri). |
-| `WriteTimeout` | 30s | Response'un yazılmasını. Verisi bundan uzun süren bir page yarıda kesilir. |
+| `WriteTimeout` | 30s | Response'un yazılmasını. Request'in header'ları okunduğunda başlar, bu yüzden bir upload'un body'sini de sınırlar. Verisi bundan uzun süren bir page yarıda kesilir. |
 | `IdleTimeout` | 60s | Bir sonraki request'ini bekleyen keep-alive bağlantısını. |
 | `DrainDelay` | 0 | Bir `SIGTERM`'den sonra, keep-alive'lar kapalı olarak hizmet vermeye devam edilen süreyi; böylece load balancer trafik göndermeyi bırakabilir (v0.53.0'dan beri). |
 | `ShutdownTimeout` | 10s | Drain'den sonra, port kapandığında devam eden request'lerin bitmesini. |
@@ -590,12 +590,67 @@ Server: collage.ServerConfig{
 header timeout'unu kullanır. Bunlardan herhangi birindeki negatif değer
 `collage.ErrNegativeDuration`'dır.
 
+Upload'lar için yalnızca `ReadTimeout`'u artırmak bir tuzaktır. `WriteTimeout`'tan
+uzun süren bir upload okunur ve handler onu kaydeder, ama cevap yarıda kesilir.
+Client bağlantının kapandığını görür ve yeniden dener. İkisini birden bütün sunucu
+için artırmak ise yavaş her client'ın her endpoint'i o kadar süre tutmasına izin
+verir. Bunun yerine upload action'ına `WithBodyTimeout` ile kendi deadline'ını
+verin. [Upload'lar](#uploads) bölümüne bakın.
+
 Bir data handler'ın ne kadar sürebileceği ayrı bir ayardır. Bunu her fragment'in
 `WithTimeout`'u belirler. Timeout belirtmeyen fragment'ler ve document'lar için
 `Template.Timeout` (5 saniye) geçerlidir. Bu süreyi `WriteTimeout`'un epey altında
 tutun. Böylece yavaş bir upstream, page'in ortasında kapanan bir bağlantıya değil,
 fragment'in fallback'ine dönüşür. [Config](/docs/configuration) sayfasına
 bakın.
+
+## Upload'lar
+
+Bir upload ([Streaming body'ler](/docs/forms-and-actions#streaming-bodies)
+bölümüne bakın), tarayıcı ile handler arasındaki her limitle karşılaşır. Bu
+limitlerin çoğunun varsayılanları form'lara göre boyutlanmıştır.
+
+**Sunucunun deadline'ları.** Yukarıdaki varsayılanlar her upload'u 15 saniyelik
+okumadan sonra bitirir. Upload action'ındaki `WithBodyTimeout(d)` (v0.57.0'dan
+beri), iki deadline'ı da yalnızca o action için şimdi artı `d` ile değiştirir. Bunu
+page'in guard'larından sonra (streaming bir action'da ise forgery kontrolünden de
+sonra) yapar. `d`'yi en az `MaxBodyBytes` bölü hizmet verdiğiniz en yavaş bağlantı
+artı cevap verme süresi kadar tutun. Client'ı gitmiş ya da süresi dolmuş bir upload
+server hatası olarak değil, `400` ya da `408` olarak kaydedilir ve debug
+seviyesinde log'lanır. Giden bir client hiçbir şey almaz. `WithBodyTimeout`
+altında süresi dolan client da almaz, çünkü write deadline'ı read deadline'ı ile
+birlikte geçmiştir.
+
+**nginx**, `client_max_body_size`'ı (varsayılan 1 MiB) aşan her şeye collage onu
+görmeden kendi `413`'ü ile cevap verir. Varsayılan olarak ayrıca request body'sinin
+tamamını, bir kısmını bile iletmeden önce kendi diskine buffer'lar. Stream, kötü
+bir dosyanın erkenden reddedilmesi ve upload'un ilerleyişi kaybolur. Dolan da
+nginx'in temp dizini olur. Upload location'ı için:
+
+```nginx
+location /upload {
+    client_max_body_size     2g;   # MaxBodyBytes, or a little more
+    proxy_request_buffering  off;  # stream the body through
+    proxy_send_timeout       30m;  # between two writes to collage
+    proxy_read_timeout       30m;  # waiting for collage's answer
+    proxy_pass               http://127.0.0.1:8080;
+}
+```
+
+**Caddy** request body'lerini stream eder. Limiti, ayarlandığında,
+`request_body { max_size 2GB }`'dir.
+
+**Cloudflare ve diğer CDN'ler** request body'sini plana göre sınırlar (bu yazı
+yazıldığında Free ve Pro planlarında 100 MB'tı; kendi planınız için Cloudflare'in
+dokümantasyonuna bakın) ve daha büyüğüne kendileri cevap verir. Load balancer'ların
+da kendi sınırları ve idle timeout'ları vardır. Daha büyük dosyalar için CDN'i
+atlayan bir hostname ya da parça parça devam ettirilebilen upload'lar gerekir.
+collage ikincisini yapmaz.
+
+**[elagoht/health](/docs/plugins#elagohthealth)'in `maxInFlight`'ı**, upload'lar
+dahil hizmet verilen her request'i sürdüğü boyunca sayar. Bunu aynı anda
+beklediğiniz upload'lara göre boyutlandırın. Aksi halde yavaş upload'lar slot'ları
+tutar ve sitenin geri kalanına `503` ile cevap verilir.
 
 ## Loglar
 
@@ -682,6 +737,9 @@ DNS'inizin gönderdiği ne ise odur.
   iletiliyor ve `Server.TrustedProxies` proxy'yi listeliyor.
 - Form'ları buraya post eden diğer her origin (örneğin bir admin subdomain'i)
   `Security.CSRFTrustedOrigins`'te belirtilmiş.
+- Upload action'ının kendi `WithMaxBodyBytes`'ı ve `WithBodyTimeout`'u var, öndeki
+  proxy de o boyuta izin veriyor ve body'yi stream ederek iletiyor.
+  [Upload'lar](#uploads) bölümüne bakın.
 - Platformun stop grace period'u `Server.DrainDelay + Server.ShutdownTimeout`'tan
   uzun. elagoht/jobs varsa bir saniye daha uzun.
 - [elagoht/health](/docs/plugins#elagohthealth) ile liveness check `/healthz`'ye,

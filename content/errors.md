@@ -1,6 +1,6 @@
 ---
 description: Every exported error value in collage, grouped by where it comes from, with what it means and what to do about it.
-reference: ErrCSRFCrossOrigin, ErrCachedFetchPanicked, PanicError, ErrUnknownSlot, ErrConflictingData, ErrTemplateType, TemplateTypeError, ErrNoDocumentHandler, ErrRouteParams, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath, ErrInvalidGuardDecision, ErrGuardRefused, ErrGuarded
+reference: ErrCSRFCrossOrigin, ErrCSRFHeaderRequired, ErrStreamingBody, ErrStreamingBodyMethod, ErrNegativeBodyTimeout, ErrCachedFetchPanicked, PanicError, ErrUnknownSlot, ErrConflictingData, ErrTemplateType, TemplateTypeError, ErrNoDocumentHandler, ErrRouteParams, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath, ErrInvalidGuardDecision, ErrGuardRefused, ErrGuarded
 ---
 
 # Errors
@@ -65,6 +65,7 @@ application. See [Configuration](/docs/configuration#validation).
 | `ErrDuplicateCommand` | `collage: duplicate command name` | Two commands share a name. | — |
 | `ErrNilApp` | `collage: nil app` | `DispatchCommands` was given a nil `*App`. | — |
 | `ErrUnknownCommand` | `collage: unknown command` | `DispatchCommands` got no arguments, or a name no plugin registered. | The scaffolded `main.go` exits `2` on it, as a usage error; a program that would rather serve can fall through on it instead. |
+| `ErrStreamingBody` | `collage: the action's body is streamed; it is not parsed as a form` | `BeforeActionEvent.Form()` was called for an action built with `WithStreamingBody()`, and read nothing (since v0.57.0). | Treat it as "this action has no form to check", and let the request through. |
 
 See [Writing a plugin](/docs/writing-plugins).
 
@@ -238,6 +239,8 @@ value at registration and on a request.
 | `ErrNoActionPaths` | `collage: action has no paths` | A standalone action has no `WithPath`. | An action on a page takes the page's paths; one on its own needs its own. |
 | `ErrNoActionHandler` | `collage: action has no handler` | An action has no `WithHandler`. | — |
 | `ErrInvalidActionMethod` | `collage: invalid action method` | An action declares `OPTIONS`, `TRACE` or `CONNECT`, which the server answers itself (since v0.56.0); the message names the action and the method. | Remove it from `WithMethods`. A CORS preflight belongs in a middleware. |
+| `ErrStreamingBodyMethod` | `collage: a streaming body needs POST, PUT or PATCH` | An action built with `WithStreamingBody()` answers none of `POST`, `PUT` or `PATCH` (since v0.57.0); the message names the action and its methods. | Give it one of them, or drop `WithStreamingBody()`. |
+| `ErrNegativeBodyTimeout` | `collage: an action's body timeout must not be negative` | `WithBodyTimeout` was given a negative duration (since v0.57.0). | Zero keeps the server's deadlines. |
 | `ErrNoMethods` | `collage: action declares no methods` | An action answers no method. | `WithMethods(http.MethodPost)`, or `WithAction` on a page. |
 | `ErrNilFragmentPath` | `collage: fragment path has no fragment` | `WithFragmentPath` was given a `nil` fragment. | — |
 | `ErrUnregisteredPage` | `collage: action answered with a page that was never registered` | An action's `RenderPage` returned a page that was not registered. The request fails with a 500. | Register the page, and answer with that same value rather than building one in the handler. |
@@ -266,11 +269,14 @@ action's handler runs, and error hooks receive the reason under the stage
 | `ErrCSRFMismatch` | `collage: csrf token does not match` | The token is not the one in the cookie. |
 | `ErrCSRFInvalid` | `collage: csrf token is not valid` | The token was not signed with this application's key. |
 | `ErrCSRFCrossOrigin` | `collage: cross-origin request` | The browser marked the submission as sent from another origin, by `Sec-Fetch-Site` or by an `Origin` that is not the `Host` — refused whatever token it carried (since v0.34.0; named since v0.34.1). |
+| `ErrCSRFHeaderRequired` | `collage: no csrf token from the header` | A submission to an action built with `WithStreamingBody()` carried no token in `X-CSRF-Token` (or `Security.CSRFHeaderName`), the only place such an action looks (since v0.57.0). It wraps `ErrCSRFMissing`, so `errors.Is` with either matches. |
 
 The usual causes are a form with no `{{csrfToken}}`, and a key generated per
 process — set `Security.CSRFKey` so tokens survive restarts and work across
-instances. A body over the size limit is a **413** instead, even when reading the
-token is what hit the limit. See
+instances. A plain HTML form posting to a streaming action is refused with
+`ErrCSRFHeaderRequired`: it cannot set the header, so send it with `fetch()`. A body
+over the size limit is a **413** instead, even when reading the token is what hit
+the limit. See
 [Forms and actions](/docs/forms-and-actions#forgery-protection).
 
 `{{csrfToken}}` in an application with `Security.DisableCSRF` set is
@@ -288,7 +294,7 @@ apart without reading messages. See
 | `ErrNotFound` | see [Rendering](#rendering) | `render` | A required fragment's content does not exist — a content problem. |
 | `ErrMethodNotAllowed` | `collage: method not allowed` | `route` | The path exists but answers no such method: a 405, with an `Allow` header naming what it does answer. On a document's URL the 405 is plain text (since v0.11.0). |
 | `ErrEmptyRender` | `collage: page rendered no markup` | `render` | A page rendered successfully but produced no markup, served or answered by an action: a 500. The same sentinel a static build records. |
-| `ErrCSRFMissing`, `ErrCSRFMismatch`, `ErrCSRFInvalid`, `ErrCSRFCrossOrigin` | see [above](#request-forgery) | `route` | A submission refused by the forgery check. |
+| `ErrCSRFMissing`, `ErrCSRFMismatch`, `ErrCSRFInvalid`, `ErrCSRFCrossOrigin`, `ErrCSRFHeaderRequired` | see [above](#request-forgery) | `route` | A submission refused by the forgery check. |
 | `ErrInvalidGuardDecision` | `collage: invalid guard decision` | `guard` | A page's [guard](/docs/pages-and-layouts#private-pages-guards) answered with a decision that cannot be written — a redirect with no location, a `200` — and the request failed with a 500. A guard that returns an error is reported at the same stage, with its own error. |
 | `ErrGuardRefused` | `collage: the guard refused this reader` | — | Returned, not reported: `RenderFragment` asked for a fragment whose guard refuses the reader. A plugin streaming fragments sends that reader nothing. |
 | `ErrEmptyErrorPage` | `collage: error page rendered empty` | `error_page` | A registered error page rendered successfully but produced no markup, so the built-in page was served instead. |
@@ -296,6 +302,13 @@ apart without reading messages. See
 | `ErrAssetFailed` | `collage: asset request failed` | `asset` | A mounted file request answered with a status of 400 or above: one sentinel for every such status. |
 | `ErrHandlerFailed` | `collage: mounted handler failed` | `handler` | A handler mounted with `App.Handle` answered with a server error. |
 | `ErrUnsafeRedirectTarget` | `collage: unsafe redirect target` | `route` | A redirect's destination, after substitution, is not a single-slash relative path — `//host`, `/\host`, or one with a control character. Answered with a 500, not a `Location` header. Since v0.34.0 a destination written that way is refused at registration with `ErrInvalidPath`, and a captured value is escaped so it cannot make one. |
+
+Since v0.57.0 an action whose handler read past its body limit and then failed is
+reported as a `413`, whatever error it returned: the hook receives the handler's
+own error, and `errors.As` finds a `*http.MaxBytesError` on it. An action whose
+body was cut off — the client went away, or the read deadline passed — is answered
+`400` or `408` and reaches no error hook; it is logged at debug. See
+[Streaming bodies](/docs/forms-and-actions#streaming-bodies).
 
 `"error_page"` is the stage worth alerting on: the page that reports failures
 failed, and the reader still saw a plausible page, so nothing else would tell you.

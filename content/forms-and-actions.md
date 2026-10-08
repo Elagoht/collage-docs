@@ -1,6 +1,6 @@
 ---
 description: Handling form posts, fetch calls and webhooks with actions, and protecting them from request forgery.
-reference: NewAction, ActionBuilder, ActionResult, SeeOther, JSONOf, RenderPage, RenderFragment, PageBuilder.WithAction, PageBuilder.WithFragmentPath, ErrDuplicateRoute, ErrUnknownFragmentPath, FetchHeader, LocationHeader
+reference: NewAction, ActionBuilder, ActionResult, SeeOther, JSONOf, RenderPage, RenderFragment, PageBuilder.WithAction, PageBuilder.WithFragmentPath, ActionBuilder.WithStreamingBody, ActionBuilder.WithBodyTimeout, ErrCSRFHeaderRequired, ErrDuplicateRoute, ErrUnknownFragmentPath, FetchHeader, LocationHeader
 ---
 
 # Forms and actions
@@ -394,6 +394,10 @@ form.addEventListener("submit", async (event) => {
 A fragment or page an action answers with is rendered like any other, so a form in
 it carries a fresh token too: a form that replaces itself keeps working.
 
+An action built with `WithStreamingBody()` is the exception: it reads the token
+from the header alone, so even a `fetch()` posting a form sets `X-CSRF-Token`. See
+[Streaming bodies](#streaming-bodies).
+
 ### Requests that cannot carry a token
 
 A payment provider's webhook, or an API called with a bearer token by something
@@ -440,6 +444,12 @@ if err := rc.Request.ParseForm(); err != nil {
 }
 ```
 
+Since v0.57.0 the answer is `413` whatever error the handler returns once its body
+has run into the limit: the read's own, or one of its own such as "upload failed",
+which used to be a `500`. The handler's error is kept beside the `413`, in the log
+and in what error hooks are handed, and `errors.As` still finds the
+`*http.MaxBytesError` on it. It is logged as a warning, not an error.
+
 When the token is checked from the form, the check reads the body first, so an
 oversized form is refused there, before your handler runs — still with a `413`,
 not a `403`: a body too large to read is not a forgery.
@@ -454,6 +464,112 @@ first, and your message is never shown. A 4.5 MB photo under the default limit i
 then refused as too large for the server, even though the form says 5 MB is
 allowed. Give such an action room for the file and the rest of the form:
 `WithMaxBodyBytes(maxPhoto + 64<<10)`.
+
+## Streaming bodies
+
+An action that takes a large upload reads its body as a stream, and nothing may read
+it first. Since v0.57.0 `WithStreamingBody()` makes that a guarantee:
+
+```go
+app.RegisterAction(collage.NewAction("upload").
+	WithPath("en", "/upload").
+	WithMethods(http.MethodPost).
+	WithStreamingBody().
+	WithMaxBodyBytes(2 << 30).
+	WithHandler(upload).
+	Build())
+```
+
+- **The body arrives unread.** Nothing before the handler parses a form out of it:
+  `rc.Request.Body` is the bytes as they were sent, and `rc.Request.Form` and
+  `rc.Request.MultipartForm` are nil. The handler reads it — with
+  `rc.Request.MultipartReader()`, say, one part at a time. The
+  [elagoht/uploads](/docs/plugins#elagohtuploads) plugin does this for you.
+- **The token comes in the header, and only there.** Finding it in a form field
+  would mean parsing the body, so the field is not looked for. A request without
+  `X-CSRF-Token` (or `Security.CSRFHeaderName`) is refused with `403`, and error
+  hooks are told why with `collage.ErrCSRFHeaderRequired`, which names the header.
+  The reader sees only the 403. The cookie is `HttpOnly`, so read the value from the
+  input `{{csrfToken}}` renders (named `_csrf`, or `Security.CSRFFieldName`):
+
+  ```js
+  const token = form.querySelector('input[name="_csrf"]').value;
+  await fetch(form.action, {
+    method: "POST",
+    headers: {"X-CSRF-Token": token},
+    body: new FormData(form),
+  });
+  ```
+
+- **A plain HTML form cannot post to it.** A browser submitting a form has no way
+  to set a header, so its token is in a field nobody reads, and it is refused.
+  Submit with `fetch()` as above. `WithoutCSRF()` still turns the check off
+  entirely, and the body still arrives unread.
+- **`MaxBodyBytes` still applies, and must be raised.** The 4 MiB default bounds a
+  streaming body as it bounds any other, enforced as the handler reads. A handler
+  that reads past it and fails is answered with `413`, whatever error it returns.
+- **Anything that parses the form gives up the stream.** `rc.Request.FormValue`,
+  `ParseMultipartForm`, a helper such as `validate.Form` — each reads the body to
+  its end before the handler does. Nothing fails: net/http writes the whole body,
+  up to `MaxBodyBytes`, to temp files under `os.TempDir()` (on many Linux hosts a
+  `tmpfs`, and so memory), and the upload is simply no longer streamed. A handler
+  that reads the body itself afterwards finds it consumed. Validate the fields the
+  handler read from the stream instead. A plugin's `BeforeActionEvent.Form()`
+  returns `collage.ErrStreamingBody` for such an action without reading a byte —
+  see [Writing a plugin](/docs/writing-plugins#beforeactionhook).
+- **An upload cut off is the client's failure.** When a read of the body fails
+  because the client went away or the connection broke, and the handler then
+  returns an error, the action answers `400`; when the read deadline passed, `408`.
+  It is logged at debug and no error hook is called: a cancelled upload is the most
+  ordinary way an upload ends. As a rule nobody receives that answer — a client
+  that left is gone, and under `WithBodyTimeout` the write deadline passed with the
+  read one — so the status is for metrics and the access log. This holds for every
+  action, streaming or not.
+
+Registration refuses `WithStreamingBody()` on an action answering none of `POST`,
+`PUT` or `PATCH`, with `collage.ErrStreamingBodyMethod`.
+
+### Long uploads and timeouts
+
+The server's deadlines are sized for pages. `ReadTimeout` (15s by default) bounds
+reading the whole request, body included, and `WriteTimeout` (30s) starts as soon
+as the request's headers arrive, so it bounds the upload too, not only the
+response. An upload slower than that fails. One that outlives `WriteTimeout` but
+not a raised `ReadTimeout` is worse: the handler stores the file, and the client
+gets no answer and tries again.
+
+`WithBodyTimeout(d)` (since v0.57.0) gives one action its own deadline. For a
+request to that action it replaces both deadlines with now plus `d`, so the rest of
+the site keeps its short ones. It does so after the page's guards and before
+anything reads the body. On an ordinary action that is before the forgery check,
+which reads the body; on a streaming action, whose check reads only a header, it is
+after it, so a request without a token is refused under the server's deadlines:
+
+```go
+app.RegisterAction(collage.NewAction("upload").
+	WithPath("en", "/upload").
+	WithMethods(http.MethodPost).
+	WithStreamingBody().
+	WithMaxBodyBytes(2 << 30).
+	WithBodyTimeout(30 * time.Minute).
+	WithHandler(upload).
+	Build())
+```
+
+Choose `d` to cover the whole upload and the answer after it: at least
+`MaxBodyBytes` divided by the slowest connection you mean to serve. Zero, the
+default, keeps the server's deadlines; a negative value is refused at registration
+with `collage.ErrNegativeBodyTimeout`. The deadlines are set through
+`http.ResponseController`, which needs every `ResponseWriter` wrapper between the
+server and the action to implement `Unwrap`. collage's own and the `elagoht`
+plugins' do; when one does not, the request runs under the server's deadlines and a
+warning is logged once.
+
+A request that clears those checks holds its connection for up to `d`, and a token
+is free to anyone who loads the form. Guard the upload with a page guard or an auth
+middleware, which run before all of this; a check inside the handler runs after `d`
+has been granted. What a proxy in front needs is in
+[Deployment](/docs/deployment#uploads).
 
 ## Invalidating what an action changed
 
