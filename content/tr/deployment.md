@@ -213,7 +213,10 @@ systemd kullanıyorsanız dosyayı unit'in `WorkingDirectory`'sinde tutun.
 birinde graceful shutdown yapar. `app.Shutdown(ctx)`'i kendiniz çağırdığınızda da
 aynısı olur. Sıra sabittir:
 
-1. **Drain.** [`DrainHook`](/docs/writing-plugins#streams-and-shutdown)'u
+1. **Drain.** `ListenAndServe`'ün
+   [`ServeHook`](/docs/writing-plugins#streams-and-shutdown) plugin'lerine
+   `OnServe`'de verdiği ctx iptal edilir. Böylece bir scheduler yeni iş başlatmaz
+   (v0.55.0'dan beri). [`DrainHook`](/docs/writing-plugins#streams-and-shutdown)'u
    implement eden her plugin'e bir kez haber verilir. Bir health plugin'i
    readiness check'ini burada false'a çevirir. Keep-alive'lar kapatılır: boşta
    bekleyen keep-alive bağlantıları hemen, meşgul olanlar ise o anki
@@ -247,7 +250,11 @@ yüzden bir durdurma `DrainDelay + ShutdownTimeout` kadar sürebilir.
 `app.Shutdown(ctx)`'i kendiniz çağırdığınızda tek bir ctx hem drain'i hem de devam
 eden request'lerin beklenmesini sınırlar, `ShutdownTimeout` ise kullanılmaz. Bu
 ctx'e en az `DrainDelay` artı request'lerinizin ihtiyaç duyduğu süre kadar bir
-deadline verin. Aksi halde drain, request'lere kalacak süreyi tüketir.
+deadline verin. Aksi halde drain, request'lere kalacak süreyi tüketir. Bir
+plugin'in `Shutdown`'ı bu deadline'ı biraz aşabilir:
+[elagoht/jobs](/docs/plugins#elagohtjobs), ctx'ini dinlemeyen bir job için bir
+saniye daha bekler. Bu yüzden onunla bir durdurma
+`DrainDelay + ShutdownTimeout + 1s` kadar sürebilir.
 
 Bekleme erken de bitebilir. İkinci bir `SIGINT` ya da `SIGTERM` (Ctrl-C'ye iki kez
 basmak) beklemeyi hemen bitirir ve doğrudan sunucunun durdurulmasına geçer. Bitmiş
@@ -259,6 +266,7 @@ sayılır, böylece restart'lar anında olur. `OnDrain` ise yine çağrılır. H
 Process'i durduran şey, onu öldürmeden önce bu toplamdan daha uzun beklemelidir:
 
 - **systemd:** `TimeoutStopSec`, `DrainDelay + ShutdownTimeout`'tan büyük olmalıdır.
+  elagoht/jobs varsa buna bir saniye eklenir.
   `collage build -i`'ın yazdığı unit `TimeoutStopSec=30` ayarlar. Bu, varsayılan
   değerleri karşılar. `DrainDelay`'i artırdığınızda bunu da artırın.
 - **Kubernetes:** `terminationGracePeriodSeconds` bu toplamdan büyük olmalıdır.
@@ -269,7 +277,7 @@ Process'i durduran şey, onu öldürmeden önce bu toplamdan daha uzun beklemeli
 
 ```yaml
 spec:
-  terminationGracePeriodSeconds: 30   # > DrainDelay + ShutdownTimeout
+  terminationGracePeriodSeconds: 30   # > DrainDelay + ShutdownTimeout (+ 1s with elagoht/jobs)
   containers:
     - name: app
       readinessProbe:
@@ -295,6 +303,41 @@ bir platform bunu crash olarak raporlar.
 
 `DrainDelay`'i ya da `ShutdownTimeout`'u artırırsanız platformunuzun grace
 period'unu da onunla birlikte artırın.
+
+### Kendi sunucunuzla hizmet vermek
+
+`OnServe`'ü yalnızca `ListenAndServe` çağırır. `app.Handler()` üzerinde kendi
+`http.Server`'ını çalıştıran bir uygulama `OnServe` almaz. Bu yüzden bu tür
+plugin'leri kendisi başlatmalı ve durmaya başladığında ctx'lerini iptal etmelidir.
+[elagoht/jobs](/docs/plugins#elagohtjobs) için sunucu dinlemeye başlar başlamaz
+onun `Start(ctx)`'ini çağırın. Uygulama, sunucusu durduktan sonra
+`app.Shutdown(ctx)`'i de çağırmalıdır. Plugin'lerin `Shutdown`'ını çalıştıran bu
+çağrıdır. O olmadan bir queue'da bekleyen item'lar loglanmadan bile kaybolur.
+
+```go
+// Init first, and its error: app.Handler() would only log it and answer 503,
+// and the jobs plugin's Start panics before its Init has run.
+if err := app.Start(); err != nil {
+	return err
+}
+ln, err := net.Listen("tcp", ":8080")
+if err != nil {
+	return err
+}
+srv := &http.Server{Handler: app.Handler()}
+go srv.Serve(ln)
+ctx, stopJobs := context.WithCancel(context.Background())
+j.Start(ctx) // the port is bound: start the jobs
+
+// On shutdown:
+stopJobs()                // the drain: no more triggers; Enqueue still accepts
+srv.Shutdown(shutdownCtx) // requests in flight finish
+app.Shutdown(shutdownCtx) // the plugins stop; jobs finishes its queues and refuses more
+```
+
+`app.Shutdown`, `DrainHook` plugin'lerine haber verir ama `DrainDelay` kadar
+beklemez, çünkü `App` hizmet vermeye devam edecek bir sunucunuzdan haberdar
+değildir. Onu çağırmadan önce sunucunuzu durdurun.
 
 ## Health check'ler
 
@@ -466,11 +509,10 @@ log.Fatal(srv.ListenAndServeTLS(certFile, keyFile))
 ```
 
 Bu durumda `ListenAndServe`'ün sizin yerinize hallettiği timeout'lar ve signal
-handling artık sizin sorumluluğunuzdadır. Plugin'lerin kapanması için
-`app.Shutdown(ctx)`'i de kendiniz çağırırsınız. Bu çağrı `DrainHook` plugin'lerine
-haber verir ama `DrainDelay` kadar beklemez, çünkü `App` hizmet vermeye devam
-edecek bir sunucunuzdan haberdar değildir. Onu çağırmadan önce sunucunuzu
-durdurun.
+handling artık sizin sorumluluğunuzdadır. Önce `app.Start()`'ı çağırırsınız,
+`ServeHook` plugin'lerini kendiniz başlatırsınız ve plugin'lerin kapanması için
+sunucunuz durduktan sonra `app.Shutdown(ctx)`'i çağırırsınız. Bkz.
+[Kendi sunucunuzla hizmet vermek](#serving-with-your-own-server).
 
 
 ## Bir proxy'nin arkasında: `TrustedProxies`
@@ -568,7 +610,7 @@ OpenTelemetry trace'lerine dönüştürür.
 - Form'ları buraya post eden diğer her origin (örneğin bir admin subdomain'i)
   `Security.CSRFTrustedOrigins`'te belirtilmiş.
 - Platformun stop grace period'u `Server.DrainDelay + Server.ShutdownTimeout`'tan
-  uzun.
+  uzun. elagoht/jobs varsa bir saniye daha uzun.
 - [elagoht/health](/docs/plugins#elagohthealth) ile liveness check `/healthz`'ye,
   readiness check `/readyz`'ye bakıyor.
 - Build'den önce CI'da `go test ./...` çalışıyor. [Test yazmak](/docs/testing) sayfasına

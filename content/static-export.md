@@ -64,6 +64,14 @@ all of them joined, and `main` exits non-zero on it, so a CI job fails when a pa
 could not be written. Skipped pages and warnings do not fail the build; an
 error-level [finding](#reading-the-report) does, with every page still written.
 
+A build does not shut the application down either, and nothing serves after it,
+so a program that exits once it has built calls `app.Shutdown` itself; the
+scaffolded `main.go` does, from collage v0.55.0 (see
+[the CLI](/docs/cli#the-contract-with-maingo)). Otherwise no plugin's `Shutdown`
+runs: what a plugin holds is never flushed, and work a queue plugin such as
+[elagoht/jobs](/docs/plugins#elagohtjobs) was handed during the build vanishes
+without being logged.
+
 If you rewrite `main.go`, keep the `-collage-build`, `-out` and `-clean` flags, or
 `collage export` stops doing anything useful.
 

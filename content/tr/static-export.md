@@ -65,6 +65,14 @@ bir page yazılamadığında CI job'ı da başarısız olur. Atlanan page'ler ve
 build'i başarısız kılmaz. Error seviyesindeki bir [finding](#reading-the-report)
 ise kılar; bu durumda da her page yine yazılır.
 
+Bir build de uygulamayı shutdown etmez ve ondan sonra hiçbir şey hizmet vermez. Bu
+yüzden build bitince çıkan bir program `app.Shutdown`'ı kendisi çağırır. collage
+v0.55.0'dan beri scaffold edilen `main.go` bunu yapar (bkz.
+[CLI](/docs/cli#the-contract-with-maingo)). Aksi hâlde hiçbir plugin'in `Shutdown`'ı
+çalışmaz: bir plugin'in elinde tuttuğu şey hiçbir zaman flush edilmez ve
+[elagoht/jobs](/docs/plugins#elagohtjobs) gibi bir queue plugin'ine build sırasında
+verilen iş loglanmadan kaybolur.
+
 `main.go`'yu yeniden yazarsanız `-collage-build`, `-out` ve `-clean` flag'lerini
 koruyun. Aksi hâlde `collage export` işe yarar hiçbir şey yapmaz.
 

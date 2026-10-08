@@ -747,12 +747,21 @@ func main() {
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 		}
+		if err := shutdown(app); err != nil {
+			fmt.Fprintf(os.Stderr, "shutdown: %v\n", err)
+			code = max(code, 1)
+		}
 		os.Exit(code)
 	}
 
 	if *buildFlag {
-		if err := staticBuild(app, *outFlag, *cleanFlag); err != nil {
-			log.Fatalf("static build: %v", err)
+		buildErr := staticBuild(app, *outFlag, *cleanFlag)
+		if err := shutdown(app); err != nil {
+			log.Printf("shutdown: %v", err)
+			buildErr = errors.Join(buildErr, err)
+		}
+		if buildErr != nil {
+			log.Fatalf("static build: %v", buildErr)
 		}
 		return
 	}
@@ -761,7 +770,27 @@ func main() {
 		log.Fatal(err)
 	}
 }
+
+// shutdown runs every plugin's Shutdown once a build or a command is done.
+// Neither serves, so nothing else would. Only after a successful start: a start
+// that failed has already shut down the plugins it started.
+func shutdown(app *collage.App) error {
+	if app.Start() != nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return app.Shutdown(ctx)
+}
 ```
+
+Bir build ve bir komut hizmet vermez, bu yüzden `ListenAndServe` onlar için
+uygulamayı hiçbir zaman shutdown etmez. collage v0.55.0'dan beri scaffold edilen
+`main.go`, ikisinden biri bittiğinde `app.Shutdown`'ı kendisi çağırır. Böylece her
+plugin'in `Shutdown`'ı çalışır: bir plugin'in elinde tuttuğu şey flush edilir ve
+[elagoht/jobs](/docs/plugins#elagohtjobs) gibi bir queue plugin'ine verilen iş,
+drop edildiğinde en azından loglanır. Daha önce scaffold edilmiş bir proje
+`shutdown` fonksiyonunu ve onun iki çağrısını elle ekler.
 
 `main.go`'yu yeniden yazarsanız bunların hepsinin çalışmaya devam ettiğinden emin
 olun. Aksi hâlde `collage dev`, `collage export`, `collage inspect` ve
@@ -786,7 +815,11 @@ if args := flag.Args(); len(args) > 0 {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 	}
-	os.Exit(code)
+	if err := shutdown(app); err != nil { // see above
+		fmt.Fprintf(os.Stderr, "shutdown: %v\n", err)
+		code = max(code, 1)
+	}
+	os.Exit(code) // runs no defers, so the shutdown comes first
 }
 ```
 
@@ -812,5 +845,9 @@ Hiçbir komut eşleşmediğinde sunucuyu başlatmayı tercih eden bir program,
 edebilir. Kendi kullanım metninizi yazdırmak isterseniz `app.Commands()`
 plugin'lerin register ettiği komutları listeler. Dispatch işlemi uygulamayı başlatır
 ve bu da register aşamasını kapatır. Sonradan çağrılan `ListenAndServe` aynı başlatmayı
-yeniden kullanır. Böyle bir komutun nasıl yazıldığı
+yeniden kullanır. `DispatchCommands` uygulamayı shutdown etmez, çünkü bir program
+ardından onunla hizmet vermeye devam edebilir. Bir komut çalıştıktan sonra,
+yukarıdaki gibi `app.Shutdown`'ı kendiniz çağırın. Böylece her plugin'in
+`Shutdown`'ı çalışır.
+Böyle bir komutun nasıl yazıldığı
 [Plugin yazmak](/docs/writing-plugins#commands) sayfasında anlatılır.

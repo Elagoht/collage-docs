@@ -1,5 +1,5 @@
 ---
-description: Bir plugin'in neler yapabildiği, bir plugin'in nasıl register edilip yapılandırıldığı ve ne işe yaradıklarına göre gruplanmış, yayımlanmış kırk bir plugin.
+description: Bir plugin'in neler yapabildiği, bir plugin'in nasıl register edilip yapılandırıldığı ve ne işe yaradıklarına göre gruplanmış, yayımlanmış kırk iki plugin.
 reference: Plugin, LoadPluginConfig, ErrUnknownPluginConfig, ErrAppStarted
 ---
 
@@ -105,11 +105,12 @@ slice'taki sırayla, ardından `RegisterPlugin` ile eklenenler çağrı sırası
 çalışır. Çıktıyı değiştiren hook'larda her plugin, kendinden önceki plugin'in
 ürettiği çıktıyı görür. Page'e bir şey ekleyen plugin, genellikle çıktıyı sıkıştıran
 plugin'den önce gelmelidir. Böylece eklenen içerik de sıkıştırılır.
-Yayımlanmış üç plugin nerede duracağını söyler:
+Yayımlanmış dört plugin nerede duracağını söyler:
 [elagoht/compress](#elagohtcompress) response body'lerini yeniden yazan her
 plugin'den önce, [elagoht/health](#elagohthealth) bir request'i reddedebilen ya da
-ona cevap verebilen her plugin'den önce, [elagoht/devtoolbar](#elagohtdevtoolbar)
-ise en sona gelir.
+ona cevap verebilen her plugin'den önce, [elagoht/jobs](#elagohtjobs) işinin
+kullandığı plugin'lerden sonra, [elagoht/devtoolbar](#elagohtdevtoolbar) ise en
+sona gelir.
 
 ## Plugin'leri yapılandırmak
 
@@ -176,7 +177,7 @@ beklediği yerde bir string varsa, plugin bu bölümü okuduğunda hata oluşur.
 
 ## Yayımlanmış plugin'ler
 
-Framework ile birlikte kırk bir plugin yayımlanmıştır. Aşağıda ne işe
+Framework ile birlikte kırk iki plugin yayımlanmıştır. Aşağıda ne işe
 yaradıklarına göre gruplanmışlardır. Her biri ayrı bir modüldür ve her birinin tam
 referans niteliğinde kendi README'si vardır. Aşağıdaki bilgiler bir plugin'i
 kurmanız için yeterlidir.
@@ -189,7 +190,7 @@ kurmanız için yeterlidir.
 | [Güvenlik](#security) | secure, ratelimit, basicauth, oauth, fail2ban |
 | [Canlı güncellemeler](#live-updates) | live, websocket |
 | [Asset'ler ve teslimat](#assets-and-delivery) | minimizer, opti-image, bundle, favicon, compress, cdnpurge, offline, deploy |
-| [Operasyon ve development](#operations-and-development) | htmlcheck, devtoolbar, accesslog, prometheus, otel, analytics, tenant, errortrack, health |
+| [Operasyon ve development](#operations-and-development) | htmlcheck, devtoolbar, accesslog, prometheus, otel, analytics, tenant, errortrack, health, jobs |
 
 ### SEO ve keşfedilebilirlik
 
@@ -1873,7 +1874,8 @@ Plugins: []collage.Plugin{deploy.NewWith(deploy.Config{Target: "netlify"})},
 
 Bir sitenin render ettiğini denetlemek, development'ta bir render'ı görmek ve
 çalışan bir siteyi izlemek: access log'ları, metric'ler, trace'ler, analytics, hata
-raporları ve health probe'ları.
+raporları ve health probe'ları. Bir de sitenin çalıştırdığı zamanlanmış job'lar ve
+arka plan queue'ları.
 
 #### elagoht/htmlcheck
 
@@ -2248,6 +2250,107 @@ app, err := collage.New(&collage.Config{
   accesslog ne probe'ları ne de shed edilen request'leri loglar; önce
   listelendiğinde ikisini de loglar.
 
+#### elagoht/jobs
+
+[github.com/Elagoht/collage-jobs](https://github.com/Elagoht/collage-jobs),
+bir aralıkla ya da bir cron ifadesiyle zamanlanmış job'ları ve tipli arka plan
+queue'larını yalnızca uygulama hizmet verirken çalıştırır. Job'lar ve queue
+worker'ları, `ListenAndServe` port'unu bağladığında
+[`ServeHook`](/docs/writing-plugins#streams-and-shutdown) üzerinden başlar. Job'lar
+[drain](/docs/deployment#graceful-shutdown-and-draining) başladığında tetiklenmeyi
+bırakır. `collage build`'de, bir plugin komutunda ya da yalnızca `app.Handler()`
+veya `app.Start()` çağıran bir test'te hiçbir şey çalışmaz.
+
+```go
+import "github.com/Elagoht/collage-jobs"
+
+j := jobs.New()
+j.Every("refresh-feed", 15*time.Minute, refreshFeed).RunOnStart()
+j.Cron("cleanup", "0 3 * * *", cleanup).Timeout(10 * time.Minute)
+
+type Email struct{ To, Subject string }
+
+mail := jobs.NewQueue(j, "email", func(ctx context.Context, m Email) error {
+	return send(ctx, m)
+}, jobs.QueueOptions[Email]{Workers: 2, MaxAttempts: 3})
+
+app, err := collage.New(&collage.Config{
+	Plugins: []collage.Plugin{j},
+})
+
+// In an action:
+if err := mail.Enqueue(r.Context(), Email{To: to}); err != nil {
+	// jobs.ErrQueueFull, or jobs.ErrDraining once Shutdown has begun:
+	// tell the user to try again
+}
+```
+
+```json
+{
+  "elagoht/jobs": {
+    "timezone": "Europe/Istanbul",
+    "disabled": ["cleanup"]
+  }
+}
+```
+
+- v0.1.0, `ServeHook` için collage v0.55.0 ya da sonrasını ister.
+- **Her instance kendi zamanlanmış job'larını çalıştırır.** Bir load balancer'ın
+  arkasındaki N replica ile bir job her tetiklemede N kez çalışır; leader election
+  yoktur. Böyle bir job'ı eşzamanlı çalışmaya karşı güvenli hâle getirin ya da
+  yalnızca tek bir instance'ta çalıştırın. Bunu, her replica'nın paylaştığı bir
+  config'teki `disabled` ile değil, ortama bakarak
+  `jobs.NewWith(jobs.Config{Disabled: …})` ile belirleyin.
+- Bir job, uygulama başlamadan önce tanımlanan bir
+  `func(ctx context.Context) error`'dır. `Every(name, d, fn)` onu her `d` sürede
+  bir çalıştırır. Bu süre geçen zamanla ölçülür, bu yüzden ne DST ne de geri
+  alınan bir duvar saati onu değiştirir. `Cron(name, expr, fn)` beş alanlı bir ifade
+  alır: dakika, saat, ayın günü, ay, haftanın günü. Alanlarda `*`, değerler,
+  aralıklar, adımlar ve virgülle ayrılmış listeler kullanılabilir; isimler, macro'lar
+  ve saniyeler kullanılamaz. Ayın günü ve haftanın günü ikisi birden
+  kısıtlandığında, Vixie cron'daki gibi ikisinden biri eşleşen gün eşleşmiş sayılır:
+  `0 0 1 * 1` ayın 1'inde ve her pazartesi çalışır. Hatalı yazılmış ya da hiçbir
+  zaman eşleşemeyecek bir ifade `Cron`'da panic eder.
+- `RunOnStart()` job'ı plugin başlar başlamaz da çalıştırır. `Timeout(d)` her
+  çalışmanın ctx'ini sınırlar ve job bu ctx'i dinlemelidir. Devam eden bir çalışma
+  varken gelen tetikleme atlanır, böylece çalışmalar hiçbir zaman üst üste binmez.
+  Başarısız olan ya da panic eden bir çalışma Error seviyesinde loglanır ve tekrar
+  denenmez.
+- Cron ifadeleri `timezone`'da (UTC) okunur. Bir DST değişiminde atlanan saatteki
+  bir zaman, boşluktan sonraki ilk anda bir kez çalışır. Saati sabit olan bir
+  schedule'da tekrarlanan saatteki bir zaman, ilk geçişinde bir kez çalışır. Saat
+  alanı `*` ile başlayan bir schedule ise Vixie cron'daki gibi tekrarlanan saatin
+  iki kopyasında da tetiklenir. `disabled`, çalışmayacak job'ların adlarını verir.
+  Bilinmeyen bir ad, geçersiz bir zone gibi startup'ı başarısız kılar.
+- Zone, sistemin zoneinfo'sundan okunur. `FROM scratch` bir image'da bu yoktur.
+  `main` içinde `import _ "time/tzdata"` ile, yaklaşık 450 KB'lık zone verisini
+  binary'ye gömün. Scaffold'un distroless image'ı zoneinfo'yu zaten içerir.
+- `NewQueue[T]`, `T` tipindeki item'ları type assertion olmadan bir fonksiyona
+  verir. `Workers` (1) aynı anda işlenen item sayısıdır, `Capacity` (1000) kaç
+  item'ın bekleyebileceğini sınırlar. `MaxAttempts` (1), 1s'den bir dakikaya kadar
+  artan bir backoff ile tekrar dener. `OnFailure` son hatayla bir kez çağrılır.
+  `Enqueue` hiçbir zaman bloklamaz: dolu bir queue'da `ErrQueueFull`, yalnızca
+  plugin'in `Shutdown`'ı başladıktan sonra ise `ErrDraining` döner. Drain hiçbir
+  şeyi reddetmez, çünkü sunucu o sırada hâlâ hizmet verir. Item'lar bellekte durur
+  ve process biterse kaybolur.
+- **Shutdown, queue'daki işi bitirir.** Devam eden çalışmaları bekler ve her queue
+  boşalana kadar item almaya devam eder. ctx'i daha önce biterse çalışmaları iptal
+  eder ve onlar için bir saniye daha bekler. Kalan item'lar Warn seviyesinde
+  `dropped`, vazgeçildikten sonra hâlâ süren çalışmalar ise `abandoned` olarak
+  loglanır. Onunla bir durdurma `DrainDelay + ShutdownTimeout + 1s` kadar
+  sürebilir. Platformunuzun grace period'u bunu karşılamalıdır; bkz.
+  [Deployment](/docs/deployment#graceful-shutdown-and-draining).
+- **Onu, işinin kullandığı plugin'lerden sonra register edin.** Böylece o
+  plugin'ler hâlâ çalışırken önce o shutdown edilir. Onun shutdown deadline'ını
+  paylaşırlar, bu yüzden `ShutdownTimeout`'u queue'daki iş artı onların ihtiyacına
+  göre ayarlayın.
+- Data handler'lardan enqueue etmeyin: bir build ya da header yakalaması onları
+  çalıştırır ama hiç hizmet vermez, item da hiçbir zaman işlenmez. collage v0.55.0
+  ya da sonrasıyla scaffold edilmiş bir proje en azından onu dropped olarak loglar,
+  çünkü `main.go`'su build'den sonra uygulamayı shutdown eder. Kendi
+  `http.Server`'ını çalıştıran bir uygulama plugin'i `j.Start(ctx)` ile başlatır;
+  bkz. [Deployment](/docs/deployment#serving-with-your-own-server).
+
 ## Head'e yazan plugin'ler
 
 Document'ın head'ine structured data, meta tag ya da preload ipucu gibi içerik
@@ -2297,6 +2400,10 @@ Plugin'ler, bir sunucunun render ettiği page'lerden fazlasını görür:
   Trafiği sayan ya da sınırlayan bir plugin bunları
   `collage.IsCapture(r.Context())` ile atlar. Bkz.
   [Static export](/docs/static-export#headers-and-redirects).
+- **Yalnızca hizmet verirken çalışan iş** (bir scheduler, bir queue worker'ı)
+  `OnServe`'de başlar (v0.55.0'dan beri). Onu yalnızca `ListenAndServe` çağırır:
+  bir static export, bir plugin komutu ve `app.Handler()` onu hiçbir zaman
+  başlatmaz. Bkz. [Plugin yazmak](/docs/writing-plugins#streams-and-shutdown).
 
 ## Daha ileri
 

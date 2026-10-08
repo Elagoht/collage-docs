@@ -708,12 +708,21 @@ func main() {
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 		}
+		if err := shutdown(app); err != nil {
+			fmt.Fprintf(os.Stderr, "shutdown: %v\n", err)
+			code = max(code, 1)
+		}
 		os.Exit(code)
 	}
 
 	if *buildFlag {
-		if err := staticBuild(app, *outFlag, *cleanFlag); err != nil {
-			log.Fatalf("static build: %v", err)
+		buildErr := staticBuild(app, *outFlag, *cleanFlag)
+		if err := shutdown(app); err != nil {
+			log.Printf("shutdown: %v", err)
+			buildErr = errors.Join(buildErr, err)
+		}
+		if buildErr != nil {
+			log.Fatalf("static build: %v", buildErr)
 		}
 		return
 	}
@@ -722,7 +731,26 @@ func main() {
 		log.Fatal(err)
 	}
 }
+
+// shutdown runs every plugin's Shutdown once a build or a command is done.
+// Neither serves, so nothing else would. Only after a successful start: a start
+// that failed has already shut down the plugins it started.
+func shutdown(app *collage.App) error {
+	if app.Start() != nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return app.Shutdown(ctx)
+}
 ```
+
+A build and a command serve nothing, so `ListenAndServe` never shuts the
+application down for them. From collage v0.55.0 the scaffolded `main.go` calls
+`app.Shutdown` itself once either is done, so every plugin's `Shutdown` runs: what
+a plugin holds is flushed, and work handed to a queue plugin such as
+[elagoht/jobs](/docs/plugins#elagohtjobs) is at least logged when it is dropped. A
+project scaffolded earlier adds the `shutdown` function and its two calls by hand.
 
 If you rewrite `main.go`, keep all of it working, or `collage dev`,
 `collage export`, `collage inspect` and your plugins' commands stop doing anything
@@ -746,7 +774,11 @@ if args := flag.Args(); len(args) > 0 {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 	}
-	os.Exit(code)
+	if err := shutdown(app); err != nil { // see above
+		fmt.Fprintf(os.Stderr, "shutdown: %v\n", err)
+		code = max(code, 1)
+	}
+	os.Exit(code) // runs no defers, so the shutdown comes first
 }
 ```
 
@@ -770,5 +802,8 @@ program that would rather serve when no command matches can check
 `errors.Is(err, collage.ErrUnknownCommand)` and carry on instead of exiting.
 `app.Commands()` lists what the plugins registered, if you want to print your own
 usage. Dispatching starts the application, which closes registration, and a later
-`ListenAndServe` reuses that start. Writing such a command is covered in
+`ListenAndServe` reuses that start. `DispatchCommands` does not shut the
+application down, since a program may go on to serve it: once a command has run,
+call `app.Shutdown` yourself, as above, so that every plugin's `Shutdown` runs.
+Writing such a command is covered in
 [Writing a plugin](/docs/writing-plugins#commands).

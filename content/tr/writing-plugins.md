@@ -1,6 +1,6 @@
 ---
 description: Plugin sözleşmesi, Host ve ConfigHost'un sundukları, her hook ve neyi değiştirebileceği, testleriyle birlikte eksiksiz bir plugin.
-reference: Plugin, Host, ConfigHost, ConfigReader, PluginConfig, Configurer, Command, BeforeRenderHook, BeforeActionHook, BeforeActionEvent, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, DrainHook, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, BuiltRedirect, RedirectSource, IsCapture, RequestHook, RouteOf, RouteInfo, Route, ClientIP, Key, NewKey, RenderValues
+reference: Plugin, Host, ConfigHost, ConfigReader, PluginConfig, Configurer, Command, BeforeRenderHook, BeforeActionHook, BeforeActionEvent, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, DrainHook, ServeHook, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, BuiltRedirect, RedirectSource, IsCapture, RequestHook, RouteOf, RouteInfo, Route, ClientIP, Key, NewKey, RenderValues
 ---
 
 # Plugin yazmak
@@ -241,6 +241,33 @@ seviyesinde loglanır. `Shutdown` gibi register edilmiş her plugin'e ulaşır. 
 `Shutdown`, onu beklemeden çağırır. `Init`'i başarısız olup geri alınmış bir plugin
 de bu çağrıyı alır. Bu yüzden hiç initialize edilmemiş bir plugin'de çağrılmayı
 tolere etmelidir.
+
+Yalnızca uygulama hizmet verirken iş yapan bir plugin (bir scheduler, bir queue
+worker'ı) `ServeHook`'u implement eder (v0.55.0'dan beri):
+
+```go
+var _ collage.ServeHook = (*Plugin)(nil)
+
+func (p *Plugin) OnServe(ctx context.Context) { go p.run(ctx) }
+```
+
+`OnServe`'ü register sırasına göre, bir kez `ListenAndServe` çağırır: port
+bağlandıktan sonra, yani `collage: listening` loglandığında, ve hizmet vermeye
+başlamadan önce. `Start()` ya da `Handler()` onu çağırmaz. Bu yüzden static bir
+build'de, bir plugin komutunda, `app.Handler()` üzerinde kendi `http.Server`'ını
+çalıştıran bir uygulamada ve `Shutdown`, `ListenAndServe`'den önce çalıştığında
+çağrılmaz. `collage dev`, `ListenAndServe` üzerinden hizmet verir. Bu yüzden
+development'ta da, her restart'ta yeniden çağrılır.
+
+`ctx`, `context.Background()`'dan türer ve drain başladığında, `OnDrain`'in
+çalıştığı anda iptal edilir. Durdurmanın bir sinyalden mi yoksa
+`App.Shutdown(ctx)`'ten mi geldiği fark etmez. Anlamı "yeni iş başlatma"dır. Zaten
+çalışan işi bitirmek plugin'in `Shutdown`'ının işidir. `Shutdown` sunucu durduktan
+sonra çalışır ve shutdown ctx'iyle sınırlıdır. `OnServe` çağrıldığında ctx zaten
+bitmiş olabilir (bir an önce başlamış bir drain). Bu yüzden iş başlatmadan önce onu
+kontrol edin. `OnServe` bloklamamalıdır: goroutine'leri başlatın ve dönün. İçindeki
+bir panic yakalanır ve plugin'in adıyla Warn seviyesinde loglanır. Sunucu yine de
+hizmet verir.
 
 ## Hook'lar
 
@@ -1338,7 +1365,11 @@ app, err := collage.New(&collage.Config{
    olursa startup iptal edilir. O ana kadar initialize edilmiş bütün plugin'ler ters
    sırayla shutdown edilir. Başarısız olan plugin shutdown edilmez, çünkü
    initialize işlemini hiç tamamlamamıştır.
-4. **Shutdown**, `App.Shutdown` ile ters register sırasına göre çalışır.
+4. **OnServe**, bir `ServeHook` için, `ListenAndServe` port'unu bağladıktan sonra
+   ve hizmet vermeye başlamadan önce register sırasına göre çalışır (v0.55.0'dan
+   beri). Onu yalnızca `ListenAndServe` çağırır. ctx'i drain başladığında iptal
+   edilir. Bkz. [Stream'ler ve shutdown](#streams-and-shutdown).
+5. **Shutdown**, `App.Shutdown` ile ters register sırasına göre çalışır.
    `ListenAndServe`, `App.Shutdown`'ı `SIGINT` ya da `SIGTERM` geldiğinde çağırır.
    `App.Shutdown`, **register edilmiş her plugin'in** `Shutdown`'ını çağırır; o
    plugin'in `Init`'inin çalışıp çalışmadığı ya da başarılı olup olmadığı fark
@@ -1355,8 +1386,13 @@ app, err := collage.New(&collage.Config{
    ve sunucu request'lerini bitirdikten sonra shutdown edilir. Sunucu bunu bitiremezse, `Server.ShutdownTimeout`
    dolduğunda shutdown edilirler. Bu süre dolduktan sonra hâlâ çalışan bir request
    olabilir. Sunucuyu kendiniz yönetiyorsanız, `App`'in bu sunucudan haberi yoktur.
-   Önce sunucunuzu durdurun, sonra `App.Shutdown`'ı çağırın. Aksi hâlde bir plugin,
-   hâlâ devam eden bir request'in altından çekilip alınabilir.
+   `ServeHook` plugin'lerini kendiniz başlatın, önce sunucunuzu durdurun, sonra
+   `App.Shutdown`'ı çağırın. Aksi hâlde bir plugin, hâlâ devam eden bir request'in
+   altından çekilip alınabilir (bkz.
+   [Deployment](/docs/deployment#serving-with-your-own-server)). Static bir build ya
+   da bir plugin komutu hizmet vermez. Bu yüzden onlar için de `App.Shutdown`'ı
+   çağıran bir şey yoktur. Scaffold edilmiş bir `main.go`, build ya da komut
+   bittiğinde onu çağırır (v0.55.0'dan beri).
 
 ## Bir plugin'i test etmek
 

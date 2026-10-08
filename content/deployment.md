@@ -203,12 +203,15 @@ With systemd, keep the file in the unit's `WorkingDirectory`.
 either; `app.Shutdown(ctx)` does the same when you call it yourself. The order is
 fixed:
 
-1. **Drain.** Every plugin implementing
-   [`DrainHook`](/docs/writing-plugins#streams-and-shutdown) is told, once — a
-   health plugin turns its readiness check false here. Keep-alives are turned off:
-   idle kept-alive connections close at once, busy ones after their current
-   response, and their clients reconnect through the load balancer. The port stays
-   open and requests are served as normal for `Server.DrainDelay` (since v0.53.0).
+1. **Drain.** The ctx `ListenAndServe` gave
+   [`ServeHook`](/docs/writing-plugins#streams-and-shutdown) plugins in `OnServe` is
+   cancelled, so a scheduler starts no new work (since v0.55.0). Every plugin
+   implementing [`DrainHook`](/docs/writing-plugins#streams-and-shutdown) is told,
+   once — a health plugin turns its readiness check false here. Keep-alives are
+   turned off: idle kept-alive connections close at once, busy ones after their
+   current response, and their clients reconnect through the load balancer. The
+   port stays open and requests are served as normal for `Server.DrainDelay`
+   (since v0.53.0).
 2. **Streams.** Development reload streams and plugin streams are closed; they
    never end on their own.
 3. **Server.** The port closes, and requests in flight get up to
@@ -234,6 +237,10 @@ stop can take `DrainDelay + ShutdownTimeout`. When you call `app.Shutdown(ctx)`
 yourself, the one ctx bounds both the drain and the wait for requests in flight,
 and `ShutdownTimeout` is not used: give it a deadline of at least `DrainDelay` plus
 the time your requests need, or the drain uses up the time they would have had.
+A plugin's `Shutdown` may run a little past that deadline:
+[elagoht/jobs](/docs/plugins#elagohtjobs) waits up to one more second for a job
+that ignores its ctx, so with it a stop can take
+`DrainDelay + ShutdownTimeout + 1s`.
 
 The wait can end early. A second `SIGINT` or `SIGTERM` — Ctrl-C pressed twice —
 ends it at once and goes straight on to stopping the server; so does a `Shutdown`
@@ -243,7 +250,8 @@ plugins and does not wait, since there is no traffic to drain.
 
 Whatever stops the process has to wait longer than that sum before it kills it:
 
-- **systemd:** `TimeoutStopSec` greater than `DrainDelay + ShutdownTimeout`. The
+- **systemd:** `TimeoutStopSec` greater than `DrainDelay + ShutdownTimeout`, plus
+  one second with elagoht/jobs. The
   unit `collage build -i` writes sets `TimeoutStopSec=30`, which covers the
   defaults; raise it with `DrainDelay`.
 - **Kubernetes:** `terminationGracePeriodSeconds` greater than the sum. Point the
@@ -253,7 +261,7 @@ Whatever stops the process has to wait longer than that sum before it kills it:
 
 ```yaml
 spec:
-  terminationGracePeriodSeconds: 30   # > DrainDelay + ShutdownTimeout
+  terminationGracePeriodSeconds: 30   # > DrainDelay + ShutdownTimeout (+ 1s with elagoht/jobs)
   containers:
     - name: app
       readinessProbe:
@@ -278,6 +286,41 @@ that treats a non-zero exit on stop as a crash will say so.
 
 If you raise `DrainDelay` or `ShutdownTimeout`, raise your platform's grace period
 with it.
+
+### Serving with your own server
+
+`OnServe` is called only by `ListenAndServe`. An application that runs its own
+`http.Server` over `app.Handler()` gets no `OnServe`, so it must start such
+plugins itself and cancel their ctx when it begins to stop — for
+[elagoht/jobs](/docs/plugins#elagohtjobs), call its `Start(ctx)` once the server is
+listening. It must also call `app.Shutdown(ctx)` after its server has stopped:
+that is what runs the plugins' `Shutdown`, and without it a queue's waiting items
+vanish without even being logged.
+
+```go
+// Init first, and its error: app.Handler() would only log it and answer 503,
+// and the jobs plugin's Start panics before its Init has run.
+if err := app.Start(); err != nil {
+	return err
+}
+ln, err := net.Listen("tcp", ":8080")
+if err != nil {
+	return err
+}
+srv := &http.Server{Handler: app.Handler()}
+go srv.Serve(ln)
+ctx, stopJobs := context.WithCancel(context.Background())
+j.Start(ctx) // the port is bound: start the jobs
+
+// On shutdown:
+stopJobs()                // the drain: no more triggers; Enqueue still accepts
+srv.Shutdown(shutdownCtx) // requests in flight finish
+app.Shutdown(shutdownCtx) // the plugins stop; jobs finishes its queues and refuses more
+```
+
+`app.Shutdown` tells `DrainHook` plugins, but does not wait out `DrainDelay`: the
+`App` knows of no server of yours to keep serving. Stop your server before calling
+it.
 
 ## Health checks
 
@@ -437,9 +480,9 @@ log.Fatal(srv.ListenAndServeTLS(certFile, keyFile))
 ```
 
 Doing that means you own the timeouts and the signal handling that `ListenAndServe`
-did for you, and you call `app.Shutdown(ctx)` yourself so plugins shut down. That
-call tells `DrainHook` plugins, but does not wait out `DrainDelay`: the `App` knows
-of no server of yours to keep serving. Stop your server before calling it.
+did for you: you call `app.Start()` first, start `ServeHook` plugins yourself, and
+call `app.Shutdown(ctx)` once your server has stopped, so plugins shut down. See
+[Serving with your own server](#serving-with-your-own-server).
 
 
 ## Behind a proxy: `TrustedProxies`
@@ -533,7 +576,7 @@ OpenTelemetry traces.
 - Any other origin whose forms post here — an admin subdomain — named in
   `Security.CSRFTrustedOrigins`.
 - The platform's stop grace period longer than `Server.DrainDelay +
-  Server.ShutdownTimeout`.
+  Server.ShutdownTimeout`, plus one second with elagoht/jobs.
 - The liveness check on `/healthz` and the readiness check on `/readyz`, with
   [elagoht/health](/docs/plugins#elagohthealth).
 - `go test ./...` in CI before the build — see [Testing](/docs/testing).

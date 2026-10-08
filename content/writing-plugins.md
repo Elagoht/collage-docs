@@ -1,6 +1,6 @@
 ---
 description: The plugin contract, what Host and ConfigHost expose, every hook and what it may change, and a complete plugin with its tests.
-reference: Plugin, Host, ConfigHost, ConfigReader, PluginConfig, Configurer, Command, BeforeRenderHook, BeforeActionHook, BeforeActionEvent, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, DrainHook, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, BuiltRedirect, RedirectSource, IsCapture, RequestHook, RouteOf, RouteInfo, Route, ClientIP, Key, NewKey, RenderValues
+reference: Plugin, Host, ConfigHost, ConfigReader, PluginConfig, Configurer, Command, BeforeRenderHook, BeforeActionHook, BeforeActionEvent, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, DrainHook, ServeHook, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, BuiltRedirect, RedirectSource, IsCapture, RequestHook, RouteOf, RouteInfo, Route, ClientIP, Key, NewKey, RenderValues
 ---
 
 # Writing a plugin
@@ -225,6 +225,32 @@ Like `Shutdown`, it reaches every registered plugin, including one whose `Init`
 never ran — a `Shutdown` before the application started, which calls it without
 waiting — or failed and was rolled back, so it must tolerate being called on a
 plugin that was never initialised.
+
+A plugin that does work only while the application is serving — a scheduler, a
+queue worker — implements `ServeHook` (since v0.55.0):
+
+```go
+var _ collage.ServeHook = (*Plugin)(nil)
+
+func (p *Plugin) OnServe(ctx context.Context) { go p.run(ctx) }
+```
+
+`OnServe` is called once, in registration order, by `ListenAndServe`: after the
+port is bound — when `collage: listening` is logged — and before it serves. It is
+not called by `Start()` or `Handler()`, so not in a static build, not in a plugin
+command, not by an application that runs its own `http.Server` over
+`app.Handler()`, and not when `Shutdown` ran before `ListenAndServe`. `collage dev`
+serves through `ListenAndServe`, so it is called in development too, again on every
+restart.
+
+`ctx` derives from `context.Background()` and is cancelled when the drain starts,
+at the same moment `OnDrain` runs, whether the stop came from a signal or from
+`App.Shutdown(ctx)`. It means "start no new work"; finishing the work already
+running belongs in the plugin's `Shutdown`, which runs after the server stops and
+is bounded by the shutdown ctx. The ctx may already be done when `OnServe` is
+called — a drain that started a moment earlier — so check it before starting work.
+`OnServe` must not block: start goroutines and return. A panic in it is contained
+and logged at Warn with the plugin's name, and the server still serves.
 
 ## The hooks
 
@@ -1273,7 +1299,11 @@ app, err := collage.New(&collage.Config{
 3. **Init**, when the application starts, in registration order. If one fails,
    startup is aborted and every plugin already initialised is shut down in reverse
    order. The failing plugin is not, since it never finished initialising.
-4. **Shutdown**, from `App.Shutdown` — which `ListenAndServe` calls on `SIGINT` or
+4. **OnServe**, for a `ServeHook`, once `ListenAndServe` has bound its port and
+   before it serves, in registration order (since v0.55.0). Only `ListenAndServe`
+   calls it; its ctx is cancelled when the drain starts — see
+   [Streams and shutdown](#streams-and-shutdown).
+5. **Shutdown**, from `App.Shutdown` — which `ListenAndServe` calls on `SIGINT` or
    `SIGTERM` — in reverse registration order. It calls **every registered
    plugin's** `Shutdown`, whether or not that plugin's `Init` ran or succeeded: an
    application that never started, one whose start failed, and the plugins the
@@ -1288,8 +1318,12 @@ app, err := collage.New(&collage.Config{
    `Server.DrainDelay` and after the server has finished its requests, or once
    `Server.ShutdownTimeout` has passed if it has not — past the
    deadline a request may still be running. With a server you own, the `App` knows
-   of none: stop your server first, then call `App.Shutdown`, or a plugin can be
-   torn out from under an in-flight request.
+   of none: start `ServeHook` plugins yourself, stop your server first, then call
+   `App.Shutdown`, or a plugin can be torn out from under an in-flight request (see
+   [Deployment](/docs/deployment#serving-with-your-own-server)). A static build or
+   a plugin command serves nothing, so nothing calls `App.Shutdown` for it either:
+   a scaffolded `main.go` calls it once the build or the command is done (since
+   v0.55.0).
 
 ## Testing a plugin
 

@@ -20,6 +20,7 @@ package main
 import (
 	"context"
 	"embed"
+	"errors"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -69,8 +70,13 @@ func main() {
 	}
 
 	if *buildFlag {
-		if err := staticBuild(app, *outFlag, *cleanFlag); err != nil {
-			log.Fatalf("collage-docs: static build: %v", err)
+		buildErr := staticBuild(app, *outFlag, *cleanFlag)
+		if err := shutdown(app); err != nil {
+			log.Printf("collage-docs: shutdown: %v", err)
+			buildErr = errors.Join(buildErr, err)
+		}
+		if buildErr != nil {
+			log.Fatalf("collage-docs: static build: %v", buildErr)
 		}
 		return
 	}
@@ -233,6 +239,21 @@ func envInt(key string, fallback int) int {
 		return fallback
 	}
 	return value
+}
+
+// shutdown runs every plugin's Shutdown once a build is done. A build does not
+// serve, so nothing else would: a plugin would then never flush what it holds,
+// and a queue's waiting items would vanish without being logged.
+//
+// Only after a successful start. A start that failed has already shut down
+// the plugins it started, and a plugin's Shutdown runs once.
+func shutdown(app *collage.App) error {
+	if app.Start() != nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return app.Shutdown(ctx)
 }
 
 // staticBuild renders every statically-buildable page to files under outDir

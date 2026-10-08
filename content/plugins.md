@@ -1,5 +1,5 @@
 ---
-description: What a plugin can do, how to register and configure one, and the forty-one published plugins, grouped by what they are for.
+description: What a plugin can do, how to register and configure one, and the forty-two published plugins, grouped by what they are for.
 reference: Plugin, LoadPluginConfig, ErrUnknownPluginConfig, ErrAppStarted
 ---
 
@@ -95,10 +95,11 @@ Plugins run in the order they were registered: `Config.Plugins` in slice order,
 then any `RegisterPlugin` calls in call order. For hooks that change output, each
 plugin sees what the one before it produced. A plugin that adds to the page
 should usually come before one that compacts it, so the addition is compacted too.
-Three published plugins say where they go:
+Four published plugins say where they go:
 [elagoht/compress](#elagohtcompress) before any plugin that rewrites response
 bodies, [elagoht/health](#elagohthealth) before any plugin that can refuse or answer
-a request, and [elagoht/devtoolbar](#elagohtdevtoolbar) last.
+a request, [elagoht/jobs](#elagohtjobs) after the plugins its work uses, and
+[elagoht/devtoolbar](#elagohtdevtoolbar) last.
 
 ## Configuring plugins
 
@@ -161,7 +162,7 @@ a boolean — is also an error, raised when the plugin reads it.
 
 ## The published plugins
 
-Forty-one plugins are published alongside the framework, grouped below by what
+Forty-two plugins are published alongside the framework, grouped below by what
 they are for. Each is its own module, with its own README that is the full
 reference; what follows is enough to set one up.
 
@@ -173,7 +174,7 @@ reference; what follows is enough to set one up.
 | [Security](#security) | secure, ratelimit, basicauth, oauth, fail2ban |
 | [Live updates](#live-updates) | live, websocket |
 | [Assets and delivery](#assets-and-delivery) | minimizer, opti-image, bundle, favicon, compress, cdnpurge, offline, deploy |
-| [Operations and development](#operations-and-development) | htmlcheck, devtoolbar, accesslog, prometheus, otel, analytics, tenant, errortrack, health |
+| [Operations and development](#operations-and-development) | htmlcheck, devtoolbar, accesslog, prometheus, otel, analytics, tenant, errortrack, health, jobs |
 
 ### SEO and discovery
 
@@ -1797,7 +1798,7 @@ Plugins: []collage.Plugin{deploy.NewWith(deploy.Config{Target: "netlify"})},
 
 Checking what a site renders, seeing a render in development, and watching a
 running site: access logs, metrics, traces, analytics, error reports and health
-probes.
+probes, and the scheduled jobs and background queues it runs.
 
 #### elagoht/htmlcheck
 
@@ -2159,6 +2160,100 @@ app, err := collage.New(&collage.Config{
   accesslog listed after it logs neither probes nor shed requests; listed before,
   it logs both.
 
+#### elagoht/jobs
+
+[github.com/Elagoht/collage-jobs](https://github.com/Elagoht/collage-jobs) runs
+scheduled jobs, on an interval or a cron expression, and typed background queues,
+only while the application serves. Jobs and queue workers start when
+`ListenAndServe` has bound its port, through
+[`ServeHook`](/docs/writing-plugins#streams-and-shutdown), and jobs stop being
+triggered when the [drain](/docs/deployment#graceful-shutdown-and-draining) begins.
+Nothing runs in `collage build`, in a plugin command, or in a test that only calls
+`app.Handler()` or `app.Start()`.
+
+```go
+import "github.com/Elagoht/collage-jobs"
+
+j := jobs.New()
+j.Every("refresh-feed", 15*time.Minute, refreshFeed).RunOnStart()
+j.Cron("cleanup", "0 3 * * *", cleanup).Timeout(10 * time.Minute)
+
+type Email struct{ To, Subject string }
+
+mail := jobs.NewQueue(j, "email", func(ctx context.Context, m Email) error {
+	return send(ctx, m)
+}, jobs.QueueOptions[Email]{Workers: 2, MaxAttempts: 3})
+
+app, err := collage.New(&collage.Config{
+	Plugins: []collage.Plugin{j},
+})
+
+// In an action:
+if err := mail.Enqueue(r.Context(), Email{To: to}); err != nil {
+	// jobs.ErrQueueFull, or jobs.ErrDraining once Shutdown has begun:
+	// tell the user to try again
+}
+```
+
+```json
+{
+  "elagoht/jobs": {
+    "timezone": "Europe/Istanbul",
+    "disabled": ["cleanup"]
+  }
+}
+```
+
+- v0.1.0 needs collage v0.55.0 or later, for `ServeHook`.
+- **Every instance runs its own scheduled jobs.** With N replicas behind a load
+  balancer, a job runs N times per trigger; there is no leader election. Make such
+  a job safe to run concurrently, or run it on one instance only, deciding that
+  from the environment with `jobs.NewWith(jobs.Config{Disabled: …})` rather than
+  with `disabled` in a configuration every replica shares.
+- A job is a `func(ctx context.Context) error`, defined before the application
+  starts. `Every(name, d, fn)` runs it every `d`, measured in elapsed time, so
+  neither DST nor a wall clock set back changes it. `Cron(name, expr, fn)` takes a
+  five-field expression — minute, hour, day of month, month, day of week — with
+  `*`, values, ranges, steps and comma lists; no names, macros or seconds. When day
+  of month and day of week are both restricted, a day matches if either one does,
+  as in Vixie cron: `0 0 1 * 1` runs on the 1st and on every Monday. An expression
+  that is malformed or can never match panics at `Cron`.
+- `RunOnStart()` also runs the job as soon as the plugin starts; `Timeout(d)`
+  bounds each run's ctx, which the job must watch. A run in progress makes a
+  trigger skip, so runs never overlap, and a failed or panicking run is logged at
+  Error and not retried.
+- Cron expressions are read in `timezone` (UTC). Across a DST change, a time in the
+  skipped hour runs once, at the first instant after the gap; a time in the
+  repeated hour runs once, on its first occurrence, for a schedule with a fixed
+  hour; and a schedule whose hour field starts with `*` fires through both copies
+  of the repeated hour, as Vixie cron does. `disabled` names jobs that do not run;
+  an unknown name, like an invalid zone, fails startup.
+- The zone is read from the system's zoneinfo, which an image `FROM scratch` does
+  not have. Embed it, about 450 KB, with `import _ "time/tzdata"` in `main`. The
+  scaffold's distroless image ships zoneinfo already.
+- `NewQueue[T]` hands items of type `T` to a function, with no type assertion.
+  `Workers` (1) handle items at once, `Capacity` (1000) bounds how many wait,
+  `MaxAttempts` (1) retries with a backoff from 1s up to a minute, and `OnFailure`
+  is called once with the last error. `Enqueue` never blocks: it returns
+  `ErrQueueFull` on a full queue, and `ErrDraining` only once the plugin's
+  `Shutdown` has begun. The drain refuses nothing, since the server still serves
+  then. Items live in memory and are lost if the process ends.
+- **Shutdown finishes queued work.** It waits for runs in progress and keeps taking
+  queued items until every queue is empty. If its ctx ends first, it cancels the
+  runs and waits one more second for them. Items left are logged at Warn as
+  `dropped`, and runs still going after the give-up as `abandoned`. With it, a
+  stop can take `DrainDelay + ShutdownTimeout + 1s`, which your platform's grace
+  period must cover; see [Deployment](/docs/deployment#graceful-shutdown-and-draining).
+- **Register it after the plugins its work uses**, so it shuts down first, while
+  they still work. They share its shutdown deadline, so size `ShutdownTimeout` for
+  the queued work plus what they need.
+- Do not enqueue from data handlers: a build or a header capture runs them, never
+  serves, and the item is never handled. A project scaffolded by collage v0.55.0
+  or later at least logs it as dropped, because its `main.go` shuts the
+  application down after a build. An application on its own `http.Server` starts
+  the plugin with `j.Start(ctx)`; see
+  [Deployment](/docs/deployment#serving-with-your-own-server).
+
 ## Plugins that write to the head
 
 A plugin that contributes to the document head — structured data, meta tags,
@@ -2204,6 +2299,10 @@ Plugins see more than the pages a server renders:
   the request hooks see a build's paths. A plugin that counts or limits traffic
   skips them with `collage.IsCapture(r.Context())`. See
   [Static export](/docs/static-export#headers-and-redirects).
+- **Work that runs only while serving** — a scheduler, a queue worker — starts in
+  `OnServe` (since v0.55.0), which only `ListenAndServe` calls: a static export, a
+  plugin command and `app.Handler()` never start it. See
+  [Writing a plugin](/docs/writing-plugins#streams-and-shutdown).
 
 ## Going further
 
