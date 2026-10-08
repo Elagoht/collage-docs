@@ -470,7 +470,7 @@ v0.57.0'dan beri body'si limite ulaşmış bir handler hangi hatayı döndürür
 döndürsün cevap `413` olur. Bu hata okumanın kendi hatası da olabilir, "upload
 failed" gibi handler'ın kendi hatası da. Eskiden ikincisi `500` olurdu. Handler'ın
 hatası log'da ve error hook'larına verilen hatada `413`'ün yanında korunur ve
-`errors.As` onun üzerinde `*http.MaxBytesError`'ı yine bulur. Bu durum error olarak
+`errors.As` onun üzerinde `*http.MaxBytesError`'ı yine bulur. Bu durum hata olarak
 değil, uyarı olarak log'lanır.
 
 Token form'dan kontrol edildiğinde kontrol önce body'yi okur. Bu yüzden limiti aşan
@@ -596,8 +596,8 @@ collage'ın kendi wrapper'ları ve `elagoht` plugin'lerininkiler bunu yapar. Bir
 yapmıyorsa request sunucunun deadline'ları altında çalışır ve bir kez uyarı
 log'lanır.
 
-Bu kontrolleri geçen bir request bağlantısını `d` süresince tutabilir. Token ise
-form'u yükleyen herkese bedavadır. Upload'u bir page guard'ı ya da bir auth
+Bu kontrolleri geçen bir request bağlantısını `d` süresince tutabilir. Form'un
+olduğu page'i açan herkes ise token'ı bedavaya alır. Upload'u bir page guard'ı ya da bir auth
 middleware'i ile koruyun. Bunlar bütün bu adımlardan önce çalışır. Handler'ın
 içindeki bir kontrol ise `d` verildikten sonra çalışır. Öndeki bir proxy'nin
 nelere ihtiyaç duyduğu [Deployment](/docs/deployment#uploads) sayfasındadır.

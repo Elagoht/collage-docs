@@ -1066,8 +1066,8 @@ private := collage.NewFragment("private", "layouts/private.html").
 [github.com/Elagoht/collage-uploads](https://github.com/Elagoht/collage-uploads)
 dosya upload'larını alır. Her dosyayı içeriğine göre kontrol eder, rastgele bir
 key altında saklar ve sitenizin yerine geçmesine izin vermeden geri sunar. Önceden
-parse edilmiş bir form'u okuyabilir ya da body'yi part part stream edebilir; sonuç
-ikisinde de aynıdır.
+parse edilmiş bir form'u okuyabilir ya da body'yi part'lar hâlinde stream
+edebilir; sonuç ikisinde de aynıdır.
 
 ```go
 import "github.com/Elagoht/collage-uploads"

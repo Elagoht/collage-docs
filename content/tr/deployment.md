@@ -616,7 +616,7 @@ beri), iki deadline'ı da yalnızca o action için şimdi artı `d` ile değişt
 page'in guard'larından sonra (streaming bir action'da ise forgery kontrolünden de
 sonra) yapar. `d`'yi en az `MaxBodyBytes` bölü hizmet verdiğiniz en yavaş bağlantı
 artı cevap verme süresi kadar tutun. Client'ı gitmiş ya da süresi dolmuş bir upload
-server hatası olarak değil, `400` ya da `408` olarak kaydedilir ve debug
+sunucu hatası olarak değil, `400` ya da `408` olarak kaydedilir ve debug
 seviyesinde log'lanır. Giden bir client hiçbir şey almaz. `WithBodyTimeout`
 altında süresi dolan client da almaz, çünkü write deadline'ı read deadline'ı ile
 birlikte geçmiştir.
