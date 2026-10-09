@@ -2137,7 +2137,22 @@ Plugins: []collage.Plugin{
 },
 ```
 
-- v0.2.4, collage v0.49.0 ya da sonrasını gerektirir (v0.2.3, collage v0.24.0 için son sürümdü) ve yapılandırılacak bir şeyi yoktur.
+- v0.3.0, collage v0.57.0 ya da sonrasını gerektirir (v0.2.4, collage v0.49.0 için son sürümdü).
+- **Yalnızca yerel client'lar.** Panel, yalnızca geliştiricinin makinesindeki ya da
+  özel bir ağdaki client için çizilir (loopback, RFC 1918, IPv6 unique-local,
+  link-local). Client'ı `collage.ClientIP` belirler; yani `Server.TrustedProxies`
+  içinde listelenen bir proxy'nin arkasında, proxy'nin ilettiği client esas
+  alınır. Başka her client response'u olduğu gibi alır ve ilki bir uyarı log'lar.
+- Bir tailnet ya da carrier-grade NAT adresi (`100.64.0.0/10`) özel ağ sayılmaz;
+  bu yüzden makineye Tailscale üzerinden bağlanan bir telefon paneli görmez.
+  Uzak client'lara da göstermek için kontrolü
+  `devtoolbar.NewWith(devtoolbar.Options{AllowRemote: true})` ile ya da plugin
+  yapılandırmasında kapatın:
+
+```json
+{ "elagoht/devtoolbar": { "allowRemote": true } }
+```
+
 - **Onu en son register edin:** saydığı finding'ler, ondan önce çalışan
   plugin'lerinkidir.
 - `DevMode` olmadan başlatılan bir sunucuda ve bir static build'de hiçbir şey

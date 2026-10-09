@@ -2049,7 +2049,22 @@ Plugins: []collage.Plugin{
 },
 ```
 
-- v0.2.4 needs collage v0.49.0 or later (v0.2.3 was the last for v0.24.0), and has nothing to configure.
+- v0.3.0 needs collage v0.57.0 or later (v0.2.4 was the last for v0.49.0).
+- **Local clients only.** The panel is drawn only for a client on the developer's
+  machine or a private network (loopback, RFC 1918, IPv6 unique-local,
+  link-local), as `collage.ClientIP` names it, so behind a proxy listed in
+  `Server.TrustedProxies` it is the forwarded client. Any other client gets the
+  response untouched, and the first one logs a warning.
+- A tailnet or carrier-grade NAT address (`100.64.0.0/10`) is not a private
+  network, so a phone reaching the machine over Tailscale gets no panel. To show
+  it to remote clients, turn the check off with
+  `devtoolbar.NewWith(devtoolbar.Options{AllowRemote: true})`, or in the
+  plugin configuration:
+
+```json
+{ "elagoht/devtoolbar": { "allowRemote": true } }
+```
+
 - **Register it last**: the findings it counts are those of the plugins that ran
   before it.
 - On a server without `DevMode` and in a static build it does nothing at all. The
