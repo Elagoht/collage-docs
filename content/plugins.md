@@ -1,5 +1,5 @@
 ---
-description: What a plugin can do, how to register and configure one, and the forty-three published plugins, grouped by what they are for.
+description: What a plugin can do, how to register and configure one, and the forty-four published plugins, grouped by what they are for.
 reference: Plugin, LoadPluginConfig, ErrUnknownPluginConfig, ErrAppStarted
 ---
 
@@ -162,7 +162,7 @@ a boolean — is also an error, raised when the plugin reads it.
 
 ## The published plugins
 
-Forty-three plugins are published alongside the framework, grouped below by what
+Forty-four plugins are published alongside the framework, grouped below by what
 they are for. Each is its own module, with its own README that is the full
 reference; what follows is enough to set one up.
 
@@ -171,7 +171,7 @@ reference; what follows is enough to set one up.
 | [SEO and discovery](#seo-and-discovery) | jsonld, meta, ogimage, sitemap, robots, feed, redirects, indexnow |
 | [Content](#content) | markdown, highlight, toc, search, i18n |
 | [Forms and state](#forms-and-state) | validate, honeypot, flash, session, uploads |
-| [Security](#security) | secure, ratelimit, basicauth, oauth, fail2ban |
+| [Security](#security) | secure, ratelimit, basicauth, oauth, fail2ban, consent |
 | [Live updates](#live-updates) | live, websocket |
 | [Assets and delivery](#assets-and-delivery) | minimizer, opti-image, bundle, favicon, compress, cdnpurge, offline, deploy |
 | [Operations and development](#operations-and-development) | htmlcheck, devtoolbar, accesslog, prometheus, otel, analytics, tenant, errortrack, health, jobs |
@@ -1104,8 +1104,8 @@ app.Handle("/uploads/", u.Handler())
 ### Security
 
 Headers a site should send, a limit on how fast one client can hit it, a
-password in front of a site that is not public yet, and sign-in with an identity
-provider.
+password in front of a site that is not public yet, sign-in with an identity
+provider, and the visitor's consent to cookies.
 
 #### elagoht/secure
 
@@ -1410,6 +1410,90 @@ Plugins: []collage.Plugin{f2b /* , the rest */},
 - Bans are per process and in memory: instances do not share them and a restart
   clears them. In dev mode nothing happens unless `inDevelopment` is set. It reacts
   after strikes; it does not replace `elagoht/ratelimit`.
+
+#### elagoht/consent
+
+[github.com/Elagoht/collage-consent](https://github.com/Elagoht/collage-consent)
+adds a cookie-consent banner, holds scripts and iframes back until their category
+is granted, and gives the page a small JS API to read the visitor's choice. On the
+paths you list, the server can read the choice too.
+
+```go
+import "github.com/Elagoht/collage-consent"
+
+Plugins: []collage.Plugin{consent.New()}, // configured from plugins-config.json
+```
+
+```json
+{
+  "elagoht/consent": {
+    "version": 1,
+    "categories": [
+      { "name": "necessary", "required": true },
+      { "name": "analytics" },
+      { "name": "media" }
+    ],
+    "text": {
+      "en": {
+        "title": "Cookies", "body": "We use cookies to measure visits and to show embedded media.",
+        "accept": "Accept all", "reject": "Reject all", "save": "Save choices", "settings": "Choose",
+        "placeholder": "This content loads from {host}.", "allow": "Allow {category}",
+        "categories": { "necessary": "Necessary", "analytics": "Analytics", "media": "Embedded media" }
+      }
+    },
+    "policyURL": "/privacy",
+    "maxAgeDays": 180,
+    "serverPaths": []
+  }
+}
+```
+
+- v0.1.0 needs collage v0.57.0 or later and `{{hoist "head"}}` in the layout.
+  Without that marker nothing appears and nothing gated ever runs.
+- Consent is decided in the browser. Every visitor gets the same HTML, so the page
+  cache works as before. `version` asks every visitor again when you bump it. A
+  `required` category is always granted and never written to the cookie. The default
+  locale's `text` must label every category; other locales fall back to it key by key.
+- Mark up what needs consent so it is inert as written. A granted category turns a
+  gated script into a real one, in document order, and gives a gated iframe its
+  `src`. Until then the iframe has a placeholder button, and markup added later by
+  a fragment swap or a router is gated too:
+
+  ```html
+  <script type="text/plain" data-consent="analytics" src="https://example.com/a.js"></script>
+  <iframe data-consent="media" data-src="https://www.youtube-nocookie.com/embed/…" title="…"></iframe>
+  ```
+
+  A gated script cannot be a module. Taking a category back after its content has
+  run reloads the page.
+- The JS API is `collageConsent.get()` (the granted categories, sorted),
+  `collageConsent.set({ analytics: true })`, `collageConsent.open()`, and a
+  `collage:consent` event on `document` after every save. An element with
+  `data-consent-open` reopens the banner. The banner is a `<dialog>` themed with
+  `--consent-*` custom properties.
+- Server side, list the paths in `serverPaths` (whole segments: `/shop` covers
+  `/shop/cart`, not `/shopping`), then call `consent.Granted(rc, "analytics")` in a
+  data handler there. The page cache keeps one entry per choice, not per cookie.
+  Outside `serverPaths`, in a static export and in a build's capture, `Granted`
+  answers false (a required category: true). Every response on those paths carries
+  `Vary: Cookie`, which most CDNs will not cache, so list only pages whose HTML must
+  differ. Never list a stream path: collage-live's `/_live/` and `/_collage/` are
+  never varied.
+- The choice is kept in the first-party cookie `collage_consent`, readable by the
+  script, so never set it from the server or as `HttpOnly`.
+- GPC (`navigator.globalPrivacyControl`) leaves every optional box unticked, and
+  Accept all still grants everything. Do Not Track is not read.
+- Content-Security-Policy: the script tag has no nonce, so `script-src` needs
+  `'self'`; a policy that is nonce-only or relies on `'strict-dynamic'` blocks it. The
+  banner's stylesheet is built by the script, so `style-src` must allow its hash,
+  which the plugin's README keeps current (`'unsafe-inline'` also works). A gated
+  inline script needs its own `nonce` or a `'sha256-…'` of its text in `script-src`.
+- With collage-live, a pushed fragment is rendered once for every subscriber. A
+  static export writes the script beside the pages and decides in the browser, so
+  exported pages always render as "not granted" on the server.
+- One consent plugin per process: `Granted` reads the configuration of the last App
+  initialised. For analytics, set `consentCategory` on
+  [elagoht/analytics](#elagohtanalytics).
 
 ### Live updates
 
@@ -2104,7 +2188,7 @@ Plugins: []collage.Plugin{analytics.New(analytics.Options{
 }
 ```
 
-- v0.1.5 needs collage v0.50.0 or later (v0.1.2 was the last for v0.23.0), and `{{hoist "head"}}` in the layout.
+- v0.2.0 needs collage v0.57.0 or later (v0.1.5 was the last for v0.50.0, v0.1.2 for v0.23.0), and `{{hoist "head"}}` in the layout.
 - Plausible, Umami and GoatCounter count visits without cookies. Google Analytics
   4 sets cookies; use it with `requireConsent`.
 - With `respectDnt` or `requireConsent`, a small loader served from the site
@@ -2112,6 +2196,18 @@ Plugins: []collage.Plugin{analytics.New(analytics.Options{
   under Do Not Track or Global Privacy Control, or until the page calls
   `window.collageAnalyticsConsent()`.
 - `exclude` names pages that get no snippet.
+- With [elagoht/consent](#elagohtconsent) on the site, set `consentCategory` (say
+  `"analytics"`) instead of `requireConsent`. Every tag the plugin writes becomes a
+  `type="text/plain" data-consent="analytics"` tag that the consent plugin runs once
+  the visitor agrees to that category. The category must be one the consent plugin
+  configures, or the tags never run. Google Analytics becomes two gated tags, its
+  script and the inline call that configures it, with no loader.
+- `consentCategory` cannot be combined with `requireConsent`: the application does
+  not start with both, nor with a name that is not lowercase letters, digits and
+  hyphens. `respectDnt` still applies and also honours Global Privacy Control, so a
+  browser sending GPC loads nothing even after "Accept all". Under a strict
+  Content-Security-Policy, Google Analytics' inline tag needs a `'sha256-…'` in
+  `script-src` (see the consent plugin's CSP notes above).
 
 #### elagoht/tenant
 
@@ -2372,7 +2468,7 @@ if err := mail.Enqueue(r.Context(), Email{To: to}); err != nil {
 
 The plugins above are all registered in `Config.Plugins`. A library is a module a
 page uses in its own code, so there is nothing to register or configure, and it is
-not counted among the forty-three plugins.
+not counted among the forty-four plugins.
 
 ### elagoht/paginate
 

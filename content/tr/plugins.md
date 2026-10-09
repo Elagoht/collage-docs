@@ -1,5 +1,5 @@
 ---
-description: Bir plugin'in neler yapabildiği, bir plugin'in nasıl register edilip yapılandırıldığı ve ne işe yaradıklarına göre gruplanmış, yayımlanmış kırk üç plugin.
+description: Bir plugin'in neler yapabildiği, bir plugin'in nasıl register edilip yapılandırıldığı ve ne işe yaradıklarına göre gruplanmış, yayımlanmış kırk dört plugin.
 reference: Plugin, LoadPluginConfig, ErrUnknownPluginConfig, ErrAppStarted
 ---
 
@@ -177,7 +177,7 @@ beklediği yerde bir string varsa, plugin bu bölümü okuduğunda hata oluşur.
 
 ## Yayımlanmış plugin'ler
 
-Framework ile birlikte kırk üç plugin yayımlanmıştır. Aşağıda ne işe
+Framework ile birlikte kırk dört plugin yayımlanmıştır. Aşağıda ne işe
 yaradıklarına göre gruplanmışlardır. Her biri ayrı bir modüldür ve her birinin tam
 referans niteliğinde kendi README'si vardır. Aşağıdaki bilgiler bir plugin'i
 kurmanız için yeterlidir.
@@ -187,7 +187,7 @@ kurmanız için yeterlidir.
 | [SEO ve keşfedilebilirlik](#seo-and-discovery) | jsonld, meta, ogimage, sitemap, robots, feed, redirects, indexnow |
 | [İçerik](#content) | markdown, highlight, toc, search, i18n |
 | [Form'lar ve state](#forms-and-state) | validate, honeypot, flash, session, uploads |
-| [Güvenlik](#security) | secure, ratelimit, basicauth, oauth, fail2ban |
+| [Güvenlik](#security) | secure, ratelimit, basicauth, oauth, fail2ban, consent |
 | [Canlı güncellemeler](#live-updates) | live, websocket |
 | [Asset'ler ve teslimat](#assets-and-delivery) | minimizer, opti-image, bundle, favicon, compress, cdnpurge, offline, deploy |
 | [Operasyon ve development](#operations-and-development) | htmlcheck, devtoolbar, accesslog, prometheus, otel, analytics, tenant, errortrack, health, jobs |
@@ -1154,7 +1154,7 @@ app.Handle("/uploads/", u.Handler())
 
 Bir sitenin göndermesi gereken header'lar, tek bir istemcinin siteye ne kadar hızlı
 istek atabileceğine bir sınır, henüz herkese açık olmayan bir sitenin önünde bir
-parola ve bir kimlik sağlayıcısıyla giriş.
+parola, bir kimlik sağlayıcısıyla giriş ve ziyaretçinin cookie onayı.
 
 #### elagoht/secure
 
@@ -1472,6 +1472,94 @@ Plugins: []collage.Plugin{f2b /* , diğerleri */},
 - Ban'lar process başınadır ve memory'de tutulur: instance'lar paylaşmaz, restart
   hepsini siler. Dev modunda `inDevelopment` ayarlanmadıkça hiçbir şey olmaz. Strike'lardan
   sonra tepki verir; `elagoht/ratelimit`'in yerine geçmez.
+
+#### elagoht/consent
+
+[github.com/Elagoht/collage-consent](https://github.com/Elagoht/collage-consent),
+bir cookie onay banner'ı ekler, script'leri ve iframe'leri kategorileri onaylanana
+kadar bekletir ve page'e ziyaretçinin seçimini okuması için küçük bir JS API verir.
+Listelediğiniz path'lerde sunucu da seçimi okuyabilir.
+
+```go
+import "github.com/Elagoht/collage-consent"
+
+Plugins: []collage.Plugin{consent.New()}, // plugins-config.json'dan yapılandırılır
+```
+
+```json
+{
+  "elagoht/consent": {
+    "version": 1,
+    "categories": [
+      { "name": "necessary", "required": true },
+      { "name": "analytics" },
+      { "name": "media" }
+    ],
+    "text": {
+      "tr": {
+        "title": "Çerezler", "body": "Ziyaretleri ölçmek ve gömülü medyayı göstermek için çerez kullanıyoruz.",
+        "accept": "Tümünü kabul et", "reject": "Tümünü reddet", "save": "Seçimleri kaydet", "settings": "Seç",
+        "placeholder": "Bu içerik {host} adresinden yüklenir.", "allow": "{category} kategorisine izin ver",
+        "categories": { "necessary": "Gerekli", "analytics": "Analitik", "media": "Gömülü medya" }
+      }
+    },
+    "policyURL": "/gizlilik",
+    "maxAgeDays": 180,
+    "serverPaths": []
+  }
+}
+```
+
+- v0.1.0, collage v0.57.0 ya da sonrasını gerektirir ve layout'ta `{{hoist "head"}}`
+  ister. Bu işaret yoksa hiçbir şey görünmez ve bekletilen hiçbir şey çalışmaz.
+- Onay tarayıcıda verilir. Her ziyaretçi aynı HTML'i alır, bu yüzden page cache
+  eskisi gibi çalışır. `version`'ı artırmak herkese yeniden sorar. `required` bir
+  kategori her zaman onaylıdır ve cookie'ye yazılmaz. Varsayılan locale'in `text`'i
+  her kategoriyi etiketlemelidir; diğer locale'lerde eksik key'ler ondan alınır.
+- Onay gerektiren şeyi, yazıldığı haliyle çalışmayacak biçimde işaretleyin.
+  Kategori onaylanınca bekletilen script gerçek bir script olur ve document
+  sırasıyla çalışır, bekletilen iframe `src`'sini alır. O ana kadar iframe'in
+  yerinde bir placeholder butonu durur; fragment swap'ı ya da bir router'ın sonradan
+  eklediği markup da aynı şekilde bekletilir:
+
+  ```html
+  <script type="text/plain" data-consent="analytics" src="https://example.com/a.js"></script>
+  <iframe data-consent="media" data-src="https://www.youtube-nocookie.com/embed/…" title="…"></iframe>
+  ```
+
+  Bekletilen script module olamaz. İçeriği çalışmış bir kategori geri alınırsa
+  page yeniden yüklenir.
+- JS API: `collageConsent.get()` (onaylı kategoriler, sıralı),
+  `collageConsent.set({ analytics: true })`, `collageConsent.open()` ve her
+  kayıttan sonra `document` üzerinde `collage:consent` event'i. `data-consent-open`
+  taşıyan bir element banner'ı yeniden açar. Banner bir `<dialog>`'dur ve
+  `--consent-*` custom property'leriyle özelleştirilir.
+- Sunucu tarafında path'leri `serverPaths`'e yazın (tam segment eşleşir: `/shop`,
+  `/shop/cart`'ı kapsar, `/shopping`'i kapsamaz), sonra oradaki bir data handler'da
+  `consent.Granted(rc, "analytics")` çağırın. Page cache cookie başına değil,
+  seçim başına bir kayıt tutar. `serverPaths` dışında, static export'ta ve build'in
+  capture request'inde `Granted` false döner (`required` kategori için true). Bu
+  path'lerdeki her response `Vary: Cookie` taşır; çoğu CDN bunu cache'lemez, bu
+  yüzden yalnızca HTML'i seçime göre değişmesi gereken page'leri listeleyin. Stream
+  path'lerini asla listelemeyin: collage-live'ın `/_live/` ve `/_collage/` path'leri
+  hiçbir zaman varied edilmez.
+- Seçim, `collage_consent` adlı first-party cookie'de tutulur ve script onu okur.
+  Bu yüzden onu sunucudan ya da `HttpOnly` olarak asla ayarlamayın.
+- GPC (`navigator.globalPrivacyControl`) isteğe bağlı kutuları işaretsiz bırakır;
+  "Tümünü kabul et" yine her şeyi onaylar. Do Not Track okunmaz.
+- Content-Security-Policy: script tag'inde nonce yoktur, bu yüzden `script-src`
+  `'self'` içermelidir; yalnızca nonce'a dayanan ya da `'strict-dynamic'` kullanan
+  bir policy onu engeller. Banner'ın stylesheet'ini script üretir, bu yüzden
+  `style-src` onun hash'ine izin vermelidir; güncel hash plugin'in README'sindedir
+  (`'unsafe-inline'` de işe yarar). Bekletilen inline script'in kendi `nonce`'u ya
+  da metninin `'sha256-…'` hash'i `script-src`'de bulunmalıdır.
+- collage-live ile itilen bir fragment bir kez render edilir ve tüm abonelere
+  gider. Static export script'i page'lerin yanına yazar ve karar tarayıcıda verilir;
+  bu yüzden export edilmiş page'ler sunucuda her zaman "onaylanmadı" olarak render
+  edilir.
+- Process başına tek consent plugin: `Granted`, en son initialize edilen App'in
+  yapılandırmasını okur. Analytics için
+  [elagoht/analytics](#elagohtanalytics)'te `consentCategory` ayarlayın.
 
 ### Canlı güncellemeler
 
@@ -2193,7 +2281,7 @@ Plugins: []collage.Plugin{analytics.New(analytics.Options{
 }
 ```
 
-- v0.1.5, collage v0.50.0 ya da sonrasını gerektirir (v0.1.2, collage v0.23.0 için son sürümdü) ve layout'ta `{{hoist "head"}}` ister.
+- v0.2.0, collage v0.57.0 ya da sonrasını gerektirir (v0.1.5, collage v0.50.0 için, v0.1.2 ise v0.23.0 için son sürümdü) ve layout'ta `{{hoist "head"}}` ister.
 - Plausible, Umami ve GoatCounter ziyaretleri cookie olmadan sayar. Google Analytics
   4 cookie ayarlar; onu `requireConsent` ile kullanın.
 - `respectDnt` ya da `requireConsent` ile siteden sunulan küçük bir loader, herhangi
@@ -2201,6 +2289,19 @@ Plugins: []collage.Plugin{analytics.New(analytics.Options{
   da Global Privacy Control altında hiçbir şey yüklenmez. `requireConsent` ile de
   page `window.collageAnalyticsConsent()` çağırana kadar hiçbir şey yüklenmez.
 - `exclude`, snippet almayan page'leri adlandırır.
+- Sitede [elagoht/consent](#elagohtconsent) varsa `requireConsent` yerine
+  `consentCategory` ayarlayın (örneğin `"analytics"`). Plugin'in yazdığı her tag,
+  ziyaretçi o kategoriyi kabul edince consent plugin'inin çalıştırdığı bir
+  `type="text/plain" data-consent="analytics"` tag'ine dönüşür. Kategori consent
+  plugin'inde tanımlı olmalıdır, yoksa tag'ler hiç çalışmaz. Google Analytics iki
+  bekletilen tag olur: script'i ve onu yapılandıran inline çağrı; loader yoktur.
+- `consentCategory`, `requireConsent` ile birlikte kullanılamaz: ikisi birden
+  verilirse ya da ad küçük harf, rakam ve tire dışında bir şey içerirse uygulama
+  başlamaz. `respectDnt` yine geçerlidir ve Global Privacy Control'e de uyar; yani GPC
+  gönderen bir tarayıcıda "Tümünü kabul et"ten sonra bile hiçbir şey yüklenmez.
+  Sıkı bir Content-Security-Policy altında Google Analytics'in inline tag'i,
+  `script-src`'de bir `'sha256-…'` ister (yukarıdaki consent plugin'inin CSP
+  notlarına bakın).
 
 #### elagoht/tenant
 
@@ -2474,7 +2575,7 @@ if err := mail.Enqueue(r.Context(), Email{To: to}); err != nil {
 
 Yukarıdaki plugin'lerin hepsi `Config.Plugins` içinde register edilir. Library ise
 bir page'in kendi kodunda kullandığı bir modüldür. Bu yüzden register edilecek ya da
-yapılandırılacak bir şey yoktur ve kırk üç plugin'in arasında sayılmaz.
+yapılandırılacak bir şey yoktur ve kırk dört plugin'in arasında sayılmaz.
 
 ### elagoht/paginate
 
