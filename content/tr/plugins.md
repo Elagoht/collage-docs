@@ -192,6 +192,8 @@ kurmanız için yeterlidir.
 | [Asset'ler ve teslimat](#assets-and-delivery) | minimizer, opti-image, bundle, favicon, compress, cdnpurge, offline, deploy |
 | [Operasyon ve development](#operations-and-development) | htmlcheck, devtoolbar, accesslog, prometheus, otel, analytics, tenant, errortrack, health, jobs |
 
+[Plugin olmayan library'ler](#libraries-that-are-not-plugins) grupların ardından listelenir.
+
 ### SEO ve keşfedilebilirlik
 
 Bir arama motorunun, bir feed okuyucunun ya da bir link önizlemesinin okudukları:
@@ -2467,6 +2469,26 @@ if err := mail.Enqueue(r.Context(), Email{To: to}); err != nil {
   çünkü `main.go`'su build'den sonra uygulamayı shutdown eder. Kendi
   `http.Server`'ını çalıştıran bir uygulama plugin'i `j.Start(ctx)` ile başlatır;
   bkz. [Deployment](/docs/deployment#serving-with-your-own-server).
+
+## Plugin olmayan library'ler
+
+Yukarıdaki plugin'lerin hepsi `Config.Plugins` içinde register edilir. Library ise
+bir page'in kendi kodunda kullandığı bir modüldür. Bu yüzden register edilecek ya da
+yapılandırılacak bir şey yoktur ve kırk üç plugin'in arasında sayılmaz.
+
+### elagoht/paginate
+
+Bir pager'ın aritmetiği, numaralı bir window (`1 … 4 5 [6] 7 8 … 20`) ve sayfalanmış
+bir listing için link'ler. Static export'un yazdığı path ile sayfalanmış link'ler
+(`/blog`, `/blog/page/2`) ve yalnızca bir sunucunun cevapladığı query ile sayfalanmış
+link'ler (`/search?page=3`) vardır. Bir data handler'dan ve bir template'ten
+kullanılır. Bkz. [Pagination](/docs/static-export#pagination).
+
+```sh
+go get github.com/Elagoht/collage-paginate
+```
+
+- v0.1.0, collage v0.57.0 ya da sonrasını gerektirir.
 
 ## Head'e yazan plugin'ler
 

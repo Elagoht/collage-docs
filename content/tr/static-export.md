@@ -164,7 +164,8 @@ sayfalanmış bir feed için, aynı şekilde uyarı verilir. Bu v0.10.0'dan beri
 öncesinde yalnızca page'ler için uyarı veriliyordu.
 
 Sayfalamanın export'ta da çalışması gerekiyorsa sayfa numarasını path'e koyun,
-örneğin `/blog/page/{n}`. Ardından bu page'leri `WithStaticParams` ile listeleyin.
+örneğin `/blog/page/{n}`. Ardından bu page'leri `WithStaticParams` ile listeleyin. [Pagination](#pagination)
+bölümü iki page'i ve link'leri kuran library'yi gösterir.
 
 ## Neler başarısız olur
 
@@ -279,6 +280,147 @@ Output dizininin dışına çıkan bir path (`/../../etc`) `collage.ErrPathEscap
 ile reddedilir. Dizinin dışına götüren bir symlink üzerinden yazma da aynı şekilde
 reddedilir. Bu ret yalnızca o path'i başarısız kılar, build'in geri kalanını
 etkilemez. Diğer page'ler yine render edilip yazılır ve hata raporda yer alır.
+
+## Pagination
+
+Pagination bir plugin değil, bir library'dir: [elagoht/paginate](/docs/plugins#libraries-that-are-not-plugins)
+için register edecek ya da yapılandıracak bir şey yoktur. Bir data handler ve bir
+template onu kullanır. `go get github.com/Elagoht/collage-paginate` ile eklersiniz.
+v0.1.0, collage v0.57.0 ya da sonrasını gerektirir.
+
+`paginate.New(total, perPage, current)`, `Current`, `Last`, `Offset`, `Limit`,
+`Prev`, `Next` alanlarına ve sayfa numaralarından oluşan bir `Window`'a sahip bir
+`Pager` döner (`1 … 4 5 [6] 7 8 … 20`):
+
+```go
+p := paginate.New(total, perPage, current)
+// p.Current, p.Last, p.Offset, p.Limit, p.Prev, p.Next, p.Window
+
+rows := db.Query("… LIMIT ? OFFSET ?", p.Limit, p.Offset) // fetch only the page
+page := paginate.Items(all, p)                             // or slice a list you already have
+```
+
+- **`current`, `[1, Last]` aralığına çekilir.** `New` asla başarısız olmaz. Bu
+  yüzden bir sayfanın aralığın dışında kaldığına karar vermek handler'ın işidir.
+- **Boş bir listing tek bir boş sayfadır.** `Last` 1 olur ve `Items` boş, nil
+  olmayan bir slice döner.
+- **Window**, ilk ve son sayfayı, bir de geçerli sayfanın iki yanındaki ikişer
+  sayfayı tutar. `p.WithWindow(edges, around)` bunu değiştirir.
+- **1'den küçük `perPage` panic eder.** Bu bir programlama hatasıdır, girdi
+  değildir.
+
+### Static export'un yazabileceği bir listing'i sayfalamak
+
+Bir page'in locale başına tek bir path pattern'i vardır. Bu yüzden tek bir page hem
+`/blog` hem de `/blog/page/{n}` adresine cevap veremez. Sayfalanmış bir listing,
+fragment'ini paylaşan iki page'dir. Biri 1. sayfayı listing'in kendi path'inde
+sunar, diğeri geri kalanını sunar.
+
+```go
+func listing(ctx context.Context, rc *collage.RenderContext) (BlogList, []string, error) {
+	total, err := posts.Count(ctx, rc.Locale) // the same count StaticParams uses
+	if err != nil {
+		return BlogList{}, nil, err
+	}
+	last := paginate.New(total, perPage, 1).Last
+	n := 1
+	if rc.Param("n") != "" {
+		if n, err = paginate.FromPath(rc, "n", last); err != nil {
+			return BlogList{}, nil, err // wraps collage.ErrNotFound: a 404
+		}
+	}
+	p := paginate.New(total, perPage, n)
+	links, err := paginate.PathNamed(rc, "blog", "blog-page")
+	if err != nil {
+		return BlogList{}, nil, err
+	}
+	items, err := posts.List(ctx, p.Limit, p.Offset)
+	return BlogList{Posts: items, Pager: p, Links: links.For(p)}, []string{"posts"}, err
+}
+
+list := func(name string) *collage.Fragment {
+	return collage.NewFragment(name, "blog/list.html").WithData(collage.DataHandler(listing)).Required().Build()
+}
+app.RegisterPage(collage.NewPage("blog").
+	WithContent(list("blog-list")).
+	WithPath("en", "/blog").
+	Static(). // a page with a data handler is dynamic unless it says otherwise
+	Build())
+app.RegisterPage(collage.NewPage("blog-page").
+	WithContent(list("blog-page-list")).
+	WithPath("en", "/blog/page/{n}").
+	WithStaticParams(paginate.StaticParams(posts.Count, perPage)).
+	Static().
+	Build())
+```
+
+- **İki page de `Static()` olur** (ya da `Incremental`). Data handler'ı olan bir
+  page varsayılan olarak dynamic'tir ve static export dynamic page'leri atlar.
+- **`StaticParams`, 2…Last sayfalarını listeler.** Bu liste export için ve
+  sitemap'in okuduğu `PageURLs` için kullanılır. 1. sayfa listelenmez, çünkü o
+  `/blog` adresidir. Ona handler'ın kullandığı sayıyı verin. İkisi uyuşmazsa
+  export, handler'ın 404 ile cevapladığı sayfaları yazar.
+- **Her sayfanın tek bir yazımı vardır.** `FromPath` yalnızca kanonik biçimde
+  yazılmış, 2 ile `last` arasındaki bir sayfa numarasını kabul eder.
+  `/blog/page/1`, `/blog/page/02`, bir işaret, ASCII rakam olmayan her şey ve
+  aralığın dışındaki her sayı bulunamaz. Hata `collage.ErrNotFound`'ı sarar. Bu
+  yüzden Required bir fragment, page'in not-found page'ini 404 ile render eder.
+- **`PathNamed`, link'leri page'lerin adlarıyla kurar.** Böylece locale prefix'leri
+  doğru çıkar (`/tr/blog/page/2`). Request'in diğer path parametreleri iki adrese de
+  girer. Bu yüzden `/tag/{tag}` ile `/tag/{tag}/page/{n}`, kendi tag'i içinde link
+  verir. İki adı da baştan kontrol eder, yani yanlış yazılmış bir ad boş bir link
+  yerine hata olur. Bir tag listing'inin export'u için static param'ları kendiniz
+  yazın: her tag ve her 2…`paginate.New(count(t), perPage, 1).Last` sayfası için bir
+  `{"tag": t, "n": k}`. Locale yoksa `paginate.Path("/blog", "/blog/page/{n}")`
+  aynı işi sabit path'lerle yapar.
+
+### Query ile sayfalamak
+
+Yalnızca bir sunucunun cevaplayabileceği bir listing, örneğin bir arama, query
+string ile sayfalanır:
+
+```go
+n := paginate.FromQuery(rc, "page", last)                 // anything invalid is page 1
+links := paginate.Query(rc, "page").For(paginate.New(total, perPage, n))
+```
+
+- **Request'in diğer parametreleri kalır.** 1. sayfa key'i düşürür, yani adresi
+  key'siz olandır.
+- **Cache'lenen bir page, key'i cache parametreleri arasında belirtmelidir:**
+  `WithCacheParams("q", "page")`. Bu olmazsa bütün sayfalar tek bir cache entry'sini
+  paylaşır.
+- **Static export bu page'leri sunamaz.** Static host, `/search?page=2` isteğine
+  `/search` dosyasıyla cevap verir. Export de query parametresi okuyan page'ler için
+  [uyarı verir](#what-is-warned-about).
+
+### Template'te
+
+`Links` düz bir struct'tır. Bu yüzden fragment'in data'sına girer ve template
+checker `.Links.Next` ile diğerlerini görür:
+
+```html
+<nav class="pager" aria-label="Pages">
+  {{with .Links.Prev}}<a href="{{.}}" rel="prev">Previous</a>{{end}}
+  {{range .Links.Window}}
+    {{if .Gap}}<span>…</span>
+    {{else if .Current}}<span aria-current="page">{{.N}}</span>
+    {{else}}<a href="{{.URL}}">{{.N}}</a>{{end}}
+  {{end}}
+  {{with .Links.Next}}<a href="{{.}}" rel="next">Next</a>{{end}}
+</nav>
+```
+
+`rel="prev"` ve `rel="next"` değerlerini head'e koymak için bunları data handler'dan
+hoist edin. Layout, `{{hoist "head"}}` yazdığı yere yerleştirir:
+
+```go
+if l := links.For(p); l.Next != "" {
+	rc.Hoist("head", "pager-next", template.HTML(`<link rel="next" href="`+template.HTMLEscapeString(l.Next)+`">`))
+}
+```
+
+Sayfa toplamları bilinmelidir. Cursor tabanlı sayfalama ve sonsuz kaydırma kapsam
+dışındadır.
 
 ## Build seçenekleri
 

@@ -176,6 +176,8 @@ reference; what follows is enough to set one up.
 | [Assets and delivery](#assets-and-delivery) | minimizer, opti-image, bundle, favicon, compress, cdnpurge, offline, deploy |
 | [Operations and development](#operations-and-development) | htmlcheck, devtoolbar, accesslog, prometheus, otel, analytics, tenant, errortrack, health, jobs |
 
+[Libraries that are not plugins](#libraries-that-are-not-plugins) are listed after the groups.
+
 ### SEO and discovery
 
 What a search engine, a feed reader or a link preview reads: structured data, the
@@ -2365,6 +2367,25 @@ if err := mail.Enqueue(r.Context(), Email{To: to}); err != nil {
   application down after a build. An application on its own `http.Server` starts
   the plugin with `j.Start(ctx)`; see
   [Deployment](/docs/deployment#serving-with-your-own-server).
+
+## Libraries that are not plugins
+
+The plugins above are all registered in `Config.Plugins`. A library is a module a
+page uses in its own code, so there is nothing to register or configure, and it is
+not counted among the forty-three plugins.
+
+### elagoht/paginate
+
+The arithmetic of a pager, a numbered window (`1 … 4 5 [6] 7 8 … 20`), and links
+for a paged listing: path-paged ones a static export writes (`/blog`,
+`/blog/page/2`) and query-paged ones only a server answers (`/search?page=3`). It
+is used from a data handler and a template; see [Pagination](/docs/static-export#pagination).
+
+```sh
+go get github.com/Elagoht/collage-paginate
+```
+
+- v0.1.0 needs collage v0.57.0 or later.
 
 ## Plugins that write to the head
 
