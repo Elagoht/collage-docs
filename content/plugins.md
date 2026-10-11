@@ -1664,12 +1664,13 @@ import (
 	"github.com/Elagoht/collage-websocket"
 )
 
-lv := live.New()
-Plugins: []collage.Plugin{lv, websocket.New(lv)},
+Plugins: []collage.Plugin{websocket.New(nil), live.New()},
 ```
 
-- Register collage-live as well, before this plugin. v0.2.4 needs collage v0.50.0
-  and collage-live v0.4.2 or later (v0.2.3 was the last for v0.49.0).
+- `collage plugin add elagoht/websocket` adds collage-live too, and puts websocket
+  before it. `New(nil)` finds the application's live plugin by itself (since
+  v0.3.0, which needs collage v0.58.0 and collage-live v0.4.2 or later);
+  `websocket.New(lv)` with your own `lv := live.New()` still works.
 - Nothing else changes: the layout still includes `{{liveClient}}`, which now tells
   the client to connect here, and elements still say `data-collage-push`.
   collage-live stops serving its event stream. The WebSocket is opened from the

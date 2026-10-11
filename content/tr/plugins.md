@@ -1735,12 +1735,14 @@ import (
 	"github.com/Elagoht/collage-websocket"
 )
 
-lv := live.New()
-Plugins: []collage.Plugin{lv, websocket.New(lv)},
+Plugins: []collage.Plugin{websocket.New(nil), live.New()},
 ```
 
-- collage-live'ı da bu plugin'den önce register edin. v0.2.4, collage v0.50.0 ve
-  collage-live v0.4.2 ya da sonrasını gerektirir (v0.2.3, collage v0.49.0 için son sürümdü).
+- `collage plugin add elagoht/websocket` collage-live'ı da ekler ve websocket'i
+  ondan önceye koyar. `New(nil)` uygulamanın live plugin'ini kendisi bulur
+  (v0.3.0'dan beri; collage v0.58.0 ve collage-live v0.4.2 ya da sonrasını
+  gerektirir). Kendi `lv := live.New()` değerinizle `websocket.New(lv)` de
+  çalışmaya devam eder.
 - Başka hiçbir şey değişmez. Layout yine `{{liveClient}}`'ı içerir, bu artık
   client'a buraya bağlanmasını söyler. Element'ler de yine `data-collage-push`
   taşır. collage-live kendi event stream'ini sunmayı bırakır. WebSocket da aynı
