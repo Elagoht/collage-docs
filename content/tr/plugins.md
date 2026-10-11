@@ -50,12 +50,59 @@ verilen bir yetenekten geçer. Bu ikisiyle bir plugin şunları yapabilir:
   [collage CLI](/docs/cli#plugin-commands).
 
 Bunların her birinin plugin tarafından nasıl göründüğünü
-[Plugin yazmak](/docs/writing-plugins) sayfasında bulabilirsiniz.
+[Plugin yazmak](/docs/writing-plugins) sayfasında bulabilirsiniz. `collage plugin add` ile kurulabilen bir plugin yazmak için [repository sözleşmesine](/docs/plugin-authors) bakın.
 
 ## Bir plugin'i register etmek
 
-Plugin ayrı bir modüldür. Modülü projeye ekleyin, plugin'i oluşturun ve
-`Config.Plugins`'e koyun:
+*v0.58.0'dan beri.* Bir plugin'i, projenin dizininde tek komutla ekleyebilirsiniz:
+
+```sh
+collage plugin add elagoht/minimizer
+```
+
+`elagoht/minimizer`, `github.com/Elagoht/collage-minimizer` demektir. Komut modülü
+indirir, import'u ve constructor çağrısını plugin'in istediği yere `plugins.go`'ya
+yazar, `plugins-config.json`'a da boş bir `"elagoht/minimizer": {}` bölümü ekler:
+yani varsayılanlar. Bu plugin'in ihtiyaç duyduğu başka bir plugin varsa onu önce
+ekler. Bir hata olursa her dosya olduğu gibi kalır. Kaldırmak da aynı şekilde, tersi
+yönde yapılır. Bölümde ayar varsa kaybolmasın diye yazdırılır:
+
+```sh
+collage plugin del elagoht/minimizer
+```
+
+`collage new` ile oluşturulan projede `plugins.go` hazır gelir ve `main.go` onu
+uygulamaya verir:
+
+```go
+func plugins() []collage.Plugin {
+	return []collage.Plugin{
+		minimizer.New(),
+	}
+}
+```
+
+```go
+app, err := collage.New(&collage.Config{
+	Template: collage.TemplateConfig{Root: "templates"},
+	Plugins:  plugins(),
+})
+```
+
+Dosya sizindir: sırayı değiştirebilir ya da bir plugin'e seçeneklerini Go ile
+verebilirsiniz (`sitemap.New(sitemap.Options{...})`). `add` ve `del` yalnızca
+girdileri bütün olarak ekler ve çıkarır. Eski bir proje bu dosyayı ilk `add`'inde
+alır. Komut da `main.go`'ya konacak `Plugins: plugins(),` satırını yazdırır.
+Başkasının plugin'i de aynı şekilde, module path'iyle eklenir:
+`collage plugin add gitlab.com/you/stamp`. Bir repository'nin eklenebilmesi için
+neye sahip olması gerektiği [plugin yazarlarının sayfasında](/docs/plugin-authors),
+komutun kendisi ise [CLI referansında](/docs/cli#collage-plugin) anlatılır.
+
+### Elle bağlamak
+
+Komut, sizin yazamayacağınız hiçbir şey yazmaz. Plugin listesini başka bir yolla
+kuran bir proje için elle bağlamak da geçerli yol olarak kalır. Plugin ayrı bir
+modüldür. Modülü projeye ekleyin, plugin'i oluşturun ve `Config.Plugins`'e koyun:
 
 ```sh
 go get github.com/Elagoht/collage-minimizer
@@ -69,6 +116,8 @@ app, err := collage.New(&collage.Config{
 	Plugins:  []collage.Plugin{minimizer.New()},
 })
 ```
+
+Plugin ayar alıyorsa bölümünü `plugins-config.json`'a kendiniz ekleyin.
 
 İkinci bir yol da vardır: `New`'dan sonra çağrılan `app.RegisterPlugin`.
 

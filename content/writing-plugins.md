@@ -10,7 +10,7 @@ rewriting output, adding a template function — is opt-in: you implement the
 interface for the hook you want, and the framework finds it by type assertion.
 
 This page is the reference for that surface. [Using plugins](/docs/plugins) is the
-other side of it: how an application registers and configures what you write.
+other side of it: how an application registers and configures what you write. To have `collage plugin add` install your plugin, meet [the repository contract](/docs/plugin-authors).
 
 ## The contract
 

@@ -101,6 +101,7 @@ mysite/
 ├── embed.go                    templates/ and static/, embedded — left out of collage dev's builds
 ├── embed_dev.go                the same variables, empty, for collage dev's builds
 ├── routes.go                   every page, document and action — a new route goes here
+├── plugins.go                  the plugin list; collage plugin add and del edit it
 ├── go.mod
 ├── .gitignore
 ├── README.md
@@ -155,6 +156,11 @@ render eder. Flag'lerden sonra gelen bir kelime, yani `go run . <command>`, bir
 [plugin'in komutunu](/docs/plugins) çalıştırır. `main.go`'yu yeniden yazarsanız
 bunların hepsinin çalışmaya devam etmesini sağlayın. Aksi hâlde bu komutlar işe yarar
 hiçbir şey yapmaz. Ayrıntılar [CLI referansında](/docs/cli) yer alır.
+
+**`plugins.go` plugin listesidir.** Plugin'leri sırayla döndüren bir fonksiyondur,
+`plugins()`. `main.go` onu `Plugins: plugins()` ile bir kez verir. Başlangıçta boştur.
+`collage plugin add elagoht/sitemap` ona bir girdi yazar, `collage plugin del` bir girdiyi
+kaldırır. Bkz. [Plugin kullanmak](/docs/plugins#registering-a-plugin).
 
 **`newApp`, `main`'den ayrıdır.** `newApp` bütün uygulamayı kurar: config'i,
 `routes.go`'daki route'ları ve `/static/` mount'unu. Sonra bir sunucu başlatmadan

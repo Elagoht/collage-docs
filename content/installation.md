@@ -97,6 +97,7 @@ mysite/
 ├── embed.go                    templates/ and static/, embedded — left out of collage dev's builds
 ├── embed_dev.go                the same variables, empty, for collage dev's builds
 ├── routes.go                   every page, document and action — a new route goes here
+├── plugins.go                  the plugin list; collage plugin add and del edit it
 ├── go.mod
 ├── .gitignore
 ├── README.md
@@ -149,6 +150,11 @@ serving it. A word after the flags — `go run . <command>` — runs a
 [plugin's command](/docs/plugins). If you rewrite `main.go`, keep all of it
 working, or those commands stop doing anything useful.
 [The CLI reference](/docs/cli) has the details.
+
+**`plugins.go` is the plugin list.** It is a function, `plugins()`, that returns the
+plugins in order, and `main.go` passes it once as `Plugins: plugins()`. It starts
+empty. `collage plugin add elagoht/sitemap` writes an entry into it, and
+`collage plugin del` removes one; see [Using plugins](/docs/plugins#registering-a-plugin).
 
 **`newApp` is separate from `main`.** It builds the whole application — the
 configuration, the routes from `routes.go`, the `/static/` mount — and returns it

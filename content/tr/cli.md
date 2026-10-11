@@ -1,5 +1,5 @@
 ---
-description: collage CLI'ın bütün komutları (new, add, dev, build, export, serve, inspect, check, version ve help), flag'leri ve her birinin tam olarak neyi çalıştırdığı.
+description: collage CLI'ın bütün komutları (new, add, dev, build, export, serve, inspect, check, plugin, version ve help), flag'leri ve her birinin tam olarak neyi çalıştırdığı.
 reference: DispatchCommands, Command, ErrUnknownCommand, InspectCommand, Inspection, FragmentBuilder.WithoutTypeCheck, App, Registrable
 ---
 
@@ -34,6 +34,7 @@ collage <command> [flags]
 | `serve` | Bir static export'u, bir static host'un sunacağı şekilde sunar |
 | `inspect` | Bulunduğunuz dizindeki projenin nelerden oluştuğunu JSON olarak yazdırır |
 | `check` | Bulunduğunuz dizindeki projenin template'lerini render etmeden kontrol eder (v0.40.0'dan beri) |
+| `plugin` | Projeye plugin ekler, çıkarır ya da bir plugin repository'sini kontrol eder (v0.58.0'dan beri) |
 | `version` | collage CLI'ın sürümünü yazdırır |
 | `help` | Bir komutun yardımını gösterir ya da bütün komutları listeler |
 
@@ -694,6 +695,106 @@ if findings := app.Check(); len(findings) > 0 {
 }
 ```
 
+## collage plugin
+
+*v0.58.0'dan beri.* Projeye bir plugin ekler, bir plugin'i çıkarır ya da bir plugin
+repository'sini kontrol eder:
+
+```sh
+collage plugin add <owner/name | module path>[@version] [-dir dir]
+collage plugin del <owner/name | module path> [-dir dir]
+collage plugin check [-release] [-run] [dir]
+```
+
+```sh
+collage plugin add elagoht/consent            # github.com/elagoht/collage-consent
+collage plugin add elagoht/sitemap@v0.3.1     # go get'in kabul ettiği bir sürüm
+collage plugin add gitlab.com/kisi/plugin     # bir module path, yazıldığı gibi kullanılır
+collage plugin del elagoht/consent
+collage plugin check -release -run            # bir plugin'in kendi repository'sinde
+```
+
+`owner/name`, `github.com/<owner>/collage-<name>` demektir. İlk parçasında nokta
+olan bir path ise module path'tir ve yazıldığı gibi kullanılır. `add` ve `del`,
+bulunduğunuz dizindeki projede ya da `-dir`'in gösterdiği projede çalışır. Bu dizinde
+`go.mod` ve bir `package main` bulunmalıdır.
+
+**`add`** modülü `go get` ile indirir. `@version` verilmezse `@upgrade` ister: `go.mod`'da
+henüz olmayan bir modül için en son release'i, zaten olan bir modül için ise onu hiçbir
+zaman geriye almaz. Sonra modülün bir plugin olup olmadığını kontrol eder. Sözleşme
+[plugin yazarlarının sayfasındadır](/docs/plugin-authors):
+
+- modülün kökünde, `name`'i `owner/name` olan bir `collage.json`. Kısa ad verdiyseniz
+  `name`, yazdığınız adla aynı olmalıdır;
+- plugin'in package'ı modülün kökünde olmalı, `package main` olmamalı;
+- hiçbir şey ayarlanmadan çağrılabilen bir `New`: parametresiz, variadic ya da sıfır
+  değeri yazılabilen tek parametreli. Bu, package'ın kendi export edilmiş bir struct'ı
+  için `pkg.Options{}`, pointer, interface, slice, map ya da func için `nil` demektir;
+- bir release tag'i; pseudo-version olmaz.
+
+Önce manifest'in `requires` dediği plugin'leri ekler. Sonra `plugins.go`'ya import'u
+ve çağrıyı yazar: manifest'inin `order`'ı daha büyük olan ilk girdinin önüne.
+`plugins-config.json`'a da boş bir bölüm ekler. En son `go mod tidy` çalıştırır:
+
+```text
+$ collage plugin add elagoht/consent
+added elagoht/consent v0.1.2
+  plugins.go           consent.New()
+  plugins-config.json  "elagoht/consent": {}
+```
+
+Manifest'te `setup` notu varsa onu da yazdırır: plugin'e yalnızca Go'nun verebileceği
+şeyler. Boş bölüm varsayılanlar demektir. Plugin'in zorunlu tuttuğu bir ayar eksikse
+bunu uygulama başlarken plugin'in kendisi bildirir.
+
+- **Import, package'ın adını taşır.** Bu ad `plugins.go`'nun bir import'unda ya da
+  package'da herhangi bir yerde tanımlı bir adla çakışırsa `<owner><Name>` olur,
+  gerekirse sonuna sayı eklenir.
+- **`plugins.go`'da zaten olan bir plugin ikinci kez eklenmez.** Yalnızca sürümü
+  değişir ve komut bunu söyler.
+- **Var olan bölüm korunur.** İki dosya da yerinde düzenlenir, bu yüzden argümanlarınız,
+  yorumlarınız, sıralamanız ve biçimlendirmeniz olduğu gibi kalır.
+- **Yarım iş kalmaz.** Ctrl-C dahil her hata, `go.mod`, `go.sum`, `plugins.go` ve
+  `plugins-config.json` dosyalarını eski hâline döndürür. Önceden olmayan bir dosya
+  yeniden silinir.
+
+`plugins.go`'dan önce oluşturulmuş bir proje, bu dosyayı ilk `add`'inde alır. Komut da
+`collage.New`'a bir kez verilmesi gereken `Plugins: plugins(),` satırını yazdırır.
+Yeni projelerde ikisi de hazır gelir.
+
+**`del`**, plugin'i `plugins.go`'nun girdileri arasında, manifest'lerindeki ada ya da
+module path'e göre, büyük küçük harfe bakmadan bulur. Girdilerini, import'unu ve
+bölümünü kaldırır, bölümde ayar varsa onu yazdırır ve `go mod tidy` çalıştırır.
+Şu durumlarda reddeder:
+
+- başka bir plugin'in manifest'i onu `requires` ediyorsa;
+- başka bir girdinin `collage.json`'u okunamıyorsa (modül indirilemiyor ya da dosya
+  bozuk). O plugin'in bunu isteyip istemediğini bilemez. Mesaj modülü ve nedeni belirtir;
+- ona bir module path verilmişse ve plugin'in kendi `collage.json`'u okunamıyorsa,
+  çünkü bölümünün adı bu durumda bilinmez.
+
+Başka bir girdinin `collage.json`'undan yalnızca `name`, `requires` ve `order` okunur.
+Bu yüzden daha yeni bir manifest şemasından gelen bir anahtar hiçbir şeyi engellemez.
+Elle bağlanmış olup bir plugin modülünün kök package'ı olmayan girdi (kendi
+modülünüzün bir package'ı ya da bir bağımlılığın alt package'ı) ve `collage.json`'u
+hiç olmayan modül hiçbir şey istemez, hiçbir şeyi engellemez. Module cache'te olmayan
+bir modül (yeni bir clone'dan sonra olduğu gibi) manifest'i okunmak için indirilir.
+`del` de `add` gibi, bir adım başarısız olursa her dosyayı geri koyar.
+
+**`check`**, bir plugin repository'sini (`dir`, varsayılan `.`) `add`'in uyguladığı
+sözleşmeye göre kontrol eder. Kontrolün kendisi yalnızca repository'yi okur:
+
+- `-release` ayrıca `HEAD`'de bir release tag'i ister, bunun için git gerekir;
+- `-run`, repository'de `go run` ile geçici bir program derler. Module cache'te
+  olmayanı indirir. Bu program `New`'u `add`'in yazacağı biçimde, bir `collage.Plugin`
+  olarak çağırır ve `Name()`'in manifest'teki `name` olduğunu kontrol eder. Build
+  hatasında, `New`'daki bir panic'te ya da farklı bir adda başarısız olur. Plugin'i
+  configure etmez, başlatmaz; yani boş bir bölümde eksik kalan bir ayar onun işi
+  değildir. `go.mod`, `go.sum` ve `go.work.sum` eski hâline döner, program silinir.
+
+Bunlar `collage` binary'sinin komutlarıdır. Bir plugin'in kendi alt komutları ise
+başka bir şeydir: bkz. [Plugin komutları](#plugin-commands).
+
 ## collage version
 
 ```sh
@@ -808,7 +909,7 @@ plugin'lerinizin komutları projenizde işe yarar hiçbir şey yapmaz.
 
 ## Plugin komutları
 
-Bir plugin, `Host.RegisterCommand` ile bir komut ekleyebilir. **`collage` CLI bu
+Plugin eklemek ve çıkarmak [`collage plugin`](#collage-plugin) işidir. Bu bölüm ise plugin'in kendi alt komutlarını anlatır. Bir plugin, `Host.RegisterCommand` ile bir komut ekleyebilir. **`collage` CLI bu
 komutu çalıştırmaz.** CLI uygulamanızı hiçbir zaman yüklemez. Bu yüzden ancak
 plugin'leriniz başladıktan sonra var olan bir komuta CLI erişemez ve
 `collage <plugin-command>` bilinmeyen bir komut olarak kalır.

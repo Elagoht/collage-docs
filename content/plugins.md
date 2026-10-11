@@ -42,12 +42,59 @@ handed at startup. Between them, a plugin can:
   project; see [The collage CLI](/docs/cli#plugin-commands).
 
 What each of these looks like from the plugin's side is in
-[Writing a plugin](/docs/writing-plugins).
+[Writing a plugin](/docs/writing-plugins). Writing one that `collage plugin add` can install is on [the repository contract](/docs/plugin-authors).
 
 ## Registering a plugin
 
-A plugin is a separate module. Add it, construct it, and put it in
-`Config.Plugins`:
+*Since v0.58.0.* Add a plugin with one command, from the project's directory:
+
+```sh
+collage plugin add elagoht/minimizer
+```
+
+`elagoht/minimizer` means `github.com/Elagoht/collage-minimizer`. The command
+fetches the module, adds the import and the constructor call to `plugins.go`, in
+the place the plugin asks for, and adds an empty section `"elagoht/minimizer": {}`
+to `plugins-config.json`: the defaults. It adds first any plugin this one needs. A
+failure leaves every file as it was. Taking one out is the same in reverse, and
+the settings its section held are printed so they are not lost:
+
+```sh
+collage plugin del elagoht/minimizer
+```
+
+A project made by `collage new` has `plugins.go` already, and `main.go` passes it
+to the application:
+
+```go
+func plugins() []collage.Plugin {
+	return []collage.Plugin{
+		minimizer.New(),
+	}
+}
+```
+
+```go
+app, err := collage.New(&collage.Config{
+	Template: collage.TemplateConfig{Root: "templates"},
+	Plugins:  plugins(),
+})
+```
+
+The file is yours to edit: reorder it, or give a plugin its options in Go
+(`sitemap.New(sitemap.Options{...})`); `add` and `del` only insert and remove
+whole entries. An older project gets the file from its first `add`, and the
+command prints the `Plugins: plugins(),` line to put in `main.go`. A plugin by
+anyone else is added the same way, by its module path:
+`collage plugin add gitlab.com/you/stamp`. What a repository must hold to be
+added is on [the plugin authors' page](/docs/plugin-authors), and the command is
+in [the CLI reference](/docs/cli#collage-plugin).
+
+### Wiring one by hand
+
+The command writes nothing you cannot write yourself, and that stays the way to
+do it for a project that builds its plugin list some other way. A plugin is a
+separate module. Add it, construct it, and put it in `Config.Plugins`:
 
 ```sh
 go get github.com/Elagoht/collage-minimizer
@@ -61,6 +108,8 @@ app, err := collage.New(&collage.Config{
 	Plugins:  []collage.Plugin{minimizer.New()},
 })
 ```
+
+Add its section to `plugins-config.json` yourself, if it takes settings.
 
 There is a second way, `app.RegisterPlugin`, called after `New`:
 
