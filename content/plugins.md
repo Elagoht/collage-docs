@@ -63,6 +63,19 @@ the settings its section held are printed so they are not lost:
 collage plugin del elagoht/minimizer
 ```
 
+Several go in one command, each on its own: one that fails is put back, and the
+others stay. A bundle, written with `@`, is a set of them under one name, and
+`collage new` takes the same with `--with` (since v0.59.0):
+
+```sh
+collage plugin add elagoht/session elagoht/flash elagoht/validate
+collage plugin add @prod
+collage new mysite --with @blog,@prod
+```
+
+The bundles (`@prod`, `@site`, `@blog`, `@forms`, `@live`, `@ops`) and what each
+holds are in [the CLI reference](/docs/cli#bundles).
+
 A project made by `collage new` has `plugins.go` already, and `main.go` passes it
 to the application:
 

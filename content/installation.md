@@ -67,11 +67,13 @@ come before or after the name:
 | `-dir path` | Scaffold into `path` instead of `./<name>` |
 | `-module path` | The module path in `go.mod`, such as `github.com/you/mysite`. Defaults to the name |
 | `-force` | Scaffold into a directory that is not empty |
+| `--with plugins` | Add plugins once it is written: bundles such as `@prod` and plugins such as `elagoht/session`, comma-separated (since v0.59.0). The plugins are fetched, so `go mod tidy` is no longer a next step |
 
 ```sh
 collage new mysite -module github.com/you/mysite
 collage new mysite --template demo
 collage new mysite -dir . -force
+collage new mysite --with @site,@prod
 ```
 
 ### With the demos, or without

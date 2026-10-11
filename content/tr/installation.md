@@ -68,11 +68,13 @@ Birkaç flag, projenin nereye ve nasıl yazılacağını değiştirir. Flag'leri
 | `-dir path` | Projeyi `./<name>` yerine `path` içine scaffold eder |
 | `-module path` | `go.mod`'daki module path'i belirler, örneğin `github.com/you/mysite`. Varsayılan değer proje adıdır |
 | `-force` | Boş olmayan bir dizine de scaffold eder |
+| `--with plugins` | Proje yazıldıktan sonra plugin ekler: `@prod` gibi paketler ve `elagoht/session` gibi plugin'ler, virgülle ayrılmış (v0.59.0'dan beri). Plugin'ler indirildiği için `go mod tidy` artık bir sonraki adım değildir |
 
 ```sh
 collage new mysite -module github.com/you/mysite
 collage new mysite --template demo
 collage new mysite -dir . -force
+collage new mysite --with @site,@prod
 ```
 
 ### Demolarla ya da demolar olmadan

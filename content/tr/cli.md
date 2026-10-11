@@ -53,7 +53,7 @@ kullanır: `-out dist` ile `-out=dist` aynıdır, `--out` da çalışır.
 ## collage new
 
 ```sh
-collage new <name> [--template minimal|demo] [--dir path] [--module path] [--force]
+collage new <name> [--template minimal|demo] [--with plugins] [--dir path] [--module path] [--force]
 ```
 
 `<name>` adında, çalıştırılmaya hazır yeni bir proje scaffold eder.
@@ -61,6 +61,7 @@ collage new <name> [--template minimal|demo] [--dir path] [--module path] [--for
 | Flag | Varsayılan | Anlamı |
 | --- | --- | --- |
 | `--template name` | `minimal` | Scaffold edilecek proje: `minimal` ya da `demo` (v0.14.2'den beri; v0.32.0'dan beri varsayılan `minimal`, öncesinde `demo`) |
+| `--with plugins` | yok | Proje yazıldıktan sonra eklenecek plugin'ler: `@prod` gibi [paketler](#bundles) ve `elagoht/session` gibi plugin'ler, virgülle ayrılmış ya da birden fazla `--with` ile (v0.59.0'dan beri) |
 | `-dir path` | `./<name>` | Projenin scaffold edileceği dizin |
 | `-module path` | `<name>` | `go.mod`'a yazılan module path |
 | `-force` | kapalı | Dizin boş olmasa da scaffold eder |
@@ -70,7 +71,19 @@ collage new myblog                                   # into ./myblog, module "my
 collage new myblog --template demo                   # the demos, their tests, a .env.example
 collage new myblog -module github.com/me/myblog
 collage new myblog -dir . -force                     # into the current, non-empty directory
+collage new myblog --with @blog,@prod                # iki paketin plugin'leriyle birlikte
 ```
+
+`--with`, hiçbir şey yazılmadan önce okunur: var olmayan bir paket ya da
+okunamayan bir plugin adı kullanım hatasıdır ve dizin oluşturulmaz. Proje scaffold
+edildikten sonra `new`, projeye CLI'ın kendi collage sürümünü ekler, ardından her
+plugin'i [`collage plugin add`](#collage-plugin) gibi ekler. Başarısız olan plugin
+raporlanır ve dışarıda bırakılır; proje ve diğer plugin'ler kalır, komut `1` ile
+çıkar. Eklenen plugin'lerin setup notları en sonda, bir arada yazdırılır.
+
+Scaffold edilen `main.go`, `BASE_URL`'ü `Config.BaseURL`'e okur (v0.59.0'dan beri):
+sitemap'in, canonical link'in ya da feed'in bir path'in önüne koyduğu origin. Bunu
+yazan bir plugin eklenene kadar boş kalabilir.
 
 Flag'leri tek ya da çift tireyle yazabilirsiniz. Flag'ler addan önce de sonra da
 gelebilir. Tam olarak bir ad vermeniz gerekir. Hiç ad vermemek ya da birden fazla
@@ -697,12 +710,12 @@ if findings := app.Check(); len(findings) > 0 {
 
 ## collage plugin
 
-*v0.58.0'dan beri.* Projeye bir plugin ekler, bir plugin'i çıkarır ya da bir plugin
+*v0.58.0'dan beri.* Projeye plugin ekler, plugin çıkarır ya da bir plugin
 repository'sini kontrol eder:
 
 ```sh
-collage plugin add <owner/name | module path>[@version] [-dir dir]
-collage plugin del <owner/name | module path> [-dir dir]
+collage plugin add <plugin>... [-dir dir]
+collage plugin del <plugin>... [-dir dir]
 collage plugin check [-release] [-run] [dir]
 ```
 
@@ -711,6 +724,9 @@ collage plugin add elagoht/consent            # github.com/elagoht/collage-conse
 collage plugin add elagoht/sitemap@v0.3.1     # go get'in kabul ettiği bir sürüm
 collage plugin add gitlab.com/kisi/plugin     # bir module path, yazıldığı gibi kullanılır
 collage plugin del elagoht/consent
+collage plugin add elagoht/session elagoht/flash   # birden fazla, sırayla (v0.59.0'dan beri)
+collage plugin add @prod                      # bir paket
+collage plugin del @live elagoht/session
 collage plugin check -release -run            # bir plugin'in kendi repository'sinde
 ```
 
@@ -780,6 +796,59 @@ modülünüzün bir package'ı ya da bir bağımlılığın alt package'ı) ve `
 hiç olmayan modül hiçbir şey istemez, hiçbir şeyi engellemez. Module cache'te olmayan
 bir modül (yeni bir clone'dan sonra olduğu gibi) manifest'i okunmak için indirilir.
 `del` de `add` gibi, bir adım başarısız olursa her dosyayı geri koyar.
+
+### Birden fazla plugin
+
+*v0.59.0'dan beri.* `add` ve `del` birden fazla plugin alır ve onları verilen
+sırayla işler. Her biri ayrı bir adımdır: başarısız olan raporlanır ve geri alınır,
+öncesindekiler ve sonrasındakiler yerinde kalır. Komut bu durumda `1` ile çıkar.
+Okunamayan bir ad, iki farklı sürümle verilen bir plugin gibi, hiçbir şey
+değişmeden komutu durdurur. İki kez verilen bir plugin bir kez işlenir.
+
+Birden fazla plugin verildiğinde sonda bir özet gelir; `add`, setup notlarını her
+plugin'in ardından değil, en sonda bir arada yazdırır:
+
+```text
+$ collage plugin add elagoht/feed elagoht/nope elagoht/toc
+added elagoht/feed v0.2.3
+  ...
+collage: plugin add: elagoht/nope: ...
+
+added: elagoht/feed, elagoht/toc
+failed: elagoht/nope
+
+To finish setting up:
+
+elagoht/feed
+  Feeds are Go values: give them to `feed.New(...)` in `plugins.go`, ...
+```
+
+Sırayı `del` sizin yerinize düşünür: listedeki başka bir plugin'in ihtiyaç duyduğu
+plugin, o plugin'den sonra silinir. Bu yüzden `del elagoht/live elagoht/websocket`
+çalışır.
+
+### Paketler
+
+*v0.59.0'dan beri.* Paket, tek bir ad altında toplanmış plugin'lerdir ve `@` ile
+yazılır: `collage plugin add @prod`, `collage new site --with @blog`. Plugin'leri
+aşağıdaki sırayla eklenir ve her biri `plugins.go`'da manifest'inin istediği yere
+gider. `del @ad`, paketin projede olan plugin'lerini siler, olmayanları atlar.
+`collage help plugin` da paketleri listeler.
+
+| Paket | Ne için | Plugin'ler |
+| --- | --- | --- |
+| `@prod` | canlıdaki bir sitenin istedikleri | health, secure, compress, minimizer, accesslog, ratelimit |
+| `@site` | herkese açık bir sitenin arama ve paylaşım temelleri | robots, sitemap, meta, jsonld, favicon |
+| `@blog` | `@site` ve Markdown ile yazılan yazılar | `@site`'ın plugin'leri, markdown, feed, toc, highlight, ogimage |
+| `@forms` | formlar ve cookie'de tutulan durum | session, flash, validate, honeypot |
+| `@live` | sunucunun güncel tuttuğu fragment'lar | live, websocket |
+| `@ops` | metrikler ve hata raporları | prometheus, errortrack |
+
+Her plugin `elagoht/<ad>`'dır. Bazıları uygulama başlamadan önce bir ayar ister:
+sitemap ve meta sitenin origin'ini (scaffold edilmiş projede `BASE_URL`), favicon bir
+kaynak görseli, markdown ve ogimage `plugins.go`'da verilen bir dosya sistemini,
+errortrack development dışında bir DSN'i. Ne yapılacağını setup notları söyler;
+yapılana kadar uygulama, eksik ayarın adını vererek başlamayı reddeder.
 
 **`check`**, bir plugin repository'sini (`dir`, varsayılan `.`) `add`'in uyguladığı
 sözleşmeye göre kontrol eder. Kontrolün kendisi yalnızca repository'yi okur:

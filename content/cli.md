@@ -52,7 +52,7 @@ are the same, and `--out` works too.
 ## collage new
 
 ```sh
-collage new <name> [--template minimal|demo] [--dir path] [--module path] [--force]
+collage new <name> [--template minimal|demo] [--with plugins] [--dir path] [--module path] [--force]
 ```
 
 Scaffolds a new, runnable project named `<name>`.
@@ -60,6 +60,7 @@ Scaffolds a new, runnable project named `<name>`.
 | Flag | Default | Meaning |
 | --- | --- | --- |
 | `--template name` | `minimal` | The project to scaffold: `minimal` or `demo` (since v0.14.2; the default is `minimal` since v0.32.0, `demo` before) |
+| `--with plugins` | none | Plugins to add once it is scaffolded: [bundles](#bundles) such as `@prod` and plugins such as `elagoht/session`, separated by commas or in more than one `--with` (since v0.59.0) |
 | `-dir path` | `./<name>` | Directory to scaffold into |
 | `-module path` | `<name>` | The module path written into `go.mod` |
 | `-force` | off | Scaffold into a non-empty directory anyway |
@@ -69,7 +70,19 @@ collage new myblog                                   # into ./myblog, module "my
 collage new myblog --template demo                   # the demos, their tests, a .env.example
 collage new myblog -module github.com/me/myblog
 collage new myblog -dir . -force                     # into the current, non-empty directory
+collage new myblog --with @blog,@prod                # and the plugins of two bundles
 ```
+
+`--with` is read before anything is written: a bundle that does not exist or a
+plugin name that cannot be read is a usage error, and no directory is made. Once
+the project is scaffolded, `new` requires the collage the CLI is, then adds each
+plugin as [`collage plugin add`](#collage-plugin) would. A plugin that fails is
+reported and left out; the project and the other plugins stay, and the command
+exits `1`. The setup notes of the plugins added come last, together.
+
+The scaffolded `main.go` reads `BASE_URL` into `Config.BaseURL` (since v0.59.0): the
+origin a sitemap, a canonical link or a feed puts in front of a path. Empty is
+fine until a plugin that writes one is added.
 
 Flags take one dash or two, and may come before or after the name. Exactly one name is required; none, or
 more than one, is a usage error. A target directory that exists and is not empty
@@ -659,12 +672,12 @@ if findings := app.Check(); len(findings) > 0 {
 
 ## collage plugin
 
-*Since v0.58.0.* Adds a plugin to the project, takes one out, or checks a plugin
+*Since v0.58.0.* Adds plugins to the project, takes them out, or checks a plugin
 repository:
 
 ```sh
-collage plugin add <owner/name | module path>[@version] [-dir dir]
-collage plugin del <owner/name | module path> [-dir dir]
+collage plugin add <plugin>... [-dir dir]
+collage plugin del <plugin>... [-dir dir]
 collage plugin check [-release] [-run] [dir]
 ```
 
@@ -673,6 +686,9 @@ collage plugin add elagoht/consent            # github.com/elagoht/collage-conse
 collage plugin add elagoht/sitemap@v0.3.1     # a version go get accepts
 collage plugin add gitlab.com/kisi/plugin     # a module path, used as written
 collage plugin del elagoht/consent
+collage plugin add elagoht/session elagoht/flash   # several, in order (since v0.59.0)
+collage plugin add @prod                      # a bundle
+collage plugin del @live elagoht/session
 collage plugin check -release -run            # in a plugin's own repository
 ```
 
@@ -745,6 +761,58 @@ subpackage of a dependency), or a module with no `collage.json`, requires nothin
 and stops nothing. A module the module cache lacks, as after a fresh clone, is
 fetched to read its manifest. Like `add`, `del` puts every file back when a step
 fails.
+
+### Several at once
+
+*Since v0.59.0.* `add` and `del` take several plugins, and work through them in
+the order given. Each is a step of its own: one that fails is reported and put
+back, and the ones before and after it stay. The command then exits `1`. A name
+that cannot be read stops the command before anything changes, as does one
+plugin given with two versions; a plugin given twice is done once.
+
+With more than one, a summary follows, and `add` prints the plugins' setup notes
+together at the end rather than after each:
+
+```text
+$ collage plugin add elagoht/feed elagoht/nope elagoht/toc
+added elagoht/feed v0.2.3
+  ...
+collage: plugin add: elagoht/nope: ...
+
+added: elagoht/feed, elagoht/toc
+failed: elagoht/nope
+
+To finish setting up:
+
+elagoht/feed
+  Feeds are Go values: give them to `feed.New(...)` in `plugins.go`, ...
+```
+
+`del` takes the order off your hands: a plugin another one on the list requires
+is removed after that one, so `del elagoht/live elagoht/websocket` works.
+
+### Bundles
+
+*Since v0.59.0.* A bundle is a set of plugins under one name, written with `@`:
+`collage plugin add @prod`, `collage new site --with @blog`. Its plugins are
+added in the order below, and each goes to the place in `plugins.go` its manifest
+asks for. `del @name` removes those of a bundle's plugins the project has and
+passes over the rest. `collage help plugin` lists them too.
+
+| Bundle | For | Plugins |
+| --- | --- | --- |
+| `@prod` | what a site in production wants | health, secure, compress, minimizer, accesslog, ratelimit |
+| `@site` | a public site's search and share basics | robots, sitemap, meta, jsonld, favicon |
+| `@blog` | `@site`, and posts written in Markdown | the plugins of `@site`, markdown, feed, toc, highlight, ogimage |
+| `@forms` | forms, and state kept in cookies | session, flash, validate, honeypot |
+| `@live` | fragments the server keeps current | live, websocket |
+| `@ops` | metrics and error reports | prometheus, errortrack |
+
+Every plugin is `elagoht/<name>`. Some need a setting before the application
+starts: sitemap and meta the site's origin (`BASE_URL` in a scaffolded project),
+favicon a source image, markdown and ogimage a filesystem given in `plugins.go`,
+errortrack a DSN outside development. Their setup notes say what to do, and the
+application refuses to start, naming the setting, until it is done.
 
 **`check`** checks a plugin repository (`dir`, default `.`) against the contract
 `add` enforces. The check itself reads only the repository:

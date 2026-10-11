@@ -71,6 +71,19 @@ yönde yapılır. Bölümde ayar varsa kaybolmasın diye yazdırılır:
 collage plugin del elagoht/minimizer
 ```
 
+Tek komutta birden fazla plugin verilebilir, her biri ayrı işlenir: başarısız olan
+geri alınır, diğerleri kalır. `@` ile yazılan paket, tek ad altında toplanmış
+plugin'lerdir; `collage new` da aynısını `--with` ile alır (v0.59.0'dan beri):
+
+```sh
+collage plugin add elagoht/session elagoht/flash elagoht/validate
+collage plugin add @prod
+collage new mysite --with @blog,@prod
+```
+
+Paketler (`@prod`, `@site`, `@blog`, `@forms`, `@live`, `@ops`) ve içerikleri
+[CLI referansında](/docs/cli#bundles).
+
 `collage new` ile oluşturulan projede `plugins.go` hazır gelir ve `main.go` onu
 uygulamaya verir:
 
