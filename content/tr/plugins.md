@@ -317,7 +317,7 @@ func loadArticle(ctx context.Context, rc *collage.RenderContext) (*Article, []st
 }
 ```
 
-- v0.3.0, collage v0.61.0 ya da sonrasını gerektirir (v0.2.9, collage v0.50.0 için son sürümdü). `Configure` aşaması yoktur, bu
+- v0.3.0, collage v0.61.0 ya da sonrasını gerektirir (v0.2.10, collage v0.60.0 için son sürümdü). `Configure` aşaması yoktur, bu
   yüzden `RegisterPlugin` de bu plugin'i kabul eder. v0.3.0 `siteURL`'i kaldırdı:
   onun yerine uygulamanın `BaseURL`'ünü ayarlayın.
 - `Emit` mevcut node'lara ekleme yapar ve plugin register edilmiş olsun ya da
@@ -2566,7 +2566,7 @@ Plugins: []collage.Plugin{tenant.New(tenant.Options{
   bir page'in `StaticParams`'ı, `tenant.IDFromContext(ctx)` ile. İkisi de cache'lenen
   bir page'de güvenlidir. `collage.BaseURL(rc)` tenant'ın origin'idir.
 - `elagoht/sitemap`, `feed`, `meta`, `ogimage`, `indexnow`, `cdnpurge` ve `robots`
-  v0.2.0'dan itibaren host'u izler.
+  host'u izler: yazdıkları URL'ler tenant'ın origin'idir.
 - `acme.localhost` `collage dev` ile çalışır. Static build'in host'u yoktur; tenant'sız
   render eder ve `tenant-no-host` uyarısı verir. Static export, `Config.BaseURL`'ün
   host'unun site'ıdır ve tenant'sız render edilir; tenant başına export desteklenmez.

@@ -298,7 +298,7 @@ func loadArticle(ctx context.Context, rc *collage.RenderContext) (*Article, []st
 }
 ```
 
-- v0.3.0 needs collage v0.61.0 or later (v0.2.9 was the last for v0.50.0). It has no `Configure` phase, so
+- v0.3.0 needs collage v0.61.0 or later (v0.2.10 was the last for v0.60.0). It has no `Configure` phase, so
   `RegisterPlugin` accepts it too. v0.3.0 removed `siteURL`: set the application's
   `BaseURL` instead.
 - `Emit` appends and works whether or not the plugin is registered. Nodes are keyed
@@ -2473,7 +2473,7 @@ Plugins: []collage.Plugin{tenant.New(tenant.Options{
   context, such as a page's `StaticParams`, with `tenant.IDFromContext(ctx)`. Both
   are safe in a cached page. `collage.BaseURL(rc)` is the tenant's origin.
 - `elagoht/sitemap`, `feed`, `meta`, `ogimage`, `indexnow`, `cdnpurge` and `robots`
-  follow the host from v0.2.0.
+  follow the host: the URLs they write are the tenant's origin.
 - `acme.localhost` works through `collage dev`. A static build has no host, so it
   renders without a tenant and warns `tenant-no-host`. A static export is the site of
   `Config.BaseURL`'s host, rendered without a tenant; exporting per tenant is not
