@@ -1392,9 +1392,10 @@ func TestStamp_RefusesLateRegistration(t *testing.T) {
 A few things worth testing that are easy to forget:
 
 - **The unconfigured case.** Most applications will never write a section for you.
-- **Documents**, if you implement `OnDocumentRendered` or `OnError`: register a
-  document and request it, so a `nil` `ErrorEvent.Page` is caught in a test rather
-  than as a panic on every document request.
+- **Documents**, if you implement `OnDocumentRendered`: register a document and
+  request it, since a plugin tested only against pages never sees one. If you
+  implement `OnError`, request a document that fails too, and check the hook handles
+  `ev.Page == nil`.
 - **Run with `-race`.** A hook that writes through an event's live `Page` is a data
   race the detector reports and nothing else will.
 - **A static export**, if you produce files: `collage.Build(ctx, app, ...)` into a

@@ -1466,9 +1466,10 @@ Test etmeye değer ve kolayca unutulan birkaç şey:
 
 - **Yapılandırılmamış durum.** Çoğu uygulama sizin plugin'iniz için hiçbir zaman bir
   config bölümü yazmaz.
-- **Document'lar**, `OnDocumentRendered` ya da `OnError` implement ediyorsanız. Bir
-  document register edin ve ona request atın. Böylece `nil` bir `ErrorEvent.Page`,
-  her document request'inde bir panic olarak değil, bir testte yakalanır.
+- **Document'lar**, `OnDocumentRendered` implement ediyorsanız. Bir document
+  register edin ve ona request atın, çünkü yalnızca page'lerle test edilen bir plugin
+  hiç document görmez. `OnError` implement ediyorsanız başarısız olan bir document'a
+  da request atın ve hook'un `ev.Page == nil` durumunu ele aldığını kontrol edin.
 - **`-race` ile çalıştırın.** Bir event'in canlı `Page`'i üzerinden yazan bir hook
   bir data race'tir. Bunu race detector raporlar, başka hiçbir şey raporlamaz.
 - **Static export**, dosya üretiyorsanız. Bir `t.TempDir()` içine
