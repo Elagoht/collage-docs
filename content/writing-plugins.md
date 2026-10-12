@@ -29,9 +29,8 @@ type Plugin interface {
 - **`Version`** is your plugin's own version, for diagnostics.
 - **`Init`** runs once when the application starts, after the application has
   registered its own pages and before the first request.
-- **`Shutdown`** releases whatever `Init` acquired. It is called for every
-  registered plugin whether or not its `Init` ran or succeeded, and possibly more
-  than once, so it must be safe without `Init` and idempotent — see
+- **`Shutdown`** releases whatever `Init` acquired. It is called once, and only for
+  a plugin whose `Init` succeeded (since v0.61.0); keep it idempotent anyway — see
   [Lifecycle](#lifecycle).
 
 Because hooks are discovered by type assertion, a misspelled hook method is not a
@@ -222,10 +221,12 @@ func (p *Plugin) OnDrain() { p.draining.Store(true) }
 and before `CloseStreams`, and even when `DrainDelay` is 0. It must not block — the
 server goes on serving while the drain lasts, and a slow hook delays every step
 after it. A panic in it is contained and logged at Warn with the plugin's name.
-Like `Shutdown`, it reaches every registered plugin, including one whose `Init`
-never ran — a `Shutdown` before the application started, which calls it without
-waiting — or failed and was rolled back, so it must tolerate being called on a
-plugin that was never initialised.
+Like `Shutdown` and `CloseStreams`, it reaches only plugins whose `Init`
+succeeded (since v0.61.4). A `Shutdown` before `Start`, or after a `Start` that
+failed, tells none of them: before v0.61.4 it called `OnDrain` and `CloseStreams`
+on plugins that never ran, so a plugin reused for a second start — as
+`collagetest.TrySite` followed by `NewSite` does with the same plugin value — began
+already draining.
 
 A plugin that does work only while the application is serving — a scheduler, a
 queue worker — implements `ServeHook` (since v0.55.0):
@@ -1310,10 +1311,13 @@ app, err := collage.New(&collage.Config{
    a page, an error page never registered — shuts the plugins down there and then,
    as a failing `Init` rolls back the ones before it. A `Shutdown` before `Start`
    initialises no plugin at all (since v0.61.1): `Start` then fails, and
-   `ListenAndServe` returns nil. Every plugin gets its turn even if one fails, and
+   `ListenAndServe` returns nil. A `Start` after `Shutdown` fails whether or not
+   plugins are registered (since v0.61.3). Every plugin gets its turn even if one fails, and
    the errors are joined. A plugin implementing `StreamCloser` has its
    `CloseStreams` called earlier, when shutdown begins, and a plugin implementing
-   `DrainHook` has its `OnDrain` called before that, when the drain starts — see
+   `DrainHook` has its `OnDrain` called before that, when the drain starts — both
+   only for plugins whose `Init` succeeded (since v0.61.4); a `Shutdown` before
+   `Start` tells none — see
    [Streams and shutdown](#streams-and-shutdown).
 
    With `ListenAndServe`, plugins are shut down after the drain's
@@ -1431,7 +1435,10 @@ from other goroutines. A test adds what its plugin needs:
 
 `collagetest.TrySite` is `NewSite` for a test that expects building or starting to
 fail — a plugin refusing a bad configuration — and returns the error instead of
-failing the test.
+failing the test. When building the site fails — a `WithRegister` item, a
+`WithSetup` or `Start` — it shuts the application down first (since v0.61.3), so a
+plugin value can be used again for the next site. A `collagetest.Site` can be
+copied (`s := *site`); `go vet`'s copylocks check no longer objects.
 
 A test that shuts the application down itself — to check what your `Shutdown`
 returns — calls `site.Shutdown(ctx)` (since v0.61.1), not `site.App.Shutdown(ctx)`.

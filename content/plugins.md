@@ -401,13 +401,19 @@ if err := ogimage.Set(rc, "og/post.html", ogimage.Card{Title: post.Title, Label:
 }
 ```
 
-- v0.3.0 needs collage v0.61.2 or later (v0.2.4 was the last for v0.60.0), and the application's `Config.BaseURL`;
+- v0.4.0 needs collage v0.61.4 or later (v0.2.4 was the last for v0.60.0), and the application's `Config.BaseURL`;
   a card's URL follows the request's origin on a site served on several hosts, so
   `Config.BaseURL` is not required when an `OriginResolver` plugin is registered.
   Register it after elagoht/meta, and leave meta's `DefaultImage` unset.
 - v0.3.0 has one constructor, `ogimage.New(ogimage.Options{…})`. `renderTimeout`
   is a duration string (`"5s"`), a negative `maxEntries` or `maxBytes` is an error
   rather than unlimited, and the build finding is `ogimage-draw`.
+- v0.4.0 takes the two strings of `ogimage.Draw` as one value:
+  `ogimage.Draw(ctx, opts, ogimage.Input{HTML: html, Locale: locale})`, so swapping
+  them no longer compiles; an empty `Locale` still draws as `"en"`. A static build
+  now draws every card, even when there are more than `maxEntries` or `maxBytes`
+  keep: it used to fail with `ogimage-draw` "file does not exist" for the cards
+  evicted before they were drawn.
 - A card is an `html/template` file under `og/` in a subset of HTML and CSS: an
   element holding boxes says `display:flex`, one holding text is a paragraph of
   runs. What it cannot draw stops the application at startup, with the template,
@@ -568,7 +574,7 @@ Plugins: []collage.Plugin{redirects.New(redirects.Options{FS: siteFS})},
 }
 ```
 
-- v0.2.2 needs collage v0.61.0 or later (v0.2.1 was the last for v0.60.0).
+- v0.2.3 needs collage v0.61.4 or later (v0.2.2 was the last for v0.61.0); it changes no behaviour.
 - One rule a line: the old path, where it went, and a status — `301` when left out,
   or `302`, `307`, `308`, or `410` with `-` for a page that is gone, answered with
   the site's own not-found page and status `410`. `/blog/*` is a prefix, and
@@ -1267,7 +1273,7 @@ Plugins: []collage.Plugin{secure.New(secure.Options{
 }
 ```
 
-- v0.3.0 needs collage v0.61.0 or later (v0.2.5 was the last for v0.60.0), and must go in
+- v0.3.1 needs collage v0.61.4 or later (v0.2.5 was the last for v0.60.0), and must go in
   `Config.Plugins`: it adds `{{cspNonce}}`. Its place in the list does not matter:
   the nonce goes in after the cache and before compression, through
   `PersonaliseHook`, so it works whether it is listed before or after
@@ -1517,11 +1523,14 @@ Plugins: []collage.Plugin{f2b /* , the rest */},
 }
 ```
 
-- v0.2.0 needs collage v0.61.0 or later (v0.1.8 was the last for v0.60.0), for `collage.Duration`, `Server.TrustedProxies`, `collage.ClientIP`
+- v0.2.1 needs collage v0.61.4 or later (v0.1.8 was the last for v0.60.0), for `collage.Duration`, `Server.TrustedProxies`, `collage.ClientIP`
   and a `RequestHook` that sees requests collage rejects before routing. List it
   first in `Config.Plugins`, after `elagoht/health` when that is used, so its ban
   check runs before the other plugins' middleware and health's probes are not
   refused by a ban.
+- When the client cannot be told from the forwarded chain (an entry that is not an
+  address) and the connection's own address, `RemoteAddr`, is used instead, the
+  plugin logs it once, at Warn (since v0.2.1). Limiting is unchanged.
 - **Behind a reverse proxy or a CDN, set `Server.TrustedProxies`.** Without it the
   proxy is the client: one scanner gets your proxy banned, and with it every
   visitor. List every hop, a CDN's published ranges included. If you forget, a
@@ -1687,7 +1696,9 @@ Plugins: []collage.Plugin{live.New(live.Options{})},
 ```
 
 - It must go in `Config.Plugins`: it adds `{{liveClient}}`, which the layout calls
-  to include the client. v0.5.1 needs collage v0.61.0 or later.
+  to include the client. v0.5.2 needs collage v0.61.4 or later.
+- A transport of another plugin, such as elagoht/websocket, calls `UseTransport`
+  from its `Configure` as well as its `Init`; the last call wins (v0.5.2).
 - `keepAlive` and `maxStreamAge` are duration strings (`collage.Duration` in
   `live.Options`): a number, a negative duration or a negative `maxFragments`
   stops the application, and `null` leaves the default. Since v0.5.0 `live.New()`
@@ -1778,7 +1789,7 @@ Plugins: []collage.Plugin{websocket.New(websocket.Options{}), live.New(live.Opti
 
 - `collage plugin add elagoht/websocket` adds collage-live too, and puts websocket
   before it. The plugin finds the application's live plugin by itself, wherever it
-  is listed; without one, `collage.New` fails. v0.4.0 needs collage v0.61.1 and
+  is listed; without one, `collage.New` fails. v0.4.1 needs collage v0.61.4 and
   collage-live v0.5.1 or later; `websocket.New(lv)`, `New(nil)` and `NewWith` are
   gone.
 - Nothing else changes: the layout still includes `{{liveClient}}`, which now tells
@@ -1788,7 +1799,7 @@ Plugins: []collage.Plugin{websocket.New(websocket.Options{}), live.New(live.Opti
 - **The push settings are live's.** The WebSocket is served at live's `prefix`
   plus `ws/` (`/_live/ws/` by default), pinged every live `keepAlive`, and closed
   after live's `maxStreamAge`; with live's `noStream` a connection is refused with
-  404. `Path` and `Ping` are gone, and `path` or `ping` in its configuration is an
+  the site's own not-found page (404; a plain-text 404 before v0.4.1). `Path` and `Ping` are gone, and `path` or `ping` in its configuration is an
   unknown key.
 - **Usually you do not need it.** Pushing fragments is one-way, which is what an
   event stream is for: it needs no dependency and reconnects by itself. This plugin
@@ -1875,7 +1886,10 @@ Plugins: []collage.Plugin{optiimage.New(optiimage.Options{})},
 }
 ```
 
-- v0.4.0 needs collage v0.61.0 or later (v0.3.7 was the last for v0.60.0), and must go in `Config.Plugins`.
+- v0.4.1 needs collage v0.61.4 or later (v0.3.7 was the last for v0.60.0), and must go in `Config.Plugins`.
+- An allowed origin that spells its scheme's default port, `https://cms.example.com:443`,
+  matches the same host's images whether or not the image's URL writes the port (v0.4.1);
+  it was accepted at start but matched nothing.
 - **Changed in v0.4.0:** `New()` and `NewWith(Config{…})` are `New(Options{…})`;
   `allowedOrigins` is a list of origin strings (`"https://cms.example.com"`), not
   `{scheme, host}` objects, each checked as `collage.ParseOrigin` checks one;

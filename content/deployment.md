@@ -249,8 +249,8 @@ that ignores its ctx, so with it a stop can take
 The wait can end early. A second `SIGINT` or `SIGTERM` — Ctrl-C pressed twice —
 ends it at once and goes straight on to stopping the server; so does a `Shutdown`
 ctx that is done. In development mode `DrainDelay` is ignored, so restarts stay
-instant, though `OnDrain` still fires. A `Shutdown` before anything serves tells the
-plugins and does not wait, since there is no traffic to drain.
+instant, though `OnDrain` still fires. A `Shutdown` before anything serves does not wait, since there is no traffic to
+drain, and tells no plugin, since none has started (since v0.61.4).
 
 Whatever stops the process has to wait longer than that sum before it kills it:
 
@@ -322,7 +322,7 @@ srv.Shutdown(shutdownCtx) // requests in flight finish
 app.Shutdown(shutdownCtx) // the plugins stop; jobs finishes its queues and refuses more
 ```
 
-`app.Shutdown` tells `DrainHook` plugins, but does not wait out `DrainDelay`: the
+`app.Shutdown` tells the `DrainHook` plugins that are running, but does not wait out `DrainDelay`: the
 `App` knows of no server of yours to keep serving. Stop your server before calling
 it.
 

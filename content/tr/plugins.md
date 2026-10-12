@@ -421,7 +421,7 @@ if err := ogimage.Set(rc, "og/post.html", ogimage.Card{Title: post.Title, Label:
 }
 ```
 
-- v0.3.0, collage v0.61.2 ya da sonrasını (v0.2.4, collage v0.60.0 için son sürümdü) ve uygulamanın `Config.BaseURL`'ünü
+- v0.4.0, collage v0.61.4 ya da sonrasını (v0.2.4, collage v0.60.0 için son sürümdü) ve uygulamanın `Config.BaseURL`'ünü
   gerektirir. Birden fazla host'a hizmet veren bir sitede kartın URL'si request'in
   origin'ini izler; bu yüzden bir `OriginResolver` plugin'i register edilmişse
   `Config.BaseURL` gerekmez. elagoht/meta'dan sonra register edin ve meta'nın
@@ -429,6 +429,12 @@ if err := ogimage.Set(rc, "og/post.html", ogimage.Card{Title: post.Title, Label:
 - v0.3.0'da tek bir constructor vardır: `ogimage.New(ogimage.Options{…})`.
   `renderTimeout` bir süre string'idir (`"5s"`), negatif bir `maxEntries` ya da
   `maxBytes` artık sınırsız değil hatadır, build finding'i de `ogimage-draw`'dır.
+- v0.4.0'da `ogimage.Draw`'ın iki string'i tek bir değer olarak verilir:
+  `ogimage.Draw(ctx, opts, ogimage.Input{HTML: html, Locale: locale})`. Böylece
+  ikisinin yerini karıştırmak artık derlenmez; boş bir `Locale` yine `"en"` ile
+  çizer. Statik build artık `maxEntries` ya da `maxBytes`'ın tuttuğundan fazla kart
+  olsa bile her kartı çizer; önceden, çizilmeden önce çıkarılan kartlar için
+  `ogimage-draw` "file does not exist" hatasıyla başarısız oluyordu.
 - Bir kart, HTML ve CSS'in bir alt kümesiyle yazılmış, `og/` altındaki bir
   `html/template` dosyasıdır: kutu içeren bir element `display:flex` der, metin
   içeren bir element run'lardan oluşan bir paragraftır. Çizemeyeceği bir şey
@@ -599,7 +605,7 @@ Plugins: []collage.Plugin{redirects.New(redirects.Options{FS: siteFS})},
 }
 ```
 
-- v0.2.2, collage v0.61.0 ya da sonrasını gerektirir (v0.2.1, collage v0.60.0 için son sürümdü).
+- v0.2.3, collage v0.61.4 ya da sonrasını gerektirir (v0.2.2, collage v0.61.0 için son sürümdü); davranışı değiştirmez.
 - Her satırda bir kural vardır: eski path, gittiği yer ve bir status. Status
   yazılmazsa `301`'dir; `302`, `307`, `308` ya da artık olmayan bir page için `-`
   ile birlikte `410` olabilir. Bu durumda sitenin kendi not-found page'i `410`
@@ -1316,7 +1322,7 @@ Plugins: []collage.Plugin{secure.New(secure.Options{
 }
 ```
 
-- v0.3.0, collage v0.61.0 ya da sonrasını gerektirir (v0.2.5, collage v0.60.0 için son sürümdü) ve
+- v0.3.1, collage v0.61.4 ya da sonrasını gerektirir (v0.2.5, collage v0.60.0 için son sürümdü) ve
   `Config.Plugins` içinde olmalıdır: `{{cspNonce}}`'ı ekler. Listedeki yeri fark
   etmez: nonce, `PersonaliseHook` ile cache'ten sonra ve sıkıştırmadan önce
   yerleştirilir; bu yüzden elagoht/compress'ten önce de sonra da listelenebilir.
@@ -1574,11 +1580,14 @@ Plugins: []collage.Plugin{f2b /* , diğerleri */},
 }
 ```
 
-- v0.2.0, collage v0.61.0 ya da sonrasını gerektirir (v0.1.8, collage v0.60.0 için son sürümdü): `collage.Duration`, `Server.TrustedProxies`,
+- v0.2.1, collage v0.61.4 ya da sonrasını gerektirir (v0.1.8, collage v0.60.0 için son sürümdü): `collage.Duration`, `Server.TrustedProxies`,
   `collage.ClientIP` ve collage'ın routing'den önce reddettiği request'leri de gören
   bir `RequestHook` için. `Config.Plugins`'te ilk sıraya koyun, elagoht/health kullanılıyorsa onun
   arkasına; böylece ban kontrolü diğer plugin'lerin middleware'inden önce çalışır ve
   health'in probe'ları bir ban yüzünden reddedilmez.
+- İstemci, forwarded zincirinden anlaşılamadığında (adres olmayan bir girdi) ve
+  bağlantının kendi adresi, `RemoteAddr`, kullanıldığında plugin bunu bir kez Warn
+  seviyesinde loglar (v0.2.1'den beri). Sınırlama değişmez.
 - **Bir reverse proxy ya da CDN'in arkasında `Server.TrustedProxies`'i ayarlayın.**
   Ayarlanmazsa istemci proxy'nin kendisi olur: tek bir tarayıcı bot proxy'nizin
   banlanmasına, onunla birlikte her ziyaretçinin banlanmasına yol açar. Bir CDN'in
@@ -1751,7 +1760,9 @@ Plugins: []collage.Plugin{live.New(live.Options{})},
 ```
 
 - `Config.Plugins` içinde olmalıdır, çünkü layout'un client'ı eklemek için çağırdığı
-  `{{liveClient}}`'ı ekler. v0.5.1, collage v0.61.0 ya da sonrasını gerektirir.
+  `{{liveClient}}`'ı ekler. v0.5.2, collage v0.61.4 ya da sonrasını gerektirir.
+- Başka bir plugin'in transport'u, örneğin elagoht/websocket, `UseTransport`'u `Init`'inin
+  yanı sıra `Configure`'ından da çağırabilir; son çağrı geçerlidir (v0.5.2).
 - `keepAlive` ve `maxStreamAge` süre string'leridir (`live.Options` içinde
   `collage.Duration`): bir sayı, negatif bir süre ya da negatif bir `maxFragments`
   uygulamayı durdurur, `null` ise varsayılanı bırakır. v0.5.0'dan beri `live.New()`
@@ -1847,7 +1858,7 @@ Plugins: []collage.Plugin{websocket.New(websocket.Options{}), live.New(live.Opti
 
 - `collage plugin add elagoht/websocket` collage-live'ı da ekler ve websocket'i
   ondan önceye koyar. Plugin, uygulamanın live plugin'ini listede nerede olursa
-  olsun kendisi bulur; live yoksa `collage.New` hata verir. v0.4.0, collage v0.61.1
+  olsun kendisi bulur; live yoksa `collage.New` hata verir. v0.4.1, collage v0.61.4
   ve collage-live v0.5.1 ya da sonrasını gerektirir; `websocket.New(lv)`,
   `New(nil)` ve `NewWith` kalktı.
 - Başka hiçbir şey değişmez. Layout yine `{{liveClient}}`'ı içerir, bu artık
@@ -1858,7 +1869,8 @@ Plugins: []collage.Plugin{websocket.New(websocket.Options{}), live.New(live.Opti
 - **Push ayarları live'ındır.** WebSocket, live'ın `prefix`'i artı `ws/` adresinde
   sunulur (varsayılan `/_live/ws/`), live'ın `keepAlive` aralığında ping'lenir ve
   live'ın `maxStreamAge` süresi dolunca kapatılır. Live'da `noStream` açıksa bir
-  bağlantı 404 ile reddedilir. `Path` ve `Ping` kalktı; config'te `path` ya da
+  bağlantıya sitenin kendi not-found page'i (404) döner; v0.4.1'den önce düz metin
+  bir 404'tü. `Path` ve `Ping` kalktı; config'te `path` ya da
   `ping` bilinmeyen bir key'dir.
 - **Genellikle buna ihtiyacınız olmaz.** Fragment göndermek tek yönlüdür ve event
   stream tam da bunun içindir: bağımlılık gerektirmez ve kendiliğinden yeniden
@@ -1950,7 +1962,8 @@ Plugins: []collage.Plugin{optiimage.New(optiimage.Options{})},
 }
 ```
 
-- v0.4.0, collage v0.61.0 ya da sonrasını gerektirir (v0.3.7, collage v0.60.0 için son sürümdü) ve `Config.Plugins` içinde olmalıdır.
+- v0.4.1, collage v0.61.4 ya da sonrasını gerektirir (v0.3.7, collage v0.60.0 için son sürümdü) ve `Config.Plugins` içinde olmalıdır.
+- Bir allowed origin kendi scheme'inin varsayılan portunu yazıyorsa, `https://cms.example.com:443`, aynı host'un görselleriyle eşleşir; görselin URL'si portu yazsa da yazmasa da. Önceden başlangıçta kabul edilir ama hiçbir görselle eşleşmezdi (v0.4.1).
 - **v0.4.0'da değişenler:** `New()` ve `NewWith(Config{…})` artık
   `New(Options{…})`'dur. `allowedOrigins`, `{scheme, host}` nesneleri değil origin
   string'lerinden (`"https://cms.example.com"`) oluşan bir listedir ve her biri

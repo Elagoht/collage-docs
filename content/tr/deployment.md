@@ -264,8 +264,8 @@ Bekleme erken de bitebilir. İkinci bir `SIGINT` ya da `SIGTERM` (Ctrl-C'ye iki 
 basmak) beklemeyi hemen bitirir ve doğrudan sunucunun durdurulmasına geçer. Bitmiş
 bir `Shutdown` ctx'i de aynısını yapar. Development modunda `DrainDelay` yok
 sayılır, böylece restart'lar anında olur. `OnDrain` ise yine çağrılır. Henüz hiçbir
-şey hizmet vermezken yapılan bir `Shutdown` plugin'lere haber verir ama beklemez,
-çünkü drain edilecek trafik yoktur.
+şey hizmet vermezken yapılan bir `Shutdown` beklemez, çünkü drain edilecek trafik
+yoktur; hiçbir plugin'e de haber vermez, çünkü hiçbiri başlamamıştır (v0.61.4'ten beri).
 
 Process'i durduran şey, onu öldürmeden önce bu toplamdan daha uzun beklemelidir:
 

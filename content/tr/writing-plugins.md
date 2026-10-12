@@ -31,10 +31,9 @@ type Plugin interface {
 - **`Version`** plugin'inizin kendi versiyonudur ve teşhis amaçlı kullanılır.
 - **`Init`** uygulama başlarken bir kez çalışır. Bu, uygulama kendi page'lerini
   register ettikten sonra ve ilk request'ten önce olur.
-- **`Shutdown`**, `Init`'in edindiği her şeyi serbest bırakır. Register edilmiş her
-  plugin için çağrılır; o plugin'in `Init`'inin çalışıp çalışmadığı ya da başarılı
-  olup olmadığı fark etmez. Birden fazla kez de çağrılabilir. Bu yüzden `Init`
-  çalışmadan da güvenli olmalı ve idempotent olmalıdır. Ayrıntılar için
+- **`Shutdown`**, `Init`'in edindiği her şeyi serbest bırakır. Bir kez ve
+  yalnızca `Init`'i başarılı olmuş bir plugin için çağrılır (v0.61.0'dan beri); yine
+  de idempotent tutun. Ayrıntılar için
   [Yaşam döngüsü](#lifecycle) bölümüne bakın.
 
 Hook'lar type assertion ile bulunduğu için, adı yanlış yazılmış bir hook metodu
@@ -237,11 +236,13 @@ func (p *Plugin) OnDrain() { p.draining.Store(true) }
 ve `CloseStreams`'ten önce. `DrainDelay` 0 olduğunda bile çağrılır. Bloklamamalıdır:
 drain sürdüğü sürece sunucu hizmet vermeye devam eder ve yavaş bir hook kendinden
 sonraki her adımı geciktirir. İçindeki bir panic yakalanır ve plugin'in adıyla Warn
-seviyesinde loglanır. `Shutdown` gibi register edilmiş her plugin'e ulaşır. Buna
-`Init`'i hiç çalışmamış bir plugin de dahildir: uygulama başlamadan önce yapılan bir
-`Shutdown`, onu beklemeden çağırır. `Init`'i başarısız olup geri alınmış bir plugin
-de bu çağrıyı alır. Bu yüzden hiç initialize edilmemiş bir plugin'de çağrılmayı
-tolere etmelidir.
+seviyesinde loglanır. `Shutdown` ve `CloseStreams` gibi yalnızca `Init`'i
+başarılı olmuş plugin'lere ulaşır (v0.61.4'ten beri). `Start`'tan önce ya da
+başarısız bir `Start`'tan sonra yapılan bir `Shutdown` hiçbirine haber vermez.
+v0.61.4'ten önce hiç çalışmamış plugin'lerde de `OnDrain` ve `CloseStreams`
+çağrılırdı. Bu yüzden ikinci bir başlatma için yeniden kullanılan bir plugin
+(`collagetest.TrySite`'ın ardından aynı plugin değeriyle `NewSite` gibi) daha en
+baştan drain ediyor olurdu.
 
 Yalnızca uygulama hizmet verirken iş yapan bir plugin (bir scheduler, bir queue
 worker'ı) `ServeHook`'u implement eder (v0.55.0'dan beri):
@@ -1386,11 +1387,14 @@ app, err := collage.New(&collage.Config{
    orada hemen shutdown eder; başarısız bir `Init`'in kendinden öncekileri geri
    alması gibi. `Start`'tan önce gelen bir `Shutdown` hiçbir plugin'i initialize
    etmez (v0.61.1'den beri): `Start` başarısız olur, `ListenAndServe` de nil döner.
+   `Shutdown`'dan sonra gelen bir `Start`, plugin register edilmiş olsa da olmasa da
+   başarısız olur (v0.61.3'ten beri).
    Biri başarısız olsa bile her plugin sırasını
    alır ve hatalar join edilir. `StreamCloser`'ı implement eden bir plugin'in
    `CloseStreams`'i daha önce, shutdown başlarken çağrılır. `DrainHook`'u
    implement eden bir plugin'in `OnDrain`'i ise ondan da önce, drain başlarken
-   çağrılır. Bkz. [Stream'ler ve shutdown](#streams-and-shutdown).
+   çağrılır; ikisi de yalnızca `Init`'i başarılı olmuş plugin'ler için (v0.61.4'ten
+   beri), `Start`'tan önceki bir `Shutdown` hiçbirine haber vermez. Bkz. [Stream'ler ve shutdown](#streams-and-shutdown).
 
    `ListenAndServe` kullanıyorsanız, plugin'ler drain'in `Server.DrainDelay`'inden
    ve sunucu request'lerini bitirdikten sonra shutdown edilir. Sunucu bunu bitiremezse, `Server.ShutdownTimeout`
@@ -1510,7 +1514,11 @@ plugin'inin ihtiyaç duyduğunu ekler:
 
 `collagetest.TrySite`, kurulmasının ya da başlamasının başarısız olması beklenen —
 örneğin kötü bir yapılandırmayı reddeden bir plugin'i deneyen — bir test için
-`NewSite`'tır: testi başarısız kılmak yerine hatayı döner.
+`NewSite`'tır: testi başarısız kılmak yerine hatayı döner. Site kurulurken bir
+`WithRegister` öğesi, bir `WithSetup` ya da `Start` başarısız olursa önce uygulamayı
+kapatır (v0.61.3'ten beri); böylece aynı plugin değeri bir sonraki site için yeniden
+kullanılabilir. Bir `collagetest.Site` kopyalanabilir (`s := *site`); `go vet`'in
+copylocks denetimi artık itiraz etmez.
 
 Uygulamayı kendisi kapatan bir test — sizin `Shutdown`'ınızın ne döndüğünü kontrol
 etmek için — `site.App.Shutdown(ctx)` değil `site.Shutdown(ctx)` çağırır
