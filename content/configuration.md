@@ -100,8 +100,9 @@ here rather than through `app.RegisterPlugin`.
 `PluginConfig` holds each plugin's section as raw JSON. The framework reads no file:
 fill it however you like, or use `collage.LoadPluginConfig("plugins-config.json")`,
 which returns `nil` for a missing file. A key that names no registered plugin stops
-the application from starting with `ErrUnknownPluginConfig`. See
-[Using plugins](/docs/plugins).
+the application from starting with `ErrUnknownPluginConfig`, and since v0.61.0 so
+does a key inside a section that the plugin does not know. See
+[Configuring plugins](/docs/plugins#configuring-plugins).
 
 ### TrailingSlash
 

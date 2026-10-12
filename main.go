@@ -142,7 +142,7 @@ func newApp(devMode bool, port int) (*collage.App, error) {
 		PluginConfig: pluginConfig,
 		// Plugins go here, and their settings in plugins-config.json:
 		//
-		//	Plugins: []collage.Plugin{minimizer.New(), jsonld.New()},
+		//	Plugins: []collage.Plugin{minimizer.New(minimizer.Options{}), jsonld.New(jsonld.Options{})},
 		//
 		// A plugin that contributes to the document head reaches it through
 		// {{hoist "head"}} in the layout.

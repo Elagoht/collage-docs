@@ -1,6 +1,6 @@
 ---
 description: Plugin sözleşmesi, Host ve ConfigHost'un sundukları, her hook ve neyi değiştirebileceği, testleriyle birlikte eksiksiz bir plugin.
-reference: Plugin, Host, ConfigHost, ConfigReader, PluginConfig, Configurer, Command, BeforeRenderHook, BeforeActionHook, BeforeActionEvent, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, DrainHook, ServeHook, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, BuiltRedirect, RedirectSource, IsCapture, RequestHook, ErrStreamingBody, RouteInfo, Route, ClientIP, Key, NewKey, RenderValues
+reference: Plugin, Host, ConfigHost, ConfigReader, PluginConfig, Configurer, Command, BeforeRenderHook, BeforeActionHook, BeforeActionEvent, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, DrainHook, ServeHook, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, BuiltRedirect, RedirectSource, IsCapture, RequestHook, ErrStreamingBody, RouteInfo, Route, ClientIP, IsHTTPS, RouteKindPage, BuiltPage, StageErrorPage, Duration, Key, NewKey, RenderValues
 ---
 
 # Plugin yazmak
@@ -326,8 +326,10 @@ func (p *Plugin) OnRequest(r *http.Request) (context.Context, func(status int)) 
 ```
 
 `collage.RouteInfo(ctx)`, request'in neye resolve edildiğini bir `collage.Route`
-olarak bildirir: `Kind`'ı (`"page"`, `"document"`, `"action"`, `"mount"` ya da
-`"handler"`) ve register edildiği adı ya da prefix'i olan `Name`'i. Bu ad page'in,
+olarak bildirir: `Kind`'ı (`collage.RouteKindPage`, `RouteKindDocument`,
+`RouteKindAction`, `RouteKindMount` ya da `RouteKindHandler`; v0.61.0'dan beri.
+String olarak `"page"`, `"document"`, `"action"`, `"mount"`, `"handler"`'dır ve
+küme büyüyebilir) ve register edildiği adı ya da prefix'i olan `Name`'i. Bu ad page'in,
 document'ın ya da action'ın adıdır; mount'ta ve handler'da ise prefix'tir. Request
 henüz resolve edilmemişken ve 404 gibi hiçbir şeye resolve edilmeyen bir request'te
 sıfır `Route`'tur. (v0.60.0'dan önce `collage.RouteOf(ctx)` yalnızca türü ve adı
@@ -371,6 +373,15 @@ olmayan paylaşılan bir page render'ında ve `X-Forwarded-For`'u kullanılabili
 istemci bildirmeyen (`unknown`) güvenilen bir proxy'nin arkasında. Onu asla
 saymayın.
 
+`collage.IsHTTPS(r)` (v0.61.0'dan beri), request'in TLS üzerinden gelip gelmediğini
+söyler: ya kendi bağlantısında TLS vardır ya da bunu `X-Forwarded-Proto` ile bildiren
+bir proxy'den geçmiştir. `Server.TrustedProxies` doluysa header yalnızca oradaki
+proxy'lerden geldiğinde dikkate alınır; böylece bir istemci sahip olmadığı bir TLS
+bağlantısını iddia edemez. Liste boşsa header kimden gelirse gelsin kabul edilir.
+Forgery guard kendi cookie'sinin `Secure` bayrağına da bu kararla karar verir.
+Bir cookie'ye `Secure` koyan ya da `Strict-Transport-Security` gönderen bir
+plugin, header'ı kendisi okumak yerine bu fonksiyonu kullanır.
+
 ### BeforeRenderHook
 
 ```go
@@ -395,7 +406,7 @@ hâlâ override edebilir:
 
 ```go
 func (p *Plugin) OnBeforeRender(_ context.Context, ev *collage.BeforeRenderEvent) error {
-	ev.Context.HoistMeta("generator", p.cfg.Generator)
+	ev.Context.HoistMeta("generator", p.opts.Generator)
 	return nil
 }
 ```
@@ -792,7 +803,13 @@ döndüğü page de buna dahildir. Bunları birbirinden ayırmak için `Path`'e 
 guard'ı başarısız olmuş ya da yazılamayacak bir kararla cevap vermiştir),
 `"before_render"`, `"before_action"`,
 `"render"`, `"after_render"`, `"cache_write"`, `"error_page"`, `"asset"`,
-`"handler"` ve `"panic"`. Bu küme kapalı bir enum değildir.
+`"plugin"`, `"handler"` ve `"panic"`. Her birinin bir sabiti vardır (v0.61.0'dan
+beri): `collage.StageRoute`, `StageNotFound`, `StageGuard`, `StageBeforeRender`,
+`StageBeforeAction`, `StageRender`, `StageAfterRender`, `StageCacheWrite`,
+`StageErrorPage`, `StageAsset`, `StagePlugin`, `StageHandler`, `StagePanic`.
+Literal string yerine bunlarla karşılaştırın. Bu küme kapalı bir enum değildir ve
+büyüyebilir; bu yüzden hepsini gördüğünüzü varsaymak yerine ele aldığınız
+stage'leri adlarıyla seçin.
 
 Alarm kurmaya değer olan `"error_page"`'dir. Bu stage, hataları raporlayan page'in
 kendisinin başarısız olduğunu gösterir. Client yine de makul görünen built-in bir
@@ -844,7 +861,7 @@ type BuildFinishedEvent struct {
 }
 
 type BuiltFile struct {
-	Kind     string // "page", "document" or "asset"
+	Kind     string // collage.BuiltPage, BuiltDocument or BuiltAsset: "page", "document", "asset"
 	Name     string // the page's or document's name; empty for an asset
 	Locale   string
 	Path     string // the URL path the file answers
@@ -1119,14 +1136,15 @@ Bir plugin, `Config.PluginConfig` içindeki kendi bölümünü
 Uygulamanın bölümünü varsayılan değerlerin bir kopyasının üzerine decode eder:
 
 ```go
-type Config struct {
-	Generator string `json:"generator"`
-	Disabled  bool   `json:"disabled"`
+type Options struct {
+	Generator string           `json:"generator"`
+	Disabled  bool             `json:"disabled"`
+	Timeout   collage.Duration `json:"timeout"` // "5s", "1m30s"
 }
 
 func (p *Plugin) Configure(_ context.Context, host collage.ConfigHost) error {
-	cfg, err := collage.PluginConfig(host, Config{Generator: "collage"}) // defaults, overlaid by the application's section
-	p.cfg = cfg
+	opts, err := collage.PluginConfig(host, p.opts) // what New was given, overlaid by the application's section
+	p.opts = opts
 	return err
 }
 ```
@@ -1134,19 +1152,37 @@ func (p *Plugin) Configure(_ context.Context, host collage.ConfigHost) error {
 - **Bölüm yoksa, boşsa ya da `null` ise varsayılan değerler olduğu gibi döner.**
   Böylece "yapılandırılmamış" ile "zero value'ya yapılandırılmış" iki farklı durum
   olarak kalır.
-- **Bölüm varsa ama bozuksa bu, plugin'in adını veren bir hatadır**
-  (`collage: plugin "acme/stamp" configuration: …`) ve varsayılan değerlerle
-  birlikte döner. Operatör bir şey yazmıştır. Sessizce varsayılan değerlerle
-  çalışmak bunu gizlerdi.
-- Varsayılan değerlerin içindeki bir map ya da slice'a yerinde decode edilir. Bu
+- **Bölüm varsa ama bozuksa bu, plugin'in adını veren bir hatadır.** Hataya yol
+  açan bir üyenin değeriyse hata onun key'ini de verir
+  (`collage: acme/stamp: "timeout": …`) ve varsayılan değerlerle birlikte döner.
+  Operatör bir şey yazmıştır. Sessizce varsayılan değerlerle çalışmak bunu
+  gizlerdi. Bölüm bir kopyaya decode edildiği için başarısız bir decode varsayılan
+  değerlere dokunmaz.
+- **Options'ınızda olmayan bir key de hatadır** (v0.61.0'dan beri). Bu, hangi
+  derinlikte olursa olsun geçerlidir; `json:"-"` etiketli bir field'ın adını taşıyan
+  bir key de hatadır: `collage: acme/stamp: unknown key "generater" in
+  plugins-config.json; remove it, or rename it to a key the plugin documents`.
+  Uygulama `Configure` ya da `Init` aşamasında durur. Key'ler field'larla,
+  `encoding/json`'ın yaptığı gibi büyük küçük harf ayırmadan eşleşir. Tam `Options`
+  tipini tek bir `PluginConfig` çağrısıyla decode edin: kontrol, decode edilen tipe
+  göre yapılır ve kendi `UnmarshalJSON`'ı olan bir tip kendi key'lerini kendisi
+  kontrol eder (ya da hiç etmez). Adı değişen ya da kaldırılan bir key böylece
+  kendiliğinden yüksek sesle başarısız olur.
+- JSON'daki bir scalar, varsayılan değerinizin yerini alır. **En üst düzeydeki bir
+  liste varsayılan listenin yerini bütünüyle alır** (v0.61.2'den beri): elemanları
+  yenidir, yani bir elemanın yazmadığı field o field'ın zero value'su olur,
+  varsayılan elemanın değeri değil. En üst düzeydeki bir map, kendi kayıtlarını
+  sizinkinin bir kopyasına ekler. İkisi de sizin slice'larınıza ya da map'lerinize
+  yazmaz. Daha derinde ise bir JSON object'i varsayılanın üzerine decode edilir ve
+  yalnızca adını verdiği field'ları atar; iç içe bir map hâlâ yerinde doldurulur. Bu
   yüzden varsayılan değerleri çağrılar arasında paylaşılan tek bir değer olarak
-  değil, çağrının içinde bir literal olarak yazın.
-- Bölüm, varsayılan değerlerinizin üzerine `json.Unmarshal` ile decode edilir ve onun
-  kurallarına uyar. JSON'daki bir scalar ya da slice, varsayılan değerinizin yerini
-  alır; slice'lar merge edilmez. Bir map'e decode edilen JSON object'i, kendi
-  kayıtlarını sizin atadığınız map'e ekler ve diğer kayıtları korur. İç içe bir
-  struct'a decode edilen JSON object'i yalnızca adını verdiği field'ları atar,
-  gerisini varsayılan değerlerinizde bırakır.
+  değil, bir literal olarak yazın.
+- **Bir süre `collage.Duration`'dır** (v0.61.0'dan beri), `time.Duration` değil.
+  `time.ParseDuration`'ın anladığı bir string'i — `"10s"`, `"1h30m"` — okur ve geri
+  yine string yazar. Çıplak bir sayı key'inin adı verilerek reddedilir;
+  `time.Duration` olsaydı `3600`'ü tek kelime etmeden 3.6µs olarak okurdu. Negatif
+  bir süre de reddedilir; `null` varsayılanı bırakır. Kullandığınız yerde
+  dönüştürün: `time.Duration(p.opts.Timeout)`.
 - Register edilmiş hiçbir plugin'e karşılık gelmeyen bir key, uygulama için bir startup
   hatasıdır (`ErrUnknownPluginConfig`). Bu yüzden config'inizin adresi tamamen
   `Name`'inizden ibarettir. Onu değiştirmek bir breaking change'dir.
@@ -1154,9 +1190,17 @@ func (p *Plugin) Configure(_ context.Context, host collage.ConfigHost) error {
 v0.50.0'dan önce bir plugin varsayılan değerlerini bir field'a atar ve
 `host.Config(&cfg)` çağırırdı.
 
-README'nizde her key'i, tipini ve varsayılan değerini belgeleyin. `New()`'un yanında
-bir `NewWith(Config)` constructor'ı da sunarsanız, bir uygulama sizi Go kodunda da
-yapılandırabilir.
+README'nizde her key'i, tipini ve varsayılan değerini belgeleyin. Aynı ayarları
+Go'da tek bir constructor ile, `func New(opts Options) *Plugin` ile alın ve bölümü
+onların üzerine decode edin: böylece bir uygulama sizi Go'da, JSON'da ya da ikisiyle
+birden yapılandırabilir. `collage plugin add` `New(Options{})` yazar; bu yüzden sıfır
+`Options` çalışan bir plugin olmalıdır (ya da `Init`'te neyin eksik olduğunu söyleyen
+bir mesajla başarısız olmalıdır). Tipin adını `Config` değil `Options` koyun;
+`Config`, çağrıldığı yerde `collage.Config` gibi okunur. Boolean'ların varsayılanı
+zero value'larıdır: bir şeyi kapatan ayar, varsayılanı true olan bir key değil, bir
+`noX` key'idir. Bir secret asla `plugins-config.json`'a girmez: bir `<x>Env` key'i
+değeri tutan environment variable'ın adını verir, `json:"-"` etiketli bir field da
+değeri Go'dan alır.
 
 ## Editör desteği: collage.json
 
@@ -1231,20 +1275,21 @@ import (
 // Name is the plugin's name, and the key of its section in plugins-config.json.
 const Name = "acme/stamp"
 
-// Config is the plugin's configuration.
-type Config struct {
-	// Generator is what the generator meta tag says.
+// Options is the plugin's configuration. The zero value is the defaults.
+type Options struct {
+	// Generator is what the generator meta tag says; "collage" when empty.
 	Generator string `json:"generator"`
 }
 
 // Plugin is the stamp plugin. Construct it with New.
 type Plugin struct {
-	cfg    Config
+	opts   Options
 	logger *slog.Logger
 }
 
-// New returns the plugin with its defaults.
-func New() *Plugin { return &Plugin{} }
+// New returns the plugin. The application's plugins-config.json section is
+// decoded over opts.
+func New(opts Options) *Plugin { return &Plugin{opts: opts} }
 
 var (
 	_ collage.Plugin           = (*Plugin)(nil)
@@ -1259,12 +1304,15 @@ func (p *Plugin) Version() string { return "0.1.0" }
 // Configure runs inside collage.New, before templates are parsed: the one
 // moment a template function can still be added.
 func (p *Plugin) Configure(_ context.Context, host collage.ConfigHost) error {
-	cfg, err := collage.PluginConfig(host, Config{Generator: "collage"}) // the defaults
+	opts, err := collage.PluginConfig(host, p.opts) // the options New was given
 	if err != nil {
-		return err // a section that is present but malformed
+		return err // a section that is malformed or names an unknown key
 	}
-	p.cfg = cfg
-	return host.AddTemplateFunc("generator", func() string { return p.cfg.Generator })
+	if opts.Generator == "" {
+		opts.Generator = "collage"
+	}
+	p.opts = opts
+	return host.AddTemplateFunc("generator", func() string { return p.opts.Generator })
 }
 
 // Init runs when the application starts, after it has registered its pages.
@@ -1288,14 +1336,14 @@ func (p *Plugin) Shutdown(context.Context) error { return nil }
 // OnBeforeRender declares the meta tag before the page renders, at depth zero,
 // so a fragment that declares its own generator replaces this one.
 func (p *Plugin) OnBeforeRender(_ context.Context, ev *collage.BeforeRenderEvent) error {
-	ev.Context.HoistMeta("generator", p.cfg.Generator)
+	ev.Context.HoistMeta("generator", p.opts.Generator)
 	return nil
 }
 
 // OnError reports the one failure nobody would otherwise notice: the error page
 // itself failing.
 func (p *Plugin) OnError(_ context.Context, ev *collage.ErrorEvent) error {
-	if ev.Stage == "error_page" {
+	if ev.Stage == collage.StageErrorPage {
 		p.logger.Error("stamp: the error page failed", "path", ev.Path, "error", ev.Err)
 	}
 	return nil
@@ -1307,7 +1355,7 @@ Bir uygulama bu plugin'i diğer plugin'ler gibi kullanır:
 ```go
 app, err := collage.New(&collage.Config{
 	Template:     collage.TemplateConfig{Root: "templates"},
-	Plugins:      []collage.Plugin{stamp.New()},
+	Plugins:      []collage.Plugin{stamp.New(stamp.Options{})},
 	PluginConfig: pluginConfig, // {"acme/stamp": {"generator": "The Wire"}}
 })
 ```
@@ -1330,12 +1378,15 @@ app, err := collage.New(&collage.Config{
    edilir. Bkz. [Stream'ler ve shutdown](#streams-and-shutdown).
 5. **Shutdown**, `App.Shutdown` ile ters register sırasına göre çalışır.
    `ListenAndServe`, `App.Shutdown`'ı `SIGINT` ya da `SIGTERM` geldiğinde çağırır.
-   `App.Shutdown`, **register edilmiş her plugin'in** `Shutdown`'ını çağırır; o
-   plugin'in `Init`'inin çalışıp çalışmadığı ya da başarılı olup olmadığı fark
-   etmez. Hiç başlamamış bir uygulamanın, başlatılması başarısız olmuş bir
-   uygulamanın ve başarısız başlatmanın zaten geri aldığı plugin'lerin hepsi bu
-   çağrıyı alır. Bu yüzden `Shutdown`, `Init` olmadan ve birden fazla kez
-   çağrıldığında güvenli olmalıdır. Biri başarısız olsa bile her plugin sırasını
+   v0.61.0'dan beri `App.Shutdown`, `Shutdown`'ı **yalnızca `Init`'i başarılı olmuş
+   plugin'ler için ve bir kez** çağırır: `Init`'i hiç çalışmamış ya da başarısız
+   olmuş bir plugin çağrılmaz, zaten shutdown edilmiş bir plugin de tekrar
+   çağrılmaz. Her `Init` başarılı olduktan *sonra* başarısız olan bir başlatma —
+   bir page'i yutan bir mount, hiç register edilmemiş bir error page — plugin'leri
+   orada hemen shutdown eder; başarısız bir `Init`'in kendinden öncekileri geri
+   alması gibi. `Start`'tan önce gelen bir `Shutdown` hiçbir plugin'i initialize
+   etmez (v0.61.1'den beri): `Start` başarısız olur, `ListenAndServe` de nil döner.
+   Biri başarısız olsa bile her plugin sırasını
    alır ve hatalar join edilir. `StreamCloser`'ı implement eden bir plugin'in
    `CloseStreams`'i daha önce, shutdown başlarken çağrılır. `DrainHook`'u
    implement eden bir plugin'in `OnDrain`'i ise ondan da önce, drain başlarken
@@ -1355,97 +1406,74 @@ app, err := collage.New(&collage.Config{
 
 ## Bir plugin'i test etmek
 
-Bir plugin'i, bir uygulamanın onu kullanacağı şekilde test edin. Plugin'in
-`Config.Plugins` içinde olduğu gerçek bir `App` oluşturun. Template'i plugin'i
-kullanan bir page register edin. Uygulamayı `httptest` ile `app.Handler()`
-üzerinden çalıştırın. Bu yöntemde hiçbir sunucu dinlemez ve hiçbir port seçilmez.
+Bir plugin'i, bir uygulamanın onu kullanacağı şekilde test edin: gerçek bir
+uygulamanın içinde, onun handler'ı üzerinden. `collagetest.NewSite`
+(v0.61.0'dan beri) bir testin ihtiyaç duyduğu en az yapılandırmayla böyle bir
+uygulama kurar — `{{hoist "head"}}` ve `{{slot "content"}}` içeren bir layout, `/`
+adresinde bir `home` page ve kayıtlarını saklayan debug seviyesinde bir logger —,
+plugin'inizi içine koyar ve başlatır. Böylece `Configure` ile `Init` hemen çalışır
+ve hataları testi başarısız kılar. Test bitince uygulama kapatılır. Hiçbir sunucu
+dinlemez ve hiçbir port seçilmez.
 
 ```go
 package stamp_test
 
 import (
-	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
-	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/Elagoht/collage/pkg/collage"
+	"github.com/Elagoht/collage/pkg/collagetest"
 
 	"example.com/stamp"
 )
 
-// newApp builds a one-page application with the plugin in it.
-func newApp(t *testing.T, config string) *collage.App {
+// newSite builds a one-page application with the plugin in it.
+func newSite(t *testing.T, options ...collagetest.SiteOption) *collagetest.Site {
 	t.Helper()
-
-	root := t.TempDir()
-	page := `<html><head>{{hoist "head"}}</head><body>{{generator}}</body></html>`
-	if err := os.MkdirAll(filepath.Join(root, "pages"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "pages", "home.html"), []byte(page), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	cfg := &collage.Config{
-		Template: collage.TemplateConfig{Root: root},
-		Plugins:  []collage.Plugin{stamp.New()},
-	}
-	if config != "" {
-		cfg.PluginConfig = map[string]json.RawMessage{stamp.Name: json.RawMessage(config)}
-	}
-	app, err := collage.New(cfg)
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-
-	home := collage.NewPage("home").
-		WithContent(collage.NewFragment("home", "pages/home.html").Build()).
-		WithPath("en", "/").
-		Build()
-	if err := app.RegisterPage(home); err != nil {
-		t.Fatalf("RegisterPage: %v", err)
-	}
-	return app
-}
-
-func get(t *testing.T, app *collage.App, path string) string {
-	t.Helper()
-	rec := httptest.NewRecorder()
-	app.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
-	if rec.Code != http.StatusOK {
-		t.Fatalf("GET %s: status %d: %s", path, rec.Code, rec.Body.String())
-	}
-	return rec.Body.String()
+	return collagetest.NewSite(t, append([]collagetest.SiteOption{
+		collagetest.WithPlugins(stamp.New(stamp.Options{})),
+		collagetest.WithTemplates(map[string]string{"home.html": `<p>{{generator}}</p>`}),
+	}, options...)...)
 }
 
 func TestStamp_UsesItsDefaults(t *testing.T) {
-	body := get(t, newApp(t, ""), "/")
+	site := newSite(t)
+	body := site.Get("/").WantStatus(http.StatusOK).Body
 	if !strings.Contains(body, `<meta name="generator" content="collage">`) {
 		t.Errorf("no default meta tag in %s", body)
+	}
+	if site.Logs.Has(slog.LevelError) {
+		t.Errorf("the plugin logged an error:\n%s", site.Logs)
 	}
 }
 
 func TestStamp_ReadsItsConfiguration(t *testing.T) {
-	body := get(t, newApp(t, `{"generator": "my site"}`), "/")
+	site := newSite(t, collagetest.WithPluginConfig(stamp.Name, `{"generator": "my site"}`))
+	body := site.Get("/").WantStatus(http.StatusOK).Body
 	if !strings.Contains(body, `<meta name="generator" content="my site">`) {
 		t.Errorf("no configured meta tag in %s", body)
 	}
-	if !strings.Contains(body, "<body>my site</body>") {
+	if !strings.Contains(body, "<p>my site</p>") {
 		t.Errorf("template function not applied in %s", body)
 	}
 }
 
-func TestStamp_RegistersItsCommand(t *testing.T) {
-	app := newApp(t, "")
-	if err := app.Start(); err != nil {
-		t.Fatalf("Start: %v", err)
+func TestStamp_RefusesAnUnknownKey(t *testing.T) {
+	_, err := collagetest.TrySite(t,
+		collagetest.WithPlugins(stamp.New(stamp.Options{})),
+		collagetest.WithPluginConfig(stamp.Name, `{"generater": "typo"}`),
+	)
+	if err == nil || !strings.Contains(err.Error(), `unknown key "generater"`) {
+		t.Errorf("err = %v, want the unknown key named", err)
 	}
-	commands := app.Commands()
+}
+
+func TestStamp_RegistersItsCommand(t *testing.T) {
+	commands := newSite(t).App.Commands()
 	if len(commands) != 1 || commands[0].Name != "pages" {
 		t.Errorf("commands = %v, want one named pages", commands)
 	}
@@ -1456,11 +1484,39 @@ func TestStamp_RefusesLateRegistration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	if err := app.RegisterPlugin(stamp.New()); !errors.Is(err, collage.ErrConfigurerRegisteredLate) {
+	if err := app.RegisterPlugin(stamp.New(stamp.Options{})); !errors.Is(err, collage.ErrConfigurerRegisteredLate) {
 		t.Errorf("RegisterPlugin: err = %v, want ErrConfigurerRegisteredLate", err)
 	}
 }
 ```
+
+Bir `Site`, başlatılmış `App`'tir; onun handler'ı üzerinde bir `collagetest.Client`'tır
+— yani `Get`, `Submit`, `Follow` ve diğer bütün [client](/docs/testing#the-client)
+metotları onun üzerinde çalışır — ve uygulamanın debug seviyesinde ve üstünde
+yazdığı her kaydı tutan `Logs`'tur. `Logs.Has(level, parts...)`, o seviyede ya da
+üstünde, verilen her parçayı içeren bir kayıt olup olmadığını söyler ve uygulama
+başka goroutine'lerden request'lere cevap verirken çağrılması güvenlidir. Bir test,
+plugin'inin ihtiyaç duyduğunu ekler:
+
+| Seçenek | Etkisi |
+| --- | --- |
+| `WithPlugins(plugins...)` | Plugin'leri sırasıyla ekler |
+| `WithPluginConfig(name, json)` | Bir plugin'in bölümünü `plugins-config.json`'ın yapacağı gibi atar. Geçersiz JSON testi başarısız kılar |
+| `WithTemplates(files)` | Root altındaki template'leri adlarıyla ekler ya da değiştirir: `"layout.html"`, `"home.html"` ya da register edilen bir page'in render ettiği bir template |
+| `WithRegister(items...)` | Home page'den sonra page, document ve action register eder |
+| `WithoutHome()` | Home page'i dışarıda bırakır; `/` testin olur |
+| `WithConfig(func(*collage.Config))` | Uygulama kurulmadan önce yapılandırmayı düzenler: locale'ler, bir cache, `BaseURL`, development modu, ne gerekirse |
+| `WithSetup(func(*collage.App) error)` | Uygulama başlamadan önce doğrudan uygulamanın üzerinde register eder — `Handle`, `Mount`, `Use`, `RegisterNotFoundPage`, `RegisterErrorPage` (v0.61.1'den beri). Varsayılan register'lardan sonra çalışır; birden fazlası sırayla çalışır; bir hata site'ı başarısız kılar |
+
+`collagetest.TrySite`, kurulmasının ya da başlamasının başarısız olması beklenen —
+örneğin kötü bir yapılandırmayı reddeden bir plugin'i deneyen — bir test için
+`NewSite`'tır: testi başarısız kılmak yerine hatayı döner.
+
+Uygulamayı kendisi kapatan bir test — sizin `Shutdown`'ınızın ne döndüğünü kontrol
+etmek için — `site.App.Shutdown(ctx)` değil `site.Shutdown(ctx)` çağırır
+(v0.61.1'den beri). `App.Shutdown` bir kez çalışır ve sonraki her çağrıda ilk
+hatasını döner; bu yüzden cleanup, testin beklediği hatayı yeniden bildirirdi.
+`site.Shutdown` site'ı kapatır ve cleanup başka bir şey yapmaz.
 
 Test etmeye değer ve kolayca unutulan birkaç şey:
 

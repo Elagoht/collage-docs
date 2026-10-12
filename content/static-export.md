@@ -263,8 +263,8 @@ are still rendered and written, and the error is in the report.
 
 Pagination is a library, not a plugin: [elagoht/paginate](/docs/plugins#libraries-that-are-not-plugins)
 has nothing to register and nothing to configure. A data handler and a template
-use it. Add it with `go get github.com/Elagoht/collage-paginate`; v0.1.0 needs
-collage v0.57.0 or later.
+use it. Add it with `go get github.com/Elagoht/collage-paginate`; v0.2.0 needs
+collage v0.61.0 or later.
 
 `paginate.New(total, perPage, current)` returns a `Pager` with `Current`, `Last`,
 `Offset`, `Limit`, `Prev`, `Next` and a `Window` of page numbers (`1 … 4 5 [6] 7 8
@@ -301,7 +301,7 @@ func listing(ctx context.Context, rc *collage.RenderContext) (BlogList, []string
 	last := paginate.New(total, perPage, 1).Last
 	n := 1
 	if rc.Param("n") != "" {
-		if n, err = paginate.FromPath(rc, "n", last); err != nil {
+		if n, err = paginate.FromPath(rc, last); err != nil {
 			return BlogList{}, nil, err // wraps collage.ErrNotFound: a 404
 		}
 	}
@@ -336,8 +336,8 @@ app.RegisterPage(collage.NewPage("blog-page").
   the sitemap reads. Page 1 is not listed, because it is `/blog`. Give it the
   same count the handler uses: if the two disagree, the export writes pages the
   handler answers with a 404.
-- **Each page has one spelling.** `FromPath` accepts only a page number spelled the
-  canonical way, from 2 to `last`. `/blog/page/1`, `/blog/page/02`, a sign, anything
+- **Each page has one spelling.** `FromPath` reads the `{n}` path parameter, the one
+  `StaticParams` writes, and accepts only a page number spelled the canonical way, from 2 to `last`. `/blog/page/1`, `/blog/page/02`, a sign, anything
   other than ASCII digits and any number out of range are not found. The error
   wraps `collage.ErrNotFound`, so a Required fragment renders the page's not-found
   page with a 404.

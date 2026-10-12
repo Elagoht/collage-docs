@@ -56,7 +56,7 @@ application. See [Configuration](/docs/configuration#validation).
 | `ErrEmptyCacheDir` | `collage: disk cache needs a directory` | `Cache.Type` is `"disk"` and `Cache.Dir` is empty. | Set `Dir`. |
 | `ErrLocaleDefaultNotSupported` | `collage: default locale not in supported locales` | `Locale.Supported` does not include `Locale.Default`. | Add the default to `Supported`. |
 | `ErrNegativeDuration` | `collage: negative duration` | One of the eight duration fields is negative; the message names which. | Use zero for the default. |
-| `ErrInvalidOrigin` | `collage: invalid origin: want scheme://host[:port] with no path, query or fragment` | `BaseURL` is not a bare origin — it has a path, a query or a fragment. `collage.ParseOrigin` returns the same error. Before v0.60.0 it was `ErrInvalidBaseURL`. | Write `https://example.com`, with nothing after the host and port. |
+| `ErrInvalidOrigin` | `collage: invalid origin: want scheme://host[:port] with no path, query or fragment` | `BaseURL` is not a bare origin — it has a path, a query or a fragment, or no host (`https://:8080`, refused since v0.61.0), or an empty query or fragment marker (`https://example.com/?`, since v0.61.1). `collage.ParseOrigin` returns the same error. Before v0.60.0 it was `ErrInvalidBaseURL`. | Write `https://example.com`, with nothing after the host and port. |
 
 ## Plugins and commands
 
@@ -116,7 +116,7 @@ before it serves anything.
 | `ErrConflictingLayout` | `collage: layout chain already declared` | `WithLayouts` was called twice on one builder. |
 | `ErrConflictingData` | `collage: conflicting data` | A fragment's data is set twice — `WithData` called twice with data, which before v0.49.0 silently kept the last — or a document sets both `WithBody` and `WithHandler`. The message names the fragment: `fragment "x" has its data set twice`. |
 | `ErrTemplateType` | `collage: template does not fit its data` | A template reads something its fragment's data type cannot give it: `{{.Titel}}` on a type with no such field, say. Each finding is a `*TemplateTypeError` naming the page, the fragment, the file, the line and the column; see [How templates are checked](/docs/data-handlers#how-templates-are-checked). Since v0.49.0. |
-| `ErrInvalidTimeout` | `collage: invalid timeout` | A fragment's timeout is negative. |
+| `ErrInvalidTimeout` | `collage: invalid timeout` | A fragment's or (since v0.61.0) a document's timeout is negative. |
 | `ErrInvalidTTL` | `collage: invalid cache ttl` | A page's or document's TTL is negative, or `Incremental` was given a zero TTL. Before v0.60.0 the zero case was `ErrMissingTTL`. |
 | `ErrInvalidPath` | `collage: invalid path` | A path pattern does not start with `/` — or, since v0.34.0, a redirect's destination would leave the site: `//host`, `/\host`. |
 | `ErrInvalidRedirectStatus` | `collage: invalid redirect status code` | A redirect status other than `0`, `301`, `302`, `307` or `308` — or, for a `RedirectSource` plugin's rule in a static build, other than those and `410`. |
@@ -315,7 +315,7 @@ body was cut off — the client went away, or the read deadline passed — is an
 `400` or `408` and reaches no error hook; it is logged at debug. See
 [Streaming bodies](/docs/forms-and-actions#streaming-bodies).
 
-`"error_page"` is the stage worth alerting on: the page that reports failures
+`"error_page"` (`collage.StageErrorPage`; every stage has a `Stage*` constant since v0.61.0) is the stage worth alerting on: the page that reports failures
 failed, and the reader still saw a plausible page, so nothing else would tell you.
 
 ## Static builds

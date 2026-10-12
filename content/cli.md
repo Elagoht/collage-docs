@@ -720,8 +720,8 @@ call into `plugins.go`, before the first entry whose manifest has a greater
 
 ```text
 $ collage plugin add elagoht/consent
-added elagoht/consent v0.1.2
-  plugins.go           consent.New()
+added elagoht/consent v0.2.0
+  plugins.go           consent.New(consent.Options{})
   plugins-config.json  "elagoht/consent": {}
 ```
 
@@ -777,7 +777,7 @@ together at the end rather than after each:
 
 ```text
 $ collage plugin add elagoht/feed elagoht/nope elagoht/toc
-added elagoht/feed v0.2.3
+added elagoht/feed v0.3.0
   ...
 collage: plugin add: elagoht/nope: ...
 

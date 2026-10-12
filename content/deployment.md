@@ -1,6 +1,6 @@
 ---
 description: Build the binary, run it in a container or under systemd, set what production needs, and put it behind TLS.
-reference: ServerConfig, CacheConfig, LoadPluginConfig
+reference: ServerConfig, CacheConfig, LoadPluginConfig, IsHTTPS
 ---
 
 # Deployment
@@ -530,6 +530,12 @@ whose `RemoteAddr` is not a listed proxy cannot set it: a client reaching the po
 directly over plain http gets a cookie it can send back over plain http. Empty, the
 header is believed from anyone, as it was before the list existed, and that is right
 only when nothing but your proxy can reach the server.
+
+Since v0.61.0 that decision is one function, `collage.IsHTTPS(r)`, which the
+forgery guard's cookie and plugins setting `Secure` cookies or HSTS all ask —
+elagoht/session, flash, secure and the rest. So the list protects their cookies and
+headers as well: list your proxy, and a client cannot claim the TLS connection it
+does not have.
 
 ## Timeouts
 

@@ -56,7 +56,7 @@ eder. Bkz. [Config](/docs/configuration#validation).
 | `ErrEmptyCacheDir` | `collage: disk cache needs a directory` | `Cache.Type` `"disk"`'tir ve `Cache.Dir` boştur. | `Dir`'i ayarlayın. |
 | `ErrLocaleDefaultNotSupported` | `collage: default locale not in supported locales` | `Locale.Supported`, `Locale.Default`'u içermez. | Varsayılan locale'i `Supported`'a ekleyin. |
 | `ErrNegativeDuration` | `collage: negative duration` | Sekiz süre alanından biri negatiftir; mesaj hangisi olduğunu söyler. | Varsayılan değer için sıfır kullanın. |
-| `ErrInvalidOrigin` | `collage: invalid origin: want scheme://host[:port] with no path, query or fragment` | `BaseURL` yalın bir origin değildir; bir path'i, query'si ya da fragment'i vardır. `collage.ParseOrigin` da aynı hatayı döner. v0.60.0'dan önce `ErrInvalidBaseURL` idi. | Host ve port'tan sonra hiçbir şey olmadan `https://example.com` yazın. |
+| `ErrInvalidOrigin` | `collage: invalid origin: want scheme://host[:port] with no path, query or fragment` | `BaseURL` yalın bir origin değildir; bir path'i, query'si ya da fragment'i vardır, host'u yoktur (`https://:8080`, v0.61.0'dan beri reddedilir) ya da boş bir query veya fragment işareti taşır (`https://example.com/?`, v0.61.1'den beri). `collage.ParseOrigin` da aynı hatayı döner. v0.60.0'dan önce `ErrInvalidBaseURL` idi. | Host ve port'tan sonra hiçbir şey olmadan `https://example.com` yazın. |
 
 ## Plugin'ler ve komutlar
 
@@ -118,7 +118,7 @@ reddedilir.
 | `ErrConflictingLayout` | `collage: layout chain already declared` | `WithLayouts` aynı builder'da iki kez çağrılmıştır. |
 | `ErrConflictingData` | `collage: conflicting data` | Bir fragment'in verisi iki kez ayarlanmıştır: `WithData` veriyle iki kez çağrılmıştır (v0.49.0'dan önce sonuncusu sessizce kazanırdı) ya da bir document'ta hem `WithBody` hem `WithHandler` vardır. Mesaj fragment'in adını verir: `fragment "x" has its data set twice`. |
 | `ErrTemplateType` | `collage: template does not fit its data` | Bir template, fragment'inin veri tipinin veremeyeceği bir şeyi okur: örneğin böyle bir alanı olmayan bir tip üzerinde `{{.Titel}}`. Her bulgu, page'i, fragment'i, dosyayı, satırı ve sütunu veren bir `*TemplateTypeError`'dır. Bkz. [Template'ler nasıl kontrol edilir](/docs/data-handlers#how-templates-are-checked). v0.49.0'dan beri. |
-| `ErrInvalidTimeout` | `collage: invalid timeout` | Bir fragment'in timeout'u negatiftir. |
+| `ErrInvalidTimeout` | `collage: invalid timeout` | Bir fragment'in ya da (v0.61.0'dan beri) bir document'ın timeout'u negatiftir. |
 | `ErrInvalidTTL` | `collage: invalid cache ttl` | Bir page'in ya da document'ın TTL'i negatiftir ya da `Incremental`'a sıfır bir TTL verilmiştir. v0.60.0'dan önce sıfır durumu `ErrMissingTTL` idi. |
 | `ErrInvalidPath` | `collage: invalid path` | Bir path pattern'i `/` ile başlamaz ya da, v0.34.0'dan beri, bir redirect'in hedefi siteden çıkacaktır: `//host`, `/\host`. |
 | `ErrInvalidRedirectStatus` | `collage: invalid redirect status code` | Redirect status'u `0`, `301`, `302`, `307` ya da `308` dışında bir değerdir. Static bir build'de bir `RedirectSource` plugin'inin kuralı için ise bunlar ve `410` dışında bir değerdir. |
@@ -321,7 +321,7 @@ geçmiştir) `400` ya da `408` ile cevaplanır ve hiçbir error hook'una ulaşma
 seviyesinde log'lanır. Bkz.
 [Streaming body'ler](/docs/forms-and-actions#streaming-bodies).
 
-Alarm kurmaya değer stage `"error_page"`'dir. Hataları bildiren page'in kendisi başarısız
+Alarm kurmaya değer stage `"error_page"`'dir (`collage.StageErrorPage`; v0.61.0'dan beri her stage'in bir `Stage*` sabiti vardır). Hataları bildiren page'in kendisi başarısız
 olmuştur, ama okuyucu yine de makul görünen bir page görmüştür. Bu yüzden size bunu
 başka hiçbir şey söylemez.
 

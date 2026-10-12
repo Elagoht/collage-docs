@@ -1,6 +1,6 @@
 ---
 description: The plugin contract, what Host and ConfigHost expose, every hook and what it may change, and a complete plugin with its tests.
-reference: Plugin, Host, ConfigHost, ConfigReader, PluginConfig, Configurer, Command, BeforeRenderHook, BeforeActionHook, BeforeActionEvent, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, DrainHook, ServeHook, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, BuiltRedirect, RedirectSource, IsCapture, RequestHook, ErrStreamingBody, RouteInfo, Route, ClientIP, Key, NewKey, RenderValues
+reference: Plugin, Host, ConfigHost, ConfigReader, PluginConfig, Configurer, Command, BeforeRenderHook, BeforeActionHook, BeforeActionEvent, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, DrainHook, ServeHook, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, BuiltRedirect, RedirectSource, IsCapture, RequestHook, ErrStreamingBody, RouteInfo, Route, ClientIP, IsHTTPS, RouteKindPage, BuiltPage, StageErrorPage, Duration, Key, NewKey, RenderValues
 ---
 
 # Writing a plugin
@@ -306,7 +306,9 @@ func (p *Plugin) OnRequest(r *http.Request) (context.Context, func(status int)) 
 ```
 
 `collage.RouteInfo(ctx)` reports what the request resolved to, as a `collage.Route`:
-its `Kind` — `"page"`, `"document"`, `"action"`, `"mount"` or `"handler"` — and its
+its `Kind` — `collage.RouteKindPage`, `RouteKindDocument`, `RouteKindAction`,
+`RouteKindMount` or `RouteKindHandler` (since v0.61.0; the strings `"page"`,
+`"document"`, `"action"`, `"mount"`, `"handler"`, and the set may grow) — and its
 `Name`, the registered name or prefix: the page's, the document's or the action's
 name, the mount's or the handler's prefix. It is the zero `Route` while the request
 is unresolved, and for a request that resolved to nothing, such as a 404. (Before
@@ -348,6 +350,14 @@ the client the proxy reports. It is unmapped and has no zone, and is the zero
 request has no `RemoteAddr`, and behind a trusted proxy whose `X-Forwarded-For`
 names no usable client (`unknown`). Never count that one.
 
+`collage.IsHTTPS(r)` (since v0.61.0) is whether the request arrived over TLS: on
+its own connection, or at a proxy that says so in `X-Forwarded-Proto`. With
+`Server.TrustedProxies` listed, the header is believed only from one of them, so a
+client cannot claim a TLS connection it does not have; with none listed it is
+believed from anyone. It is the decision the forgery guard makes for its own
+cookie's `Secure` flag. A plugin setting `Secure` on a cookie, or sending
+`Strict-Transport-Security`, uses it rather than reading the header itself.
+
 ### BeforeRenderHook
 
 ```go
@@ -372,7 +382,7 @@ fragment can still override it:
 
 ```go
 func (p *Plugin) OnBeforeRender(_ context.Context, ev *collage.BeforeRenderEvent) error {
-	ev.Context.HoistMeta("generator", p.cfg.Generator)
+	ev.Context.HoistMeta("generator", p.opts.Generator)
 	return nil
 }
 ```
@@ -747,7 +757,13 @@ Read `Path` to tell those apart, and guard every use of `Page`. The
 stages the framework uses are `"route"`, `"not_found"`, `"guard"` (since
 v0.28.0: a page's guard failed or answered with a decision it cannot write),
 `"before_render"`, `"before_action"`, `"render"`, `"after_render"`, `"cache_write"`, `"error_page"`,
-`"asset"`, `"handler"` and `"panic"` — the set is not a closed enum.
+`"asset"`, `"plugin"`, `"handler"` and `"panic"`. Each has a constant (since
+v0.61.0) — `collage.StageRoute`, `StageNotFound`, `StageGuard`,
+`StageBeforeRender`, `StageBeforeAction`, `StageRender`, `StageAfterRender`,
+`StageCacheWrite`, `StageErrorPage`, `StageAsset`, `StagePlugin`, `StageHandler`,
+`StagePanic` — to compare against instead of the literal. The set is not a closed
+enum and may grow, so name the stages you handle rather than assuming you have seen
+them all.
 
 `"error_page"` is the one worth alerting on: it means the page that reports
 failures itself failed, and the client still received a plausible built-in page,
@@ -798,7 +814,7 @@ type BuildFinishedEvent struct {
 }
 
 type BuiltFile struct {
-	Kind     string // "page", "document" or "asset"
+	Kind     string // collage.BuiltPage, BuiltDocument or BuiltAsset: "page", "document", "asset"
 	Name     string // the page's or document's name; empty for an asset
 	Locale   string
 	Path     string // the URL path the file answers
@@ -1057,39 +1073,63 @@ returns the type of the defaults. It decodes the application's section over a co
 of them:
 
 ```go
-type Config struct {
-	Generator string `json:"generator"`
-	Disabled  bool   `json:"disabled"`
+type Options struct {
+	Generator string           `json:"generator"`
+	Disabled  bool             `json:"disabled"`
+	Timeout   collage.Duration `json:"timeout"` // "5s", "1m30s"
 }
 
 func (p *Plugin) Configure(_ context.Context, host collage.ConfigHost) error {
-	cfg, err := collage.PluginConfig(host, Config{Generator: "collage"}) // defaults, overlaid by the application's section
-	p.cfg = cfg
+	opts, err := collage.PluginConfig(host, p.opts) // what New was given, overlaid by the application's section
+	p.opts = opts
 	return err
 }
 ```
 
 - **An absent, empty or `null` section returns the defaults unchanged**, so "not
   configured" and "configured to the zero value" stay different statements.
-- **A present but malformed section is an error** naming the plugin —
-  `collage: plugin "acme/stamp" configuration: …` — returned with the defaults. The
-  operator wrote something, and running on defaults silently would hide it.
-- A map or slice inside the defaults is decoded into in place, so write the
-  defaults as a literal in the call rather than sharing one value between calls.
-- The section is decoded with `json.Unmarshal` over your defaults, and follows its
-  rules. A scalar or a slice in the JSON replaces your default — a slice is not
-  merged. A JSON object decoded into a map adds its entries to the map you set,
-  keeping the others. A JSON object decoded into a nested struct sets only the
-  fields it names, leaving the rest at your defaults.
+- **A present but malformed section is an error** naming the plugin and, when one
+  member's value is what fails, its key — `collage: acme/stamp: "timeout": …` —
+  returned with the defaults. The operator wrote something, and running on defaults
+  silently would hide it. The section is decoded into a copy, so a failure leaves
+  the defaults as they were.
+- **A key your options do not have is an error** (since v0.61.0), at any depth,
+  and so is one named after a field tagged `json:"-"`: `collage: acme/stamp:
+  unknown key "generater" in plugins-config.json; remove it, or rename it to a key
+  the plugin documents`. It stops the application at `Configure` or `Init`. Keys
+  match fields case-insensitively, as `encoding/json` matches them. Decode the
+  full `Options` type in one `PluginConfig` call: the check is made against the
+  type it decodes into, and a type with its own `UnmarshalJSON` checks its own keys,
+  or none. A renamed or removed key therefore fails loudly by itself.
+- A scalar in the JSON replaces your default. **A top-level list replaces the
+  default list whole** (since v0.61.2): its elements are new, so a field an element
+  leaves out is that field's zero value, not the default element's. A top-level map
+  adds its entries to a copy of yours. Neither writes into your slices or maps.
+  Below the top level, a JSON object is decoded over the default's, setting only the
+  fields it names, and a nested map is still filled in place: write the defaults as
+  a literal rather than sharing one value between calls.
+- **A duration is a `collage.Duration`** (since v0.61.0), not a `time.Duration`. It
+  reads a string `time.ParseDuration` understands — `"10s"`, `"1h30m"` — and writes
+  one back. A bare number is refused with an error naming its key, where
+  `time.Duration` would have read `3600` as 3.6µs without a word, and so is a
+  negative duration; `null` leaves the default. Convert it where you use it:
+  `time.Duration(p.opts.Timeout)`.
 - The application sees a key that names no registered plugin as a startup error
   (`ErrUnknownPluginConfig`). Your `Name` is therefore the whole of your
   configuration's address; changing it is a breaking change.
 
 Before v0.50.0 a plugin set its defaults on a field and called `host.Config(&cfg)`.
 
-Document every key, its type and its default in your README. Offering a
-`NewWith(Config)` constructor alongside `New()` lets an application configure you
-in Go as well.
+Document every key, its type and its default in your README. Take the same
+options in Go through one constructor, `func New(opts Options) *Plugin`, and decode
+the section over them: an application then configures you in Go, in JSON, or both,
+and `collage plugin add` writes `New(Options{})`, so the zero `Options` must be a
+working plugin (or fail in `Init` with a message that says what is missing). Call
+the type `Options`, not `Config`, which reads as `collage.Config` at the call site.
+Booleans default to their zero value: an opt-out is a `noX` key rather than a key
+that defaults to true. A secret never goes in `plugins-config.json`: a `<x>Env`
+key names the environment variable that holds it, and a `json:"-"` field takes the
+value from Go.
 
 ## Editor support: collage.json
 
@@ -1163,20 +1203,21 @@ import (
 // Name is the plugin's name, and the key of its section in plugins-config.json.
 const Name = "acme/stamp"
 
-// Config is the plugin's configuration.
-type Config struct {
-	// Generator is what the generator meta tag says.
+// Options is the plugin's configuration. The zero value is the defaults.
+type Options struct {
+	// Generator is what the generator meta tag says; "collage" when empty.
 	Generator string `json:"generator"`
 }
 
 // Plugin is the stamp plugin. Construct it with New.
 type Plugin struct {
-	cfg    Config
+	opts   Options
 	logger *slog.Logger
 }
 
-// New returns the plugin with its defaults.
-func New() *Plugin { return &Plugin{} }
+// New returns the plugin. The application's plugins-config.json section is
+// decoded over opts.
+func New(opts Options) *Plugin { return &Plugin{opts: opts} }
 
 var (
 	_ collage.Plugin           = (*Plugin)(nil)
@@ -1191,12 +1232,15 @@ func (p *Plugin) Version() string { return "0.1.0" }
 // Configure runs inside collage.New, before templates are parsed: the one
 // moment a template function can still be added.
 func (p *Plugin) Configure(_ context.Context, host collage.ConfigHost) error {
-	cfg, err := collage.PluginConfig(host, Config{Generator: "collage"}) // the defaults
+	opts, err := collage.PluginConfig(host, p.opts) // the options New was given
 	if err != nil {
-		return err // a section that is present but malformed
+		return err // a section that is malformed or names an unknown key
 	}
-	p.cfg = cfg
-	return host.AddTemplateFunc("generator", func() string { return p.cfg.Generator })
+	if opts.Generator == "" {
+		opts.Generator = "collage"
+	}
+	p.opts = opts
+	return host.AddTemplateFunc("generator", func() string { return p.opts.Generator })
 }
 
 // Init runs when the application starts, after it has registered its pages.
@@ -1220,14 +1264,14 @@ func (p *Plugin) Shutdown(context.Context) error { return nil }
 // OnBeforeRender declares the meta tag before the page renders, at depth zero,
 // so a fragment that declares its own generator replaces this one.
 func (p *Plugin) OnBeforeRender(_ context.Context, ev *collage.BeforeRenderEvent) error {
-	ev.Context.HoistMeta("generator", p.cfg.Generator)
+	ev.Context.HoistMeta("generator", p.opts.Generator)
 	return nil
 }
 
 // OnError reports the one failure nobody would otherwise notice: the error page
 // itself failing.
 func (p *Plugin) OnError(_ context.Context, ev *collage.ErrorEvent) error {
-	if ev.Stage == "error_page" {
+	if ev.Stage == collage.StageErrorPage {
 		p.logger.Error("stamp: the error page failed", "path", ev.Path, "error", ev.Err)
 	}
 	return nil
@@ -1239,7 +1283,7 @@ An application uses it like any other plugin:
 ```go
 app, err := collage.New(&collage.Config{
 	Template:     collage.TemplateConfig{Root: "templates"},
-	Plugins:      []collage.Plugin{stamp.New()},
+	Plugins:      []collage.Plugin{stamp.New(stamp.Options{})},
 	PluginConfig: pluginConfig, // {"acme/stamp": {"generator": "The Wire"}}
 })
 ```
@@ -1259,12 +1303,15 @@ app, err := collage.New(&collage.Config{
    calls it; its ctx is cancelled when the drain starts — see
    [Streams and shutdown](#streams-and-shutdown).
 5. **Shutdown**, from `App.Shutdown` — which `ListenAndServe` calls on `SIGINT` or
-   `SIGTERM` — in reverse registration order. It calls **every registered
-   plugin's** `Shutdown`, whether or not that plugin's `Init` ran or succeeded: an
-   application that never started, one whose start failed, and the plugins the
-   failed start already rolled back all get the call. So `Shutdown` must be safe
-   to call without `Init` and more than once. Every plugin gets its turn even if one
-   fails, and the errors are joined. A plugin implementing `StreamCloser` has its
+   `SIGTERM` — in reverse registration order. Since v0.61.0 it calls `Shutdown`
+   **once, and only for a plugin whose `Init` succeeded**: a plugin whose `Init`
+   never ran or failed is not called, and one already shut down is not called
+   again. A start that fails *after* every `Init` succeeded — a mount that swallows
+   a page, an error page never registered — shuts the plugins down there and then,
+   as a failing `Init` rolls back the ones before it. A `Shutdown` before `Start`
+   initialises no plugin at all (since v0.61.1): `Start` then fails, and
+   `ListenAndServe` returns nil. Every plugin gets its turn even if one fails, and
+   the errors are joined. A plugin implementing `StreamCloser` has its
    `CloseStreams` called earlier, when shutdown begins, and a plugin implementing
    `DrainHook` has its `OnDrain` called before that, when the drain starts — see
    [Streams and shutdown](#streams-and-shutdown).
@@ -1282,97 +1329,73 @@ app, err := collage.New(&collage.Config{
 
 ## Testing a plugin
 
-Test a plugin the way an application would use it: build a real `App` with the
-plugin in `Config.Plugins`, register a page whose template exercises it, and drive
-the application through `app.Handler()` with `httptest`. No server listens and no
-port is chosen.
+Test a plugin the way an application would use it: in a real application, driven
+through its handler. `collagetest.NewSite` (since v0.61.0) builds one with the
+least configuration a test needs — a layout with `{{hoist "head"}}` and
+`{{slot "content"}}`, a `home` page at `/`, a debug-level logger whose records it
+keeps — puts your plugin in it, and starts it, so `Configure` and `Init` run at once
+and their errors fail the test. The application shuts down when the test ends. No
+server listens and no port is chosen.
 
 ```go
 package stamp_test
 
 import (
-	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
-	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/Elagoht/collage/pkg/collage"
+	"github.com/Elagoht/collage/pkg/collagetest"
 
 	"example.com/stamp"
 )
 
-// newApp builds a one-page application with the plugin in it.
-func newApp(t *testing.T, config string) *collage.App {
+// newSite builds a one-page application with the plugin in it.
+func newSite(t *testing.T, options ...collagetest.SiteOption) *collagetest.Site {
 	t.Helper()
-
-	root := t.TempDir()
-	page := `<html><head>{{hoist "head"}}</head><body>{{generator}}</body></html>`
-	if err := os.MkdirAll(filepath.Join(root, "pages"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "pages", "home.html"), []byte(page), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	cfg := &collage.Config{
-		Template: collage.TemplateConfig{Root: root},
-		Plugins:  []collage.Plugin{stamp.New()},
-	}
-	if config != "" {
-		cfg.PluginConfig = map[string]json.RawMessage{stamp.Name: json.RawMessage(config)}
-	}
-	app, err := collage.New(cfg)
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-
-	home := collage.NewPage("home").
-		WithContent(collage.NewFragment("home", "pages/home.html").Build()).
-		WithPath("en", "/").
-		Build()
-	if err := app.RegisterPage(home); err != nil {
-		t.Fatalf("RegisterPage: %v", err)
-	}
-	return app
-}
-
-func get(t *testing.T, app *collage.App, path string) string {
-	t.Helper()
-	rec := httptest.NewRecorder()
-	app.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
-	if rec.Code != http.StatusOK {
-		t.Fatalf("GET %s: status %d: %s", path, rec.Code, rec.Body.String())
-	}
-	return rec.Body.String()
+	return collagetest.NewSite(t, append([]collagetest.SiteOption{
+		collagetest.WithPlugins(stamp.New(stamp.Options{})),
+		collagetest.WithTemplates(map[string]string{"home.html": `<p>{{generator}}</p>`}),
+	}, options...)...)
 }
 
 func TestStamp_UsesItsDefaults(t *testing.T) {
-	body := get(t, newApp(t, ""), "/")
+	site := newSite(t)
+	body := site.Get("/").WantStatus(http.StatusOK).Body
 	if !strings.Contains(body, `<meta name="generator" content="collage">`) {
 		t.Errorf("no default meta tag in %s", body)
+	}
+	if site.Logs.Has(slog.LevelError) {
+		t.Errorf("the plugin logged an error:\n%s", site.Logs)
 	}
 }
 
 func TestStamp_ReadsItsConfiguration(t *testing.T) {
-	body := get(t, newApp(t, `{"generator": "my site"}`), "/")
+	site := newSite(t, collagetest.WithPluginConfig(stamp.Name, `{"generator": "my site"}`))
+	body := site.Get("/").WantStatus(http.StatusOK).Body
 	if !strings.Contains(body, `<meta name="generator" content="my site">`) {
 		t.Errorf("no configured meta tag in %s", body)
 	}
-	if !strings.Contains(body, "<body>my site</body>") {
+	if !strings.Contains(body, "<p>my site</p>") {
 		t.Errorf("template function not applied in %s", body)
 	}
 }
 
-func TestStamp_RegistersItsCommand(t *testing.T) {
-	app := newApp(t, "")
-	if err := app.Start(); err != nil {
-		t.Fatalf("Start: %v", err)
+func TestStamp_RefusesAnUnknownKey(t *testing.T) {
+	_, err := collagetest.TrySite(t,
+		collagetest.WithPlugins(stamp.New(stamp.Options{})),
+		collagetest.WithPluginConfig(stamp.Name, `{"generater": "typo"}`),
+	)
+	if err == nil || !strings.Contains(err.Error(), `unknown key "generater"`) {
+		t.Errorf("err = %v, want the unknown key named", err)
 	}
-	commands := app.Commands()
+}
+
+func TestStamp_RegistersItsCommand(t *testing.T) {
+	commands := newSite(t).App.Commands()
 	if len(commands) != 1 || commands[0].Name != "pages" {
 		t.Errorf("commands = %v, want one named pages", commands)
 	}
@@ -1383,11 +1406,38 @@ func TestStamp_RefusesLateRegistration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	if err := app.RegisterPlugin(stamp.New()); !errors.Is(err, collage.ErrConfigurerRegisteredLate) {
+	if err := app.RegisterPlugin(stamp.New(stamp.Options{})); !errors.Is(err, collage.ErrConfigurerRegisteredLate) {
 		t.Errorf("RegisterPlugin: err = %v, want ErrConfigurerRegisteredLate", err)
 	}
 }
 ```
+
+A `Site` is the started `App`, a `collagetest.Client` on its handler — so `Get`,
+`Submit`, `Follow` and every other [client](/docs/testing#the-client) method work on it — and
+`Logs`, every record the application wrote at debug level and above.
+`Logs.Has(level, parts...)` reports whether a record at that level or above
+contains every part, and it is safe to call while the application serves requests
+from other goroutines. A test adds what its plugin needs:
+
+| Option | Effect |
+| --- | --- |
+| `WithPlugins(plugins...)` | Adds plugins, in order |
+| `WithPluginConfig(name, json)` | Sets one plugin's section, as `plugins-config.json` would. Invalid JSON fails the test |
+| `WithTemplates(files)` | Adds or replaces templates by name under the root: `"layout.html"`, `"home.html"`, or one a registered page renders |
+| `WithRegister(items...)` | Registers pages, documents and actions after the home page |
+| `WithoutHome()` | Leaves the home page out, so `/` is the test's |
+| `WithConfig(func(*collage.Config))` | Edits the configuration before the application is built: locales, a cache, `BaseURL`, development mode, anything |
+| `WithSetup(func(*collage.App) error)` | Registers on the application itself before it starts — `Handle`, `Mount`, `Use`, `RegisterNotFoundPage`, `RegisterErrorPage` (since v0.61.1). Runs after the default registrations; several run in order; an error fails the site |
+
+`collagetest.TrySite` is `NewSite` for a test that expects building or starting to
+fail — a plugin refusing a bad configuration — and returns the error instead of
+failing the test.
+
+A test that shuts the application down itself — to check what your `Shutdown`
+returns — calls `site.Shutdown(ctx)` (since v0.61.1), not `site.App.Shutdown(ctx)`.
+`App.Shutdown` runs once and returns its first error on every later call, so the
+cleanup would report the error the test expected; `site.Shutdown` closes the site
+and the cleanup does nothing more.
 
 A few things worth testing that are easy to forget:
 

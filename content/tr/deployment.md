@@ -1,6 +1,6 @@
 ---
 description: Binary'yi build edin, bir container'da ya da systemd altında çalıştırın, production'ın ihtiyaç duyduklarını ayarlayın ve TLS'in arkasına koyun.
-reference: ServerConfig, CacheConfig, LoadPluginConfig
+reference: ServerConfig, CacheConfig, LoadPluginConfig, IsHTTPS
 ---
 
 # Deployment
@@ -563,6 +563,12 @@ request bu header'ı set edemez. Port'a düz http ile doğrudan ulaşan bir clie
 http üzerinden geri gönderebileceği bir cookie alır. Liste boşsa header herkesten
 kabul edilir. Liste var olmadan önce de böyleydi ve yalnızca proxy'nizden başka
 hiçbir şeyin sunucuya ulaşamadığı durumda doğrudur.
+
+v0.61.0'dan beri bu karar tek bir fonksiyondur: `collage.IsHTTPS(r)`. Forgery
+guard'ın cookie'si de, `Secure` cookie koyan ya da HSTS gönderen plugin'ler de —
+elagoht/session, flash, secure ve diğerleri — ona sorar. Böylece liste onların
+cookie'lerini ve header'larını da korur: proxy'nizi listeleyin, bir client sahip
+olmadığı TLS bağlantısını iddia edemesin.
 
 ## Timeout'lar
 

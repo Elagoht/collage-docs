@@ -410,6 +410,24 @@ func TestLinks(t *testing.T) {
 }
 ```
 
+## Test a plugin with a site of its own
+
+A plugin has no application of its own to build. `collagetest.NewSite(t, ...)`
+(since v0.61.0) builds a real one around it — a layout, a home page at `/`, a
+captured debug log — starts it, shuts it down when the test ends, and gives back
+the app, a `Client` on it and its `Logs`:
+
+```go
+site := collagetest.NewSite(t,
+	collagetest.WithPlugins(robots.New(robots.Options{})),
+	collagetest.WithPluginConfig("elagoht/robots", `{"disallow":["/admin"]}`),
+)
+res := site.Get("/robots.txt").WantStatus(http.StatusOK)
+```
+
+The options, `TrySite` for a start that is meant to fail, and `site.Shutdown` are
+in [Writing a plugin](/docs/writing-plugins#testing-a-plugin).
+
 ## Running them
 
 ```sh

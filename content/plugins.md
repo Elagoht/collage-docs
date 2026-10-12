@@ -82,7 +82,7 @@ to the application:
 ```go
 func plugins() []collage.Plugin {
 	return []collage.Plugin{
-		minimizer.New(),
+		minimizer.New(minimizer.Options{}),
 	}
 }
 ```
@@ -118,7 +118,7 @@ import minimizer "github.com/Elagoht/collage-minimizer"
 
 app, err := collage.New(&collage.Config{
 	Template: collage.TemplateConfig{Root: "templates"},
-	Plugins:  []collage.Plugin{minimizer.New()},
+	Plugins:  []collage.Plugin{minimizer.New(minimizer.Options{})},
 })
 ```
 
@@ -127,7 +127,7 @@ Add its section to `plugins-config.json` yourself, if it takes settings.
 There is a second way, `app.RegisterPlugin`, called after `New`:
 
 ```go
-if err := app.RegisterPlugin(jsonld.New()); err != nil {
+if err := app.RegisterPlugin(jsonld.New(jsonld.Options{})); err != nil {
 	log.Fatal(err)
 }
 ```
@@ -175,7 +175,7 @@ The common case is a JSON file next to your program. A project scaffolded by
 ```json
 {
   "elagoht/minimizer": { "js": true },
-  "elagoht/jsonld": { "siteName": "The Wire", "siteURL": "https://thewire.example" }
+  "elagoht/jsonld": { "siteName": "The Wire" }
 }
 ```
 
@@ -187,7 +187,7 @@ if err != nil {
 
 app, err := collage.New(&collage.Config{
 	Template:     collage.TemplateConfig{Root: "templates"},
-	Plugins:      []collage.Plugin{minimizer.New(), jsonld.New()},
+	Plugins:      []collage.Plugin{minimizer.New(minimizer.Options{}), jsonld.New(jsonld.Options{})},
 	PluginConfig: pluginConfig,
 })
 ```
@@ -206,13 +206,25 @@ PluginConfig: map[string]json.RawMessage{
 },
 ```
 
-Three rules hold whichever way you fill it:
+Five rules hold whichever way you fill it:
 
 - **No section means defaults.** A plugin with no entry runs exactly as its
   constructor set it up.
 - **A section is decoded over the defaults.** `{"js": true}` turns one setting on
-  and leaves the rest as they were. How a particular plugin merges is in its
-  README.
+  and leaves the rest as they were. A list in the section replaces the default
+  list whole, rather than being merged into it element by element (since
+  v0.61.2), and a map adds its entries to the default's. How a particular plugin
+  merges is in its README.
+- **A key the plugin does not know stops the application from starting** (since
+  v0.61.0): `collage: elagoht/robots: unknown key "dissallow" in
+  plugins-config.json`. A misspelt key, or one a plugin has renamed, used to be
+  ignored and the option left at its default. Keys still match
+  case-insensitively. Remove the key the error names, or rename it to the one the
+  plugin's README documents.
+- **A duration is a string**, `"10s"` or `"1h30m"`, as `time.ParseDuration`
+  reads it. A bare number is refused with an error naming its key —
+  `"banTime": write a duration as a string such as "10s", not 3600` — where it
+  would otherwise have been read as nanoseconds.
 - **A key that names no registered plugin stops the application from starting**,
   with `collage.ErrUnknownPluginConfig`. A typo like `"elagoht/minimzer"` would
   otherwise leave the plugin on its defaults and you certain it was configured.
@@ -220,7 +232,8 @@ Three rules hold whichever way you fill it:
   `RegisterPlugin` can still add plugins after `New`.
 
 A section that is present but does not decode — a string where the plugin expects
-a boolean — is also an error, raised when the plugin reads it.
+a boolean — is also an error, raised when the plugin reads it, and the message
+names the key whose value failed.
 
 ## The published plugins
 
@@ -254,21 +267,20 @@ emits schema.org structured data into the document head.
 ```go
 import "github.com/Elagoht/collage-jsonld"
 
-Plugins: []collage.Plugin{jsonld.New()},
+Plugins: []collage.Plugin{jsonld.New(jsonld.Options{})},
 ```
 
 ```json
 {
   "elagoht/jsonld": {
     "siteName": "The Wire",
-    "siteURL": "https://thewire.example",
     "searchURL": "https://thewire.example/search?q={query}"
   }
 }
 ```
 
 Registering it emits a site-wide `WebSite` node on every page — once `siteName` is
-set — and nothing else, because the plugin cannot know what a page is about. The
+set, with the application's origin (`collage.BaseURL`) as its `url` — and nothing else, because the plugin cannot know what a page is about. The
 page says so from the data handler that fetched the article:
 
 ```go
@@ -286,15 +298,17 @@ func loadArticle(ctx context.Context, rc *collage.RenderContext) (*Article, []st
 }
 ```
 
-- v0.2.9 needs collage v0.50.0 or later (v0.2.7 was the last for v0.49.0). It has no `Configure` phase, so
-  `RegisterPlugin` accepts it too.
+- v0.3.0 needs collage v0.61.0 or later (v0.2.9 was the last for v0.50.0). It has no `Configure` phase, so
+  `RegisterPlugin` accepts it too. v0.3.0 removed `siteURL`: set the application's
+  `BaseURL` instead.
 - `Emit` appends and works whether or not the plugin is registered. Nodes are keyed
   by schema.org type, so a nested fragment's `Article` replaces one declared
   further out, and nodes of different types all appear.
 - Typed nodes cover `Article`, `BlogPosting`, `Blog`, `Person`, `WebSite` and
   `BreadcrumbList`; `jsonld.Raw` is the escape hatch for anything else, and refuses
   invalid JSON.
-- A node that cannot be marshalled is skipped rather than failing the page.
+- A node that cannot be marshalled is skipped rather than failing the page, with a
+  warning in the log naming its type.
 
 **It needs `{{hoist "head"}}` in your layout** — see
 [below](#plugins-that-write-to-the-head).
@@ -308,9 +322,9 @@ the canonical URL, the meta description and the page's translations.
 ```go
 import "github.com/Elagoht/collage-meta"
 
+BaseURL: "https://example.com",
 Plugins: []collage.Plugin{meta.New(meta.Options{
 	SiteName:     "The blog",
-	BaseURL:      "https://example.com",
 	DefaultImage: "/static/share.png",
 })},
 ```
@@ -329,7 +343,6 @@ meta.Set(rc, meta.Page{
 {
   "elagoht/meta": {
     "siteName": "The blog",
-    "baseURL": "https://example.com",
     "defaultImage": "/static/share.png",
     "twitterSite": "@example",
     "locales": { "en": "en_US", "tr": "tr_TR" },
@@ -338,11 +351,10 @@ meta.Set(rc, meta.Page{
 }
 ```
 
-- v0.2.2 needs collage v0.50.0 or later (v0.2.1 was the last for v0.49.0). `baseURL`
-  may be left empty since v0.2.0 (collage v0.42.0): the canonical and `og:` URLs then
-  follow the request's origin, `Config.BaseURL` or, per host, what an
-  `OriginResolver` plugin such as elagoht/tenant gives. The application does not
-  start with none of the three.
+- v0.3.0 needs collage v0.61.0 or later (v0.2.4 was the last for v0.60.0). The
+  canonical and `og:` URLs follow the site's origin: `Config.BaseURL` or, per host,
+  what an `OriginResolver` plugin such as elagoht/tenant gives. With neither, the
+  application does not start. v0.3.0 removed the plugin's own `baseURL`.
 - Registering it gives every page `og:site_name`, `og:type`, the canonical URL —
   built by name, so a query string a reader arrived with is never part of it —
   `og:locale`, an `hreflang` link for every locale the page has a path in, and the
@@ -364,7 +376,7 @@ import "github.com/Elagoht/collage-ogimage"
 
 Plugins: []collage.Plugin{
 	meta.New(meta.Options{SiteName: "The blog"}),
-	ogimage.NewWith(ogimage.Config{
+	ogimage.New(ogimage.Options{
 		Templates: templatesFS,
 		Root:      "templates",
 		Default:   "og/default.html",
@@ -389,10 +401,13 @@ if err := ogimage.Set(rc, "og/post.html", ogimage.Card{Title: post.Title, Label:
 }
 ```
 
-- v0.2.2 needs collage v0.50.0 or later (v0.2.1 was the last for v0.49.0), and the application's `Config.BaseURL`;
-  since v0.2.0 (collage v0.42.0) a card's URL follows the request's origin on a site
-  served on several hosts, so `Config.BaseURL` is not required when an
-  `OriginResolver` plugin is registered. Register it after elagoht/meta, and leave meta's `DefaultImage` unset.
+- v0.3.0 needs collage v0.61.2 or later (v0.2.4 was the last for v0.60.0), and the application's `Config.BaseURL`;
+  a card's URL follows the request's origin on a site served on several hosts, so
+  `Config.BaseURL` is not required when an `OriginResolver` plugin is registered.
+  Register it after elagoht/meta, and leave meta's `DefaultImage` unset.
+- v0.3.0 has one constructor, `ogimage.New(ogimage.Options{…})`. `renderTimeout`
+  is a duration string (`"5s"`), a negative `maxEntries` or `maxBytes` is an error
+  rather than unlimited, and the build finding is `ogimage-draw`.
 - A card is an `html/template` file under `og/` in a subset of HTML and CSS: an
   element holding boxes says `display:flex`, one holding text is a paragraph of
   runs. What it cannot draw stops the application at startup, with the template,
@@ -403,7 +418,8 @@ if err := ogimage.Set(rc, "og/post.html", ogimage.Card{Title: post.Title, Label:
   render recorded it; `collage export` writes them. `Dir` keeps them across
   restarts, which a disk page cache needs.
 - In development `/_og-preview/` lists them; `go run . ogimage og/post.html
-  card.json > card.png` draws one without the site.
+  card.json > card.png` draws one without the site, in the default locale or the
+  one `-locale tr` names.
 
 #### elagoht/sitemap
 
@@ -413,15 +429,13 @@ serves `/sitemap.xml` from the pages the application registered.
 ```go
 import "github.com/Elagoht/collage-sitemap"
 
-Plugins: []collage.Plugin{sitemap.New(sitemap.Options{
-	BaseURL: "https://example.com",
-})},
+BaseURL: "https://example.com",
+Plugins: []collage.Plugin{sitemap.New(sitemap.Options{})},
 ```
 
 ```json
 {
   "elagoht/sitemap": {
-    "baseURL": "https://example.com",
     "path": "/sitemap.xml",
     "exclude": ["thanks"],
     "maxURLs": 50000
@@ -429,11 +443,10 @@ Plugins: []collage.Plugin{sitemap.New(sitemap.Options{
 }
 ```
 
-- v0.2.1 needs collage v0.50.0 or later (v0.2.0 was the last for v0.42.0). A sitemap lists absolute URLs, so it needs an
-  origin: `baseURL`, else `Config.BaseURL` (collage v0.39.0), and since
-  v0.2.0 (collage v0.42.0) the request's own origin on a site served on several
-  hosts, as an `OriginResolver` plugin names it. The application does not start with
-  none of them.
+- v0.3.0 needs collage v0.61.0 or later (v0.2.3 was the last for v0.60.0). A sitemap lists absolute URLs, so it needs an
+  origin: `Config.BaseURL`, or the request's own origin on a site served on several
+  hosts, as an `OriginResolver` plugin names it. With neither, the application does
+  not start. v0.3.0 removed the plugin's own `baseURL`.
 - It lists every page with a path, in every locale, as `App.URL` spells it, with
   its other locales as `hreflang` alternates. A `{param}` pattern is listed once
   for each value its `WithStaticParams` returns, the URLs a static build writes;
@@ -441,7 +454,8 @@ Plugins: []collage.Plugin{sitemap.New(sitemap.Options{
 - `LastMod`, a Go function, gives a page's `<lastmod>`.
 - It is a static document: cached, exported, and made again when `sitemap.Tag` is
   invalidated — invalidate it with the tags of a post you publish.
-- Past 50,000 URLs (`maxURLs`) it becomes a sitemap index of numbered files.
+- Past 50,000 URLs (`maxURLs`; 0 is 50,000, a negative value stops the
+  application) it becomes a sitemap index of numbered files.
 
 #### elagoht/robots
 
@@ -467,15 +481,17 @@ Plugins: []collage.Plugin{robots.New(robots.Options{
 }
 ```
 
-- v0.2.3 needs collage v0.50.0 or later (v0.2.0 was the last for v0.42.0). With no rules it allows every crawler
-  everything; a rule with no user agents is for `*`.
+- v0.3.0 needs collage v0.61.0 or later (v0.2.4 was the last for v0.60.0). With no rules it allows every crawler
+  everything; a rule with no user agents is for `*`. A negative `crawlDelay` stops
+  the application. v0.3.0 removed `(*Plugin).Render`: request `/robots.txt` from
+  the application instead.
 - `disallowAll` closes the site to every crawler, whatever the rules say, and
   sends every response with `X-Robots-Tag: noindex, nofollow`. Set it in the
   configuration of a staging deployment, so one binary is open in production and
   closed elsewhere.
 - A sitemap may be given as a path (`"/sitemap.xml"`), which is made absolute per
   request against the request's origin: `Config.BaseURL` or, on a multi-host site,
-  an `OriginResolver` plugin's (v0.2.0, collage v0.42.0). A scheme-relative
+  an `OriginResolver` plugin's. A scheme-relative
   `//host/path` is refused, and with no origin to resolve a path against the
   application does not start.
 - The body is fixed at startup, and a static build writes it to `robots.txt`.
@@ -489,17 +505,18 @@ every page's head.
 ```go
 import "github.com/Elagoht/collage-feed"
 
+BaseURL: "https://example.com",
 Plugins: []collage.Plugin{feed.New(feed.Feed{
 	Title:   "The blog",
-	BaseURL: "https://example.com",
 	Link:    "/blog",
 	Items:   latestPosts, // func(ctx) ([]feed.Item, error), newest first
 	Tags:    []string{"posts"},
 })},
 ```
 
-- v0.2.2 needs collage v0.55.0 or later (v0.2.0 was the last for v0.42.0). It is configured in Go only, since `Items` is
-  a function.
+- v0.3.0 needs collage v0.61.0 or later (v0.2.4 was the last for v0.60.0). It is configured in Go only, since `Items` is
+  a function; `collage plugin add` writes `feed.New()`, and with no feed given the
+  plugin logs a warning and serves nothing.
 - A feed is served at `/feed.xml` as RSS and `/atom.xml` as Atom; `RSS` and `Atom`
   move them, and `"-"` leaves a format out. Several feeds each take a `Name` and
   their own paths. It carries at most `Limit` items, 20 by default.
@@ -513,9 +530,9 @@ Plugins: []collage.Plugin{feed.New(feed.Feed{
   and not the link. A feed's own `Link`, `RSS` or `Atom` with such a scheme stops the
   application from starting with `ErrUnsafeLink`. An absolute `http` or `https` link
   is written as given (v0.2.2; v0.2.1 re-encoded a non-ASCII path).
-- Without a `BaseURL` of its own, a feed's links follow the request's origin,
-  `Config.BaseURL` or an `OriginResolver` plugin's, so one feed serves each host its
-  own links (v0.2.0, collage v0.42.0). A `BaseURL` set on the feed always wins.
+- A feed's links follow the request's origin, `Config.BaseURL` or an
+  `OriginResolver` plugin's, so one feed serves each host its own links. v0.3.0
+  removed `Feed.BaseURL`; with no origin the application does not start.
 
 #### elagoht/redirects
 
@@ -551,7 +568,7 @@ Plugins: []collage.Plugin{redirects.New(redirects.Options{FS: siteFS})},
 }
 ```
 
-- v0.2.0 needs collage v0.52.0 or later (v0.1.6 was the last for v0.50.0).
+- v0.2.2 needs collage v0.61.0 or later (v0.2.1 was the last for v0.60.0).
 - One rule a line: the old path, where it went, and a status — `301` when left out,
   or `302`, `307`, `308`, or `410` with `-` for a page that is gone, answered with
   the site's own not-found page and status `410`. `/blog/*` is a prefix, and
@@ -562,8 +579,9 @@ Plugins: []collage.Plugin{redirects.New(redirects.Options{FS: siteFS})},
   circle. Since v0.2.0 so does a control character in a rule, or a target
   beginning `/\`, which a browser reads as another host.
 - Since v0.2.0 it no longer serves or writes `_redirects` (breaking):
-  `Options.NoRedirectsFile` and `RedirectsFile()` are gone, and a `noRedirectsFile`
-  key in configuration is ignored. It is a [`RedirectSource`](/docs/writing-plugins#redirectsource): a
+  `Options.NoRedirectsFile` and `RedirectsFile()` are gone, and since collage
+  v0.61.0 a `noRedirectsFile` key in configuration stops the application as an
+  unknown key. It is a [`RedirectSource`](/docs/writing-plugins#redirectsource): a
   static build takes its rules, and [elagoht/deploy](#elagohtdeploy) writes them
   in the host's format. Without a deploy plugin nothing is written.
 - A rule collage's pattern syntax cannot say is still served, but left out of the
@@ -585,9 +603,9 @@ Yandex, Seznam, Naver and the others that share what one of them is told.
 ```go
 import "github.com/Elagoht/collage-indexnow"
 
+BaseURL: "https://example.com",
 Plugins: []collage.Plugin{indexnow.New(indexnow.Options{
-	Key:     "4f1c2e9a7b3d4c8e",
-	BaseURL: "https://example.com",
+	Key: "4f1c2e9a7b3d4c8e",
 })},
 ```
 
@@ -595,17 +613,19 @@ Plugins: []collage.Plugin{indexnow.New(indexnow.Options{
 {
   "elagoht/indexnow": {
     "key": "4f1c2e9a7b3d4c8e",
-    "baseURL": "https://example.com",
     "window": "10s",
-    "exclude": ["/api/", "/search"]
+    "skip": ["/api", "/search"]
   }
 }
 ```
 
-- v0.2.1 needs collage v0.50.0 or later (v0.2.0 was the last for v0.42.0). `key` is required. `baseURL` may be left empty
-  to take `Config.BaseURL`; on a site served on several hosts (v0.2.0, collage
-  v0.42.0) one submission is sent per origin, and an origin two hosts share is sent
-  once. With `baseURL` set it is used for every entry.
+- v0.3.0 needs collage v0.61.0 or later (v0.2.2 was the last for v0.60.0). `key` is required. URLs follow
+  `Config.BaseURL`; on a site served on several hosts one submission is sent per
+  origin, and an origin two hosts share is sent once.
+- v0.3.0 removed `baseURL` and renamed `exclude` to `skip` — request path
+  prefixes never sent, `"/api"` covering `/api` and what is under it. `window` and
+  `backoff` are duration strings, and a negative `retries` or `batchSize` stops the
+  application.
 - What it sends is what the cache let go of: the
   [paths an invalidation dropped](/docs/caching#invalidating-by-path). A page that
   was not cached when its tag was invalidated is not sent.
@@ -660,16 +680,17 @@ app.RegisterPage(collage.NewPage("post").
 }
 ```
 
-- v0.2.2 needs collage v0.50.0 or later (v0.2.0 was the last for v0.49.0); its handlers are `collage.Data`:
-  `WithData(md.Handler())`. v0.1.3 needed v0.34.2 and does not build against
-  v0.49.0, which removed the `collage.DataHandlerFunc` it returned. It can go in
+- v0.3.0 needs collage v0.61.0 or later; its handlers are `collage.Data`:
+  `WithData(md.Handler())`. It can go in
   `Config.Plugins` or `RegisterPlugin`: it reads its configuration and files when
   the application starts, which a static build does before it lists the pages to
   write.
 - `md.Handler()` hands the template the `Doc` its `slug` names — `Title`,
   `Description`, `Date`, `Tags`, `HTML`, `Text`, `Headings` — or
-  `collage.ErrNotFound`. `md.IndexHandler()`, `md.List` and `md.Get` feed an index
-  page, a feed and a sitemap.
+  `collage.ErrNotFound`. `md.IndexHandler()`, `md.List(ctx, locale)` and
+  `md.Get(ctx, locale, slug)` feed an index page, a feed and a sitemap; `""` is the
+  default locale. Since v0.3.0 `md.List` takes the locale, and `md.ListIn` is gone:
+  `md.ListIn(ctx, "tr")` is `md.List(ctx, "tr")`.
 - An edit is one invalidation, `md.Tag(locale, slug)`; a file added or removed is
   `md.DirTag(locale)`. In development every request reads the file again.
 - A locale can have its own directory, raw HTML is left out unless `unsafe` is on,
@@ -694,18 +715,20 @@ Plugins: []collage.Plugin{highlight.New(highlight.Options{})},
 
 ```json
 {
-  "elagoht/highlight": { "light": "github", "dark": "github-dark", "noBackground": true, "auto": true }
+  "elagoht/highlight": { "light": "github", "dark": "github-dark", "noBackground": true }
 }
 ```
 
-- v0.2.5 needs collage v0.50.0 or later (v0.2.3 was the last for v0.49.0). It must go in
+- v0.3.0 needs collage v0.61.0 or later. It must go in
   `Config.Plugins`: it adds `{{highlight}}`.
-- With `auto` on, every `<pre><code class="language-go">` a page holds — what
+- Unless `noAuto` is set, every `<pre><code class="language-go">` a page holds — what
   elagoht/markdown and most Markdown renderers write — is coloured where it
   stands, once per render; a cached page is served as it was coloured.
 - The stylesheet is linked from pages with coloured code only, by a
   content-addressed name, each theme under its own `prefers-color-scheme` query.
-  Since v0.2.0 the `auto` pass hoists it with `AfterRenderEvent.Hoist`, so it lands
+  `noAuto: true` leaves those blocks alone, so only `{{highlight}}` colours code;
+  since v0.3.0 it replaces `"auto": false`, and `"auto"` is an unknown key.
+  Since v0.2.0 the automatic pass hoists it with `AfterRenderEvent.Hoist`, so it lands
   where the layout put `{{hoist "head"}}`, or before `</head>` without one;
   `{{highlight}}` needs `{{hoist "head"}}` in the layout.
 
@@ -732,18 +755,24 @@ Plugins: []collage.Plugin{toc.New(toc.Options{})},
     "minLevel": 2,
     "maxLevel": 4,
     "wpm": 225,
+    "text": { "label": "Table of contents", "readingTime": "{n} min read" },
     "locales": { "tr": { "label": "İçindekiler", "readingTime": "{n} dk okuma" } }
   }
 }
 ```
 
-- v0.1.5 needs collage v0.50.0 or later (v0.1.3 was the last for v0.49.0), and must go in `Config.Plugins`: it adds
+- v0.2.0 needs collage v0.61.0 or later, and must go in `Config.Plugins`: it adds
   template functions.
+- Since v0.2.0 the default locale's words are under `text` (`Options.Text`, a named
+  field rather than an embedded one), not at the top level, and `locales` holds
+  the others; `"ids": false` is `"noIDs": true`. An old top-level `label` or `ids`
+  stops the application as an unknown key.
 - Each function writes a placeholder, and the plugin fills it in once the page has
   rendered: the `h2` to `h4` inside `<main>`, as a nested list, and the words
   divided by `wpm`.
 - A heading without an `id` gets one from its text, letters of any alphabet kept
-  and lowered as the page's language lowers them.
+  and lowered as the page's language lowers them; `noIDs` leaves a page without
+  placeholders alone.
 - A fragment served on its own does not run the page hooks, so put `{{toc}}` in the
   page, not in a fragment refreshed on its own.
 
@@ -767,14 +796,19 @@ Plugins: []collage.Plugin{search.New(search.Options{})},
 {
   "elagoht/search": {
     "maxText": 5000,
-    "exclude": ["/admin/", "/tags/"],
+    "exclude": ["admin", "tags"],
+    "text": { "label": "Search" },
     "locales": { "tr": { "label": "Ara", "noResults": "Sonuç yok" } }
   }
 }
 ```
 
-- v0.1.5 needs collage v0.50.0 or later (v0.1.3 was the last for v0.49.0), and must go in `Config.Plugins`: it adds
+- v0.2.0 needs collage v0.61.0 or later, and must go in `Config.Plugins`: it adds
   `{{searchBox}}`.
+- Since v0.2.0 `exclude` takes page names, left out in every locale, not path
+  prefixes: an old `"/admin/"`, or a name no page has, stops the application. What
+  the box says is under `text` (`label`, `placeholder`, `results`, `oneResult`,
+  `noResults`, `unavailable`), and `locales` holds the same per locale.
 - **The index is a static build's.** `collage export` writes `search-index.json`
   from each page's title, description, headings and text; a running server has
   none, and the box says so rather than breaking.
@@ -806,15 +840,18 @@ Plugins: []collage.Plugin{i18n.New(i18n.Options{FS: locales})},
 { "elagoht/i18n": { "dir": "locales", "strict": true } }
 ```
 
-- v0.2.4 needs collage v0.50.0 or later (v0.2.2 was the last for v0.49.0), and must go in `Config.Plugins`: it adds
-  template functions.
+- v0.3.0 needs collage v0.61.0 or later, and must go in `Config.Plugins`: it adds
+  template functions. The catalogs come from `Options.FS`, so it is constructed
+  in Go.
 - One JSON file of nested keys per supported locale, `locales/<locale>.json`; the
   application does not start while a supported locale has none.
 - `t` translates a key and fills `{name}` from name and value pairs, `tn` picks a
   plural form for a count, `th` allows markup from the catalog. A data handler
-  calls `i18n.T(rc, key, pairs...)`.
+  calls `i18n.T(rc, key, pairs...)`; since v0.3.0 the pairs are strings
+  (`i18n.T(rc, "visits", "n", strconv.Itoa(n))`), while the template functions
+  still print any value.
 - A missing key falls back to the default locale, then to the key, and is reported
-  as `missing-translation` over the page in development and in a static build's
+  as `i18n-missing` over the page in development and in a static build's
   report. In development the catalogs are read again on every request.
 - **Outside a render** (since v0.2.0), for an email or a background job, keep the
   plugin's value: `tr.In(user.Locale)` returns a `Translator` whose `T`, `TN` and
@@ -824,7 +861,8 @@ Plugins: []collage.Plugin{i18n.New(i18n.Options{FS: locales})},
   and locale. The catalogs are read when the application starts, not in
   `collage.New`; a translation asked for before then is the key itself.
 - A key one catalog has and another lacks is logged at startup and listed as
-  `untranslated` in a build, in either direction since v0.2.0. A plural form a
+  `i18n-untranslated` in a build, in either direction since v0.2.0 (the codes were
+  `missing-translation` and `untranslated` before v0.3.0). A plural form a
   locale's rule never picks is not counted; `zero` is. With `strict` the
   application does not start while the catalogs differ.
 - A key written both dotted and nested, `{"nav.home": …}` beside
@@ -873,12 +911,12 @@ return collage.SeeOther("/welcome"), nil
   "elagoht/validate": {
     "messages": { "required": "Please fill this in." },
     "localeMessages": { "tr": { "required": "Bu alan zorunludur." } },
-    "noRefill": ["password", "card"]
+    "noRefill": ["pin", "card"]
   }
 }
 ```
 
-- v0.1.6 needs collage v0.50.0 or later (v0.1.3 was the last for v0.34.2). It must go in
+- v0.2.0 needs collage v0.61.0 or later (v0.1.7 was the last for v0.60.0). It must go in
   `Config.Plugins`: it adds `{{fieldError}}`, `{{fieldValue}}` and `{{hasErrors}}`.
 - `{{fieldValue "name" fallback}}` shows what was submitted when a submission was
   refused, and the fallback when the form is shown for the first time — the value
@@ -898,7 +936,12 @@ return collage.SeeOther("/welcome"), nil
   `OneOf`, `Matches`, `Equal` and `Custom`; `v.Fail` reports what only the
   application knows. A field keeps its first message.
 - Messages are English by default, and are replaced per check, per locale or for
-  every locale. A field whose name contains `password` is never typed back.
+  every locale. A field whose name contains `password` is never typed back;
+  `noRefill` adds names of your own to it (since v0.2.0 it no longer replaces
+  `password`).
+- `validate.Values(rc, values)` (since v0.2.0) checks values something else
+  already read — the fields `uploads.Receive` hands back after streaming a
+  body — and `Refuse` types them back the same way.
 - Field names are one space per render: two forms on one page sharing a field
   name both show that field's message and value. Give each form's fields names of
   their own.
@@ -913,7 +956,7 @@ too long ago, or — when the form asks — came back too soon.
 ```go
 import "github.com/Elagoht/collage-honeypot"
 
-Plugins: []collage.Plugin{honeypot.New(honeypot.Options{Key: key})},
+Plugins: []collage.Plugin{honeypot.New(honeypot.Options{KeyEnv: "HONEYPOT_KEY"})},
 ```
 
 ```html
@@ -928,17 +971,22 @@ Plugins: []collage.Plugin{honeypot.New(honeypot.Options{Key: key})},
 ```json
 {
   "elagoht/honeypot": {
-    "key": "hex-encoded, 32 bytes or more",
-    "minDelay": 0,
-    "maxAge": 86400,
+    "keyEnv": "HONEYPOT_KEY",
+    "minDelay": "0s",
+    "maxAge": "24h",
     "silent": false,
     "protect": []
   }
 }
 ```
 
-- v0.4.3 needs collage v0.57.0 or later (v0.4.2 was the last for v0.50.0), and must go in
+- v0.5.0 needs collage v0.61.0 or later (v0.4.4 was the last for v0.60.0), and must go in
   `Config.Plugins`: it adds `{{honeypot}}`.
+- **Changed in v0.5.0:** the hex `key` is gone — `keyEnv` names the environment
+  variable holding it, and `Options.Key` takes the bytes from Go. `maxAge` and
+  `minDelay` are duration strings (`"24h"`, `"300ms"`); `{{honeypot 0.3}}` still
+  takes seconds, and `"0s"`, the default, is no delay (`-1` is now an error). An
+  old key or a bare number stops the application at start, naming the key.
 - It has no say in how large a submission may be. It checks the form in
   `BeforeActionHook`, through the action's own body limit, so a form that uploads
   large files needs only the action's `WithMaxBodyBytes`. Only collage actions are
@@ -958,7 +1006,8 @@ Plugins: []collage.Plugin{honeypot.New(honeypot.Options{Key: key})},
   `["/"]` checks every form the site accepts. Before v0.2.0 that was the default.
 - No delay by default. `{{honeypot 0.3}}` asks a form to be open at least that
   many seconds before it is sent, signed into the timestamp so a bot cannot
-  shorten it; `minDelay` sets one for every form that does not choose its own.
+  shorten it; `minDelay` (`"300ms"`) sets one for every form that does not choose
+  its own.
 - The timestamp survives the page cache as collage's forgery token does: the
   cached page carries a placeholder, and the plugin signs the current time into it
   through `PersonaliseHook`, after the page cache and before compression. Its place
@@ -966,7 +1015,8 @@ Plugins: []collage.Plugin{honeypot.New(honeypot.Options{Key: key})},
   elagoht/compress it left the placeholder in the gzip body and every real
   submission was refused.) A stamped page is sent with `Cache-Control: private,
   no-store` (set by collage) and a new `ETag` on every response. Set a key of at
-  least 32 random bytes, the same on every instance.
+  least 32 random bytes, the same on every instance, hex-encoded in the variable
+  `keyEnv` names; it never goes in `plugins-config.json`.
 - Only what collage renders is stamped: a page, a fragment, an action's HTML
   answer, an error page. A placeholder a hand-written `app.Handle` handler writes
   itself goes out as it is, and its form is refused. (Before v0.4.0 such a
@@ -984,7 +1034,7 @@ page it redirects to.
 ```go
 import "github.com/Elagoht/collage-flash"
 
-Plugins: []collage.Plugin{flash.New(flash.Options{Key: key})},
+Plugins: []collage.Plugin{flash.New(flash.Options{KeyEnv: "FLASH_KEY"})},
 ```
 
 ```go
@@ -1001,16 +1051,21 @@ return collage.SeeOther("/settings"), nil
 ```json
 {
   "elagoht/flash": {
-    "key": "hex-encoded, 32 bytes or more",
+    "keyEnv": "FLASH_KEY",
     "cookie": "collage_flash",
-    "maxAge": 300
+    "maxAge": "5m"
   }
 }
 ```
 
-- v0.1.4 needs collage v0.50.0 or later (v0.1.2 was the last for v0.22.0), and must go in `Config.Plugins`: it adds
+- v0.2.0 needs collage v0.61.0 or later (v0.1.4 was the last for v0.50.0), and must go in `Config.Plugins`: it adds
   `{{flashes}}`.
-- The messages travel in a signed, `HttpOnly` cookie. Set a key of at least 32
+- **Changed in v0.2.0:** the hex `key` became `keyEnv`, the name of the
+  environment variable holding it (`Options.Key` from Go is unchanged), and
+  `maxAge` is a duration string, `"5m"` by default, where it was seconds. An old
+  `key` stops the application with `unknown key "key"`.
+- The messages travel in a signed, `HttpOnly` cookie, `Secure` when
+  `collage.IsHTTPS` says the request came over HTTPS. Set a key of at least 32
   random bytes, the same on every instance; without one a key is made per process
   and a warning logged.
 - A request carrying a message is rendered fresh, neither read from the page cache
@@ -1026,7 +1081,7 @@ encrypt, with no database behind it.
 ```go
 import "github.com/Elagoht/collage-session"
 
-Plugins: []collage.Plugin{session.New(session.Options{Key: key})},
+Plugins: []collage.Plugin{session.New(session.Options{KeyEnv: "SESSION_KEY"})},
 ```
 
 ```go
@@ -1050,17 +1105,24 @@ private := collage.NewFragment("private", "layouts/private.html").
 ```json
 {
   "elagoht/session": {
-    "key": "hex-encoded, 32 bytes or more",
+    "keyEnv": "SESSION_KEY",
+    "previousKeysEnv": "SESSION_PREVIOUS_KEYS",
     "encrypt": true,
-    "maxAge": 604800,
-    "idleTimeout": 0,
+    "maxAge": "168h",
+    "idleTimeout": "0s",
     "sameSite": "lax"
   }
 }
 ```
 
-- v0.2.3 needs collage v0.50.0 or later (v0.2.2 was the last for v0.49.0). It adds no
+- v0.3.0 needs collage v0.61.0 or later (v0.2.4 was the last for v0.60.0). It adds no
   template function, so `RegisterPlugin` accepts it too.
+- **Changed in v0.3.0:** keys never go in `plugins-config.json`. `keyEnv` names
+  the environment variable holding the hex key and `previousKeysEnv` the one
+  holding previous keys, comma-separated; from Go, `Options.Key` and
+  `Options.PreviousKeys` take the bytes. `maxAge` and `idleTimeout` are duration
+  strings (`"168h"`, `"30m"`) where they were seconds. An old `key` or
+  `previousKeys` stops the application with `unknown key`.
 - **`RequireUser(loginPath)`** (since v0.2.0) lets through a reader whose session
   holds a value under `session.UserKey` (`"user"`), and sends everyone else `303` to
   `loginPath` with where they were going in `next`: `/login?next=%2Fdashboard`. A
@@ -1077,8 +1139,10 @@ private := collage.NewFragment("private", "layouts/private.html").
   one is served from the cache as before. Set a session from an action, not from a
   cached page.
 - The cookie is `HttpOnly` and `SameSite=Lax`, written only when the session
-  changed. Keys rotate through `previousKeys`. A session cannot be revoked: it lives
-  in the reader's cookie.
+  changed, and `Secure` when `collage.IsHTTPS` says the request came over HTTPS.
+  Keys rotate through the previous keys: a cookie under one is accepted and
+  rewritten under the current key. A session cannot be revoked: it lives in the
+  reader's cookie.
 
 #### elagoht/uploads
 
@@ -1090,7 +1154,7 @@ was already parsed, or streams the body part by part, with the same result.
 ```go
 import "github.com/Elagoht/collage-uploads"
 
-u := uploads.New(uploads.Dir("var/uploads"))
+u := uploads.New(uploads.Options{Dir: "var/uploads"})
 
 Plugins: []collage.Plugin{u},
 ```
@@ -1126,9 +1190,15 @@ app.Handle("/uploads/", u.Handler())
 }
 ```
 
-- v0.1.0 needs collage v0.57.0 or later. It adds no template function, so
-  `RegisterPlugin` accepts it too. The configuration is read only when the plugin
-  is built without a store (`New(nil)` or `NewWith`).
+- v0.2.0 needs collage v0.61.0 or later (v0.1.1 was the last for v0.58.0). It adds no
+  template function, so `RegisterPlugin` accepts it too. Keep it in a variable:
+  the action calls `u.Receive` and the application mounts `u.Handler()`.
+- **Changed in v0.2.0:** one constructor, `uploads.New(uploads.Options{…})`:
+  `New(store)` is `New(uploads.Options{Store: store})` and `NewWith(uploads.Config{Dir: d})`
+  is `New(uploads.Options{Dir: d})`. `Handler` takes no argument; its
+  `Cache-Control` is `cacheControl` in configuration or `Options.CacheControl`.
+  The configuration is read even with a store given in Go, so an unknown key
+  stops the application there too.
 - **Two paths.** On an ordinary action, a plain `<form enctype="multipart/form-data">`
   with `{{csrfToken}}` works with no JavaScript, and `Receive` reads the parsed
   form — fine for files up to tens of MB. On an action built with
@@ -1191,13 +1261,13 @@ Plugins: []collage.Plugin{secure.New(secure.Options{
     "hsts": 63072000,
     "hstsSubdomains": true,
     "frameOptions": "DENY",
-    "key": "<64 hex characters: openssl rand -hex 32>",
+    "keyEnv": "SECURE_KEY",
     "permissionsPolicy": "camera=(), microphone=(), geolocation=()"
   }
 }
 ```
 
-- v0.2.3 needs collage v0.50.0 or later (v0.2.1 was the last for v0.43.0), and must go in
+- v0.3.0 needs collage v0.61.0 or later (v0.2.5 was the last for v0.60.0), and must go in
   `Config.Plugins`: it adds `{{cspNonce}}`. Its place in the list does not matter:
   the nonce goes in after the cache and before compression, through
   `PersonaliseHook`, so it works whether it is listed before or after
@@ -1205,8 +1275,11 @@ Plugins: []collage.Plugin{secure.New(secure.Options{
   the gzip body and the CSP blocked every inline script.)
 - By default it sends `X-Content-Type-Options`, `X-Frame-Options`,
   `Referrer-Policy`, `Cross-Origin-Opener-Policy` and, over TLS or behind a proxy
-  sending `X-Forwarded-Proto: https`, `Strict-Transport-Security`.
-  `Permissions-Policy` and the CSP are sent when set; `"-"` leaves a header out.
+  sending `X-Forwarded-Proto: https`, `Strict-Transport-Security`. Since v0.3.0
+  that header is believed only from a proxy in `Server.TrustedProxies` when any
+  are listed (`collage.IsHTTPS`). `Permissions-Policy` and the CSP are sent when
+  set; `"-"` leaves a header out, `X-Content-Type-Options` included
+  (`"contentTypeOptions": "-"`, which replaced `"noSniff": false` in v0.3.0).
 - `{nonce}` in the policy and `{{cspNonce}}` on an inline script are one nonce,
   new on every response: the cached page carries a placeholder, and the plugin's
   hook puts a fresh nonce in its place. A page carrying one is sent with
@@ -1214,14 +1287,17 @@ Plugins: []collage.Plugin{secure.New(secure.Options{
   response. Every other response answers conditional requests as usual: a feed,
   a document or a mounted file still gets its `304` (since v0.1.5; before, with a
   policy set, nothing behind the plugin could).
-- Set `key` (v0.2.1): hex, at least 32 random bytes, the same on every instance and
-  across restarts (`openssl rand -hex 32`, or `Options.Key` as bytes). With it the
+- Set a key: at least 32 random bytes, the same on every instance and across
+  restarts. A secret never goes in `plugins-config.json`: `keyEnv` names the
+  environment variable holding it in hex (`openssl rand -hex 32`), or `Options.Key`
+  takes the bytes from Go (v0.3.0; `key` and `Options.KeyHex` are gone). With it the
   `{{cspNonce}}` placeholder is the same in every process, so a page from a disk
   cache that survived a deploy, or from a cache shared by several instances, still
   gets its nonce. Without a key the placeholder changes per process, and such a
   page carries another process's placeholder, matching no header until the entry
   expires: set a key when you use a disk cache or several instances. A key that is
-  short or not hex stops the application from starting; keep it secret.
+  short, or a variable that is empty or not hex, stops the application from
+  starting; keep it secret.
 - With no policy, or one without `{nonce}`, there is no nonce to name: the `nonce`
   attribute is removed, as in a static build, and the page stays cacheable with a
   stable `ETag`.
@@ -1254,22 +1330,24 @@ Plugins: []collage.Plugin{ratelimit.New(ratelimit.Options{
 {
   "elagoht/ratelimit": {
     "rules": [{ "pathPrefix": "/login", "rate": 0.1, "burst": 5 }],
-    "trustProxy": true,
-    "trustedProxies": ["10.0.0.0/8"],
-    "skip": ["/_collage/", "/healthz"]
+    "skip": ["/_collage/", "/healthz", "/readyz", "/api/webhooks"]
   }
 }
 ```
 
-- v0.1.7 needs collage v0.52.0 or later (v0.1.6 was the last for v0.50.0). With no options, every form and action — every
+- v0.2.0 needs collage v0.61.0 or later (v0.1.8 was the last for v0.60.0). With no options, every form and action — every
   method but `GET`, `HEAD` and `OPTIONS` — is limited to a burst of ten, then one
   request every two seconds.
 - The first rule a request matches counts it, so put narrow rules first; each rule
-  has its own buckets. Responses carry `RateLimit-Limit`, `RateLimit-Remaining` and
-  `RateLimit-Reset`.
-- A client is its IP address, or its `/64` for IPv6. Behind a reverse proxy set
-  `trustProxy`, and the address is read from `X-Forwarded-For`, believed only from
-  a trusted proxy. `KeyFunc`, in Go, keys by something else.
+  has its own buckets. `skip` (by default `/_collage/`, `/healthz` and `/readyz`)
+  and a rule's `pathPrefix` match whole segments, with or without a trailing slash:
+  `/login` is not `/login-help`. Responses carry `RateLimit-Limit`,
+  `RateLimit-Remaining` and `RateLimit-Reset`.
+- A client is its IP address, or its `/64` for IPv6. Behind a reverse proxy list
+  the proxies in collage's `Server.TrustedProxies`, and the client is
+  `collage.ClientIP`. The plugin's own `trustProxy` and `trustedProxies` are gone
+  since v0.2.0, and an old configuration naming them stops at start. `KeyFunc`, in
+  Go, keys by something else.
 - Buckets are kept in memory, so limits are per process.
 - Since v0.1.7 a static build's header capture is not limited and gets no
   `RateLimit` headers.
@@ -1293,13 +1371,14 @@ Plugins: []collage.Plugin{basicauth.New(basicauth.Options{
   "elagoht/basicauth": {
     "realm": "Staging",
     "protect": ["/"],
-    "skip": ["/healthz", "/_collage/"],
+    "skip": ["/healthz", "/readyz", "/_collage/"],
     "disabled": false
   }
 }
 ```
 
-- v0.1.7 needs collage v0.53.0 or later (v0.1.6 was the last for v0.50.0). The application does not start with no users.
+- v0.1.9 needs collage v0.61.0 or later (v0.1.8 was the last for v0.60.0). The application does not start with no users,
+  unless `disabled` is set. `skip` defaults to `/healthz`, `/readyz` and `/_collage/`.
 - A password is written in plain text, as `sha256:` and its hex, or as a bcrypt
   hash. `COLLAGE_BASICAUTH_USERS` adds users from the environment, keeping secrets
   out of files.
@@ -1326,7 +1405,7 @@ elagoht/session, so `session.RequireUser` guards work unchanged.
 import "github.com/Elagoht/collage-oauth"
 
 Plugins: []collage.Plugin{
-	session.New(session.Options{KeyHex: os.Getenv("SESSION_KEY")}),
+	session.New(session.Options{KeyEnv: "SESSION_KEY"}),
 	oauth.New(oauth.Options{
 		Providers: []oauth.Provider{{
 			Name:            "google",
@@ -1354,15 +1433,18 @@ Plugins: []collage.Plugin{
     ],
     "afterLogin": "/account",
     "errorPath": "/sign-in-failed",
-    "key": "<64 hex characters: openssl rand -hex 32>"
+    "keyEnv": "OAUTH_KEY"
   }
 }
 ```
 
-- v0.1.1 needs collage v0.50.0 or later (v0.1.0 was the last for v0.44.0, which added `collage.SafeRedirect`) and elagoht/session
-  v0.2.1 or later, registered too: without it the login routes answer `500`.
-  `OnLogin` and `Store` are code, so set them in Go; the secret and the key belong
-  in the environment, not in a file under version control.
+- v0.2.0 needs collage v0.61.1 or later (v0.1.3 was the last for v0.60.0) and elagoht/session
+  v0.3.0 or later, registered too: without it the login routes answer `500`.
+  `collage plugin add elagoht/oauth` adds elagoht/session first. `OnLogin` and
+  `Store` are code, so set them in Go. The secret and the key stay in the
+  environment: the file names the variables, with `clientSecretEnv`, `keyEnv` and
+  `previousKeysEnv` (since v0.2.0; `key`, `previousKeys` and `Options.KeyHex` are
+  gone, and an old configuration stops at start).
 - The routes are `{prefix}/{name}/login` and `{prefix}/{name}/callback` (prefix
   `/auth`), `GET` only. Register `{origin}/auth/google/callback` with the provider:
   the origin is `Config.BaseURL`, or what an origin resolver such as elagoht/tenant
@@ -1386,10 +1468,13 @@ Plugins: []collage.Plugin{
 - **Key accounts on `Provider` + `Subject`**, and trust the e-mail only when
   `EmailVerified` is true: matching an account by an unverified address lets one
   reader take over another's.
-- With a `Store` and a `Key` (hex, at least 32 bytes) the tokens are kept sealed with
+- With a `Store` and a key (at least 32 bytes: `Options.Key` from Go, or hex in the
+  variable `keyEnv` names) the tokens are kept sealed with
   AES-256-GCM, and `plug.Client(ctx, userID, "google")` returns an `*http.Client`
   that sends the user's token and refreshes it. `errors.Is(err, oauth.ErrNotLinked)`
-  means send the reader through sign-in again; `Revoke` unlinks. The token goes only
+  means send the reader through sign-in again; `Revoke` unlinks. To rotate the key,
+  move the old one to `PreviousKeys` (or the variable `previousKeysEnv` names,
+  comma-separated hex). The token goes only
   to the host it was first sent to, or its subdomains.
 - Limits: no GitHub (not OpenID Connect), no account linking, and the id_token's
   signature is not checked (it comes from the token endpoint over TLS, which OpenID
@@ -1425,14 +1510,14 @@ Plugins: []collage.Plugin{f2b /* , the rest */},
   "elagoht/fail2ban": {
     "jails": {
       "probe": { "banTime": "6h" },
-      "notfound": { "off": true }
+      "notfound": { "disabled": true }
     },
     "allow": ["203.0.113.7", "10.0.0.0/8"]
   }
 }
 ```
 
-- v0.1.6 needs collage v0.52.0 or later (v0.1.4 was the last for v0.50.0), for `Server.TrustedProxies`, `collage.ClientIP`
+- v0.2.0 needs collage v0.61.0 or later (v0.1.8 was the last for v0.60.0), for `collage.Duration`, `Server.TrustedProxies`, `collage.ClientIP`
   and a `RequestHook` that sees requests collage rejects before routing. List it
   first in `Config.Plugins`, after `elagoht/health` when that is used, so its ban
   check runs before the other plugins' middleware and health's probes are not
@@ -1458,7 +1543,9 @@ Plugins: []collage.Plugin{f2b /* , the rest */},
   yours, or user content on your own origin, using an iframe or a fetch still
   counts. A scanner forging these headers goes undetected. A jail of your
   own strikes only on `Report`; override any by name, or turn it off with
-  `"off": true`.
+  `"disabled": true` (`"off"` until v0.2.0). Durations are strings — `"10m"`,
+  `"1h30m"` — and a bare number such as `"banTime": 3600` stops the application,
+  naming the key.
 - A repeat ban doubles, up to `maxBanTime` (`24h`). A banned client gets a plain
   `403 Forbidden`, never the site's error page. Collage's own `404` or redirect for
   an encoded-slash or dirty-path request still reaches it.
@@ -1483,7 +1570,7 @@ paths you list, the server can read the choice too.
 ```go
 import "github.com/Elagoht/collage-consent"
 
-Plugins: []collage.Plugin{consent.New()}, // configured from plugins-config.json
+Plugins: []collage.Plugin{consent.New(consent.Options{})}, // configured from plugins-config.json
 ```
 
 ```json
@@ -1496,12 +1583,13 @@ Plugins: []collage.Plugin{consent.New()}, // configured from plugins-config.json
       { "name": "media" }
     ],
     "text": {
-      "en": {
-        "title": "Cookies", "body": "We use cookies to measure visits and to show embedded media.",
-        "accept": "Accept all", "reject": "Reject all", "save": "Save choices", "settings": "Choose",
-        "placeholder": "This content loads from {host}.", "allow": "Allow {category}",
-        "categories": { "necessary": "Necessary", "analytics": "Analytics", "media": "Embedded media" }
-      }
+      "title": "Cookies", "body": "We use cookies to measure visits and to show embedded media.",
+      "accept": "Accept all", "reject": "Reject all", "save": "Save choices", "settings": "Choose",
+      "placeholder": "This content loads from {host}.", "allow": "Allow {category}",
+      "categories": { "necessary": "Necessary", "analytics": "Analytics", "media": "Embedded media" }
+    },
+    "locales": {
+      "tr": { "title": "Çerezler", "accept": "Tümünü kabul et", "reject": "Tümünü reddet" }
     },
     "policyURL": "/privacy",
     "maxAgeDays": 180,
@@ -1510,12 +1598,14 @@ Plugins: []collage.Plugin{consent.New()}, // configured from plugins-config.json
 }
 ```
 
-- v0.1.0 needs collage v0.57.0 or later and `{{hoist "head"}}` in the layout.
+- v0.2.0 needs collage v0.61.0 or later (v0.1.3 was the last for v0.60.0) and `{{hoist "head"}}` in the layout.
   Without that marker nothing appears and nothing gated ever runs.
 - Consent is decided in the browser. Every visitor gets the same HTML, so the page
   cache works as before. `version` asks every visitor again when you bump it. A
-  `required` category is always granted and never written to the cookie. The default
-  locale's `text` must label every category; other locales fall back to it key by key.
+  `required` category is always granted and never written to the cookie. `text` is
+  the default locale's wording and must label every category; `locales` holds the
+  others, which fall back to `text` key by key (since v0.2.0; the old
+  `text: {"en": {…}}` shape stops the application, naming the locale key).
 - Mark up what needs consent so it is inert as written. A granted category turns a
   gated script into a real one, in document order, and gives a gated iframe its
   `src`. Until then the iframe has a placeholder button, and markup added later by
@@ -1553,8 +1643,9 @@ Plugins: []collage.Plugin{consent.New()}, // configured from plugins-config.json
 - With collage-live, a pushed fragment is rendered once for every subscriber. A
   static export writes the script beside the pages and decides in the browser, so
   exported pages always render as "not granted" on the server.
-- One consent plugin per process: `Granted` reads the configuration of the last App
-  initialised. For analytics, set `consentCategory` on
+- `Granted` reads the configuration of the App it renders for (since v0.2.0; before,
+  the last App initialised), and is false without a render context, even for a
+  required category. For analytics, set `consentCategory` on
   [elagoht/analytics](#elagohtanalytics).
 
 ### Live updates
@@ -1572,7 +1663,7 @@ interval, or when the server pushes a change over an event stream.
 ```go
 import live "github.com/Elagoht/collage-live"
 
-Plugins: []collage.Plugin{live.New()},
+Plugins: []collage.Plugin{live.New(live.Options{})},
 ```
 
 ```json
@@ -1596,7 +1687,11 @@ Plugins: []collage.Plugin{live.New()},
 ```
 
 - It must go in `Config.Plugins`: it adds `{{liveClient}}`, which the layout calls
-  to include the client. v0.4.2 needs collage v0.50.0 or later (v0.4.1 was the last for v0.49.0).
+  to include the client. v0.5.1 needs collage v0.61.0 or later.
+- `keepAlive` and `maxStreamAge` are duration strings (`collage.Duration` in
+  `live.Options`): a number, a negative duration or a negative `maxFragments`
+  stops the application, and `null` leaves the default. Since v0.5.0 `live.New()`
+  and `live.NewWith(live.Config{…})` are one `live.New(live.Options{…})`.
 - The page owns the container and the fragment owns what is inside it.
   `data-collage-interval` fetches on an interval, `data-collage-push` takes the
   fragment from the stream, `data-collage-swap="morph"` patches the DOM in place,
@@ -1664,7 +1759,8 @@ Plugins: []collage.Plugin{live.New()},
   once with the cookies it holds then.
 - The stream is served at `<prefix>stream/`. A compression middleware of your own
   should leave `text/event-stream` alone, or the stream arrives only when it ends.
-  With `noStream` the client only polls.
+  With `noStream` the client only polls, and nothing is pushed over any other
+  transport either.
 
 #### elagoht/websocket
 
@@ -1677,27 +1773,37 @@ import (
 	"github.com/Elagoht/collage-websocket"
 )
 
-Plugins: []collage.Plugin{websocket.New(nil), live.New()},
+Plugins: []collage.Plugin{websocket.New(websocket.Options{}), live.New(live.Options{})},
 ```
 
 - `collage plugin add elagoht/websocket` adds collage-live too, and puts websocket
-  before it. `New(nil)` finds the application's live plugin by itself (since
-  v0.3.0, which needs collage v0.58.0 and collage-live v0.4.2 or later);
-  `websocket.New(lv)` with your own `lv := live.New()` still works.
+  before it. The plugin finds the application's live plugin by itself, wherever it
+  is listed; without one, `collage.New` fails. v0.4.0 needs collage v0.61.1 and
+  collage-live v0.5.1 or later; `websocket.New(lv)`, `New(nil)` and `NewWith` are
+  gone.
 - Nothing else changes: the layout still includes `{{liveClient}}`, which now tells
   the client to connect here, and elements still say `data-collage-push`.
   collage-live stops serving its event stream. The WebSocket is opened from the
-  same shared worker, so every tab still shares one connection, and `maxStreamAge`
-  applies to it too.
+  same shared worker, so every tab still shares one connection.
+- **The push settings are live's.** The WebSocket is served at live's `prefix`
+  plus `ws/` (`/_live/ws/` by default), pinged every live `keepAlive`, and closed
+  after live's `maxStreamAge`; with live's `noStream` a connection is refused with
+  404. `Path` and `Ping` are gone, and `path` or `ping` in its configuration is an
+  unknown key.
 - **Usually you do not need it.** Pushing fragments is one-way, which is what an
   event stream is for: it needs no dependency and reconnects by itself. This plugin
   is for deployments where streams are what breaks — a proxy that buffers them, a
   platform that limits them. It is the one piece of the live stack with a
   dependency, `github.com/coder/websocket`.
 - A connection carries the reader's cookies, so by default only a page from the
-  site itself may open one; `websocket.NewWith(lv, websocket.Options{...})` sets
-  the `Path` (`/_live/ws/`), the `Ping` interval and the `OriginPatterns` that may
-  connect as well.
+  site itself may open one; `originPatterns` names other hosts whose pages may:
+
+```json
+{
+  "elagoht/live": { "prefix": "/push/", "keepAlive": "20s", "maxStreamAge": "1h" },
+  "elagoht/websocket": { "originPatterns": ["admin.example.com"] }
+}
+```
 
 ### Assets and delivery
 
@@ -1714,25 +1820,28 @@ endpoints, and from the files your mounts serve.
 ```go
 import minimizer "github.com/Elagoht/collage-minimizer"
 
-Plugins: []collage.Plugin{minimizer.New()},
+Plugins: []collage.Plugin{minimizer.New(minimizer.Options{})},
 ```
 
 ```json
 {
-  "elagoht/minimizer": { "html": true, "json": true, "css": true, "js": false }
+  "elagoht/minimizer": { "noCSS": false, "js": true }
 }
 ```
 
-- v0.1.10 needs collage v0.55.0 or later (v0.1.9 was the last for v0.50.0), and must go in `Config.Plugins`: it wraps the
-  mounted filesystems, which happens while the application is built. v0.1.10 fixes a
-  data race in the byte totals behind the shutdown summary, which pages rendering at the
-  same time could make wrong.
-- `New()` enables HTML, JSON and CSS. JavaScript is off by default; turn it on with
-  `{"js": true}`. `minimizer.NewWith(minimizer.Config{...})` sets every switch
-  yourself and bypasses those defaults.
-- Each key covers its language wherever it appears (since v0.1.5): `js` a mounted
-  script and an inline `<script>` of JavaScript or a module, `css` a stylesheet and
-  a `<style>`, `json` a JSON document and a `<script>` holding JSON —
+- v0.2.0 needs collage v0.61.0 or later (v0.1.11 was the last for v0.60.0), and must go in `Config.Plugins`: it wraps the
+  mounted filesystems, which happens while the application is built.
+- The zero `Options` minifies HTML, JSON and CSS; `noHTML`, `noJSON` and `noCSS`
+  turn one off. JavaScript is off by default; turn it on with `{"js": true}`.
+  `minimizer.New(minimizer.Options{...})` sets a starting point that the JSON
+  section is decoded over.
+- **Changed in v0.2.0:** `New()` and `NewWith(Config{…})` are `New(Options{…})`;
+  `"html": false`, `"json": false` and `"css": false` are `"noHTML": true`,
+  `"noJSON": true` and `"noCSS": true`, and `"html": true` and the like are simply
+  left out. An old key stops the application at start.
+- Each language is covered wherever it appears (since v0.1.5): JavaScript a mounted
+  script and an inline `<script>` of JavaScript or a module, CSS a stylesheet and
+  a `<style>`, JSON a JSON document and a `<script>` holding JSON —
   `application/ld+json`, `importmap`. A script of a type it does not know, such as
   `text/template`, stays verbatim.
 - It is a scanner, not a parser, and removes only what cannot carry meaning:
@@ -1754,23 +1863,28 @@ copy it serves itself, from its own mount.
 ```go
 import optiimage "github.com/Elagoht/collage-opti-image"
 
-Plugins: []collage.Plugin{optiimage.New()},
+Plugins: []collage.Plugin{optiimage.New(optiimage.Options{})},
 ```
 
 ```json
 {
   "elagoht/opti-image": {
-    "allowedOrigins": [{ "scheme": "https", "host": "images.example.com" }],
+    "allowedOrigins": ["https://images.example.com"],
     "webp": "auto"
   }
 }
 ```
 
-- v0.3.5 needs collage v0.55.0 or later (v0.3.4 was the last for v0.50.0), and must go in `Config.Plugins`.
+- v0.4.0 needs collage v0.61.0 or later (v0.3.7 was the last for v0.60.0), and must go in `Config.Plugins`.
+- **Changed in v0.4.0:** `New()` and `NewWith(Config{…})` are `New(Options{…})`;
+  `allowedOrigins` is a list of origin strings (`"https://cms.example.com"`), not
+  `{scheme, host}` objects, each checked as `collage.ParseOrigin` checks one;
+  `fetchTimeout` and `originMaxAge` are strings such as `"10s"`, and a bare number
+  stops the application; a negative size, pixel count or quality is an error.
 - **An empty `allowedOrigins`, with no `Files`, disables it.** It never fetches
   from a host you did not list, and the scheme is part of the origin.
 - **The site's own images come from its files** (since v0.3.0):
-  `optiimage.NewWith(optiimage.Config{Files: map[string]fs.FS{"/static/": staticFS}})`
+  `optiimage.New(optiimage.Options{Files: map[string]fs.FS{"/static/": staticFS}})`
   makes `<img src="/static/avatar.png" width="256" height="256">` a resized copy
   read from `staticFS`, with no request made — so the site does not fetch from its
   own public address, and a test or an export needs no network. The file's content
@@ -1794,7 +1908,7 @@ Plugins: []collage.Plugin{optiimage.New()},
   `.cache/opti-image` by default (`cacheDir`); `p.Purge()` and
   `p.PurgeSource(url)` clear them.
 
-`optiimage.NewWith(optiimage.Config{...})` sets a starting configuration in Go,
+`optiimage.New(optiimage.Options{...})` sets a starting configuration in Go,
 which the JSON section is then decoded over key by key.
 
 #### elagoht/bundle
@@ -1829,8 +1943,12 @@ Plugins: []collage.Plugin{bundle.New(bundle.Options{
 }
 ```
 
-- v0.1.5 needs collage v0.50.0 or later (v0.1.2 was the last for v0.23.0), and must go in `Config.Plugins`: it adds
+- v0.2.0 needs collage v0.61.0 or later (v0.1.6 was the last for v0.60.0), and must go in `Config.Plugins`: it adds
   `{{bundle}}`.
+- `minify` and `sourcemap` are `""` (left out: on outside development only for
+  `minify`), `"always"` or `"never"`. **Changed in v0.2.0:** they were booleans, and
+  `true` or `false` now stops the application at start; `prefix` no longer needs its
+  trailing `/`.
 - The output is served from a mount at `/_bundle/`, each file under esbuild's hash
   of its content and cached for a year. A name the build did not produce fails the
   render, as `{{asset}}` does for a missing file.
@@ -1869,8 +1987,10 @@ Plugins: []collage.Plugin{favicon.New(favicon.Options{
 }
 ```
 
-- v0.1.5 needs collage v0.50.0 or later (v0.1.2 was the last for v0.23.0). The source is a square PNG, JPEG or GIF,
-  ideally 512 pixels or larger, read from disk or from `FS`.
+- v0.2.0 needs collage v0.61.0 or later (v0.1.7 was the last for v0.60.0). The source is a square PNG, JPEG or GIF,
+  ideally 512 pixels or larger, read from disk or from `FS`, or given as bytes in
+  `SourceBytes` and `SVGBytes` (`Image` and `SVGImage` before v0.2.0). The start page
+  key is `startURL`.
 - The icons are made once at startup and served as static documents, so a static
   build writes them. An SVG is passed through, never rasterised.
 - The links carry `?v=` and a digest of the source, so a changed icon is a changed
@@ -1897,7 +2017,7 @@ Plugins: []collage.Plugin{
 }
 ```
 
-- v0.1.8 needs collage v0.55.0 or later (v0.1.7 was the last for v0.50.0). **Register it before any plugin that rewrites
+- v0.2.0 needs collage v0.61.0 or later (v0.1.10 was the last for v0.60.0). **Register it before any plugin that rewrites
   response bodies**: the first plugin registered is the outermost middleware.
   elagoht/secure and elagoht/honeypot no longer need this (secure v0.2.0, honeypot
   v0.4.0, collage v0.43.0): they rewrite through `PersonaliseHook`, inside every
@@ -1918,6 +2038,8 @@ Plugins: []collage.Plugin{
   it is turned on. The README's BREACH section lists the other mitigations.
 - A static build writes a `.br` and a `.gz` beside every compressible file, for a
   host that serves precompressed files; `noPrecompress` turns it off.
+- `noCache` (since v0.2.0) keeps no compressed bodies; it replaces a negative
+  `cacheBytes`, which now stops the application.
 
 #### elagoht/cdnpurge
 
@@ -1929,10 +2051,9 @@ service that takes a list of URLs through a webhook.
 import "github.com/Elagoht/collage-cdnpurge"
 
 Plugins: []collage.Plugin{cdnpurge.New(cdnpurge.Options{
-	BaseURL: "https://example.com",
 	Cloudflare: &cdnpurge.Cloudflare{
-		ZoneID:   os.Getenv("CF_ZONE_ID"),
-		APIToken: os.Getenv("CF_API_TOKEN"),
+		ZoneID:      os.Getenv("CF_ZONE_ID"),
+		APITokenEnv: "CF_API_TOKEN",
 	},
 })},
 ```
@@ -1940,25 +2061,28 @@ Plugins: []collage.Plugin{cdnpurge.New(cdnpurge.Options{
 ```json
 {
   "elagoht/cdnpurge": {
-    "baseURL": "https://example.com",
-    "webhook": { "url": "https://purge.example.com/", "token": "..." },
+    "webhook": { "url": "https://purge.example.com/", "tokenEnv": "PURGE_TOKEN" },
     "window": "2s",
     "retries": 4
   }
 }
 ```
 
-- v0.2.4 needs collage v0.50.0 or later (v0.2.1 was the last for v0.49.0). At least one of `cloudflare` and `webhook` is
-  required, and an origin: `baseURL`, `Config.BaseURL` or an origin resolver.
+- v0.3.0 needs collage v0.61.0 or later (v0.2.5 was the last for v0.60.0). At least one of `cloudflare` and `webhook` is
+  required, and an origin: `Config.BaseURL` or an origin resolver.
+- **Changed in v0.3.0:** `baseURL` is gone (set `Config.BaseURL`); `force` is
+  `inDevelopment`; `cloudflare.apiToken` and `webhook.token` are `apiTokenEnv` and
+  `tokenEnv`, naming the environment variable that holds the token (`APIToken` and
+  `Token` take it from Go); durations are strings, and a negative `retries` is an
+  error. An old key stops the application at start.
 - It purges exactly the [paths an invalidation dropped](/docs/caching#invalidating-by-path),
-  under `baseURL`. Without one it falls back to `Config.BaseURL`, and since v0.2.0
-  (collage v0.42.0) purges each entry under its own host's origin, as an
+  under `Config.BaseURL`, and purges each entry under its own host's origin, as an
   `OriginResolver` plugin names it; two hosts of one origin purge the URL once. A page the origin had not cached is not named, so make sure what
   the CDN caches, collage caches too.
 - Purges are batched for `window`, sent off the goroutine that invalidated, retried
   on a `429` or `5xx`, and flushed on shutdown. A development server purges nothing
-  unless `force` is set.
-- Keep the API token out of a file under version control.
+  unless `inDevelopment` is set.
+- The token never goes in `plugins-config.json`, only its variable's name.
 
 #### elagoht/offline
 
@@ -1992,16 +2116,20 @@ Plugins: []collage.Plugin{offline.New(offline.Options{
 }
 ```
 
-- v0.1.5 needs collage v0.50.0 or later (v0.1.3 was the last for v0.24.0), and must go in `Config.Plugins`: it adds
+- v0.2.0 needs collage v0.61.0 or later (v0.1.6 was the last for v0.60.0), and must go in `Config.Plugins`: it adds
   `{{offlineScript}}`, which installs the worker served at `/sw.js`.
+- **Changed in v0.2.0:** `version` is `buildID`, `inDev` is `inDevelopment`, and a
+  negative `maxPages` or `maxAssets` (keep everything) is an error — write a large
+  number. An `assets` prefix covers whole path segments, with or without its
+  trailing `/`.
 - Pages are fetched network-first and kept; static files under `assets` are served
   stale-while-revalidate; a page neither reachable nor kept gets the `fallback`
   page. A response marked `no-store` is never kept.
 - The worker's caches are named after a version that changes with each deployment,
-  so a new build replaces what the old one kept. The build is `version` when set,
+  so a new build replaces what the old one kept. The build is `buildID` when set,
   and otherwise collage's `Host.BuildID` — `Config.Cache.Version`, or a
   fingerprint of the executable.
-- In development `/sw.js` unregisters itself. A static build writes `sw.js`; keep a
+- In development `/sw.js` unregisters itself, unless `inDevelopment` is set. A static build writes `sw.js`; keep a
   CDN from holding it long.
 
 #### elagoht/deploy
@@ -2014,7 +2142,7 @@ the export.
 ```go
 import "github.com/Elagoht/collage-deploy"
 
-Plugins: []collage.Plugin{deploy.NewWith(deploy.Config{Target: "netlify"})},
+Plugins: []collage.Plugin{deploy.New(deploy.Options{Target: "netlify"})},
 ```
 
 ```json
@@ -2025,7 +2153,8 @@ Plugins: []collage.Plugin{deploy.NewWith(deploy.Config{Target: "netlify"})},
 }
 ```
 
-- v0.1.0 needs collage v0.52.0 or later. `target` is `netlify`, `cloudflare`,
+- v0.2.0 needs collage v0.61.2 or later (v0.1.2 was the last for v0.60.0); its
+  constructor is `deploy.New(deploy.Options{…})`, and the JSON is unchanged. `target` is `netlify`, `cloudflare`,
   `vercel` or `github-pages`; another value stops the application from starting.
   Left empty, it writes nothing, removes what the last export wrote, and warns.
 - `netlify` and `cloudflare` get `_headers` and `_redirects`, `vercel` a
@@ -2081,7 +2210,9 @@ Plugins: []collage.Plugin{htmlcheck.New(htmlcheck.Options{})},
 }
 ```
 
-- v0.1.5 needs collage v0.50.0 or later (v0.1.2 was the last for v0.22.0).
+- v0.2.0 needs collage v0.61.0 or later (v0.1.6 was the last for v0.60.0). It
+  has no `inProduction` key any more: findings on a production server went
+  nowhere, so read them in development or in a static build.
 - In development each page is checked as it renders, and what is found is shown
   over the page. In a static build every page is checked, then the build as a
   whole — titles two pages share, links to pages the build did not write — and an
@@ -2093,6 +2224,9 @@ Plugins: []collage.Plugin{htmlcheck.New(htmlcheck.Options{})},
   `warn` by default. `rules` changes a level or turns one `off`; a rule name it
   does not know stops the application from starting. `htmlcheck.Rules()` lists
   them all.
+- `ignoreLinks` prefixes cover whole segments, with or without the trailing `/`,
+  and must begin with `/`. A negative `titleMax`, `descriptionMax` or
+  `pageBudget` stops the application; 0 is the default (60, 160, no budget).
 
 #### elagoht/devtoolbar
 
@@ -2108,11 +2242,11 @@ import "github.com/Elagoht/collage-devtoolbar"
 
 Plugins: []collage.Plugin{
 	htmlcheck.New(htmlcheck.Options{}),
-	devtoolbar.New(), // last
+	devtoolbar.New(devtoolbar.Options{}), // last
 },
 ```
 
-- v0.3.0 needs collage v0.57.0 or later (v0.2.4 was the last for v0.49.0).
+- v0.4.0 needs collage v0.61.0 or later (v0.3.2 was the last for v0.60.0).
 - **Local clients only.** The panel is drawn only for a client on the developer's
   machine or a private network (loopback, RFC 1918, IPv6 unique-local,
   link-local), as `collage.ClientIP` names it, so behind a proxy listed in
@@ -2121,7 +2255,7 @@ Plugins: []collage.Plugin{
 - A tailnet or carrier-grade NAT address (`100.64.0.0/10`) is not a private
   network, so a phone reaching the machine over Tailscale gets no panel. To show
   it to remote clients, turn the check off with
-  `devtoolbar.NewWith(devtoolbar.Options{AllowRemote: true})`, or in the
+  `devtoolbar.New(devtoolbar.Options{AllowRemote: true})`, or in the
   plugin configuration:
 
 ```json
@@ -2152,21 +2286,24 @@ Plugins: []collage.Plugin{accesslog.New(accesslog.Options{})},
   "elagoht/accesslog": {
     "skip": ["/_collage/", "/healthz", "/readyz", "/static/"],
     "sample": 0.25,
-    "trustProxy": true,
-    "requestIdHeader": "X-Request-ID"
+    "requestIDHeader": "X-Request-ID"
   }
 }
 ```
 
-- v0.1.11 needs collage v0.55.0 or later (v0.1.10 was the last for v0.53.0). `/healthz` and
-  `/readyz`, the paths of `elagoht/health`, are skipped by default.
+- v0.2.0 needs collage v0.61.0 or later (v0.1.13 was the last for v0.60.0).
+  `/_collage/`, and `/healthz` and `/readyz`, the paths of `elagoht/health`, are
+  skipped by default. A `skip` prefix covers whole segments, with or without the
+  trailing `/`: `/healthz` does not cover `/healthz-report`.
 - The line has the method, path without its query, status, bytes, duration, client
   address, user agent, referer and request id, through the application's logger or
   `Options.Logger`; a `5xx` is logged at `ERROR`.
 - An `X-Request-ID` that looks like an id is kept, otherwise a new one is made; it
   is sent back and read with `accesslog.RequestID(ctx)`.
-- `sample` logs a fraction of `2xx` responses, never of the rest. `trustProxy`
-  reads the client's address from `X-Forwarded-For`, from trusted proxies only.
+- `sample` logs a fraction of `2xx` responses, never of the rest. The client's
+  address is `collage.ClientIP`, so behind a proxy list it in
+  `Server.TrustedProxies`; the `trustProxy` and `trustedProxies` keys are gone, and
+  `X-Real-IP` is never read.
 - **The referer is logged without its query** (since v0.1.11): its scheme, host and path
   only, with no query, fragment or user info, where a reset token or a session id can
   travel. One that does not parse is logged as `""`. `fullReferer: true` logs the header
@@ -2181,7 +2318,7 @@ events, HTTP responses by route, invalidations — and serves them at `/metrics`
 ```go
 import "github.com/Elagoht/collage-prometheus"
 
-m := prometheus.NewMetrics(prometheus.Options{Namespace: "collage"})
+m := prometheus.New(prometheus.Options{Namespace: "collage"})
 
 app, err := collage.New(&collage.Config{
 	Observability: collage.ObservabilityConfig{Metrics: m},
@@ -2191,11 +2328,12 @@ app, err := collage.New(&collage.Config{
 
 ```json
 {
-  "elagoht/prometheus": { "path": "/metrics", "token": "s3cret" }
+  "elagoht/prometheus": { "path": "/metrics", "tokenEnv": "METRICS_TOKEN" }
 }
 ```
 
-- v0.2.6 needs collage v0.50.0 or later (v0.2.3 was the last for v0.49.0). Hand the one value
+- v0.3.0 needs collage v0.61.0 or later (v0.2.8 was the last for v0.60.0), and
+  `NewMetrics` is now `New`. Hand the one value
   over as both the application's `Metrics` and a plugin: without the first nothing
   is measured, without the second nothing is served.
 - No label is taken from a request. Since v0.2.0 `route` is what
@@ -2204,8 +2342,10 @@ app, err := collage.New(&collage.Config{
   `mount:/static/`, a 404 `other` — so a crawler inventing paths cannot mint time
   series. The `routes` option is gone: mounts and handlers are labelled by their
   prefix without it.
-- Set `token` and the scrape must send it as a bearer token; `path: "-"` serves the
-  metrics nowhere. The path is exact: one another route already answers, or one
+- With a token, the scrape must send it as a bearer token. The token is a secret,
+  so it never goes in `plugins-config.json`: `tokenEnv` names the environment
+  variable that holds it, or `Options.Token` sets it from Go; a `token` key stops
+  the application. `path: "-"` serves the metrics nowhere. The path is exact: one another route already answers, or one
   ending in `/`, stops the application from starting.
 
 #### elagoht/otel
@@ -2217,7 +2357,7 @@ caller started.
 ```go
 import otel "github.com/Elagoht/collage-otel"
 
-t := otel.NewTracer(provider.Tracer("example.com/site"))
+t := otel.New(otel.Options{Tracer: provider.Tracer("example.com/site")})
 
 app, err := collage.New(&collage.Config{
 	Observability: collage.ObservabilityConfig{Tracer: t},
@@ -2229,7 +2369,8 @@ app, err := collage.New(&collage.Config{
 { "elagoht/otel": { "skip": ["/healthz"] } }
 ```
 
-- v0.2.8 needs collage v0.50.0 or later (v0.2.5 was the last for v0.49.0). As the tracer it
+- v0.3.0 needs collage v0.61.0 or later (v0.2.10 was the last for v0.60.0), and
+  `NewTracer(tracer)` is now `New(otel.Options{Tracer: tracer})`. As the tracer it
   turns `collage.http`, `collage.render` and `collage.fragment` into spans; as a
   plugin it reads the caller's trace context from the headers, in a `RequestHook`
   that runs before collage's own span. Each works alone.
@@ -2240,6 +2381,9 @@ app, err := collage.New(&collage.Config{
   the prefix of a mount or a handler.
 - The application owns the SDK: the provider, the exporter, the sampler and the
   propagator. Set a propagator, or every request starts a trace of its own.
+- `skip` prefixes match at a segment boundary, with or without the trailing `/`.
+  `url.scheme` follows `collage.IsHTTPS`, so it is `https` behind a trusted proxy
+  that says so.
 
 #### elagoht/analytics
 
@@ -2260,16 +2404,18 @@ Plugins: []collage.Plugin{analytics.New(analytics.Options{
   "elagoht/analytics": {
     "plausible": { "domain": "example.com" },
     "exclude": ["admin"],
-    "respectDnt": true,
+    "respectDNT": true,
     "requireConsent": true
   }
 }
 ```
 
-- v0.2.0 needs collage v0.57.0 or later (v0.1.5 was the last for v0.50.0, v0.1.2 for v0.23.0), and `{{hoist "head"}}` in the layout.
+- v0.2.3 needs collage v0.61.0 or later (v0.2.2 was the last for v0.60.0), and `{{hoist "head"}}` in the layout.
+  Its keys spell initialisms as Go does: `respectDNT`, `goatCounter`, Umami's
+  `websiteID`, Google Analytics' `measurementID`.
 - Plausible, Umami and GoatCounter count visits without cookies. Google Analytics
   4 sets cookies; use it with `requireConsent`.
-- With `respectDnt` or `requireConsent`, a small loader served from the site
+- With `respectDNT` or `requireConsent`, a small loader served from the site
   decides in the browser, before any provider's script is fetched: nothing loads
   under Do Not Track or Global Privacy Control, or until the page calls
   `window.collageAnalyticsConsent()`.
@@ -2282,7 +2428,7 @@ Plugins: []collage.Plugin{analytics.New(analytics.Options{
   script and the inline call that configures it, with no loader.
 - `consentCategory` cannot be combined with `requireConsent`: the application does
   not start with both, nor with a name that is not lowercase letters, digits and
-  hyphens. `respectDnt` still applies and also honours Global Privacy Control, so a
+  hyphens. `respectDNT` still applies and also honours Global Privacy Control, so a
   browser sending GPC loads nothing even after "Accept all". Under a strict
   Content-Security-Policy, Google Analytics' inline tag needs a `'sha256-…'` in
   `script-src` (see the consent plugin's CSP notes above).
@@ -2297,7 +2443,7 @@ every absolute URL the site writes follows the host.
 ```go
 import "github.com/Elagoht/collage-tenant"
 
-Plugins: []collage.Plugin{tenant.NewWith(tenant.Options{
+Plugins: []collage.Plugin{tenant.New(tenant.Options{
 	Tenants: []tenant.Static{
 		{ID: "acme", Origin: "https://acme.app.com", Hosts: []string{"acme.app.com", "acme.localhost"}},
 	},
@@ -2317,18 +2463,19 @@ Plugins: []collage.Plugin{tenant.NewWith(tenant.Options{
 }
 ```
 
-- v0.1.3 needs collage v0.53.0 or later (v0.1.2 was the last for v0.50.0), and `tenants` or a `Resolve` function (Go only).
+- v0.2.0 needs collage v0.61.2 or later (v0.1.4 was the last for v0.60.0), and `tenants` or a `Resolve` function (Go only).
 - A host that is no tenant's is answered 404 with the site's own 404 page. A
   resolver that fails or panics is answered 503 with a `Retry-After`, and that is
-  not cached. A "no tenant" answer is, for `ttl` (`"1m"`); `maxHosts` (10000)
-  bounds how many hosts are remembered. `bypass` hosts are served without a tenant.
+  not cached. A "no tenant" answer is, for `ttl` (`"1m"`, a duration string; a
+  number is an error); `maxHosts` (10000) bounds how many hosts are remembered,
+  and a negative one stops the application. `bypass` hosts are served without a tenant.
 - A handler reads the tenant with `tenant.ID(rc)`, and code that holds only a
   context, such as a page's `StaticParams`, with `tenant.IDFromContext(ctx)`. Both
   are safe in a cached page. `collage.BaseURL(rc)` is the tenant's origin.
 - `elagoht/sitemap`, `feed`, `meta`, `ogimage`, `indexnow`, `cdnpurge` and `robots`
   follow the host from v0.2.0.
 - `acme.localhost` works through `collage dev`. A static build has no host, so it
-  renders without a tenant and warns `tenant/no-host`. A static export is the site of
+  renders without a tenant and warns `tenant-no-host`. A static export is the site of
   `Config.BaseURL`'s host, rendered without a tenant; exporting per tenant is not
   supported. Its header capture is answered as that host, so it must be a tenant's
   or listed in `bypass`.
@@ -2361,16 +2508,17 @@ Plugins: []collage.Plugin{errortrack.New(errortrack.Options{
 }
 ```
 
-- v0.1.4 needs collage v0.50.0 or later (v0.1.1 was the last for v0.49.0), whose `ErrorEvent` carries the status and the
+- v0.2.0 needs collage v0.61.0 or later (v0.1.7 was the last for v0.60.0), whose `ErrorEvent` carries the status and the
   request, and a `DSN` or `DSNEnv`: startup fails without one, except in dev mode
   without `inDevelopment`, where nothing is sent and no DSN is needed. The DSN is a
-  credential; keep it in the environment, not in `collage.json`.
+  credential; keep it in the environment, not in `plugins-config.json`. `timeout`
+  (`"5s"`) is a duration string; a number stops the application.
 - What leaves the server is limited: the error chain, a panic's stack, the route
   pattern rather than the raw path (only `scheme://host` when no route resolved, as
   for a middleware's panic; the raw path only with `sendPath`), query keys with
   `[filtered]` values, and six request headers, the `Referer` cut to its origin
-  unless `sendPath` is set. Cookies, `Authorization`, the body and the client address are
-  never sent (the address only with `sendIP`). A user is sent only as far as your
+  unless `sendPath` is set; the URL's scheme follows `collage.IsHTTPS`. Cookies, `Authorization`, the body and the client address are
+  never sent (the address only with `sendIP`, as `collage.ClientIP` names it). A user is sent only as far as your
   `User` callback returns one.
 - A message is sent as the failing code wrote it, and may carry a secret. Scrub it
   with `BeforeSend`, which may edit the event or return `false` to drop it.
@@ -2393,7 +2541,7 @@ static export never contains them.
 ```go
 import "github.com/Elagoht/collage-health"
 
-h := health.New()
+h := health.New(health.Options{})
 h.Check("db", func(ctx context.Context) error { return db.PingContext(ctx) })
 
 app, err := collage.New(&collage.Config{
@@ -2419,8 +2567,9 @@ app, err := collage.New(&collage.Config{
 }
 ```
 
-- v0.1.0 needs collage v0.53.0 or later, for `DrainHook` and
-  `ServerConfig.DrainDelay`.
+- v0.2.0 needs collage v0.61.0 or later (v0.1.2 was the last for v0.60.0). The
+  durations are strings: `"checkTimeout": 2` stops the application, naming the
+  key; write `"2s"`.
 - `/healthz` (`livePath`) answers `200 ok` whenever the process serves a request,
   and runs no checks. `/readyz` (`readyPath`) answers `200 ok`, `503 unavailable`
   while a check fails, and `503 draining` once a drain has started. Both answer
@@ -2461,7 +2610,7 @@ Nothing runs in `collage build`, in a plugin command, or in a test that only cal
 ```go
 import "github.com/Elagoht/collage-jobs"
 
-j := jobs.New()
+j := jobs.New(jobs.Options{})
 j.Every("refresh-feed", 15*time.Minute, refreshFeed).RunOnStart()
 j.Cron("cleanup", "0 3 * * *", cleanup).Timeout(10 * time.Minute)
 
@@ -2491,11 +2640,14 @@ if err := mail.Enqueue(r.Context(), Email{To: to}); err != nil {
 }
 ```
 
-- v0.1.0 needs collage v0.55.0 or later, for `ServeHook`.
+- v0.2.0 needs collage v0.61.0 or later (v0.1.1 was the last for v0.60.0).
+  Keep the plugin in a variable, as `j` above: `collage plugin add` writes
+  `jobs.New(jobs.Options{})` straight into the list, where nothing can call
+  `Every` on it.
 - **Every instance runs its own scheduled jobs.** With N replicas behind a load
   balancer, a job runs N times per trigger; there is no leader election. Make such
   a job safe to run concurrently, or run it on one instance only, deciding that
-  from the environment with `jobs.NewWith(jobs.Config{Disabled: …})` rather than
+  from the environment with `jobs.New(jobs.Options{Disabled: …})` rather than
   with `disabled` in a configuration every replica shares.
 - A job is a `func(ctx context.Context) error`, defined before the application
   starts. `Every(name, d, fn)` runs it every `d`, measured in elapsed time, so
@@ -2559,7 +2711,9 @@ is used from a data handler and a template; see [Pagination](/docs/static-export
 go get github.com/Elagoht/collage-paginate
 ```
 
-- v0.1.0 needs collage v0.57.0 or later.
+- v0.2.0 needs collage v0.61.0 or later. `FromPath(rc, last)` reads the path
+  parameter `n`, the one `PathNamed` and `StaticParams` write, where v0.1 took the
+  parameter's name; `paginate.Version` is gone.
 
 ## Plugins that write to the head
 

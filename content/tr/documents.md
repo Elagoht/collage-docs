@@ -1,6 +1,6 @@
 ---
 description: Sitemap'ler, feed'ler, robots.txt ve JSON gibi HTML yerine byte dönen route'lar, page'ler gibi cache'lenir ve invalidate edilir.
-reference: DocumentBuilder.AtRoot, DocumentBuilder.WithBody, DocumentBuilder.WithStaticParams, NewDocument, DocumentBuilder, Document, DocumentResult, StaticParamsFunc, ErrConflictingData
+reference: DocumentBuilder.AtRoot, DocumentBuilder.WithBody, DocumentBuilder.WithTimeout, DocumentBuilder.WithStaticParams, NewDocument, DocumentBuilder, Document, DocumentResult, StaticParamsFunc, ErrConflictingData
 ---
 
 # Document'lar: sitemap'ler, feed'ler, robots.txt
@@ -55,6 +55,7 @@ Bu yüzden document hiçbir şey render etmez. Body'yi formatı bilen bir encode
 | `WithCacheParams(names...)` | Page'lerde olduğu gibi, hangi query parametrelerinin cache key'ine girdiğini belirler. |
 | `WithStaticParams(fn)` | Static build'in bir `{param}` pattern'i için hangi placeholder değerlerini yazacağı; bkz. [aşağıdaki bölüm](#documents-in-a-static-export). v0.16.0'dan beri vardır. |
 | `WithDependencyTags(tags...)` | Bu document'ın her response'unun taşıdığı tag'ler. |
+| `WithTimeout(d)` | Handler'ı sınırlar; sıfır, yani varsayılan, `Config.Template.Timeout` demektir (v0.61.0'dan beri). |
 | `WithRedirect(from, to, status)` / `WithPermanentRedirect(from, to)` | Buraya redirect eden eski path'ler. |
 | `Build()` / `BuildErr()` | Document'ı ve zincirin topladığı hataları verir. |
 
@@ -126,10 +127,24 @@ Bilmeye değer üç kural var:
 - **Panic recover edilir** ve sıradan bir hataya dönüşür. Böylece bozuk tek bir feed
   bütün process'i çökertmez.
 
-Document'ın kendine ait bir timeout'u yoktur. Handler'ı `Config.Template.Timeout`
+Bir document `WithTimeout(d)` ile kendi timeout'unu belirlediğinde (v0.61.0'dan
+beri) handler'ı onun altında çalışır; belirlemediğinde `Config.Template.Timeout`
 altında çalışır (varsayılanı beş saniyedir). Bu, fragment'ler için varsayılan data
-handler timeout'u olan ayarın aynısıdır. Sınır size verilen `ctx`'e uygulanır, bu
-yüzden onu çağırdığınız her şeye aktarın.
+handler timeout'u olan ayarın aynısıdır. Büyük bir katalogu dolaşan bir sitemap,
+böylece her fragment'in ve her feed'in süresini değil yalnızca kendi süresini
+uzatır:
+
+```go
+collage.NewDocument("sitemap", "application/xml").
+	AtRoot("/sitemap.xml").
+	WithHandler(sitemap).
+	WithTimeout(30 * time.Second).
+	Build()
+```
+
+Timeout hem canlı bir request'te hem de static build'de uygulanır. Sıfır varsayılan
+demektir; negatif bir değer `collage.ErrInvalidTimeout` kaydeder. Sınır size verilen
+`ctx`'e uygulanır, bu yüzden onu çağırdığınız her şeye aktarın.
 
 ### Hatalar düz metindir
 

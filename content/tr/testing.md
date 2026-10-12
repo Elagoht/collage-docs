@@ -418,6 +418,26 @@ func TestLinks(t *testing.T) {
 }
 ```
 
+## Bir plugin'i kendine ait bir site ile test edin
+
+Bir plugin'in kurabileceği kendine ait bir uygulaması yoktur.
+`collagetest.NewSite(t, ...)` (v0.61.0'dan beri) onun etrafında gerçek bir uygulama
+kurar — bir layout, `/` adresinde bir home page ve yakalanan bir debug log'u —,
+uygulamayı başlatır, test bitince kapatır; size uygulamayı, onun üzerinde bir
+`Client`'ı ve `Logs`'unu verir:
+
+```go
+site := collagetest.NewSite(t,
+	collagetest.WithPlugins(robots.New(robots.Options{})),
+	collagetest.WithPluginConfig("elagoht/robots", `{"disallow":["/admin"]}`),
+)
+res := site.Get("/robots.txt").WantStatus(http.StatusOK)
+```
+
+Seçenekler, başlamasının başarısız olması beklenen bir test için `TrySite` ve
+`site.Shutdown`, [Plugin yazmak](/docs/writing-plugins#testing-a-plugin) sayfasında
+anlatılır.
+
 ## Testleri çalıştırmak
 
 ```sh

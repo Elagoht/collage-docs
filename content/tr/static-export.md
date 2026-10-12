@@ -282,7 +282,7 @@ etkilemez. Diğer page'ler yine render edilip yazılır ve hata raporda yer alı
 Pagination bir plugin değil, bir library'dir: [elagoht/paginate](/docs/plugins#libraries-that-are-not-plugins)
 için register edecek ya da yapılandıracak bir şey yoktur. Bir data handler ve bir
 template onu kullanır. `go get github.com/Elagoht/collage-paginate` ile eklersiniz.
-v0.1.0, collage v0.57.0 ya da sonrasını gerektirir.
+v0.2.0, collage v0.61.0 ya da sonrasını gerektirir.
 
 `paginate.New(total, perPage, current)`, `Current`, `Last`, `Offset`, `Limit`,
 `Prev`, `Next` alanlarına ve sayfa numaralarından oluşan bir `Window`'a sahip bir
@@ -321,7 +321,7 @@ func listing(ctx context.Context, rc *collage.RenderContext) (BlogList, []string
 	last := paginate.New(total, perPage, 1).Last
 	n := 1
 	if rc.Param("n") != "" {
-		if n, err = paginate.FromPath(rc, "n", last); err != nil {
+		if n, err = paginate.FromPath(rc, last); err != nil {
 			return BlogList{}, nil, err // wraps collage.ErrNotFound: a 404
 		}
 	}
@@ -356,8 +356,8 @@ app.RegisterPage(collage.NewPage("blog-page").
   sitemap'in okuduğu `PageURLs` için kullanılır. 1. sayfa listelenmez, çünkü o
   `/blog` adresidir. Ona handler'ın kullandığı sayıyı verin. İkisi uyuşmazsa
   export, handler'ın 404 ile cevapladığı sayfaları yazar.
-- **Her sayfanın tek bir yazımı vardır.** `FromPath` yalnızca kanonik biçimde
-  yazılmış, 2 ile `last` arasındaki bir sayfa numarasını kabul eder.
+- **Her sayfanın tek bir yazımı vardır.** `FromPath`, `StaticParams`'ın yazdığı `{n}`
+  path parametresini okur ve yalnızca kanonik biçimde yazılmış, 2 ile `last` arasındaki bir sayfa numarasını kabul eder.
   `/blog/page/1`, `/blog/page/02`, bir işaret, ASCII rakam olmayan her şey ve
   aralığın dışındaki her sayı bulunamaz. Hata `collage.ErrNotFound`'ı sarar. Bu
   yüzden Required bir fragment, page'in not-found page'ini 404 ile render eder.

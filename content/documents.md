@@ -1,6 +1,6 @@
 ---
 description: Routes that answer with bytes instead of HTML — sitemaps, feeds, robots.txt, JSON — cached and invalidated like pages.
-reference: DocumentBuilder.AtRoot, DocumentBuilder.WithBody, DocumentBuilder.WithStaticParams, NewDocument, DocumentBuilder, Document, DocumentResult, StaticParamsFunc, ErrConflictingData
+reference: DocumentBuilder.AtRoot, DocumentBuilder.WithBody, DocumentBuilder.WithTimeout, DocumentBuilder.WithStaticParams, NewDocument, DocumentBuilder, Document, DocumentResult, StaticParamsFunc, ErrConflictingData
 ---
 
 # Documents: sitemaps, feeds, robots.txt
@@ -54,6 +54,7 @@ want a template. The framework serves what you return, byte for byte.
 | `WithCacheParams(names...)` | Which query parameters take part in the cache key, as for a page. |
 | `WithStaticParams(fn)` | The placeholder values a static build writes a `{param}` pattern for; see [below](#documents-in-a-static-export). Since v0.16.0. |
 | `WithDependencyTags(tags...)` | Tags every response from this document carries. |
+| `WithTimeout(d)` | Bounds the handler; zero, the default, means `Config.Template.Timeout` (since v0.61.0). |
 | `WithRedirect(from, to, status)` / `WithPermanentRedirect(from, to)` | Old paths that redirect here. |
 | `Build()` / `BuildErr()` | The document, and the errors the chain collected. |
 
@@ -121,10 +122,23 @@ Three rules are worth knowing:
 - **A panic is recovered** and becomes an ordinary error, so one broken feed does
   not take the process down.
 
-A document has no timeout of its own. Its handler runs under
-`Config.Template.Timeout` (five seconds by default) — the same setting that is the
-default data-handler timeout for fragments. The limit applies to the `ctx` you are
-given, so pass it on to whatever you call.
+A document's handler runs under its own timeout when it sets one with
+`WithTimeout(d)` (since v0.61.0), and under `Config.Template.Timeout` (five seconds
+by default) — the same setting that is the default data-handler timeout for
+fragments — when it does not. A sitemap that walks a large catalogue raises its
+own budget rather than every fragment's and every feed's:
+
+```go
+collage.NewDocument("sitemap", "application/xml").
+	AtRoot("/sitemap.xml").
+	WithHandler(sitemap).
+	WithTimeout(30 * time.Second).
+	Build()
+```
+
+The timeout applies on a live request and in a static build alike. Zero means the
+default; a negative one records `collage.ErrInvalidTimeout`. The limit applies to
+the `ctx` you are given, so pass it on to whatever you call.
 
 ### Errors are plain text
 

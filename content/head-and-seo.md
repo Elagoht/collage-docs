@@ -263,7 +263,7 @@ func loadPost(ctx context.Context, rc *collage.RenderContext) (*Post, []string, 
 
 `jsonld.Emit` hoists into `"head"`, so it needs the same marker as everything else
 on this page, and it follows the same rules: one key per schema.org type, the
-innermost winning. Registering the plugin (`jsonld.New()` in `Config.Plugins`)
+innermost winning. Registering the plugin (`jsonld.New(jsonld.Options{})` in `Config.Plugins`)
 adds a site-wide `WebSite` node when it is configured with a site name; the
 per-page data always comes from your data handlers, because only they know what the
 page is about.

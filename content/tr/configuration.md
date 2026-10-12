@@ -107,8 +107,9 @@ verilmelidir.
 okumaz. Bu alanı istediğiniz gibi doldurabilir ya da
 `collage.LoadPluginConfig("plugins-config.json")`'u kullanabilirsiniz. Bu fonksiyon
 dosya yoksa `nil` döner. Register edilmiş hiçbir plugin'in adına karşılık gelmeyen bir
-key, uygulamanın başlamasını `ErrUnknownPluginConfig` ile engeller. Ayrıntılar için
-[Plugin kullanmak](/docs/plugins) sayfasına bakın.
+key, uygulamanın başlamasını `ErrUnknownPluginConfig` ile engeller; v0.61.0'dan beri
+bir bölümün içinde plugin'in tanımadığı bir key de aynısını yapar. Ayrıntılar için
+[Plugin'leri yapılandırmak](/docs/plugins#configuring-plugins) bölümüne bakın.
 
 ### TrailingSlash
 

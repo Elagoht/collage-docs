@@ -756,8 +756,8 @@ ve çağrıyı yazar: manifest'inin `order`'ı daha büyük olan ilk girdinin ö
 
 ```text
 $ collage plugin add elagoht/consent
-added elagoht/consent v0.1.2
-  plugins.go           consent.New()
+added elagoht/consent v0.2.0
+  plugins.go           consent.New(consent.Options{})
   plugins-config.json  "elagoht/consent": {}
 ```
 
@@ -812,7 +812,7 @@ plugin'in ardından değil, en sonda bir arada yazdırır:
 
 ```text
 $ collage plugin add elagoht/feed elagoht/nope elagoht/toc
-added elagoht/feed v0.2.3
+added elagoht/feed v0.3.0
   ...
 collage: plugin add: elagoht/nope: ...
 
