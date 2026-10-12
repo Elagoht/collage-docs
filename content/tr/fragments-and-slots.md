@@ -1,6 +1,6 @@
 ---
 description: Fragment'ler, sundukları slot'lar, bir fragment başarısız olduğunda ne olduğu ve render sırasında içerikten doldurulan slot'lar.
-reference: NewFragment, NewInlineFragment, InlineHTML, FragmentBuilder, Fragment, FragmentBuilder.WithFallback, FragmentBuilder.WithSlot, FragmentBuilder.WithData, FragmentBuilder.WithoutTypeCheck, FragmentBuilder.Static, FragmentBuilder.Shared, Data, Value, SlotResolverFunc, ErrUnknownSlot
+reference: NewFragment, NewInlineFragment, InlineHTML, FragmentBuilder, Fragment, FragmentBuilder.WithFallback, FragmentBuilder.WithSlot, FragmentBuilder.WithData, FragmentBuilder.WithoutTypeCheck, FragmentBuilder.Static, FragmentBuilder.Shared, Data, Value, SlotResolverFunc, SlotRule, SlotRequired, SlotSingle, ErrUnknownSlot
 ---
 
 # Fragment'ler ve slot'lar
@@ -13,7 +13,7 @@ layout'un durduğu bir fragment ağacıdır.
 
 ```go
 author := collage.NewFragment("author", "fragments/author.html").
-	WithData(collage.DataHandler(loadAuthor)).
+	WithData(collage.LoadTagged(loadAuthor)).
 	WithTimeout(time.Second).
 	WithFallback(anonymousAuthor).
 	Build()
@@ -40,10 +40,10 @@ Geri kalan her şey isteğe bağlıdır:
 
 | Metot | Neyi ayarlar |
 | --- | --- |
-| `WithData(d)` | Template'in verisini: `collage.DataHandler` ya da `collage.Load` ile bir handler'ı, `collage.Value` ile program başlarken sabitlenen bir değeri ya da `collage.Effect`'i. Bkz. [Data handler'lar](/docs/data-handlers) |
+| `WithData(d)` | Template'in verisini: `collage.LoadTagged` ya da `collage.Load` ile bir handler'ı, `collage.Value` ile program başlarken sabitlenen bir değeri ya da `collage.Effect`'i. Bkz. [Data handler'lar](/docs/data-handlers) |
 | `WithoutTypeCheck()` | Template'i, verisinin tipine göre yapılan kontrolün dışında bırakır. Bkz. [Template'ler nasıl kontrol edilir](/docs/data-handlers#how-templates-are-checked). v0.49.0'dan beri |
 | `WithTitle(s)` | Page'in `<title>`'ını, handler olmadan. Bkz. [Head ve SEO](/docs/head-and-seo) |
-| `WithSlot(name, required, allowMultiple)` | Bir slot'u required yapar ya da tek fragment'le sınırlar |
+| `WithSlot(name, rules...)` | Bir slot'u required yapar ya da tek fragment'le sınırlar |
 | `WithSlotFragment(slot, child)` | Bir child fragment'i bir slot'a bağlar |
 | `WithSlotResolver(slot, resolve)` | Slot'u bunun yerine her render'da doldurur |
 | `Required()` | Bu fragment başarısız olursa page de başarısız olur |
@@ -87,7 +87,7 @@ row := collage.NewInlineFragment("post-row", `
     <td>{{.Title}}</td>
     <td>{{template "partials/date.html" .Date}}</td>
   </tr>`).
-	WithData(collage.DataHandler(loadRow)).
+	WithData(collage.LoadTagged(loadRow)).
 	Build()
 ```
 
@@ -150,8 +150,8 @@ child'ları ona ismiyle bağlar:
 
 ```go
 post := collage.NewFragment("post", "pages/post.html").
-	WithData(collage.DataHandler(loadPost)).
-	WithSlot("author", true, false).
+	WithData(collage.LoadTagged(loadPost)).
+	WithSlot("author", collage.SlotRequired, collage.SlotSingle).
 	WithSlotFragment("author", author).
 	WithSlotFragment("related", relatedPosts).
 	WithSlotFragment("related", popularPosts).
@@ -173,16 +173,19 @@ arda render edilir. Yukarıdaki `related` iki fragment tutar. Hiçbir şey bağl
 bir slot hiçbir şey render etmez. Bir layout'ta da tanımlama gerekmez: register
 işlemi page'in içeriğini layout'un `"content"` slot'una yerleştirir.
 
-`WithSlot(name, required, allowMultiple)`, bu davranışı istemediğiniz durumlar
-içindir. Yukarıdaki `author` doldurulmak zorundadır ve tek fragment tutar.
-`WithSlot`, kısıtladığı bağlamalardan önce de sonra da gelebilir.
+`WithSlot(name, rules...)`, bu davranışı istemediğiniz durumlar içindir. Yukarıdaki
+`author` doldurulmak zorundadır ve tek fragment tutar. `WithSlot`, kısıtladığı
+bağlamalardan önce de sonra da gelebilir. Her kural bir `collage.SlotRule`'dur:
 
-- **`required`**: Slot'ta bir şey olmak zorundadır. Hiçbir şey bağlanmamış required
+- **`collage.SlotRequired`**: Slot'ta bir şey olmak zorundadır. Hiçbir şey bağlanmamış required
   bir slot, register sırasında reddedilir (`ErrRequiredSlotUnfilled`). Template
   çalışmadan önce de tekrar kontrol edilir. Böylece template bu slot'u hiç
   kullanmasa bile hata yakalanır.
-- **`allowMultiple`** false verildiğinde: Slot en fazla bir fragment tutar. İkinci
-  bir fragment bağlamak `ErrSlotOccupied` kaydeder.
+- **`collage.SlotSingle`**: Slot en fazla bir fragment tutar. İkinci bir fragment
+  bağlamak `ErrSlotOccupied` kaydeder.
+
+Başka herhangi bir değer `ErrInvalidSlotDefinition` kaydeder. v0.60.0'dan önce bu
+ikisi boolean'dı: `WithSlot(name, required, allowMultiple)`.
 
 `WithSlotFragment`, nil bir child için `ErrNilFragment` kaydeder. `WithSlot`'u aynı
 isimle iki kez çağırmak `ErrDuplicateSlot` kaydeder.
@@ -232,17 +235,17 @@ vardır.
 
 ```go
 postContent := collage.NewFragment("post", "pages/post.html").
-	WithData(collage.DataHandler(loadPost)).
+	WithData(collage.LoadTagged(loadPost)).
 	Required().
 	Build()
 
 comments := collage.NewFragment("comments", "fragments/comments.html").
-	WithData(collage.DataHandler(loadComments)).
+	WithData(collage.LoadTagged(loadComments)).
 	WithFallback(collage.NewFragment("comments-unavailable", "fragments/comments-unavailable.html").Build()).
 	Build()
 
 related := collage.NewFragment("related", "fragments/related.html").
-	WithData(collage.DataHandler(loadRelated)).
+	WithData(collage.LoadTagged(loadRelated)).
 	Build()
 ```
 
@@ -299,7 +302,7 @@ varsayılanı beş saniyedir. Negatif bir süre `ErrInvalidTimeout` kaydeder.
 
 ```go
 recommendations := collage.NewFragment("recommendations", "fragments/recommendations.html").
-	WithData(collage.DataHandler(loadRecommendations)).
+	WithData(collage.LoadTagged(loadRecommendations)).
 	WithTimeout(300 * time.Millisecond).
 	WithFallback(nothingToRecommend).
 	Build()
@@ -321,8 +324,8 @@ dashboard. Bunları başlangıçta bağlamak, her değişiklikte yeniden başlat
 Ayrıca neyin nereye gideceği konusunda veriyle uyumlu kalması gereken bir kod
 yazmanız gerekir.
 
-`WithSlotResolver`, bir slot'u her render'da doldurur. Resolver, render context'ini
-alır ve slot'un bu render'da tutacağı fragment'leri döner:
+`WithSlotResolver`, bir slot'u her render'da doldurur. Resolver, render'ın
+context'ini ve `RenderContext`'ini alır (context'i v0.60.0'dan beri) ve slot'un bu render'da tutacağı fragment'leri döner:
 
 ```go
 type block struct {
@@ -342,8 +345,8 @@ landing := collage.NewFragment("landing", "pages/landing.html").
 		blocksKey.Set(rc, blocks)
 		return nil
 	})).
-	WithSlot("blocks", true, true).
-	WithSlotResolver("blocks", func(rc *collage.RenderContext) ([]*collage.Fragment, error) {
+	WithSlot("blocks", collage.SlotRequired).
+	WithSlotResolver("blocks", func(ctx context.Context, rc *collage.RenderContext) ([]*collage.Fragment, error) {
 		blocks, _ := blocksKey.Get(rc)
 		fragments := make([]*collage.Fragment, 0, len(blocks))
 		for i, b := range blocks {
@@ -406,7 +409,7 @@ Kurallar şunlardır:
   program tarafından belirlenir.
 
 Bölümleri içerikten gelen bir page, o içeriğin tag'lerini de bildirmelidir. Buradaki
-örnekte landing handler'ı, `collage.Effect` yerine `collage.DataHandler` ile
+örnekte landing handler'ı, `collage.Effect` yerine `collage.LoadTagged` ile
 yazılıp `"landing"`'i tag olarak dönebilir. Böylece bir editör page'i
 yeniden sıraladığında cache'teki page atılır. Bkz. [Caching](/docs/caching).
 

@@ -1,6 +1,6 @@
 ---
 description: Handling form posts, fetch calls and webhooks with actions, and protecting them from request forgery.
-reference: NewAction, ActionBuilder, ActionResult, SeeOther, JSONOf, RenderPage, RenderFragment, PageBuilder.WithAction, PageBuilder.WithFragmentPath, ActionBuilder.WithStreamingBody, ActionBuilder.WithBodyTimeout, ErrCSRFHeaderRequired, ErrDuplicateRoute, ErrUnknownFragmentPath, FetchHeader, LocationHeader
+reference: NewAction, ActionBuilder, ActionResult, SeeOther, JSON, JSONBytes, Status, RenderPage, RenderFragment, PageBuilder.WithAction, PageBuilder.WithFragmentPath, ActionBuilder.WithStreamingBody, ActionBuilder.WithBodyTimeout, ErrCSRFHeaderRequired, ErrDuplicateRoute, ErrUnknownFragmentPath, FetchHeader, LocationHeader
 ---
 
 # Forms and actions
@@ -124,12 +124,17 @@ An `ActionResult` decides the response. Build one with a helper:
 | `collage.SeeOther(url)` | `303 See Other` to `url` |
 | `collage.RenderPage(page)` | A whole page, rendered with this request's `RenderContext` |
 | `collage.RenderFragment(f)` | One fragment's markup, without a layout |
-| `collage.JSON(status, body)` | `body` as `application/json` |
-| `collage.JSONOf(status, v)` | `v` marshalled as `application/json`; returns `(*ActionResult, error)` |
-| `collage.NoContent(status)` | A bare status and no body |
+| `collage.JSON(status, v)` | `v` marshalled as `application/json`; returns `(*ActionResult, error)` |
+| `collage.JSONBytes(status, body)` | `body`, already encoded, as `application/json` |
+| `collage.Status(status)` | A bare status and no body |
+
+Before v0.60.0 `collage.JSON` took the encoded bytes and `JSONOf` took the value;
+`JSON` takes the value now, `JSONBytes` the bytes, and `NoContent` is `Status`.
 
 Or fill the struct yourself. It has four ways to produce a body — `Location`,
-`Fragment`, `Page` and `Body` — and the first one set wins, in that order. `Status`
+`Fragment`, `Page` and `Body` — and it sets one of them: since v0.60.0 a result
+that sets two or more is a `500`, reported as `collage.ErrAmbiguousActionResult`,
+rather than one silently winning. `Status`
 overrides the status each of them would choose, `Header` is written onto the
 response (the place for a `Set-Cookie`), and `ContentType` goes with `Body`. An
 empty `ContentType` is `application/octet-stream`, never guessed from the bytes. A
@@ -141,7 +146,7 @@ func like(ctx context.Context, rc *collage.RenderContext) (*collage.ActionResult
 	if err != nil {
 		return nil, err
 	}
-	return collage.JSONOf(http.StatusOK, likeResponse{Count: n})
+	return collage.JSON(http.StatusOK, likeResponse{Count: n})
 }
 ```
 
@@ -646,7 +651,7 @@ for a part stricter than the page:
 
 ```go
 results := collage.NewFragment("results", "fragments/results.html").
-	WithData(collage.DataHandler(search)).
+	WithData(collage.LoadTagged(search)).
 	WithGuard(requireAdmin). // after the page's own guards
 	Build()
 ```

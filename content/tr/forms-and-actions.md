@@ -1,6 +1,6 @@
 ---
 description: Form post'larını, fetch çağrılarını ve webhook'ları action'larla karşılamak ve onları request forgery'ye karşı korumak.
-reference: NewAction, ActionBuilder, ActionResult, SeeOther, JSONOf, RenderPage, RenderFragment, PageBuilder.WithAction, PageBuilder.WithFragmentPath, ActionBuilder.WithStreamingBody, ActionBuilder.WithBodyTimeout, ErrCSRFHeaderRequired, ErrDuplicateRoute, ErrUnknownFragmentPath, FetchHeader, LocationHeader
+reference: NewAction, ActionBuilder, ActionResult, SeeOther, JSON, JSONBytes, Status, RenderPage, RenderFragment, PageBuilder.WithAction, PageBuilder.WithFragmentPath, ActionBuilder.WithStreamingBody, ActionBuilder.WithBodyTimeout, ErrCSRFHeaderRequired, ErrDuplicateRoute, ErrUnknownFragmentPath, FetchHeader, LocationHeader
 ---
 
 # Form'lar ve action'lar
@@ -131,13 +131,18 @@ Response'u bir `ActionResult` belirler. Onu bir helper ile oluşturun:
 | `collage.SeeOther(url)` | `url`'e `303 See Other` |
 | `collage.RenderPage(page)` | Bu request'in `RenderContext`'i ile render edilmiş bütün bir page |
 | `collage.RenderFragment(f)` | Tek bir fragment'in markup'ı, layout olmadan |
-| `collage.JSON(status, body)` | `application/json` olarak `body` |
-| `collage.JSONOf(status, v)` | `application/json` olarak marshal edilmiş `v`; `(*ActionResult, error)` döner |
-| `collage.NoContent(status)` | Sadece bir status, body yok |
+| `collage.JSON(status, v)` | `application/json` olarak marshal edilmiş `v`; `(*ActionResult, error)` döner |
+| `collage.JSONBytes(status, body)` | Zaten encode edilmiş `body`, `application/json` olarak |
+| `collage.Status(status)` | Sadece bir status, body yok |
+
+v0.60.0'dan önce `collage.JSON` encode edilmiş byte'ları, `JSONOf` ise değeri
+alıyordu. Artık `JSON` değeri, `JSONBytes` byte'ları alır; `NoContent` ise `Status`
+oldu.
 
 Struct'ı kendiniz de doldurabilirsiniz. Struct'ın body üretmek için dört alanı
-vardır: `Location`, `Fragment`, `Page` ve `Body`. Bu sırayla bakılır ve set edilen
-ilk alan kazanır. `Status`, her birinin seçeceği status'un yerine geçer. `Header`
+vardır: `Location`, `Fragment`, `Page` ve `Body`. Bunlardan birini set edersiniz:
+v0.60.0'dan beri ikisini ya da daha fazlasını set eden bir result, birinin sessizce
+kazanması yerine `collage.ErrAmbiguousActionResult` olarak bildirilen bir `500`'dür. `Status`, her birinin seçeceği status'un yerine geçer. `Header`
 response'a yazılır; `Set-Cookie` için doğru yer burasıdır. `ContentType` ise
 `Body` ile birlikte kullanılır. Boş bir `ContentType`, `application/octet-stream`
 anlamına gelir; byte'lara bakılarak asla tahmin edilmez. `nil` bir result `204`
@@ -149,7 +154,7 @@ func like(ctx context.Context, rc *collage.RenderContext) (*collage.ActionResult
 	if err != nil {
 		return nil, err
 	}
-	return collage.JSONOf(http.StatusOK, likeResponse{Count: n})
+	return collage.JSON(http.StatusOK, likeResponse{Count: n})
 }
 ```
 
@@ -678,7 +683,7 @@ sıkı olması gereken bir parça için hâlâ kendi guard'ını taşıyabilir:
 
 ```go
 results := collage.NewFragment("results", "fragments/results.html").
-	WithData(collage.DataHandler(search)).
+	WithData(collage.LoadTagged(search)).
 	WithGuard(requireAdmin). // after the page's own guards
 	Build()
 ```

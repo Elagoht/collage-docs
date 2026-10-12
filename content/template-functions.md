@@ -143,7 +143,7 @@ name, and the old one is simply never requested again.
 - **A file that does not exist is an error**, not a URL: `ErrUnknownAsset`. The
   alternative is a page that renders fine and links a stylesheet that 404s.
 - A path no mount serves, or an application with no mounts, is `ErrUnknownAsset`
-  too — wrapping `ErrNoMountForAsset` when no mount's prefix covers the path.
+  too; the message says when no mount's prefix covers the path at all.
 - A static export writes exactly the fingerprinted copies that pages asked for,
   alongside the originals.
 
@@ -249,8 +249,8 @@ From Go it is `app.URL(name, locale, params)`. See
 ```
 
 `pageURL` in exactly the locale given, with no fallback: a route with no path in
-that locale is `ErrNoPathInLocale`, and a locale no URL can reach — one not in
-`Locale.Supported`, or any but the default with `DisablePathLocale` set — is
+that locale is `ErrNoPathInLocale`, and a locale no URL can reach — neither the default nor in
+`Locale.Supported` — is
 `ErrLocaleUnreachable`.
 
 ### localeURL
@@ -351,8 +351,8 @@ which otherwise replaces a scheme it does not trust, such as `javascript:`, with
 ```
 
 Builds a `map` from alternating keys and values, for passing several values into a
-sub-template. Keys must be strings (`ErrDictKeyNotString`), and the arguments must
-come in pairs (`ErrDictOddArgs`); either mistake fails the template.
+sub-template. Keys must be strings, and the arguments must come in pairs; either
+mistake fails the template, with a message that says which.
 
 ### default
 

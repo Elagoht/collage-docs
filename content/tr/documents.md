@@ -54,7 +54,7 @@ Bu yüzden document hiçbir şey render etmez. Body'yi formatı bilen bir encode
 | `Incremental(ttl)` | Cache'ten sunar, `ttl` dolduktan sonra handler'ı yeniden çalıştırır. |
 | `WithCacheParams(names...)` | Page'lerde olduğu gibi, hangi query parametrelerinin cache key'ine girdiğini belirler. |
 | `WithStaticParams(fn)` | Static build'in bir `{param}` pattern'i için hangi placeholder değerlerini yazacağı; bkz. [aşağıdaki bölüm](#documents-in-a-static-export). v0.16.0'dan beri vardır. |
-| `WithDependency(tags...)` | Bu document'ın her response'unun taşıdığı tag'ler. |
+| `WithDependencyTags(tags...)` | Bu document'ın her response'unun taşıdığı tag'ler. |
 | `WithRedirect(from, to, status)` / `WithPermanentRedirect(from, to)` | Buraya redirect eden eski path'ler. |
 | `Build()` / `BuildErr()` | Document'ı ve zincirin topladığı hataları verir. |
 
@@ -111,7 +111,7 @@ hiçbirini yeniden çekmez. `collage.Cached`'a verilen tag'ler de document'ın t
 eklenir. `rc.Asset(path)` ise mount edilmiş bir dosyanın content-addressed URL'sini
 verir. Örneğin bir web manifest'indeki ikon için bunu kullanabilirsiniz.
 
-Döndüğünüz tag'ler, document'ın `WithDependency` tag'leriyle birleştirilir. Data
+Döndüğünüz tag'ler, document'ın `WithDependencyTags` tag'leriyle birleştirilir. Data
 handler'da olduğu gibi, bir hata da dönseniz bu tag'ler okunur. Böylece neye bağlı
 olduğunu öğrendikten sonra hata veren bir handler, kendisini neyin stale yapacağını
 yine de bildirmiş olur.
@@ -407,8 +407,11 @@ yazılır: `dist/tr/sitemap.xml`.
   olmadan yazılır, çünkü bir dosyanın query string'i olamaz. Rapor, page'lerde olduğu
   gibi bu durum için de uyarı verir.
 - Aynı dosyaya çıkan iki görev (aynı değerleri iki kez listeleyen bir
-  `WithStaticParams`) bir kez build edilir. Diğerleri
-  `collage.ErrDuplicateOutputPath` ile atlanır.
+  `WithStaticParams` ya da bir page'in `index.html`'ine düşen bir document), hiçbir
+  şey yazılmadan build'i `collage.ErrOutputPathCollision` ile durdurur (v0.60.0'dan
+  beri; önceden diğerleri `ErrDuplicateOutputPath` ile atlanıyordu). Document'ların
+  `WithStaticParams`'ı hiçbir page render edilmeden önce çalışır, bu yüzden bu baştan
+  bilinir.
 
 `WithStaticParams` bir
 [page'de](/docs/static-export#dynamic-paths-withstaticparams) olduğu gibi çalışır.

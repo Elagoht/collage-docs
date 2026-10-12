@@ -1,6 +1,6 @@
 ---
 description: Uygulamalı bir rehber. Bir layout, bir data handler ve bir template ile bir tarif page'i kurarsınız, bir slot'a ikinci bir fragment eklersiniz ve bütün tarifleri static dosyalara export edersiniz.
-reference: New, NewPage, NewFragment, FragmentBuilder.WithData, FragmentBuilder.WithTitle, PageBuilder.WithStaticParams, Registrable, DataHandler, Load, Value, ErrNotFound, ErrUnknownSlot, ErrTemplateType
+reference: New, NewPage, NewFragment, FragmentBuilder.WithData, FragmentBuilder.WithTitle, PageBuilder.WithStaticParams, Registrable, LoadTagged, Load, Value, ErrNotFound, ErrUnknownSlot, ErrTemplateType
 ---
 
 # İlk page'iniz
@@ -230,7 +230,7 @@ import (
 // Returns the recipe page's content.
 func Recipe() *collage.Fragment {
 	return collage.NewFragment("recipe", "pages/recipes/recipe.html").
-		WithData(collage.DataHandler(loadRecipe)).
+		WithData(collage.LoadTagged(loadRecipe)).
 		Required().
 		Build()
 }
@@ -262,8 +262,8 @@ Kodu satır satır inceleyelim.
 
 - **`NewFragment("recipe", "pages/recipes/recipe.html")`** fragment'e ve template'ine
   isim verir. Template yolu `templates/` dizinine göredir ve uzantıyı da içerir.
-- **`WithData(collage.DataHandler(loadRecipe))`** fragment'e data handler'ını
-  verir. `collage.DataHandler`, verisini kendi tipinde (burada bir
+- **`WithData(collage.LoadTagged(loadRecipe))`** fragment'e data handler'ını
+  verir. `collage.LoadTagged`, verisini kendi tipinde (burada bir
   `recipes.Recipe`) dönen bir fonksiyon alır. Page register edilirken template bu
   tipe göre kontrol edilir.
 - **Handler üç şey döndürür**: veri, verinin oluşturulduğu dependency tag'leri ve bir
@@ -402,7 +402,7 @@ type moreView struct {
 // Returns the list of every recipe but the one on the page.
 func More() *collage.Fragment {
 	return collage.NewFragment("more", "pages/recipes/more.html").
-		WithData(collage.DataHandler(loadMore)).
+		WithData(collage.LoadTagged(loadMore)).
 		Build()
 }
 
@@ -447,7 +447,7 @@ de aynı package'ta durduğu `fragments/pages/recipes/recipe.go` dosyasında:
 
 ```go
 return collage.NewFragment("recipe", "pages/recipes/recipe.html").
-	WithData(collage.DataHandler(loadRecipe)).
+	WithData(collage.LoadTagged(loadRecipe)).
 	WithSlotFragment("more", More()).
 	Required().
 	Build()

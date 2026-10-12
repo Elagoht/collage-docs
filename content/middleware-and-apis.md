@@ -173,7 +173,7 @@ A fragment's data handler reads the value back with `collage.Varied`:
 
 ```go
 func languageData(ctx context.Context, rc *collage.RenderContext) (string, []string, error) {
-	lang, _ := collage.Varied(rc, "Accept-Language") // "tr" or "en"
+	lang, _ := collage.Varied(ctx, "Accept-Language") // "tr" or "en"
 	return greeting(lang), nil, nil
 }
 ```
@@ -234,7 +234,7 @@ shutdown. A 5xx it answers with is reported to plugins' error hooks as
 ### Prefixes and conflicts
 
 The prefix must begin with `/` and cannot be `/` alone
-(`collage.ErrInvalidHandlerPrefix`). Ending in `/`, it claims every path beneath
+(`collage.ErrInvalidPrefix`). Ending in `/`, it claims every path beneath
 it. Without the trailing slash it is one exact path, and answers that path alone —
 `app.Handle("/metrics", h)` serves `/metrics` and not `/metrics/x` (since v0.24.0;
 before, the prefix had to end in `/`).
@@ -306,7 +306,7 @@ count := collage.NewAction("count").
 	WithPath("en", "/api/count").
 	WithMethods(http.MethodPost).
 	WithHandler(func(context.Context, *collage.RenderContext) (*collage.ActionResult, error) {
-		result, err := collage.JSONOf(http.StatusOK, countResponse{Count: store.Increment()})
+		result, err := collage.JSON(http.StatusOK, countResponse{Count: store.Increment()})
 		if err != nil {
 			return nil, err
 		}

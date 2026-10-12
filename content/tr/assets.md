@@ -1,6 +1,6 @@
 ---
 description: Stylesheet'leri, script'leri, görselleri ve indirilecek dosyaları bir dizinden ya da gömülü bir dosya sisteminden, bir yıl boyunca cache'lenebilen URL'lerle sunmak.
-reference: Mount, MountOption, WithCacheControl, WithoutBuildCopy, ErrUnknownAsset
+reference: App.Mount, MountOption, WithCacheControl, WithoutBuildCopy, ErrUnknownAsset
 ---
 
 # Static asset'ler

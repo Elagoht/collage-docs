@@ -91,7 +91,7 @@ layout'un `content` slot'una (`collage.DefaultContentSlot`) register işlemi
 yerleştirir.** Bu bağlamayı kendiniz yapmazsınız. Template'i hiç
 `{{slot "content"}}` çağırmayan bir layout ise register sırasında `ErrUnknownSlot`
 ile reddedilir, çünkü içeriğin render edileceği bir yer yoktur. Layout'ta
-`WithSlot(collage.DefaultContentSlot, true, false)` hâlâ kabul edilir. Bu,
+`WithSlot(collage.DefaultContentSlot, collage.SlotRequired, collage.SlotSingle)` hâlâ kabul edilir. Bu,
 `content`'e page'in kendi içeriği dışında bağlanan her fragment'i reddetmesi
 gereken bir layout içindir (`ErrSlotOccupied`).
 
@@ -223,8 +223,8 @@ Guard'ın kapsadıkları:
 - **Page'in render'ları**, `GET` ve `HEAD`. Guard routing'den sonra ve **page'in
   cache'i okunmadan önce** çalışır. Böylece engellenen bir okuyucu cache'lenmiş bir
   render'a hiç ulaşmaz ve private bir page `Static()` olabilir. Guard
-  `PageResolvedHook`'tan da önce çalışır: engellenen request page'e hiç
-  ulaşmamıştır, bu yüzden page'leri izleyen plugin'lere haber verilmez.
+  her render hook'undan da önce çalışır: engellenen request page'e hiç
+  ulaşmamıştır, bu yüzden render'ları izleyen plugin'lere haber verilmez.
 - **Page'in kendi URL'sindeki action'lar.** Bir form bulunduğu page'e post eder.
   Okuyucunun göremediği bir page, form'unu da gönderemeyeceği bir page'dir. Guard,
   body okunmadan ve forgery kontrolünden önce çalışır.
@@ -395,7 +395,7 @@ anlaşılamaz. Bu yüzden handler'ı olan bir page, `Static()` ya da
 `Incremental(ttl)` diyene kadar her request'te render edilir. Kuralın tamamı
 [Caching](/docs/caching#a-page-that-declares-none) sayfasındadır.
 
-`Incremental` pozitif bir TTL ister (`ErrMissingTTL`). `collage export`'un dosyaya
+`Incremental` pozitif bir TTL ister (`ErrInvalidTTL`). `collage export`'un dosyaya
 yazabildiği page'ler de static ve incremental page'lerdir. Dynamic bir page her
 request'te render edilmek için vardır, bu yüzden
 [atlanır](/docs/static-export#what-is-skipped).
@@ -404,7 +404,7 @@ Cache yalnızca uygulama onu açtığında devreye girer (`Config.Cache.Enabled`
 scaffold'da açıktır). Development'ta ise hiçbir zaman devreye girmez. Orada
 cache'lenmiş bir page, az önce düzenlediğiniz template'i gizlerdi.
 
-Cache'lenen bir page'i iki builder metodu daha etkiler. `WithDependency(tags...)`,
+Cache'lenen bir page'i iki builder metodu daha etkiler. `WithDependencyTags(tags...)`,
 data handler'ların bildirdiği dependency tag'lerine page'in kendi tag'lerini ekler.
 `WithCacheParams(names...)` ise cache key'ine hangi query parametrelerinin
 katılacağını belirler. Bunların hepsinin nasıl bir araya geldiği
@@ -562,11 +562,13 @@ eder. `Register` bir `collage.Registrable` alır ve bunu yalnızca `*Page`,
 
 ### Register edilen değer neden önemli
 
-Register işlemi kendisine verilen page'i değiştirir. 3. adım `page.LayoutFragment`'i,
-en dıştaki layout'un bu page'e ait ve bağlanmış kopyasıyla değiştirir. Render
+Register işlemi kendisine verilen page'i değiştirir. 3. adım page'in en dıştaki
+layout'unu, onun bu page'e ait ve bağlanmış bir kopyasıyla değiştirir. Render
 edilen şey, içinde zincirin geri kalanı ve içerik bulunan bu kopyadır. Aynı
 constructor tekrar çağrılarak oluşturulan bir page ise farklı bir değerdir. Onun
-layout'larının `content` slot'ları boştur.
+layout'larının `content` slot'ları boştur. v0.60.0'dan beri aynı builder'da ikinci
+bir `Build()` da öyledir: her çağrı bağımsız bir kopya döner ve sonradan builder'a
+yapılan `WithPath` ikisine de ulaşmaz. Bir kez build edin ve `*Page`'i saklayın.
 
 Bu yüzden o andan itibaren page, `RegisterPage`'e verdiğiniz değerin ta kendisidir.
 Bir page'e değer üzerinden başvuran her şey o değeri kullanmalıdır:

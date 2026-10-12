@@ -1,6 +1,6 @@
 ---
 description: How a fragment fetches its data — the handler contract, fixed data, dependency tags, 404s, concurrency, the render context, sharing data, timeouts, and how templates are checked against their data.
-reference: Data, FragmentBuilder.WithData, FragmentBuilder.WithTitle, FragmentBuilder.WithoutTypeCheck, DataHandler, Load, Value, RenderContext, Key, NewKey, Once, Effect, ErrNotFound, ErrConflictingData, TemplateTypeError, ErrTemplateType, PanicError
+reference: Data, FragmentBuilder.WithData, FragmentBuilder.WithTitle, FragmentBuilder.WithoutTypeCheck, LoadTagged, Load, Value, RenderContext, Key, NewKey, Once, Effect, ErrNotFound, ErrConflictingData, TemplateTypeError, ErrTemplateType, PanicError
 ---
 
 # Data handlers
@@ -13,7 +13,7 @@ API — happens in data handlers, and nowhere else.
 
 ```go
 content := collage.NewFragment("post", "pages/post.html").
-	WithData(collage.DataHandler(func(ctx context.Context, rc *collage.RenderContext) (*Post, []string, error) {
+	WithData(collage.LoadTagged(func(ctx context.Context, rc *collage.RenderContext) (*Post, []string, error) {
 		post, err := store.Post(ctx, rc.Param("slug"))
 		if err != nil {
 			return nil, nil, err
@@ -31,7 +31,7 @@ constructors make one, and each says where the data comes from:
 
 | Constructor | What it runs | The template's `.` |
 | --- | --- | --- |
-| `collage.DataHandler(fn)`, `fn` returning `(T, []string, error)` | `fn`, on every render, reporting its dependency tags | `T` |
+| `collage.LoadTagged(fn)`, `fn` returning `(T, []string, error)` | `fn`, on every render, reporting its dependency tags | `T` |
 | `collage.Load(fn)`, `fn` returning `(T, error)` | `fn`, on every render, reporting no tags | `T` |
 | `collage.Value(v)` | Nothing: `v` is handed over on every render | `v`'s type |
 | `collage.Effect(fn)`, `fn` returning `error` | `fn`, on every render, for what it declares | Nothing |
@@ -48,7 +48,7 @@ func loadPost(ctx context.Context, rc *collage.RenderContext) (*Post, []string, 
 }
 
 content := collage.NewFragment("post", "pages/post.html").
-	WithData(collage.DataHandler(loadPost)).
+	WithData(collage.LoadTagged(loadPost)).
 	Build()
 ```
 
@@ -62,10 +62,10 @@ value to assert. The constructors are functions of their own rather than forms o
 
 Before v0.49.0 a handler was handed over with `WithDataHandler` and returned
 `(any, []string, error)`, and fixed data was `WithData(v)`. Both are gone: wrap the
-handler in `collage.DataHandler`, returning its real type, and the value in
-`collage.Value`.
+handler in `collage.LoadTagged`, returning its real type, and the value in
+`collage.Value`. (`LoadTagged` was named `DataHandler` until v0.60.0.)
 
-The three results of a `DataHandler` each have a job.
+The three results of a `LoadTagged` each have a job.
 
 - **The data** — whatever the template renders, as `.`. A struct written for the
   template, a "view", is usually clearer than handing a template a database row.
@@ -74,7 +74,7 @@ The three results of a `DataHandler` each have a job.
   template as a value that looks present.
 - **The tags** — the pieces of content this data was built from, such as
   `"post:hello-world"` or `"author:ada"`. They are collected from every fragment on
-  the page, together with the page's own `WithDependency` tags, and stored with the
+  the page, together with the page's own `WithDependencyTags` tags, and stored with the
   cached page, so invalidating a tag drops every page that showed it. Return `nil`
   when the data depends on nothing that changes. See [Caching](/docs/caching).
 - **The error** — a non-nil error fails the fragment, and the fragment's
@@ -123,7 +123,7 @@ conflicts with nothing.
 
 ### Handlers with no tags
 
-`collage.Load` is `DataHandler` for a loader that reports no tags, one that
+`collage.Load` is `LoadTagged` for a loader that reports no tags, one that
 returns the data and an error:
 
 ```go
@@ -141,7 +141,7 @@ Both drop the data when the loader returns an error. Which one to reach for:
 | The data | Write |
 | --- | --- |
 | Is the same on every render | `collage.Value(v)` |
-| Is fetched, from content whose changes must reach a cached page | `collage.DataHandler(fn)` |
+| Is fetched, from content whose changes must reach a cached page | `collage.LoadTagged(fn)` |
 | Is fetched, with no tags to report | `collage.Load(fn)` |
 | Is nothing: the fragment only declares things for the page | `collage.Effect(fn)` — see [below](#handlers-that-render-nothing) |
 
@@ -362,7 +362,7 @@ seo := collage.NewFragment("post-seo", "fragments/empty.html").
 The fragment's template receives no data, and the handler reports no tags. When
 what it declares comes from content that changes and the page is cached, that
 content's tags still have to reach the page: return them from an ordinary handler
-instead, or add them with `WithDependency` on the page.
+instead, or add them with `WithDependencyTags` on the page.
 
 A title known when the program starts — the site's name, on its layout — needs no
 handler at all. `WithTitle(s)` on the fragment declares it, and leaves a page that
@@ -614,7 +614,7 @@ finding that is wrong, while it is fixed. The fragment renders as before, and
 
 ```go
 collage.NewFragment("post-body", "pages/post.html").
-	WithData(collage.DataHandler(loadPost)).
+	WithData(collage.LoadTagged(loadPost)).
 	WithoutTypeCheck().
 	Build()
 ```

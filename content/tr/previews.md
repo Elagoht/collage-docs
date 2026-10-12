@@ -124,14 +124,14 @@ func Start(app *collage.App) *collage.Action {
 			secret := os.Getenv("PREVIEW_SECRET")
 			if len(key) == 0 || secret == "" ||
 				!hmac.Equal([]byte(query.Get("secret")), []byte(secret)) {
-				return collage.NoContent(http.StatusUnauthorized), nil
+				return collage.Status(http.StatusUnauthorized), nil
 			}
 
 			// Built from the page's name, so a slug cannot send the editor anywhere
 			// but a blog post.
 			target, err := app.URL("blog-post", "", map[string]string{"slug": query.Get("slug")})
 			if err != nil {
-				return collage.NoContent(http.StatusBadRequest), nil
+				return collage.Status(http.StatusBadRequest), nil
 			}
 
 			expires := time.Now().Add(time.Hour)

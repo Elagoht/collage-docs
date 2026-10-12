@@ -53,7 +53,7 @@ want a template. The framework serves what you return, byte for byte.
 | `Incremental(ttl)` | Serve from cache, run again once `ttl` has passed. |
 | `WithCacheParams(names...)` | Which query parameters take part in the cache key, as for a page. |
 | `WithStaticParams(fn)` | The placeholder values a static build writes a `{param}` pattern for; see [below](#documents-in-a-static-export). Since v0.16.0. |
-| `WithDependency(tags...)` | Tags every response from this document carries. |
+| `WithDependencyTags(tags...)` | Tags every response from this document carries. |
 | `WithRedirect(from, to, status)` / `WithPermanentRedirect(from, to)` | Old paths that redirect here. |
 | `Build()` / `BuildErr()` | The document, and the errors the chain collected. |
 
@@ -107,7 +107,7 @@ none of them again, and the tags it was given join the document's.
 `rc.Asset(path)` is a mounted file's content-addressed URL — an icon in a web
 manifest, say.
 
-The tags you return are merged with the document's `WithDependency` tags. As with
+The tags you return are merged with the document's `WithDependencyTags` tags. As with
 a data handler, they are read even when you also return an error, so a handler that
 learned what it depends on and then failed has still said what would make it stale.
 
@@ -395,8 +395,10 @@ served: `dist/tr/sitemap.xml`.
   query string, since a file cannot have one, and the report warns about it, as it
   does for a page.
 - Two tasks that resolve to one file — `WithStaticParams` listing one set of values
-  twice — are built once; the rest are skipped with
-  `collage.ErrDuplicateOutputPath`.
+  twice, or a document at a page's `index.html` — stop the build with
+  `collage.ErrOutputPathCollision` before anything is written (since v0.60.0; before,
+  the rest were skipped with `ErrDuplicateOutputPath`). Documents' `WithStaticParams`
+  run before any page renders, so this is known up front.
 
 `WithStaticParams` works as it does for a
 [page](/docs/static-export#dynamic-paths-withstaticparams): one map of placeholder

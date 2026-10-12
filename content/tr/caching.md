@@ -70,7 +70,7 @@ page := collage.NewPage("blog-post").
 	WithContent(post).
 	WithPath("en", "/blog/{slug}").
 	Incremental(10 * time.Minute).
-	WithDependency("blog:posts").
+	WithDependencyTags("blog:posts").
 	Build()
 ```
 
@@ -83,8 +83,7 @@ ve CDN'lere page'i tutmalarını ama her seferinde sormalarını söyler.
 
 `Incremental(ttl)`, zamana bağlı olarak değişen içerik içindir. Ne zaman değiştiğini
 size bildiremeyen bir kaynaktan gelen içerik için de uygundur. Sıfır TTL bir
-register hatasıdır (`collage.ErrMissingTTL`), negatif TTL de öyledir
-(`collage.ErrInvalidTTL`). İkisi de sessizce hiç sona ermeyen bir page'e dönüşmez.
+register hatasıdır (`collage.ErrInvalidTTL`), negatif TTL de öyledir. İkisi de sessizce hiç sona ermeyen bir page'e dönüşmez.
 
 [Document'lar](/docs/documents), yani sitemap'ler, feed'ler ve HTML olmayan her şey
 aynı üç çağrıyı kullanır. Page'lerle aynı şekilde saklanır, key'lenir ve
@@ -98,7 +97,7 @@ belirlenir. O ana kadar stratejisi `collage.StrategyAuto`'dur, sonrasında diğe
 üçünden biri olur.
 
 - Render ettiği herhangi bir şey her render'da veri çekiyorsa **dynamic** olur. Bu,
-  bir data handler (`collage.DataHandler`, `collage.Load` ya da `collage.Effect`) ya
+  bir data handler (`collage.LoadTagged`, `collage.Load` ya da `collage.Effect`) ya
   da bir slot resolver'dır. Layout'unda, content'inde, bunların slot'larına
   bağlanan herhangi bir şeyde, fallback'lerinde ya da `WithFragmentPath` ile
   açılan bir fragment'te olması fark etmez.
@@ -125,7 +124,7 @@ yazıldığında, o fragment page'i dynamic yapmaz. v0.17.0'dan beri.
 
 ```go
 more := collage.NewFragment("more-recipes", "fragments/more-recipes.html").
-	WithData(collage.DataHandler(loadMore)). // every recipe but rc.Param("slug")
+	WithData(collage.LoadTagged(loadMore)). // every recipe but rc.Param("slug")
 	Static().
 	Build()
 ```
@@ -224,9 +223,10 @@ herkesin aldığı kopyaya yazardı. Request'in context'i de aynı muameleyi gö
 middleware'inizin oraya koyduğu bir değer, yani giriş yapmış bir kullanıcı, bir
 tenant ya da bir request id, cookie ile aynı nedenden ötürü paylaşılan bir render'dan
 gizlenir. Middleware'inizin `collage.Vary` ile bildirdiği bir değeri
-`collage.Varied(rc, header)` ile, elinizde yalnızca bir context varsa (bir page'in
-`StaticParams`'ı, bir sitemap'in `LastMod`'u, bir document handler'ın `ctx`'i)
-`collage.VariedContext(ctx, header)` ile (v0.42.0'dan beri) geri okuyun; orada güvenlidir, çünkü key'in içindedir
+`collage.Varied(ctx, header)` ile geri okuyun. `ctx`, bir data handler'ın, bir page'in
+`StaticParams`'ının, bir sitemap'in `LastMod`'unun ya da bir document handler'ın
+aldığı context'tir (v0.42.0'dan beri; v0.60.0'dan önce `RenderContext` alıyordu ve
+context alan sürüm `VariedContext` idi). Orada güvenlidir, çünkü key'in içindedir
 ve her değerin kendi cache'lenmiş page'i vardır. Bir cache boyutu olmayan bir değerin
 paylaşılan bir render'da yeri yoktur: okuyucunun kendi request'ine ihtiyaç duyan bir
 page `Dynamic()` olmalıdır ve dynamic bir page request'in tamamını görür.
@@ -252,7 +252,7 @@ Tag, bir içeriği adlandıran herhangi bir string'dir: `post:hello-world`,
 
 ```go
 // From the page, for what it always depends on.
-WithDependency("blog:posts")
+WithDependencyTags("blog:posts")
 
 // From a data handler, for what this particular render used.
 return view, []string{"post:" + post.Slug, "author:" + post.AuthorID}, nil
@@ -318,8 +318,8 @@ app.InvalidateTags(ctx, collage.PathTag("/blog/hello"))
 Bu, o path için cache'lenmiş olanı, başka neye bağlı olursa olsun atar.
 
 Bir invalidation ne attığını da söyler. Bir plugin her invalidation'ı
-`OnCacheInvalidate` üzerinden duyar. Event tag'leri ve `Paths` içinde atılan
-cache'lenmiş page ve document'ların URL path'lerini taşır. Bir CDN'in purge etmesi
+`OnCacheInvalidate` üzerinden duyar. Event tag'leri ve `Entries` içinde atılan
+cache'lenmiş page ve document'ları, her biri bir host ve bir path olarak taşır. Bir CDN'in purge etmesi
 ve bir arama motoruna değiştiği bildirilmesi gereken budur. Hiç cache'lenmemiş bir
 page burada yer almaz. Bkz. [Plugin yazmak](/docs/writing-plugins#cacheinvalidatehook).
 [elagoht/cdnpurge](/docs/plugins#elagohtcdnpurge) ve
@@ -338,8 +338,8 @@ collage bu durumda tag'e göre invalidation'ı store'dan da ister ve store başk
 instance'ın yazdığı entry'lere de ulaşabilir. Built-in disk cache bunu yapar.
 Tag'lerinin restart sonrasında da çalışmaya devam etmesinin nedeni budur.
 
-**Tag başına tutulan kayıt `Cache.MaxKeysPerTag` ile sınırlıdır** (varsayılan
-10000). Query string key'in bir parçası olduğundan, bir client tek bir page için
+**Tag başına tutulan kayıt `Cache.MaxEntries` ile sınırlıdır** (varsayılan
+10000; v0.60.0'dan önce bu ayrı bir alandı: `MaxKeysPerTag`). Query string key'in bir parçası olduğundan, bir client tek bir page için
 istediği kadar key üretebilir. Bir sınır olmasaydı index sonsuza kadar büyürdü. Bir
 tag sınıra ulaştığında, o tag altında kaydedilmiş en eski key bu index'ten silinir.
 Built-in memory ve disk cache'lerinin ikisi de `collage.TaggedCache`'i implement eder
@@ -347,9 +347,9 @@ ve her entry'nin tag'lerini kendileri kaydeder. Bu yüzden onlarla tag'i invalid
 etmek yine her entry'ye ulaşır. Yalnızca `InvalidateTagsN`'in bildirdiği sayı eksik
 kalır. `TaggedCache`'i implement etmeyen kendi store'unuzda ise elde yalnızca
 collage'ın index'i vardır. Index'ten silinen bir page, expire olana kadar store'da
-kalır ve tag'i invalidate etmek artık ona ulaşmaz. Sınırı, bir tag'in gerçekte
-kapsayabileceği cache'lenmiş URL sayısının üzerinde bir değere ayarlayın. Sınır
-istemiyorsanız negatif bir değer verin.
+kalır ve tag'i invalidate etmek artık ona ulaşmaz. `MaxEntries`'i, bir tag'in
+gerçekte kapsayabileceği cache'lenmiş URL sayısının üzerinde bir değere ayarlayın.
+Negatif bir `MaxEntries` bu sınırı 10000'de tutar.
 
 **Built-in bir cache'le index bir bütün olarak da sınırlıdır** (v0.40.0'dan beri),
 `MaxEntries` kadar key'le. Cache'lenmiş her path kendi başına bir tag'dir. Bu yüzden
@@ -561,7 +561,7 @@ bir şey yoktur.
 
 ## Development'ta cache hiç okunmaz
 
-`Config.DevMode` (ya da `Template.DevMode`) açıkken cache'lenmiş page'ler hiçbir
+`Config.DevMode` açıkken cache'lenmiş page'ler hiçbir
 zaman sunulmaz. Scaffold ile oluşturulan bir proje bu ayarı `collage dev` altında
 açar. Development'ta template'ler her request'te diskten yeniden yüklenir.
 Cache'lenmiş bir page ise az önce yaptığınız değişikliği TTL'i boyunca gizlerdi.

@@ -1,6 +1,6 @@
 ---
 description: Every command of the collage CLI — new, add, dev, build, export, serve, inspect, check, plugin, version and help — with its flags and exactly what it runs.
-reference: DispatchCommands, Command, ErrUnknownCommand, InspectCommand, Inspection, FragmentBuilder.WithoutTypeCheck, App, Registrable
+reference: DispatchCommands, Command, ErrUnknownCommand, FragmentBuilder.WithoutTypeCheck, App, Registrable
 ---
 
 # The collage CLI
@@ -554,9 +554,11 @@ error. It runs:
 go run . collage-inspect
 ```
 
-`collage-inspect` is `collage.InspectCommand`, a command `DispatchCommands` answers
-itself rather than handing it to a plugin: it prints `App.Inspect()` — a
-`collage.Inspection` — as indented JSON. The name is prefixed so that no plugin's
+`collage-inspect` is a command `DispatchCommands` answers itself rather than handing
+it to a plugin: it prints the application's description as indented JSON. That JSON
+is the contract; the Go types behind it (`App.Inspect`, `collage.Inspection`,
+`collage.InspectCommand`) left the public API in v0.60.0, and the output is
+byte-for-byte what it was. The name is prefixed so that no plugin's
 command is taken. The scaffolded `main.go` hands the word after its flags to
 `DispatchCommands` (see [Plugin commands](#plugin-commands)), so a scaffolded
 project on collage v0.27.0 or later needs nothing more. A program that does not

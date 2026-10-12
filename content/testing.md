@@ -1,6 +1,6 @@
 ---
 description: Test the real application through app.Handler() with pkg/collagetest — a client that keeps cookies and submits forms the way a browser does — pages, forms with their forgery token, documents and the static export.
-reference: NewBuilder, BuildOptions, App
+reference: Build, BuildOptions, App
 ---
 
 # Testing
@@ -343,24 +343,20 @@ It calls the same `staticBuild` that `collage export` runs, so the test covers
 the build's error, which fails the test for a degraded page, an empty render or a
 panic.
 
-To assert on skips and warnings as well, call the builder directly and read the
+To assert on skips and warnings as well, call `collage.Build` directly and read the
 report:
 
 ```go
-builder, err := collage.NewBuilder(app, collage.BuildOptions{OutDir: t.TempDir()})
-if err != nil {
-	t.Fatal(err)
-}
-report, err := builder.Build(context.Background())
+report, err := collage.Build(context.Background(), app, collage.BuildOptions{OutDir: t.TempDir()})
 if err != nil {
 	t.Fatalf("build: %v", err)
 }
 for _, skip := range report.Skipped {
-	if skip.Page == "home" {
+	if skip.Name == "home" {
 		t.Errorf("home was skipped: %s", skip.Reason)
 	}
 	if errors.Is(skip.Err, collage.ErrDynamicPathUnresolved) {
-		t.Errorf("%s has a {param} and no WithStaticParams", skip.Page)
+		t.Errorf("%s has a {param} and no WithStaticParams", skip.Name)
 	}
 }
 if len(report.Warnings) > 0 {

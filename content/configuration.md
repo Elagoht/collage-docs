@@ -1,6 +1,6 @@
 ---
 description: Every field of collage.Config and its sub-structs, with its default and what validation checks.
-reference: Config, CacheConfig, ServerConfig, SecurityConfig, TemplateConfig, LocaleConfig, ObservabilityConfig, Config.Validate
+reference: Config, CacheConfig, ServerConfig, SecurityConfig, TemplateConfig, LocaleConfig, ObservabilityConfig, CacheType, ParseOrigin
 ---
 
 # Configuration
@@ -17,16 +17,16 @@ app, err := collage.New(&collage.Config{
 
 `New` does three things with it, in order:
 
-1. **Fills in defaults.** It calls `cfg.ApplyDefaults()`, which sets every
-   zero-valued field that has a default. It changes the value you passed, so you
-   can read back exactly what the application was built with.
-2. **Validates.** It calls `cfg.Validate()` and returns the first problem as an
+1. **Fills in defaults.** It sets every zero-valued field that has a default. It
+   changes the value you passed, so you can read back exactly what the application
+   was built with.
+2. **Validates.** It checks the result and returns the first problem as an
    error — see [Validation](#validation).
 3. **Builds the application.** A template root that does not exist, a template that
    does not parse, a plugin's `Configure` failing — each is reported here, not at
    the first request.
 
-Passing `nil` is `ErrNilConfig`. A nil configuration is a mistake rather than a
+Passing `nil` is an error. A nil configuration is a mistake rather than a
 request for defaults, because the configuration says where your templates are.
 
 ## Config
@@ -37,6 +37,7 @@ request for defaults, because the configuration says where your templates are.
 | `DevWatch` | `[]string` | none | Extra directories whose changes reload a development page. Since v0.10.0. |
 | `Logger` | `*slog.Logger` | chosen at startup | The logger the framework and plugins write through. |
 | `Server` | `ServerConfig` | | The HTTP server. |
+| `BaseURL` | `string` | none | The site's public origin, `https://example.com`, for the absolute URLs a render cannot know otherwise. |
 | `Security` | `SecurityConfig` | | Request-forgery protection. |
 | `Template` | `TemplateConfig` | | Template loading and rendering. |
 | `Cache` | `CacheConfig` | | The page cache. |
@@ -57,8 +58,8 @@ column of the call that failed (since v0.15.0) — and showing the full error ch
 **It must be off in production** — those diagnostics carry paths, hostnames and
 whatever else error messages contain.
 
-The effective value is `cfg.IsDevMode()`, which is `DevMode || Template.DevMode`.
-A scaffolded project sets it from `COLLAGE_DEV=1`, which `collage dev` sets for you.
+`DevMode` is the one switch: `Template.DevMode`, which did the same before v0.60.0,
+is gone. A plugin reads it with `host.DevMode()`. A scaffolded project sets it from `COLLAGE_DEV=1`, which `collage dev` sets for you.
 
 ### DevWatch
 
@@ -88,7 +89,7 @@ Anywhere else it is `slog.Default()`, unchanged — except where `FORCE_COLOR` i
 set, as [`collage dev`](/docs/cli#collage-dev) does for the program it runs on a
 colour terminal, and `NO_COLOR` is not (since v0.32.0). An application that called
 `slog.SetDefault` keeps its handler. Pass a logger to be certain, such as a JSON
-handler for logs a machine reads. `ApplyDefaults` leaves this field `nil`.
+handler for logs a machine reads. `New` leaves this field `nil`.
 
 ### Plugins and PluginConfig
 
@@ -139,7 +140,7 @@ a container, set it to `0.0.0.0`. A scaffolded project fills `Host` and `Port` f
 the `HOST` and `PORT` environment variables. Under `collage dev` those are a
 loopback address `collage dev` chose, and it listens on yours itself, so keep
 reading them from the environment; see [CLI](/docs/cli#collage-dev). `MaxBodyBytes` is not filled in by
-`ApplyDefaults`: zero means the built-in 4 MiB (`4 << 20` bytes), applied when a
+`New`: zero means the built-in 4 MiB (`4 << 20` bytes), applied when a
 request arrives, and a negative value means unbounded. An unbounded body is memory
 an anonymous caller chooses the size of, so choose that deliberately. An action can
 set its own bound with `WithMaxBodyBytes`; see
@@ -182,7 +183,7 @@ See [Deployment](/docs/deployment#behind-a-proxy-trustedproxies).
 | `DisableCSRF` | `bool` | `false` | Turns forgery checking off for the whole application. |
 | `CSRFTokenTTL` | `time.Duration` | `12h` | How long a forgery token stays valid after it is issued; negative disables expiry (since v0.39.0). |
 | `FrameOptions` | `string` | `"SAMEORIGIN"` | `X-Frame-Options` sent on every response; `"-"` sends none (since v0.39.0). |
-| `NoSniff` | `*bool` | on | Sends `X-Content-Type-Options: nosniff` on every response unless it points at `false` (since v0.39.0). |
+| `DisableNoSniff` | `bool` | `false` | Stops the `X-Content-Type-Options: nosniff` header sent on every response (the header since v0.39.0; before v0.60.0 this field was `NoSniff *bool`). |
 
 **Set `CSRFKey` before deploying anything with a form.** It should be at least 32
 random bytes, kept with your other secrets and the same on every instance. Left
@@ -201,7 +202,7 @@ a form in it, stored under the old one, is rendered again rather than served —
 here; every other origin is refused even with a valid token. See
 [Forms and actions](/docs/forms-and-actions#where-the-request-came-from).
 
-The name defaults above are applied by the forgery guard, not by `ApplyDefaults`,
+The name defaults above are applied by the forgery guard, not by `New`,
 so the fields stay empty in your `Config`. `CSRFFieldName` renames the field on
 both sides: `{{csrfToken}}` writes the name the check reads, so forms need no
 change. Script that reads the token from the form — `input[name="_csrf"]` — has
@@ -220,7 +221,6 @@ instead, use `WithoutCSRF` on it.
 | `Root` | `string` | `"./templates"` on disk | Directory templates are loaded from, stripped from every template name. |
 | `Extension` | `string` | `".html"` | File extension of template files. |
 | `Funcs` | `template.FuncMap` | none | Extra template functions, merged over the built-ins. |
-| `DevMode` | `bool` | `false` | Reload templates from disk on every render. |
 | `Timeout` | `time.Duration` | `5s` | Default data-handler timeout, and the whole budget of every document handler. |
 
 ### FS and Root
@@ -270,22 +270,23 @@ handler that never checks `ctx.Done()` can run past it.
 | --- | --- | --- | --- |
 | `Enabled` | `bool` | `false` | Master switch for the page cache. |
 | `Store` | `Cache` | `nil` | Your own cache implementation. |
-| `Type` | `string` | `"memory"` when enabled | Built-in cache when `Store` is `nil`: `"memory"` or `"disk"`. |
+| `Type` | `CacheType` | `CacheMemory` when enabled | Built-in cache when `Store` is `nil`: `collage.CacheMemory` or `collage.CacheDisk`. |
 | `DefaultTTL` | `time.Duration` | `5m` | Entry lifetime when a page sets none. |
-| `MaxEntries` | `int` | `10000` | Cap on cache entries, memory and disk alike; negative means unlimited (disk since v0.39.0). |
+| `MaxEntries` | `int` | `10000` | Cap on cache entries, memory and disk alike, and on the keys tracked under one tag; negative means unlimited entries (disk since v0.39.0). |
 | `MaxBytes` | `int64` | 256 MiB memory, 1 GiB disk | Cap on the total size a built-in cache stores; negative means unlimited (since v0.40.0). |
-| `Dir` | `string` | none | Where a disk cache stores entries. Required for `"disk"`. |
+| `Dir` | `string` | none | Where a disk cache stores entries. Required for `CacheDisk`. |
 | `Version` | `string` | derived from the binary | Identifies the build a disk cache's entries belong to. |
-| `MaxKeysPerTag` | `int` | `10000` | Cap on cache keys recorded under one tag; negative means unlimited. |
 
 **Caching is off by default.** With `Enabled` false nothing is cached, even with a
-`Store` set. `Type` defaults to `"memory"` only when `Enabled` is true and `Store`
-is `nil`.
+`Store` set. `Type` defaults to `collage.CacheMemory` only when `Enabled` is true
+and `Store` is `nil`. An untyped literal, `Type: "disk"`, still compiles; a string
+read from a variable needs converting: `Type: collage.CacheType(v)`.
 
 **A `Store` replaces `Type` entirely**, including in validation. Implement
-`collage.Cache` (`Get`, `Set`, `Invalidate`, `InvalidateKey`, `Clear`) to put pages
-in Redis or anywhere else; a store that also implements `collage.TaggedCache` is
-handed each entry's tags on write. Leave the field unset rather than assigning a
+`collage.Cache` (`Get`, `Set`, `InvalidateKey`, `Clear`) to put pages in Redis or
+anywhere else; a store that also implements `collage.TaggedCache` (`SetTagged`,
+`Invalidate`) is handed each entry's tags on write and asked to invalidate by tag.
+Before v0.60.0 `Invalidate` was a method of `Cache` itself. Leave the field unset rather than assigning a
 nil pointer of a concrete type, which is a non-nil interface that panics on the
 first lookup.
 
@@ -305,11 +306,13 @@ with a built-in cache, the number of keys the dependency tracker holds in all
 (since v0.40.0). **`MaxBytes`** bounds what a built-in cache weighs: zero picks the
 type's default, and a page larger than the whole cap is served but not stored. A
 custom `Store` ignores it. See [Caching](/docs/caching#bounded-in-bytes-too).
-**`MaxKeysPerTag`** bounds the framework's dependency tracker, the per-process index
-that maps a tag back to cache keys. Every distinct query string is a distinct key,
+**`MaxEntries` also bounds the framework's dependency tracker per tag** — the
+per-process index that maps a tag back to cache keys. Before v0.60.0 that was a
+field of its own, `MaxKeysPerTag`. Every distinct query string is a distinct key,
 and nothing removes a key from the tracker when the cache evicts or expires its
 entry, so without a cap a client could grow that index without limit. When a tag is
-at the cap, its oldest key is dropped from the tracker only, not from the cache.
+at the cap, its oldest key is dropped from the tracker only, not from the cache. A
+negative `MaxEntries` keeps this per-tag cap at 10000.
 
 What that costs depends on the store. The built-in memory and disk caches index
 tags themselves (they implement `TaggedCache`), so `InvalidateTags` still reaches
@@ -317,9 +320,10 @@ every entry they hold; only the count `InvalidateTagsN` reports, which is what t
 tracker resolved, can come out lower. A custom `Store` that does not implement
 `TaggedCache` relies on the tracker alone, and for it a dropped key is an entry
 `InvalidateTags` no longer reaches — served until it expires. With such a store,
-set the cap above the number of live entries any one tag can cover.
+set `MaxEntries` above the number of live entries any one tag can cover.
 
-Zero for either cap means the default; only a negative value means unlimited. See
+Zero for `MaxEntries` or `MaxBytes` means the default; only a negative value means
+unlimited. See
 [Caching](/docs/caching).
 
 ## LocaleConfig
@@ -328,7 +332,6 @@ Zero for either cap means the default; only a negative value means unlimited. Se
 | --- | --- | --- | --- |
 | `Default` | `string` | `"en"` | Locale of a URL with no locale prefix. |
 | `Supported` | `[]string` | `[Default]` | Every locale the application serves. |
-| `DisablePathLocale` | `bool` | `false` | Stop resolving the locale from the path; every request is in `Default`. |
 | `PrefixDefault` | `bool` | `false` | Give `Default`'s pages a prefix too: `/en/about`. Since v0.14.0. |
 
 The URL is the only thing that selects a locale: `/about` is in `Default`, and
@@ -378,17 +381,16 @@ render of the same key that was already running.
 
 ## Validation
 
-`Validate` returns the first of these it finds, after `ApplyDefaults` has run:
+`New` returns the first of these it finds, after the defaults are filled in:
 
 | Condition | Error |
 | --- | --- |
 | `Server.Port` outside `1`–`65535` | `ErrInvalidPort` |
-| `Template.Root` empty and `Template.FS` nil | `ErrEmptyTemplateRoot` |
-| `Cache.Enabled`, no `Store`, and `Type` neither `"memory"` nor `"disk"` | `ErrInvalidCacheType` |
-| `Cache.Enabled`, no `Store`, `Type` `"disk"`, and `Cache.Dir` empty | `ErrEmptyCacheDir` |
-| `Locale.Default` empty | `ErrEmptyLocaleDefault` |
+| `Cache.Enabled`, no `Store`, and `Type` neither `CacheMemory` nor `CacheDisk` | `ErrInvalidCacheType` |
+| `Cache.Enabled`, no `Store`, `Type` `CacheDisk`, and `Cache.Dir` empty | `ErrEmptyCacheDir` |
 | `Locale.Default` not in `Locale.Supported` | `ErrLocaleDefaultNotSupported` |
 | A negative `Server.ReadTimeout`, `ReadHeaderTimeout`, `WriteTimeout`, `IdleTimeout`, `ShutdownTimeout`, `DrainDelay`, `Template.Timeout` or `Cache.DefaultTTL` | `ErrNegativeDuration` |
+| `BaseURL` set and not a bare `scheme://host[:port]` | `ErrInvalidOrigin` |
 
 The negative-duration error is one sentinel for all eight fields; the message names
 the one that failed, such as `server.read_timeout`. Because defaults are applied
@@ -396,16 +398,16 @@ first, a zero port or an empty default locale never reaches validation from `New
 — only a value you set explicitly can fail. Match these with `errors.Is`; the full
 list is in [Errors](/docs/errors#configuration).
 
-You can call both yourself — to check a configuration in a test, say:
+Filling in defaults and validating are not exported on their own since v0.60.0:
+`New` is the one place they run, so a test checks a configuration by calling it:
 
 ```go
-cfg := collage.Config{Server: collage.ServerConfig{Port: 70000}}
-cfg.ApplyDefaults()
-err := cfg.Validate() // wraps collage.ErrInvalidPort
+_, err := collage.New(&collage.Config{Server: collage.ServerConfig{Port: 70000}})
+// errors.Is(err, collage.ErrInvalidPort)
 ```
 
-`ApplyDefaults` is idempotent: applying it to a configuration that already has
-defaults changes nothing.
+Filling in defaults is idempotent: a configuration that already has them is left
+as it is.
 
 ## A complete configuration
 
@@ -431,7 +433,7 @@ app, err := collage.New(&collage.Config{
 	},
 	Cache: collage.CacheConfig{
 		Enabled:    true,
-		Type:       "disk",
+		Type:       collage.CacheDisk,
 		Dir:        ".cache",
 		DefaultTTL: 5 * time.Minute,
 	},

@@ -1,6 +1,6 @@
 ---
 description: A hands-on tutorial — build a recipe page with a layout, a data handler and a template, add a second fragment in a slot, and export every recipe to static files.
-reference: New, NewPage, NewFragment, FragmentBuilder.WithData, FragmentBuilder.WithTitle, PageBuilder.WithStaticParams, Registrable, DataHandler, Load, Value, ErrNotFound, ErrUnknownSlot, ErrTemplateType
+reference: New, NewPage, NewFragment, FragmentBuilder.WithData, FragmentBuilder.WithTitle, PageBuilder.WithStaticParams, Registrable, LoadTagged, Load, Value, ErrNotFound, ErrUnknownSlot, ErrTemplateType
 ---
 
 # Your first page
@@ -220,7 +220,7 @@ import (
 // Returns the recipe page's content.
 func Recipe() *collage.Fragment {
 	return collage.NewFragment("recipe", "pages/recipes/recipe.html").
-		WithData(collage.DataHandler(loadRecipe)).
+		WithData(collage.LoadTagged(loadRecipe)).
 		Required().
 		Build()
 }
@@ -252,8 +252,8 @@ Take it a line at a time.
 
 - **`NewFragment("recipe", "pages/recipes/recipe.html")`** names the fragment and
   its template. The template path is relative to `templates/`, extension included.
-- **`WithData(collage.DataHandler(loadRecipe))`** gives the fragment its data
-  handler. `collage.DataHandler` takes a function that returns its data in its own
+- **`WithData(collage.LoadTagged(loadRecipe))`** gives the fragment its data
+  handler. `collage.LoadTagged` takes a function that returns its data in its own
   type, here a `recipes.Recipe`, and that type is what the template is checked
   against when the page is registered.
 - **The handler returns three things**: the data, the dependency tags it was built
@@ -384,7 +384,7 @@ type moreView struct {
 // Returns the list of every recipe but the one on the page.
 func More() *collage.Fragment {
 	return collage.NewFragment("more", "pages/recipes/more.html").
-		WithData(collage.DataHandler(loadMore)).
+		WithData(collage.LoadTagged(loadMore)).
 		Build()
 }
 
@@ -429,7 +429,7 @@ the layout every page shares. Put it in a slot of the recipe fragment. In
 
 ```go
 return collage.NewFragment("recipe", "pages/recipes/recipe.html").
-	WithData(collage.DataHandler(loadRecipe)).
+	WithData(collage.LoadTagged(loadRecipe)).
 	WithSlotFragment("more", More()).
 	Required().
 	Build()

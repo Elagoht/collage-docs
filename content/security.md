@@ -121,8 +121,8 @@ rewrite your terminal.
 Every response carries `X-Content-Type-Options: nosniff` and
 `X-Frame-Options: SAMEORIGIN` by default, so a site has MIME-sniff and clickjacking
 protection on its forms without adding anything. `Security.FrameOptions` sets the
-value — `"-"` sends none, anything else is sent verbatim — and `Security.NoSniff`
-turns nosniff off when it points at `false`. A full `Content-Security-Policy`, HSTS
+value — `"-"` sends none, anything else is sent verbatim — and `Security.DisableNoSniff`
+turns nosniff off (`NoSniff *bool` before v0.60.0). A full `Content-Security-Policy`, HSTS
 and the rest are what the [elagoht/secure](/docs/plugins#elagohtsecure) plugin adds,
 and its headers override these; a production page carries no framework script, so a
 strict policy needs no nonce.

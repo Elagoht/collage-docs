@@ -153,8 +153,8 @@ değişir ve eski ad bir daha hiç istenmez.
 - **Var olmayan bir dosya bir URL değil, hata üretir**: `ErrUnknownAsset`. Aksi
   hâlde page sorunsuz render edilir, ama 404 veren bir stylesheet'e link verirdi.
 - Hiçbir mount'un serve etmediği bir path ya da hiç mount'u olmayan bir uygulama da
-  `ErrUnknownAsset` üretir. Hiçbir mount'un prefix'i path'i kapsamıyorsa bu hata
-  `ErrNoMountForAsset`'i wrap eder.
+  `ErrUnknownAsset` üretir. Hiçbir mount'un prefix'i path'i kapsamıyorsa mesaj bunu
+  söyler.
 - Static export, orijinallerin yanına yalnızca page'lerin istediği fingerprint'li
   kopyaları yazar.
 
@@ -265,9 +265,8 @@ Go tarafındaki karşılığı `app.URL(name, locale, params)`'tır. Ayrıntıla
 
 `pageURL` ile aynı işi tam olarak verilen locale'de yapar ve fallback uygulamaz. O
 locale'de path'i olmayan bir route `ErrNoPathInLocale` üretir. Hiçbir URL'nin
-ulaşamadığı bir locale ise `ErrLocaleUnreachable` üretir. Böyle bir locale ya
-`Locale.Supported` içinde yoktur ya da `DisablePathLocale` set edildiğinde varsayılan
-dışındaki herhangi bir locale'dir.
+ulaşamadığı bir locale ise `ErrLocaleUnreachable` üretir. Böyle bir locale ne
+varsayılan locale'dir ne de `Locale.Supported` içinde yer alır.
 
 ### localeURL
 
@@ -374,9 +373,9 @@ ettiğiniz URL'ler için kullanın.
 ```
 
 Sırayla gelen key ve value'lardan bir `map` oluşturur. Bir sub-template'e birden
-fazla değer geçirmek için kullanılır. Key'ler string olmalıdır
-(`ErrDictKeyNotString`) ve argümanlar çiftler hâlinde gelmelidir (`ErrDictOddArgs`).
-Bu hatalardan herhangi biri template'i başarısız kılar.
+fazla değer geçirmek için kullanılır. Key'ler string olmalıdır ve
+argümanlar çiftler hâlinde gelmelidir. Bu hatalardan herhangi biri template'i
+başarısız kılar; mesaj hangisi olduğunu söyler.
 
 ### default
 

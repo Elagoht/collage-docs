@@ -1,6 +1,6 @@
 ---
 description: Siteyi collage export ile static dosyalara render edin: nelerin yazıldığı, nelerin neden atlandığı, dinamik path'ler ve bir static host'ta yayımlama.
-reference: NewBuilder, BuildOptions, BuildReport, PrintBuildReport, StaticParamsFunc, SkipRecord, ErrNotStatic, ErrGuarded, ErrDynamicPathUnresolved, ErrRouteParams, ErrBuildFindings, ErrDuplicateRedirect, ErrRedirectShadowsFile, IsCapture, BuiltFile, BuiltRedirect, RedirectSource
+reference: Build, BuildOptions, BuildReport, PrintBuildReport, StaticParamsFunc, SkipRecord, ErrNotStatic, ErrGuarded, ErrDynamicPathUnresolved, ErrRouteParams, ErrBuildFindings, ErrDuplicateRedirect, ErrRedirectShadowsFile, IsCapture, BuiltFile, BuiltRedirect, RedirectSource
 ---
 
 # Static export
@@ -42,15 +42,10 @@ Hangi page'lerin var olduğu onu ilgilendirmez, çünkü bunu her page
 
 ```go
 func staticBuild(app *collage.App, outDir string, clean bool) error {
-	builder, err := collage.NewBuilder(app, collage.BuildOptions{
+	report, buildErr := collage.Build(context.Background(), app, collage.BuildOptions{
 		OutDir: outDir,
 		Clean:  clean,
 	})
-	if err != nil {
-		return err
-	}
-
-	report, buildErr := builder.Build(context.Background())
 
 	collage.PrintBuildReport(os.Stdout, report, buildErr)
 
@@ -58,7 +53,8 @@ func staticBuild(app *collage.App, outDir string, clean bool) error {
 }
 ```
 
-`Build`, hata döndürdüğünde bile bir rapor döndürür. Hata veren bir page diğerlerini
+`collage.Build` (v0.60.0'dan önce `collage.NewBuilder` ve ardından onun döndüğü
+değer üzerinde `Build`), hata döndürdüğünde bile bir rapor döndürür. Hata veren bir page diğerlerini
 durdurmaz ve bütün hatalar `report.Errors` içinde yer alır. Dönen hata, bunların
 hepsinin birleşimidir. `main` bu durumda sıfırdan farklı bir kodla çıkar, böylece
 bir page yazılamadığında CI job'ı da başarısız olur. Atlanan page'ler ve uyarılar
@@ -136,11 +132,6 @@ birlikte raporda listeler:
 - **`WithStaticParams`'ı olmayan bir `{param}` pattern'i.** Hangi slug'ların var
   olduğunu bir şey söylemeden `/blog/{slug}` yazılamaz ve
   `collage.ErrDynamicPathUnresolved` ile atlanır. Aşağıya bakın.
-- **Aynı dosyaya düşen iki document.** `WithStaticParams`'ı aynı değerleri iki kez
-  listeleyen bir document, iki görevi tek bir dosyaya bağlar. İlki yazılır, geri
-  kalanlar `collage.ErrDuplicateOutputPath` ile atlanır. İki locale'deki tek bir
-  pattern bu duruma girmez, çünkü her locale kendi prefix'i altına yazılır. Bkz.
-  [Document'lar](/docs/documents#documents-in-a-static-export).
 
 Path olmadan register edilen error page'ler hiç listelenmez, çünkü bunlar birer URL
 değildir.
@@ -185,11 +176,16 @@ kodla çıkar.
   page'e ait hata olarak kaydedilir. Build'in geri kalanı devam eder.
 - **Form içeren bir not-found page** (`collage.ErrUnresolvedToken`). Bunun nedeni,
   static host'un bu page'e bir dosya olarak ihtiyaç duymasıdır.
-- **Aynı output path'e düşen iki page** (`collage.ErrOutputPathCollision`). Bu,
-  yalnızca sondaki slash ile ayrılan iki pattern ya da aynı değerleri iki kez
-  listeleyen bir `WithStaticParams` olabilir. Bu durum tespit edildiğinde hiçbir
-  page render edilmez. Document'lar, `404.html` page'leri ve mount edilen asset'ler
-  yine yazılır, ama build yine de başarısız olur.
+- **Aynı output path'e düşen iki route** (`collage.ErrOutputPathCollision`): iki
+  page, iki document ya da bir page ile bir document. Sebep yalnızca sondaki slash
+  ile ayrılan iki pattern, aynı değerleri iki kez listeleyen bir `WithStaticParams`
+  ya da bir page'in `index.html`'ine düşen bir document olabilir. İki locale'deki tek
+  bir pattern bu duruma girmez, çünkü her locale kendi prefix'i altına yazılır. Build
+  `OutDir`'e dokunmadan durur: hiçbir şey temizlenmez ya da yazılmaz, `404.html` ya
+  da mount edilen dosya kopyalanmaz ve `BuildFinishedHook` çağrılmaz. v0.60.0'dan beri
+  document'lar da kontrol edilir; önceden aynı dosyaya düşen ikinci document
+  `ErrDuplicateOutputPath` ile atlanıyordu. Document'ların `WithStaticParams`'ı
+  hiçbir page render edilmeden önce çalışır, bu yüzden kontrol onları da kapsar.
 - **Aynı path'ten iki redirect** (`collage.ErrDuplicateRedirect`, v0.52.0'dan
   beri). `/old` ile `/old/` ya da `/blog/{slug}` ile `/blog/{x}` buna örnektir:
   page'lerden, document'lardan ya da bir plugin'den gelsinler, router ikisini tek
@@ -339,7 +335,7 @@ func listing(ctx context.Context, rc *collage.RenderContext) (BlogList, []string
 }
 
 list := func(name string) *collage.Fragment {
-	return collage.NewFragment(name, "blog/list.html").WithData(collage.DataHandler(listing)).Required().Build()
+	return collage.NewFragment(name, "blog/list.html").WithData(collage.LoadTagged(listing)).Required().Build()
 }
 app.RegisterPage(collage.NewPage("blog").
 	WithContent(list("blog-list")).
@@ -440,17 +436,16 @@ Aksi hâlde `-out .` ile `-clean` birlikte verildiğinde projeniz silinirdi.
 
 Export, sunucuyla aynı durumda render eder. Build önce uygulamayı başlatır ve
 page'ler listelenmeden önce her plugin'in `Init`'ini çalıştırır (v0.24.0'dan beri).
-Böylece bir plugin'in register ettiği page de, bir plugin'in yüklediği veriye dayanan
+Böylece bir plugin'in register ettiği document de, bir plugin'in yüklediği veriye dayanan
 `WithStaticParams` da build edilir ve plugin'ler aynı config'i okur. `OnBeforeRender`, `OnAfterRender` ve
 `OnDocumentRendered` her page ve document için tetiklenir. Yani bir minifier ya da
 structured data plugin'i sunulan bir page'e ne yapıyorsa dosyaya da onu yapar.
-`OnPageResolved` ise bu render'lar için tetiklenmez, çünkü onlar request değildir.
 v0.21.0'dan beri `OnBuildFinished`, her dosya yazıldıktan sonra bir kez çalışır.
 Build'i bir bütün olarak denetleyen plugin'ler içindir.
 
 Böyle bir plugin register edilmişse build önce `App.Handler()` üzerinden
 [her dosyanın header'larını yakalar](#headers-and-redirects) (v0.52.0'dan beri).
-Bunlar request'tir: middleware, `OnRequest` ve `OnPageResolved` onları görür, page
+Bunlar request'tir: middleware ve `OnRequest` onları görür, page
 de `OnBeforeRender` ve `OnAfterRender` ile yeniden render edilir. Bu sırada
 `ev.Static` false'tur. Trafiği sayan ya da sınırlayan bir plugin de, bir render
 hook'undan dosya yazan bir plugin de `collage.IsCapture(ctx)` true olduğunda bu
@@ -489,7 +484,7 @@ page'ler ve document'lar birlikte sayılır. Bu yüzden çıktıda `3 pages skip
 
 Raporu kodda kullanmak için `report.Skipped`, `report.Warnings`, `report.Findings`
 ve `report.Errors` alanlarını kendiniz okuyun. Her atlama bir `collage.SkipRecord`'dur. Bu kayıtta
-route'un adı (`Page`), `Locale`'i ve okuyan kişi için bir `Reason` bulunur.
+route'un adı `Name` (v0.60.0'dan önce `Page`), `Locale`'i ve okuyan kişi için bir `Reason` bulunur.
 v0.10.0'dan beri `errors.Is` ile eşleştirebileceğiniz bir `Err` de bulunur. Bkz.
 [Hatalar](/docs/errors#static-builds).
 [Test yazmak](/docs/testing#testing-the-export) sayfası bunu bir teste dönüştürür.

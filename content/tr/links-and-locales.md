@@ -56,9 +56,10 @@ Locale: collage.LocaleConfig{Default: "tr"},
 ve `WithPath("tr", "/hakkinda")` yazar. v0.35.0'dan beri hiçbir URL'nin
 ulaşamadığı bir locale'deki path, kayıt sırasında `collage.ErrLocaleUnreachable`
 ile reddedilir. Hata, page'in adını ve locale ayarını söyler. Önceden site hiçbir
-uyarı vermeden açılıyor, sonra her URL'de 404 dönüyordu. `DisablePathLocale`
-açıkken `Default` dışındaki her locale ulaşılamaz sayılır. Aynı kural action'lar
-ve document'lar için de geçerlidir.
+uyarı vermeden açılıyor, sonra her URL'de 404 dönüyordu. Aynı kural action'lar
+ve document'lar için de geçerlidir. v0.60.0'dan beri `WithPath`, bir page, document
+ya da action için iki kez verilen bir locale'i (`collage.ErrDuplicateLocalePath`;
+ilk path korunur) ve boş bir locale'i (`collage.ErrInvalidLocale`) de reddeder.
 
 ## Locale'i URL belirler
 
@@ -110,9 +111,10 @@ func aboutData(ctx context.Context, rc *collage.RenderContext) (aboutView, []str
 }
 ```
 
-`DisablePathLocale: true` prefix'leri tamamen kapatır ve bütün request'leri `Default`
-locale'de bırakır. Bu ayar, tek dilli bir site ya da dili kendisi
-[belirleyen](#negotiating-a-language-yourself) bir site içindir.
+Prefix'leri kapatan bir ayar yoktur: `DisablePathLocale` v0.60.0'da kaldırıldı. Tek
+dilli bir site path'lerini prefix taşımayan `Default`'ta register eder; dili kendisi
+[belirleyen](#negotiating-a-language-yourself) bir site ise bunu middleware'de
+yapar.
 
 ### Neden yalnızca URL
 
@@ -252,8 +254,8 @@ Boş bir locale, varsayılan locale anlamına gelir. `app.URL`, `pageURLIn` kada
 Bilinmeyen bir ad `collage.ErrUnknownRoute` döner. Route'un path'i olmayan bir locale
 `collage.ErrNoPathInLocale` döner. Pattern'i tam olarak doldurmayan parametreler
 `collage.ErrRouteParams` döner. Hiçbir URL'nin taşıyamayacağı bir locale ise
-`collage.ErrLocaleUnreachable` döner. Desteklenmeyen bir locale ya da
-`DisablePathLocale` açıkken varsayılan dışındaki herhangi bir locale bu gruptadır.
+`collage.ErrLocaleUnreachable` döner. Ne varsayılan olan ne de desteklenen bir
+locale bu gruptadır.
 Sonuç, prefix dahil bir path'tir. Mutlak bir URL gerektiğinde başına sitenizin
 origin'ini ekleyin.
 
@@ -339,7 +341,8 @@ ve bu, cache'lenen ya da cache'lenmeyen her route için geçerlidir. Bu yüzden 
 handler'dan ya da routing'den sonraki herhangi bir yerden yapılan çağrı hiçbir şeyi
 değiştirmez ve `collage.ErrVaryTooLate` döner. Bu yol,
 [tek URL, tek içerik](#why-only-the-url) yaklaşımının faydalarından vazgeçer. O
-yüzden onu bilerek seçin; genellikle `DisablePathLocale` ile birlikte kullanılır.
+yüzden onu bilerek seçin; genellikle bütün page'lerinin path'i `Default`'ta olan,
+yani hiçbir URL'nin bir locale adlandırmadığı bir sitede kullanılır.
 
 [Static export](/docs/static-export) request olmadan render eder, bu yüzden yazdığı
 dosyalar için hiçbir middleware çalışmaz. Export edilen bir sitede locale'ler

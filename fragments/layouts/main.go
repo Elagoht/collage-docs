@@ -71,7 +71,7 @@ func Layout(app *collage.App, docs func() (*site.Set, error)) *collage.Fragment 
 			}
 			return view, nil
 		})).
-		WithSlot("content", true, false).
+		WithSlot("content", collage.SlotRequired, collage.SlotSingle).
 		Build()
 }
 

@@ -1,6 +1,6 @@
 ---
 description: Gerçek uygulamayı app.Handler() ve pkg/collagetest ile test edin. pkg/collagetest, cookie'leri saklayan ve form'ları bir tarayıcının yaptığı gibi gönderen bir client'tır. Page'leri, forgery token'ıyla birlikte form'ları, document'ları ve static export'u bu şekilde sınayabilirsiniz.
-reference: NewBuilder, BuildOptions, App
+reference: Build, BuildOptions, App
 ---
 
 # Test yazmak
@@ -349,24 +349,20 @@ Bu test, `collage export`'un çalıştırdığı `staticBuild` fonksiyonunun ayn
 seçeneklerini de kapsar. `staticBuild` build'in hatasını döner. Degraded bir page,
 boş bir render ya da bir panic bu hata yüzünden testi başarısız kılar.
 
-Atlanan page'leri ve uyarıları da kontrol etmek için builder'ı doğrudan çağırın ve raporu
+Atlanan page'leri ve uyarıları da kontrol etmek için `collage.Build`'i doğrudan çağırın ve raporu
 okuyun:
 
 ```go
-builder, err := collage.NewBuilder(app, collage.BuildOptions{OutDir: t.TempDir()})
-if err != nil {
-	t.Fatal(err)
-}
-report, err := builder.Build(context.Background())
+report, err := collage.Build(context.Background(), app, collage.BuildOptions{OutDir: t.TempDir()})
 if err != nil {
 	t.Fatalf("build: %v", err)
 }
 for _, skip := range report.Skipped {
-	if skip.Page == "home" {
+	if skip.Name == "home" {
 		t.Errorf("home was skipped: %s", skip.Reason)
 	}
 	if errors.Is(skip.Err, collage.ErrDynamicPathUnresolved) {
-		t.Errorf("%s has a {param} and no WithStaticParams", skip.Page)
+		t.Errorf("%s has a {param} and no WithStaticParams", skip.Name)
 	}
 }
 if len(report.Warnings) > 0 {

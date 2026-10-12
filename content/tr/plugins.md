@@ -153,10 +153,10 @@ için çalışır, bu yüzden varsayılan olarak onu kullanın.
 | Hata | Ne zaman |
 | --- | --- |
 | `ErrAppStarted` | Uygulama zaten başlamıştır: `Handler`, `ListenAndServe`, `Start`, `DispatchCommands` ya da bir render çalışmıştır. Başarısız olan başlatmalar da buna dahildir. Bir plugin'in `Init`'inde başarısız olan başlatma v0.11.0'dan, başka herhangi bir nedenle başarısız olan başlatma v0.12.0'dan beri sayılır. |
-| `ErrNilPlugin` | Plugin `nil`'dir. |
-| `ErrEmptyPluginName` | Plugin'in `Name()` değeri boştur. |
 | `ErrDuplicatePlugin` | Aynı ada sahip başka bir plugin zaten vardır. |
 
+`nil` bir plugin ya da `Name()` değeri boş olan bir plugin de, bunu söyleyen bir
+hatayla reddedilir; v0.60.0'dan beri ikisinin de kendine ait bir sentinel'i yoktur.
 `Config.Plugins` içindeki plugin'ler de aynı şekilde kontrol edilir. Bu durumda
 hatayı `New` döndürür.
 
@@ -2290,7 +2290,7 @@ app, err := collage.New(&collage.Config{
 - v0.2.6, collage v0.50.0 ya da sonrasını gerektirir (v0.2.3, collage v0.49.0 için son sürümdü). Tek değeri hem uygulamanın `Metrics`'i hem de bir plugin olarak
   verin. Birincisi olmadan hiçbir şey ölçülmez, ikincisi
   olmadan hiçbir şey sunulmaz.
-- Hiçbir label bir request'ten alınmaz. v0.2.0'dan beri `route`, `collage.RouteOf`'un
+- Hiçbir label bir request'ten alınmaz. v0.2.0'dan beri `route`, `collage.RouteInfo`'nun
   request'in neye resolve edildiğini söylediği tür ve addır: `/blog/a` ve `/blog/b`
   ikisi de `page:post`, `/robots.txt` `document:robots`, bir mount
   `mount:/static/`, bir 404 ise `other` olur. Böylece path uyduran bir crawler yeni

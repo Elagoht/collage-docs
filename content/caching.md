@@ -65,7 +65,7 @@ page := collage.NewPage("blog-post").
 	WithContent(post).
 	WithPath("en", "/blog/{slug}").
 	Incremental(10 * time.Minute).
-	WithDependency("blog:posts").
+	WithDependencyTags("blog:posts").
 	Build()
 ```
 
@@ -77,8 +77,7 @@ but ask every time, and the [ETag](#etags-and-304) makes asking cheap.
 
 `Incremental(ttl)` is for content that changes on a clock, or that comes from
 somewhere that cannot tell you when it changed. A TTL of zero is a registration
-error (`collage.ErrMissingTTL`), and a negative one is too
-(`collage.ErrInvalidTTL`) — not a page that silently never expires.
+error (`collage.ErrInvalidTTL`), and a negative one is too — not a page that silently never expires.
 
 [Documents](/docs/documents) — sitemaps, feeds, anything that is not HTML — take
 the same three calls and are stored, keyed, invalidated and — since v0.12.0 —
@@ -90,7 +89,7 @@ A page that calls none of the three is resolved when it is registered. Before
 that its strategy is `collage.StrategyAuto`; after, it is one of the other three.
 
 - **Dynamic** if anything it renders fetches per render: a data handler
-  (`collage.DataHandler`, `collage.Load` or `collage.Effect`) or a slot
+  (`collage.LoadTagged`, `collage.Load` or `collage.Effect`) or a slot
   resolver, in its layout, its content, anything bound into their slots, their
   fallbacks, or a fragment opened with `WithFragmentPath`.
 - **Static** otherwise. A page rendering templates and fixed values —
@@ -115,7 +114,7 @@ not make a page dynamic. Since v0.17.0.
 
 ```go
 more := collage.NewFragment("more-recipes", "fragments/more-recipes.html").
-	WithData(collage.DataHandler(loadMore)). // every recipe but rc.Param("slug")
+	WithData(collage.LoadTagged(loadMore)). // every recipe but rc.Param("slug")
 	Static().
 	Build()
 ```
@@ -211,9 +210,10 @@ it used to find the first reader's, and write it into the copy everyone after go
 The request's context is stripped the same way: a value your middleware stored in
 it — a signed-in user, a tenant, a request id — is hidden from a shared render,
 for the same reason the cookie is. Read a value your middleware declared with
-`collage.Vary` back with `collage.Varied(rc, header)`, or, where only a context is at hand (a page's
-`StaticParams`, a sitemap's `LastMod`, a document handler's `ctx`),
-`collage.VariedContext(ctx, header)` (since v0.42.0); it is safe there because it
+`collage.Vary` back with `collage.Varied(ctx, header)`, with the context a data
+handler, a page's `StaticParams`, a sitemap's `LastMod` or a document handler
+receives (since v0.42.0; before v0.60.0 it took the `RenderContext`, and
+`VariedContext` took a context); it is safe there because it
 is in the key, so each value has its own cached page. A value that is not a cache
 dimension does not belong in a shared render — a page that needs the reader's own
 request is `Dynamic()`, and a dynamic page sees all of it. In development, a
@@ -239,7 +239,7 @@ merged:
 
 ```go
 // From the page, for what it always depends on.
-WithDependency("blog:posts")
+WithDependencyTags("blog:posts")
 
 // From a data handler, for what this particular render used.
 return view, []string{"post:" + post.Slug, "author:" + post.AuthorID}, nil
@@ -304,8 +304,8 @@ app.InvalidateTags(ctx, collage.PathTag("/blog/hello"))
 It drops what is cached for that path, whatever else it depends on.
 
 An invalidation also says what it dropped. A plugin hears of every one through
-`OnCacheInvalidate`, and the event carries the tags and — in `Paths` — the URL paths
-of the cached pages and documents dropped: what a CDN has to purge, and a search
+`OnCacheInvalidate`, and the event carries the tags and — in `Entries`, each a host
+and a path — the cached pages and documents dropped: what a CDN has to purge, and a search
 engine be told has changed. A page that was never cached is not in it. See
 [Writing a plugin](/docs/writing-plugins#cacheinvalidatehook);
 [elagoht/cdnpurge](/docs/plugins#elagohtcdnpurge) and
@@ -323,7 +323,8 @@ shared store of your own — `Cache.Store`, a Redis say — implement
 to invalidate by tag as well, and it can reach what another instance wrote. The
 built-in disk cache does this, which is why its tags still work after a restart.
 
-**The record per tag is capped by `Cache.MaxKeysPerTag`** (default 10000). The
+**The record per tag is capped by `Cache.MaxEntries`** (default 10000; before
+v0.60.0 a field of its own, `MaxKeysPerTag`). The
 query string is part of the key, so a client can mint any number of keys for one
 page; without a cap the index would grow for ever. When a tag reaches the cap, the
 oldest key recorded under it is forgotten by that index. The built-in memory and
@@ -331,8 +332,9 @@ disk caches both implement `collage.TaggedCache`, keeping their own record of ta
 per entry, so with them invalidating the tag still reaches every entry — only the
 count `InvalidateTagsN` reports falls short. A store of your own that does not
 implement `TaggedCache` has only collage's index to go by: a forgotten page stays in
-it until it expires, and invalidating the tag no longer reaches it. Set the cap
-above the number of cached URLs one tag can really cover, or negative for no cap.
+it until it expires, and invalidating the tag no longer reaches it. Set `MaxEntries`
+above the number of cached URLs one tag can really cover; a negative `MaxEntries`
+keeps this cap at 10000.
 
 **With a built-in cache the index is also capped as a whole** (since v0.40.0), at
 `MaxEntries` keys. Every cached path is a tag of its own, so a per-tag cap alone
@@ -526,7 +528,7 @@ nothing to configure.
 
 ## Development never reads the cache
 
-With `Config.DevMode` (or `Template.DevMode`) on — which a scaffolded project
+With `Config.DevMode` on — which a scaffolded project
 turns on under `collage dev` — cached pages are never served. Templates reload from disk on every request
 in development, and a cached page would hide the edit you just made for as long as
 its TTL. Pages are still written and tags still tracked, so hooks and metrics

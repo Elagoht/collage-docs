@@ -31,39 +31,43 @@ method, asset, `{{dict}}` and template-escapes-root errors, and `ErrNotStatic`,
 existed but could only be told apart by their messages. (`ErrTemplateRootMissing`
 was exported already.)
 
+Since v0.60.0 a few failures carry no sentinel, because there is nothing an
+application could do by matching one: `New(nil)`, a `nil` plugin or page, a plugin
+or command with an empty name, a `{{dict}}` call with an odd number of arguments
+or a key that is not a string, and a disk cache with no version. They are still
+refused, with a message that says what is wrong. Several sentinels were renamed to
+the one that stays: `ErrMissingTTL` is `ErrInvalidTTL`, `ErrUnsupportedCache` is
+`ErrInvalidCacheType`, `ErrInvalidHandlerPrefix` is `ErrInvalidPrefix`,
+`ErrInvalidBaseURL` is `ErrInvalidOrigin`, `ErrNoMethods` is `ErrNoActionMethods`,
+`ErrNilRenderer` is `ErrNilApp`, `ErrInvalidOutDir` is `ErrEmptyOutDir` and
+`ErrDuplicateOutputPath` is `ErrOutputPathCollision`.
+
 ## Configuration
 
-Returned by `collage.New`, from `Config.Validate` or while building the
+Returned by `collage.New`, which checks the configuration before it builds the
 application. See [Configuration](/docs/configuration#validation).
 
 | Error | Message | Means | What to do |
 | --- | --- | --- | --- |
-| `ErrNilConfig` | `collage: nil config` | `New(nil)`. | Pass a `*Config`; its zero value is fine. |
 | `ErrInvalidPort` | `collage: invalid port` | `Server.Port` is outside `1`–`65535`. | Leave it zero for `6060`, or set a valid port. |
-| `ErrEmptyTemplateRoot` | `collage: empty template root` | `Template.Root` is empty and `Template.FS` is nil. | Only reachable by calling `Validate` yourself; `New` defaults `Root` first. |
 | `ErrTemplateRootMissing` | `collage: template root missing` | `Template.Root` does not exist or is not a directory. | The most common startup failure: check the working directory, or embed the templates. |
 | `ErrTemplateEscapesRoot` | `collage: template escapes root` | A template under `Template.Root` resolves outside it — a symlink leading out of the directory. | Copy the file in rather than linking to it. |
-| `ErrInvalidCacheType` | `collage: invalid cache type` | `Cache.Enabled`, no `Store`, and `Type` is neither `"memory"` nor `"disk"`. | Fix the spelling, or supply a `Store`. |
+| `ErrInvalidCacheType` | `collage: invalid cache type` | `Cache.Enabled`, no `Store`, and `Type` is neither `collage.CacheMemory` (`"memory"`) nor `collage.CacheDisk` (`"disk"`). | Fix the spelling, or supply a `Store`. |
 | `ErrEmptyCacheDir` | `collage: disk cache needs a directory` | `Cache.Type` is `"disk"` and `Cache.Dir` is empty. | Set `Dir`. |
-| `ErrEmptyCacheVersion` | `collage: disk cache needs a version` | A disk cache was built with no version. | Normally unreachable: an empty `Version` is derived from the binary. |
-| `ErrUnsupportedCache` | `collage: unsupported cache type` | The cache type names nothing the framework can build. | Normally caught earlier as `ErrInvalidCacheType`. |
-| `ErrEmptyLocaleDefault` | `collage: empty default locale` | `Locale.Default` is empty. | Only reachable through `Validate`; `New` defaults it to `"en"`. |
 | `ErrLocaleDefaultNotSupported` | `collage: default locale not in supported locales` | `Locale.Supported` does not include `Locale.Default`. | Add the default to `Supported`. |
 | `ErrNegativeDuration` | `collage: negative duration` | One of the eight duration fields is negative; the message names which. | Use zero for the default. |
+| `ErrInvalidOrigin` | `collage: invalid origin: want scheme://host[:port] with no path, query or fragment` | `BaseURL` is not a bare origin — it has a path, a query or a fragment. `collage.ParseOrigin` returns the same error. Before v0.60.0 it was `ErrInvalidBaseURL`. | Write `https://example.com`, with nothing after the host and port. |
 
 ## Plugins and commands
 
 | Error | Message | Means | What to do |
 | --- | --- | --- | --- |
-| `ErrNilPlugin` | `collage: nil plugin` | A `nil` plugin was registered. | — |
-| `ErrEmptyPluginName` | `collage: empty plugin name` | A plugin's `Name()` is empty. | Give it a name like `acme/stamp`. |
 | `ErrDuplicatePlugin` | `collage: duplicate plugin` | Two plugins share a name. | Register each plugin once. |
 | `ErrConfigurerRegisteredLate` | `collage: plugin needs Configure and must be supplied in Config.Plugins` | `RegisterPlugin` was given a plugin with a `Configure` phase, which has already passed. | Move it to `Config.Plugins`. |
 | `ErrDuplicateTemplateFunc` | `collage: duplicate plugin template function` | `AddTemplateFunc` was called for a name already added — by another plugin, or by the same one a second time. | `AddTemplateFunc` returns it to the plugin's `Configure`; `New` fails only if `Configure` returns it. The plugins conflict: `Template.Funcs` cannot prevent it, so drop or rename one of them. |
 | `ErrUnknownPluginConfig` | `collage: plugin configuration names no registered plugin` | A `PluginConfig` key matches no registered plugin. Checked when the application starts. | Almost always a typo in the key. |
-| `ErrEmptyCommandName` | `collage: empty command name` | `RegisterCommand` with no name. | — |
 | `ErrDuplicateCommand` | `collage: duplicate command name` | Two commands share a name. | — |
-| `ErrNilApp` | `collage: nil app` | `DispatchCommands` was given a nil `*App`. | — |
+| `ErrNilApp` | `collage: nil app` | `DispatchCommands` or `collage.Build` was given a nil `*App`. | — |
 | `ErrUnknownCommand` | `collage: unknown command` | `DispatchCommands` got no arguments, or a name no plugin registered. | The scaffolded `main.go` exits `2` on it, as a usage error; a program that would rather serve can fall through on it instead. |
 | `ErrStreamingBody` | `collage: the action's body is streamed; it is not parsed as a form` | `BeforeActionEvent.Form()` was called for an action built with `WithStreamingBody()`, and read nothing (since v0.57.0). | Treat it as "this action has no form to check", and let the request through. |
 
@@ -73,8 +77,9 @@ See [Writing a plugin](/docs/writing-plugins).
 
 Two places report these. A few are recorded by the builders as the chain runs —
 `ErrDuplicateSlot` and `ErrSlotResolved` from `WithSlot`, `WithSlotResolver` and
-`WithSlotFragment` (which also records `Bind`'s `ErrNilFragment` and
-`ErrSlotOccupied`), `ErrInvalidTimeout` from `WithTimeout`, `ErrMissingLayout`,
+`WithSlotFragment` (which also records `ErrNilFragment` and
+`ErrSlotOccupied`), `ErrInvalidTimeout` from `WithTimeout`, `ErrDuplicateLocalePath`
+and `ErrInvalidLocale` from `WithPath`, `ErrMissingLayout`,
 `ErrConflictingLayout`, `ErrNilFragment` and `ErrFragmentCycle` from `WithLayouts`,
 `ErrMissingContent` from a page's `Build`, and `ErrNoDocumentHandler` from a
 document's — and you can
@@ -101,41 +106,42 @@ before it serves anything.
 | `ErrNilFragment` | `collage: nil fragment` | A `nil` fragment was used where one is required — bound to a slot, returned by a slot resolver, or listed in `WithLayouts`. |
 | `ErrDuplicateSlot` | `collage: slot already declared` | `WithSlot` was called twice with one name. |
 | `ErrUnknownSlot` | `collage: unknown slot` | A fragment is bound into a slot its template never calls — a typo on either side of the binding. The message names the slot and the slots the template does call. A slot the template calls and nothing fills is not an error: it renders empty. |
-| `ErrInvalidSlotDefinition` | `collage: invalid slot definition` | A slot has an empty name, or a map key that does not match its own name. |
+| `ErrInvalidSlotDefinition` | `collage: invalid slot definition` | A slot has an empty name, a map key that does not match its own name, or `WithSlot` was given a rule other than `SlotRequired` and `SlotSingle`. |
 | `ErrSlotOccupied` | `collage: slot already occupied` | A second fragment was bound to a slot that holds one — or a resolver returned several for it, or a layout in a page's chain arrived with its `content` slot already filled. |
 | `ErrSlotResolved` | `collage: slot is filled by a resolver` | One slot was given both a resolver and bound fragments. |
 | `ErrRequiredSlotUnfilled` | `collage: required slot has no fill` | A slot declared required has nothing bound to it. |
 | `ErrFragmentCycle` | `collage: fragment cycle detected` | A fragment is reachable from itself — or `WithLayouts` names one layout twice. |
 | `ErrMissingContent` | `collage: missing content` | A page has no content fragment. |
 | `ErrMissingLayout` | `collage: missing layout` | `WithLayouts` was called with no layouts. A page without a layout does not call it. |
-| `ErrConflictingLayout` | `collage: layout chain already declared` | `WithLayouts` was called twice on one builder — or a page built by hand sets a `LayoutFragment` that is not the first entry of its `LayoutChain`. |
+| `ErrConflictingLayout` | `collage: layout chain already declared` | `WithLayouts` was called twice on one builder. |
 | `ErrConflictingData` | `collage: conflicting data` | A fragment's data is set twice — `WithData` called twice with data, which before v0.49.0 silently kept the last — or a document sets both `WithBody` and `WithHandler`. The message names the fragment: `fragment "x" has its data set twice`. |
 | `ErrTemplateType` | `collage: template does not fit its data` | A template reads something its fragment's data type cannot give it: `{{.Titel}}` on a type with no such field, say. Each finding is a `*TemplateTypeError` naming the page, the fragment, the file, the line and the column; see [How templates are checked](/docs/data-handlers#how-templates-are-checked). Since v0.49.0. |
 | `ErrInvalidTimeout` | `collage: invalid timeout` | A fragment's timeout is negative. |
-| `ErrMissingTTL` | `collage: missing cache ttl for incremental strategy` | `Incremental` was given a zero TTL. |
-| `ErrInvalidTTL` | `collage: invalid cache ttl` | A page's TTL is negative. |
+| `ErrInvalidTTL` | `collage: invalid cache ttl` | A page's or document's TTL is negative, or `Incremental` was given a zero TTL. Before v0.60.0 the zero case was `ErrMissingTTL`. |
 | `ErrInvalidPath` | `collage: invalid path` | A path pattern does not start with `/` — or, since v0.34.0, a redirect's destination would leave the site: `//host`, `/\host`. |
 | `ErrInvalidRedirectStatus` | `collage: invalid redirect status code` | A redirect status other than `0`, `301`, `302`, `307` or `308` — or, for a `RedirectSource` plugin's rule in a static build, other than those and `410`. |
-| `ErrInvalidRedirect` | `collage: invalid redirect` | A redirect's `From` or `To` holds a control character — `\r`, `\n`, any other, or the Unicode line and paragraph separators — from `WithRedirect`, `WithPermanentRedirect` or `Redirect.Validate` (since v0.52.0). In a static build, also a malformed or control-character rule from a `RedirectSource` plugin. |
+| `ErrInvalidRedirect` | `collage: invalid redirect` | A redirect's `From` or `To` holds a control character — `\r`, `\n`, any other, or the Unicode line and paragraph separators — from `WithRedirect` or `WithPermanentRedirect`, or a hand-built `Redirect` checked by the page's `Validate` (since v0.52.0). In a static build, also a malformed or control-character rule from a `RedirectSource` plugin. |
 | `ErrSelfErrorPage` | `collage: page cannot reference itself as an error page` | A page is its own not-found or error page. |
+| `ErrDuplicateLocalePath` | `collage: locale already has a path` | `WithPath` named a locale the page, document or action already has a path in — or a document's `AtRoot` was called twice (since v0.60.0). The first path is kept. |
+| `ErrInvalidLocale` | `collage: invalid locale` | `WithPath` was given an empty locale (since v0.60.0). A document that belongs outside every locale says `AtRoot(p)`. |
 
 See [Pages and layouts](/docs/pages-and-layouts) and
 [Fragments and slots](/docs/fragments-and-slots).
 
 ## Registration and routing
 
-Returned by `RegisterPage`, `RegisterNotFoundPage`, `RegisterErrorPage` and
-`RegisterDocument`, or when the application starts.
+Returned by `RegisterPage`, `RegisterNotFoundPage`, `RegisterErrorPage`,
+`RegisterDocument` and `Register`, or when the application starts.
 
 | Error | Message | Means | What to do |
 | --- | --- | --- | --- |
 | `ErrAppStarted` | `collage: application already started` | A registration method was called after the application started — including `RegisterPlugin` after any start that failed (since v0.12.0; after one that failed in a plugin's `Init` since v0.11.0). | Register everything before `Handler`, `ListenAndServe`, `Start`, `RenderPath` or `DispatchCommands`. |
-| `ErrNilPage` | `collage: nil page` | A `nil` page was registered. | — |
+| `ErrNilRegistrable` | `collage: nil passed to Register` | `Register` was given a `nil` where a page, a document or an action was expected; the message names its position. | — |
 | `ErrDuplicatePage` | `collage: duplicate page name` | Two pages share a name. | Names are how links find pages; make them unique. |
 | `ErrTemplateNotFound` | `collage: template not found` | A page's fragment names a template that was not loaded. | Check the path relative to `Template.Root`, extension included. |
-| `ErrUnregisteredErrorPage` | `collage: error page not registered` | A page names a not-found or error page that was never registered. Checked at start. | Register it with `RegisterNotFoundPage` or `RegisterErrorPage`; an unregistered one would render empty when needed. |
+| `ErrUnregisteredErrorPage` | `collage: error page not registered` | A page names a not-found or error page that was never registered — including a second `Build()` of the one that was: since v0.60.0 each `Build()` is a page of its own. Checked at start. | Register it with `RegisterNotFoundPage` or `RegisterErrorPage`, and name that same `*Page`; an unregistered one would render empty when needed. |
 | `ErrInvalidPattern` | `collage: invalid pattern` | A path or redirect source is malformed: no leading `/`, an empty segment, an empty placeholder name, a catch-all that is not last or has text around it, or two placeholders in one segment, such as `/{name}.{ext}`. (From v0.11.0 to v0.40.0 any text around a placeholder, such as `/feeds/{category}.xml`, was refused; since v0.41.0 it is a route.) | Fix the pattern. Register `/{name}.md` and `/{name}.json` as two routes. |
-| `ErrLocaleUnreachable` | `collage: no URL reaches that locale` | A page, action or document has a path in a locale that is neither `Locale.Default` nor in `Locale.Supported`, or in any locale but the default under `DisablePathLocale` (since v0.35.0). No request could reach it. | Set `Locale.Default` to the locale you wrote, or add it to `Supported`. A site in one language that is not English needs `Default` set. |
+| `ErrLocaleUnreachable` | `collage: no URL reaches that locale` | A page, action or document has a path in a locale that is neither `Locale.Default` nor in `Locale.Supported` (since v0.35.0). No request could reach it. | Set `Locale.Default` to the locale you wrote, or add it to `Supported`. A site in one language that is not English needs `Default` set. |
 | `ErrDuplicateRoute` | `collage: duplicate route` | A path or redirect source is already registered in that locale — or, since v0.18.0, an action answers `GET` or `HEAD` on a page's or a document's path, in either registration order. | A fragment path spelled like its page's path is the usual cause; give it a path of its own. |
 | `ErrAmbiguousParameterName` | `collage: ambiguous parameter name` | Two patterns use different parameter names at one position, such as `/blog/{slug}` and `/blog/{id}/edit`. | Use one name at that position. |
 | `ErrOverlappingPattern` | `collage: overlapping pattern` | Two placeholders with text around them at one position cross: a segment matches both and neither is more specific, such as `/a{x}` and `/{x}b`, which `/aXb` matches (since v0.41.0). The message names such a segment. | Make one's text begin or end the other's, so it is the more specific, or give them text no segment can carry both of. |
@@ -161,12 +167,10 @@ See [Documents](/docs/documents).
 | Error | Message | Means |
 | --- | --- | --- |
 | `ErrUnknownAsset` | `collage: unknown asset` | `rc.Asset`, `rc.HoistStylesheet`, `{{asset}}` or `{{stylesheet}}` was given a path no mount serves. In a template, the render fails. |
-| `ErrNoMountForAsset` | `collage: no mount serves that asset` | Wrapped inside `ErrUnknownAsset`, when no mount's prefix covers the path at all — as opposed to a mount that has no such file. |
-| `ErrInvalidPrefix` | `collage: invalid mount prefix` | A mount prefix does not begin and end with `/`, is `/` alone, or begins with `//`. A mount at `/` would swallow every route. |
+| `ErrInvalidPrefix` | `collage: invalid prefix` | A mount prefix does not begin and end with `/`, is `/` alone, or begins with `//` — or `App.Handle` was given a prefix that does not begin with `/`, or is `/` alone. A mount at `/` would swallow every route. Before v0.60.0 the handler case was `ErrInvalidHandlerPrefix`. |
 | `ErrNilFS` | `collage: nil mount file system` | A mount was given no filesystem. |
 | `ErrMountConflict` | `collage: mount prefixes overlap` | Two mounts — or a mount and an `App.Handle` prefix — claim overlapping prefixes. |
 | `ErrMountShadowsRoute` | `collage: mount shadows a route` | A mount prefix, or an `App.Handle` prefix, would swallow a route's path — a page's, a document's, a redirect's or an action's. Checked at start, whatever the registration order. |
-| `ErrInvalidHandlerPrefix` | `collage: handler prefix must begin and end with "/" and not be "/"` | `App.Handle` was given a bad prefix. |
 | `ErrNilHandler` | `collage: nil handler` | `App.Handle` or `App.Use` was given nothing to run. |
 
 See [Static assets](/docs/assets) and
@@ -179,11 +183,8 @@ See [Static assets](/docs/assets) and
 | `ErrNotFound` | `collage: not found` | **You return this one.** A data handler that wraps it says the content does not exist, rather than failed to load. | `fmt.Errorf("post %q: %w", slug, collage.ErrNotFound)` makes a required fragment's failure a 404 with the not-found page, not a 500. |
 | `ErrRequiredSlotEmpty` | `collage: required slot is empty` | At render time, a required slot holds nothing — typically a resolver returned no fragments. | Subject to the fragment's failure policy. |
 | `ErrMaxDepthExceeded` | `collage: max fragment depth exceeded` | The fragment tree nests deeper than the engine allows. | Almost always a fragment bound into its own slot, directly or not. |
-| `ErrNoRootFragment` | `collage: page has no root fragment` | A page has neither a layout nor content. | — |
 | `ErrPageNotFound` | `collage: no page at path` | `App.RenderPath` found no page at the path. | — |
 | `ErrCachedFetchPanicked` | `collage: data fetch panicked` | A `collage.Cached` call waited on another render's fetch, and that fetch panicked (since v0.34.1). The panic itself goes to the render whose fetch it was. | The key is free again: the next render fetches. Fix what panicked. |
-| `ErrDictOddArgs` | `collage: dict requires an even number of arguments` | `{{dict}}` was given a key with no value. | Pair every key with a value. |
-| `ErrDictKeyNotString` | `collage: dict key must be a string` | A `{{dict}}` key is not a string. | Quote the key. |
 | `ErrCSRFDisabled` | `collage: csrfToken used but request-forgery protection is disabled` | A template calls `{{csrfToken}}` in an application with `Security.DisableCSRF` set. | Remove the call, or turn protection back on. |
 
 Before v0.50.0 `ErrOnceTypeMismatch` and `ErrCachedTypeMismatch` reported one key
@@ -219,17 +220,19 @@ Returned by `App.URL`, `App.ActionURL` and `App.FragmentURL`, and failed renders
 | `ErrUnknownRoute` | `collage: no page or document by that name` | No page or document is registered under the name — or both are, and the link is ambiguous. |
 | `ErrNoPathInLocale` | `collage: no path in that locale` | The route has no path in the locale asked for. `{{pageURL}}` falls back to the default locale instead, and `{{localeURL}}` renders the empty string. |
 | `ErrRouteParams` | `collage: route parameters do not match the pattern` | A parameter is missing or empty, names no placeholder, is `.` or `..`, is neither a string, an integer nor a `fmt.Stringer` (since v0.36.0; before, only strings were taken), or the template passed an odd number of arguments. |
-| `ErrLocaleUnreachable` | `collage: no URL reaches that locale` | The locale is not in `Locale.Supported`, or it is not the default and path locales are disabled. Registering a path in one fails with it too; see [Registration and routing](#registration-and-routing). |
+| `ErrLocaleUnreachable` | `collage: no URL reaches that locale` | The locale is neither `Locale.Default` nor in `Locale.Supported`. Registering a path in one fails with it too; see [Registration and routing](#registration-and-routing). |
 | `ErrUnknownFragmentPath` | `collage: the page opened no fragment path by that name` | The page opened no fragment by that name with `WithFragmentPath` (since v0.18.0). |
 | `ErrAmbiguousFragmentPath` | `collage: the fragment is opened at more than one path` | The page opened the fragment at two paths in that locale, so the link cannot pick one (since v0.18.0). |
 
 ## Actions
 
 Returned by `RegisterAction`. `RegisterPage` checks an action attached to a page
-too — `ErrNilAction`, `ErrNoMethods`, and since v0.10.0 `ErrNoActionHandler` and
+too — `ErrNilAction`, `ErrNoActionMethods`, and since v0.10.0 `ErrNoActionHandler` and
 `ErrDuplicateAction` — and refuses a `nil` fragment path with
 `ErrNilFragmentPath`. Since v0.11.0 there is one `ErrNoActionHandler`, the same
-value at registration and on a request.
+value at registration and on a request. Since v0.60.0 an action that recorded
+errors while it was built — a repeated locale in `WithPath`, say — is refused at
+registration too; `ActionBuilder.BuildErr()` reads them first.
 
 | Error | Message | Means | What to do |
 | --- | --- | --- | --- |
@@ -238,12 +241,13 @@ value at registration and on a request.
 | `ErrDuplicateAction` | `collage: duplicate action` | A second action was registered under a name already taken. | — |
 | `ErrNoActionPaths` | `collage: action has no paths` | A standalone action has no `WithPath`. | An action on a page takes the page's paths; one on its own needs its own. |
 | `ErrNoActionHandler` | `collage: action has no handler` | An action has no `WithHandler`. | — |
-| `ErrInvalidActionMethod` | `collage: invalid action method` | An action declares `OPTIONS`, `TRACE` or `CONNECT`, which the server answers itself (since v0.56.0); the message names the action and the method. | Remove it from `WithMethods`. A CORS preflight belongs in a middleware. |
+| `ErrInvalidActionMethod` | `collage: action method is reserved for the server` | An action declares `OPTIONS`, `TRACE` or `CONNECT`, which the server answers itself (since v0.56.0); the message names the action and the method. | Remove it from `WithMethods`. A CORS preflight belongs in a middleware. |
 | `ErrStreamingBodyMethod` | `collage: a streaming body needs POST, PUT or PATCH` | An action built with `WithStreamingBody()` answers none of `POST`, `PUT` or `PATCH` (since v0.57.0); the message names the action and its methods. | Give it one of them, or drop `WithStreamingBody()`. |
 | `ErrNegativeBodyTimeout` | `collage: an action's body timeout must not be negative` | `WithBodyTimeout` was given a negative duration (since v0.57.0). | Zero keeps the server's deadlines. |
-| `ErrNoMethods` | `collage: action declares no methods` | An action answers no method. | `WithMethods(http.MethodPost)`, or `WithAction` on a page. |
+| `ErrNoActionMethods` | `collage: action declares no methods` | An action answers no method. Before v0.60.0 it was `ErrNoMethods`. | `WithMethods(http.MethodPost)`, or `WithAction` on a page. |
 | `ErrNilFragmentPath` | `collage: fragment path has no fragment` | `WithFragmentPath` was given a `nil` fragment. | — |
-| `ErrUnregisteredPage` | `collage: action answered with a page that was never registered` | An action's `RenderPage` returned a page that was not registered. The request fails with a 500. | Register the page, and answer with that same value rather than building one in the handler. |
+| `ErrUnregisteredPage` | `collage: action answered with a page that was never registered` | An action's `RenderPage` returned a page that was not registered — or a second `Build()` of one that was, which since v0.60.0 is another page. The request fails with a 500. | Register the page, and answer with that same value rather than building one in the handler. |
+| `ErrAmbiguousActionResult` | `collage: action result sets more than one of Location, Fragment, Page, Body` | An action's `ActionResult` set two or more of `Location`, `Fragment`, `Page` and `Body` (since v0.60.0); the message names the fields. The request fails with a 500, and error hooks receive it under the stage `"render"`. | Answer with one of them. A result with only `Status` or `Header` is fine. |
 
 See [Forms and actions](/docs/forms-and-actions).
 
@@ -255,7 +259,7 @@ middleware. See [Caching](/docs/caching) and [Previews](/docs/previews).
 | Error | Message | Means | What to do |
 | --- | --- | --- | --- |
 | `ErrVaryTooLate` | `collage: Vary or SkipCache called after routing; call it from middleware` | `Vary` or `SkipCache` was called after routing began — from a data handler, say. Since v0.11.0 on every route; before, only on a cached page, and a late call elsewhere did nothing. | Call it from middleware registered with `App.Use`. |
-| `ErrVaryOutsideRequest` | `collage: Vary called on a request collage is not serving` | `Vary` or `SkipCache` was called on a request that did not come through collage's handler. | — |
+| `ErrVaryOutsideRequest` | `collage: Vary or SkipCache called on a request collage is not serving` | `Vary` or `SkipCache` was called on a request that did not come through collage's handler. | — |
 
 ## Request forgery
 
@@ -294,6 +298,7 @@ apart without reading messages. See
 | `ErrNotFound` | see [Rendering](#rendering) | `render` | A required fragment's content does not exist — a content problem. |
 | `ErrMethodNotAllowed` | `collage: method not allowed` | `route` | The path exists but answers no such method: a 405, with an `Allow` header naming what it does answer. On a document's URL the 405 is plain text (since v0.11.0). |
 | `ErrEmptyRender` | `collage: page rendered no markup` | `render` | A page rendered successfully but produced no markup, served or answered by an action: a 500. The same sentinel a static build records. |
+| `ErrAmbiguousActionResult` | see [Actions](#actions) | `render` | An action answered with a result that asks for two responses. |
 | `ErrCSRFMissing`, `ErrCSRFMismatch`, `ErrCSRFInvalid`, `ErrCSRFCrossOrigin`, `ErrCSRFHeaderRequired` | see [above](#request-forgery) | `route` | A submission refused by the forgery check. |
 | `ErrInvalidGuardDecision` | `collage: invalid guard decision` | `guard` | A page's [guard](/docs/pages-and-layouts#private-pages-guards) answered with a decision that cannot be written — a redirect with no location, a `200` — and the request failed with a 500. A guard that returns an error is reported at the same stage, with its own error. |
 | `ErrGuardRefused` | `collage: the guard refused this reader` | — | Returned, not reported: `RenderFragment` asked for a fragment whose guard refuses the reader. A plugin streaming fragments sends that reader nothing. |
@@ -315,15 +320,14 @@ failed, and the reader still saw a plausible page, so nothing else would tell yo
 
 ## Static builds
 
-Returned by `collage.NewBuilder` and `Builder.Build`, or recorded in the
-`BuildReport`. See [Static export](/docs/static-export).
+Returned by `collage.Build`, or recorded in the `BuildReport` it returns. See [Static export](/docs/static-export).
 
 | Error | Message | Where | Means |
 | --- | --- | --- | --- |
-| `ErrNilRenderer` | `collage: nil renderer` | `NewBuilder` | The app is `nil`. |
-| `ErrInvalidOutDir` | `collage: invalid output directory` | `NewBuilder` | `BuildOptions.OutDir` is empty. |
+| `ErrNilApp` | see [Plugins and commands](#plugins-and-commands) | `Build` | The app is `nil`. Before v0.60.0 it was `ErrNilRenderer`. |
+| `ErrEmptyOutDir` | `collage: empty output directory` | `Build` | `BuildOptions.OutDir` is empty. Before v0.60.0 it was `ErrInvalidOutDir`. |
 | `ErrDangerousOutDir` | `collage: refusing to use a dangerous output directory` | `Build` | `OutDir` resolves to a filesystem root — or, with `Clean`, to a repository root. |
-| `ErrOutputPathCollision` | `collage: two builds target one output path` | `Build` | Two pages would be written to one file — patterns differing only by a trailing slash, or `WithStaticParams` listing the same values twice. Reported before any page renders, and then no page is: documents, `404.html` and assets are still written. |
+| `ErrOutputPathCollision` | `collage: two builds target one output path` | `Build` | Two pages, two documents, or a page and a document would be written to one file — patterns differing only by a trailing slash, `WithStaticParams` listing the same values twice, or a document at a page's `index.html`. The build stops before `OutDir` is touched: nothing is cleaned or written, and `BuildFinishedHook` is not called. Since v0.60.0 it also covers documents, which were skipped as `ErrDuplicateOutputPath` before. |
 | `ErrPathEscapesOutDir` | `collage: resolved path escapes the output directory` | report error | An output path, or a symlink on the way to it, leads outside `OutDir`. Checked before that one file is written; only that path fails. |
 | `ErrDynamicPathUnresolved` | `collage: a path pattern with a {param} needs WithStaticParams to be built` | skip | A page's or document's path has a `{param}` and no `WithStaticParams`. |
 | `ErrRouteParams` | see [Links and URLs](#links-and-urls) | report error | A map `WithStaticParams` returned does not fill the pattern exactly — a name missing, or one the pattern does not have. Only that file fails; the rest are built. |
@@ -331,16 +335,16 @@ Returned by `collage.NewBuilder` and `Builder.Build`, or recorded in the
 | `ErrGuarded` | `collage: a guarded page cannot be built statically` | skip | A page has a [guard](/docs/pages-and-layouts#private-pages-guards) on its layout chain or content fragment. An export has no reader to ask it about, and a file on a static host is served to anyone. |
 | `ErrDuplicateRedirect` | `collage: two redirects from one path` | report error | Two redirects the router takes for one — `/old` and `/old/`, `/blog/{slug}` and `/blog/{x}` — from pages, documents or a `RedirectSource` plugin (since v0.52.0). A static host would pick one by its own precedence. |
 | `ErrRedirectShadowsFile` | `collage: a redirect shadows a written file` | report error | A redirect matches the path of a file the build wrote — `/about` or `/about/` beside `about/index.html`, `/docs/{rest...}` beside `docs/x/index.html` (since v0.52.0). Narrow the pattern, or drop the page. |
-| `ErrDuplicateOutputPath` | `collage: two build tasks write the same output path` | skip | Two document tasks resolve to one file — `WithStaticParams` listing the same values twice. The first is built, the rest skipped. |
 | `ErrDegradedRender` | `collage: refusing to write a degraded render` | report error | A page rendered with a failed fragment and `AllowDegraded` is off. No file is written. |
 | `ErrEmptyRender` | `collage: page rendered no markup` | report error | A page rendered no markup at all. Refused even with `AllowDegraded`. One sentinel with serving's, above. |
 | `ErrUnresolvedToken` | `collage: refusing to write a page whose forgery token was never resolved` | report error, skip | The not-found page carries a `{{csrfToken}}`: a report error. Any other page with one is skipped instead: it needs a server. |
 | `ErrBuildPanic` | `collage: panic while building a page` | report error | Rendering or writing one page panicked, or a `WithStaticParams` function did, which fails that route's locale; the build recovered and went on with the rest. |
 | `ErrEmptyDocumentBody` | see [Documents](#documents) | report error | A document produced an empty body. |
+| `ErrBuildFindings` | `collage: checks reported errors` | report error | A plugin reported an error-level finding from `BuildFinishedHook`. The pages were written; what was found is in `BuildReport.Findings`. |
 
 Report errors are in `BuildReport.Errors`, a slice of errors that match with
 `errors.Is`. A skip is a `SkipRecord` in `BuildReport.Skipped`: its `Reason` is a
 sentence for people, and its `Err` (since v0.10.0) is the sentinel for code —
-`ErrNotStatic`, `ErrGuarded`, `ErrDynamicPathUnresolved`, `ErrUnresolvedToken` or
-`ErrDuplicateOutputPath` — so match it with `errors.Is(skip.Err, …)` rather than by
+`ErrNotStatic`, `ErrGuarded`, `ErrDynamicPathUnresolved` or `ErrUnresolvedToken` —
+so match it with `errors.Is(skip.Err, …)` rather than by
 reading `Reason`.

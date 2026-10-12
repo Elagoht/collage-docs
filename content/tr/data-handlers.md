@@ -1,6 +1,6 @@
 ---
 description: Bir fragment'in verisini nasıl çektiğini anlatır: handler sözleşmesi, sabit veri, dependency tag'ler, 404'ler, eşzamanlılık, render context'i, veri paylaşımı, timeout'lar ve template'lerin verilerine göre nasıl kontrol edildiği.
-reference: Data, FragmentBuilder.WithData, FragmentBuilder.WithTitle, FragmentBuilder.WithoutTypeCheck, DataHandler, Load, Value, RenderContext, Key, NewKey, Once, Effect, ErrNotFound, ErrConflictingData, TemplateTypeError, ErrTemplateType, PanicError
+reference: Data, FragmentBuilder.WithData, FragmentBuilder.WithTitle, FragmentBuilder.WithoutTypeCheck, LoadTagged, Load, Value, RenderContext, Key, NewKey, Once, Effect, ErrNotFound, ErrConflictingData, TemplateTypeError, ErrTemplateType, PanicError
 ---
 
 # Data handler'lar
@@ -13,7 +13,7 @@ API) data handler'larda olur, başka hiçbir yerde olmaz.
 
 ```go
 content := collage.NewFragment("post", "pages/post.html").
-	WithData(collage.DataHandler(func(ctx context.Context, rc *collage.RenderContext) (*Post, []string, error) {
+	WithData(collage.LoadTagged(func(ctx context.Context, rc *collage.RenderContext) (*Post, []string, error) {
 		post, err := store.Post(ctx, rc.Param("slug"))
 		if err != nil {
 			return nil, nil, err
@@ -32,7 +32,7 @@ söyler:
 
 | Constructor | Ne çalıştırır | Template'in `.`'sı |
 | --- | --- | --- |
-| `collage.DataHandler(fn)`, `fn` `(T, []string, error)` döner | Her render'da `fn`'i çalıştırır ve dependency tag'lerini bildirir | `T` |
+| `collage.LoadTagged(fn)`, `fn` `(T, []string, error)` döner | Her render'da `fn`'i çalıştırır ve dependency tag'lerini bildirir | `T` |
 | `collage.Load(fn)`, `fn` `(T, error)` döner | Her render'da `fn`'i çalıştırır, tag bildirmez | `T` |
 | `collage.Value(v)` | Hiçbir şey: `v` her render'da verilir | `v`'nin tipi |
 | `collage.Effect(fn)`, `fn` `error` döner | Her render'da `fn`'i, tanımladığı şeyler için çalıştırır | Hiçbir şey |
@@ -49,7 +49,7 @@ func loadPost(ctx context.Context, rc *collage.RenderContext) (*Post, []string, 
 }
 
 content := collage.NewFragment("post", "pages/post.html").
-	WithData(collage.DataHandler(loadPost)).
+	WithData(collage.LoadTagged(loadPost)).
 	Build()
 ```
 
@@ -64,10 +64,11 @@ nedeni, Go method'larının type parameter alamamasıdır.
 
 v0.49.0'dan önce bir handler `WithDataHandler` ile verilir ve
 `(any, []string, error)` dönerdi. Sabit veri ise `WithData(v)` ile verilirdi. İkisi
-de kaldırıldı: handler'ı gerçek tipini dönecek şekilde `collage.DataHandler` ile,
-değeri de `collage.Value` ile sarın.
+de kaldırıldı: handler'ı gerçek tipini dönecek şekilde `collage.LoadTagged` ile,
+değeri de `collage.Value` ile sarın. (`LoadTagged`'ın adı v0.60.0'a kadar
+`DataHandler` idi.)
 
-Bir `DataHandler`'ın üç dönüş değerinin her birinin ayrı bir görevi vardır.
+Bir `LoadTagged`'ın üç dönüş değerinin her birinin ayrı bir görevi vardır.
 
 - **Veri:** Template'in `.` olarak render ettiği şeydir. Template için yazılmış bir
   struct, yani bir "view", template'e bir veritabanı satırı vermekten genellikle
@@ -76,7 +77,7 @@ Bir `DataHandler`'ın üç dönüş değerinin her birinin ayrı bir görevi var
   nil bir `*Post`, template'e mevcutmuş gibi görünen bir değer olarak hiç ulaşmaz.
 - **Tag'ler:** Bu verinin oluşturulduğu içerik parçalarıdır, örneğin
   `"post:hello-world"` ya da `"author:ada"`. Page'deki her fragment'ten, page'in
-  kendi `WithDependency` tag'leriyle birlikte toplanır ve cache'lenen page ile
+  kendi `WithDependencyTags` tag'leriyle birlikte toplanır ve cache'lenen page ile
   birlikte saklanır. Böylece bir tag'i invalidate ettiğinizde, o tag'i gösteren her
   page cache'ten düşer. Veri değişen hiçbir şeye bağlı değilse `nil` dönün.
   Ayrıntılar için [Caching](/docs/caching) sayfasına bakın.
@@ -128,7 +129,7 @@ constructor) veri yok demektir ve hiçbir şeyle çakışmaz.
 ### Tag'siz handler'lar
 
 `collage.Load`, tag bildirmeyen, yalnızca veriyi ve bir hatayı dönen bir loader
-için `DataHandler`'ın karşılığıdır:
+için `LoadTagged`'ın karşılığıdır:
 
 ```go
 func loadClock(_ context.Context, rc *collage.RenderContext) (clockView, error) {
@@ -146,7 +147,7 @@ belirlenir:
 | Veri | Yazılacak |
 | --- | --- |
 | Her render'da aynıysa | `collage.Value(v)` |
-| Değişiklikleri cache'lenmiş bir page'e ulaşması gereken içerikten çekiliyorsa | `collage.DataHandler(fn)` |
+| Değişiklikleri cache'lenmiş bir page'e ulaşması gereken içerikten çekiliyorsa | `collage.LoadTagged(fn)` |
 | Çekiliyorsa ve bildirilecek tag yoksa | `collage.Load(fn)` |
 | Veri yoksa ve fragment yalnızca page için bir şeyler tanımlıyorsa | `collage.Effect(fn)` (bkz. [aşağısı](#handlers-that-render-nothing)) |
 
@@ -385,7 +386,7 @@ seo := collage.NewFragment("post-seo", "fragments/empty.html").
 Fragment'in template'i hiçbir veri almaz ve handler hiçbir tag bildirmez. Handler'ın
 tanımladığı şeyler değişen bir içerikten geliyorsa ve page cache'leniyorsa, o
 içeriğin tag'lerinin yine de page'e ulaşması gerekir. Bu durumda tag'leri bunun
-yerine sıradan bir handler'dan dönün ya da page üzerinde `WithDependency` ile
+yerine sıradan bir handler'dan dönün ya da page üzerinde `WithDependencyTags` ile
 ekleyin.
 
 Program başlarken belli olan bir title (layout'taki site adı gibi) hiç handler
@@ -654,7 +655,7 @@ edilir ve `collage inspect` onu `"typeCheck": false` olarak işaretler:
 
 ```go
 collage.NewFragment("post-body", "pages/post.html").
-	WithData(collage.DataHandler(loadPost)).
+	WithData(collage.LoadTagged(loadPost)).
 	WithoutTypeCheck().
 	Build()
 ```

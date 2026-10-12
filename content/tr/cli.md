@@ -1,6 +1,6 @@
 ---
 description: collage CLI'ın bütün komutları (new, add, dev, build, export, serve, inspect, check, plugin, version ve help), flag'leri ve her birinin tam olarak neyi çalıştırdığı.
-reference: DispatchCommands, Command, ErrUnknownCommand, InspectCommand, Inspection, FragmentBuilder.WithoutTypeCheck, App, Registrable
+reference: DispatchCommands, Command, ErrUnknownCommand, FragmentBuilder.WithoutTypeCheck, App, Registrable
 ---
 
 # collage CLI
@@ -582,9 +582,11 @@ Hiçbir flag almaz; positional argümanlar kullanım hatasıdır. Çalıştırd�
 go run . collage-inspect
 ```
 
-`collage-inspect`, `collage.InspectCommand`'dır. `DispatchCommands` bu komutu bir
-plugin'e iletmez, kendisi cevaplar: `App.Inspect()`'in döndüğü
-`collage.Inspection`'ı girintili JSON olarak yazdırır. Adı prefix'lidir, böylece
+`collage-inspect`, `DispatchCommands`'ın bir plugin'e iletmeden kendisinin cevapladığı
+bir komuttur: uygulamanın tarifini girintili JSON olarak yazdırır. Sözleşme bu
+JSON'dur; arkasındaki Go tipleri (`App.Inspect`, `collage.Inspection`,
+`collage.InspectCommand`) v0.60.0'da public API'den çıktı ve çıktı byte byte
+öncekiyle aynıdır. Adı prefix'lidir, böylece
 hiçbir plugin'in komut adını elinden almaz. Scaffold edilen `main.go`, flag'lerinden
 sonraki kelimeyi `DispatchCommands`'a verir (bkz.
 [Plugin komutları](#plugin-commands)). Bu yüzden collage v0.27.0 veya daha yeni bir

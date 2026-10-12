@@ -145,11 +145,11 @@ the one to reach for.
 | Error | When |
 | --- | --- |
 | `ErrAppStarted` | The application has already started — `Handler`, `ListenAndServe`, `Start`, `DispatchCommands` or a render ran. That includes any start that failed — in a plugin's `Init` since v0.11.0, and for any other reason since v0.12.0. |
-| `ErrNilPlugin` | The plugin is `nil`. |
-| `ErrEmptyPluginName` | Its `Name()` is empty. |
 | `ErrDuplicatePlugin` | Another plugin already has the same name. |
 
-A plugin in `Config.Plugins` is checked the same way, and `New` returns the error.
+A `nil` plugin, or one whose `Name()` is empty, is refused too, with an error that
+says so; since v0.60.0 neither has a sentinel of its own. A plugin in
+`Config.Plugins` is checked the same way, and `New` returns the error.
 
 ### Order matters
 
@@ -2199,7 +2199,7 @@ app, err := collage.New(&collage.Config{
   over as both the application's `Metrics` and a plugin: without the first nothing
   is measured, without the second nothing is served.
 - No label is taken from a request. Since v0.2.0 `route` is what
-  `collage.RouteOf` says the request resolved to, as kind and name — `/blog/a` and
+  `collage.RouteInfo` says the request resolved to, as kind and name — `/blog/a` and
   `/blog/b` both `page:post`, `/robots.txt` `document:robots`, a mount
   `mount:/static/`, a 404 `other` — so a crawler inventing paths cannot mint time
   series. The `routes` option is gone: mounts and handlers are labelled by their

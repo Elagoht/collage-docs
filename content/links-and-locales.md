@@ -54,9 +54,10 @@ Locale: collage.LocaleConfig{Default: "tr"},
 and declares `WithPath("tr", "/hakkinda")`. Since v0.35.0, a path in a locale no
 URL reaches is refused at registration with `collage.ErrLocaleUnreachable`, and
 the error names the page and the locale config. Before, the site started without
-complaint and then answered 404 at every URL. With `DisablePathLocale`, every
-locale but `Default` counts as unreachable. The same holds for actions and
-documents.
+complaint and then answered 404 at every URL. The same holds for actions and
+documents. Since v0.60.0 `WithPath` also refuses a locale named twice for one page,
+document or action (`collage.ErrDuplicateLocalePath`, keeping the first path) and an
+empty locale (`collage.ErrInvalidLocale`).
 
 ## The URL decides the locale
 
@@ -105,9 +106,10 @@ func aboutData(ctx context.Context, rc *collage.RenderContext) (aboutView, []str
 }
 ```
 
-`DisablePathLocale: true` turns prefixes off entirely, leaving every request in
-`Default` — for a site that is in one language, or one that
-[negotiates](#negotiating-a-language-yourself) on its own.
+There is no switch that turns prefixes off: `DisablePathLocale` was removed in
+v0.60.0. A site in one language registers its paths in `Default`, which carries no
+prefix, and one that [negotiates](#negotiating-a-language-yourself) on its own does
+it in middleware.
 
 ### Why only the URL
 
@@ -237,8 +239,8 @@ func (a *App) URL(name, locale string, params map[string]string) (string, error)
 An empty locale means the default one. It is as strict as `pageURLIn`: an unknown
 name is `collage.ErrUnknownRoute`, a locale the route has no path in is
 `collage.ErrNoPathInLocale`, and parameters that do not fill the pattern exactly
-are `collage.ErrRouteParams`, and a locale no URL can carry — unsupported, or
-anything but the default with `DisablePathLocale` on — is
+are `collage.ErrRouteParams`, and a locale no URL can carry — neither the default
+nor supported — is
 `collage.ErrLocaleUnreachable`. The result is a path, prefix included; add your
 site's origin when you need an absolute URL.
 
@@ -320,8 +322,8 @@ CDN keeps the versions apart too. It must be called from middleware. Since
 v0.11.0 `Vary` closes when routing begins, on every route — cached or not — so a
 call from a data handler, or anywhere else after routing, changes nothing and
 returns `collage.ErrVaryTooLate`. This is the shape that trades the benefits of
-[one URL, one content](#why-only-the-url) away, so choose it knowingly — usually
-alongside `DisablePathLocale`.
+[one URL, one content](#why-only-the-url) away, so choose it knowingly — usually on
+a site whose pages all have their paths in `Default`, so no URL names a locale.
 
 A [static export](/docs/static-export) renders without requests, so no middleware
 runs for the files it writes: an exported site can only have its locales in its

@@ -135,7 +135,7 @@ Her response varsayılan olarak `X-Content-Type-Options: nosniff` ve
 `X-Frame-Options: SAMEORIGIN` taşır. Böylece bir site, hiçbir şey eklemeden
 form'larında MIME-sniff ve clickjacking korumasına sahip olur. `Security.FrameOptions`
 değeri belirler: `"-"` hiçbirini göndermez, başka her şey olduğu gibi gönderilir.
-`Security.NoSniff` ise `false`'a işaret ettiğinde nosniff'i kapatır. Tam bir
+`Security.DisableNoSniff` ise nosniff'i kapatır (v0.60.0'dan önce `NoSniff *bool`). Tam bir
 `Content-Security-Policy`, HSTS ve geri kalanını
 [elagoht/secure](/docs/plugins#elagohtsecure) plugin'i ekler ve onun header'ları
 bunları geçersiz kılar. Production'daki bir page hiçbir framework script'i taşımadığı

@@ -121,7 +121,7 @@ This is what `collage new` scaffolds.
 
 ## Reloading in development
 
-In development — `Config.DevMode`, or `Config.Template.DevMode` on its own — every
+In development — `Config.DevMode` — every
 template is reparsed before each render. Save a template, and the next request uses
 it. The framework does not read `COLLAGE_DEV`: `collage dev` sets it, and the
 scaffolded `main.go` turns it into `Config.DevMode`.

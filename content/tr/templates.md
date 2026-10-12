@@ -126,8 +126,7 @@ atlar.
 
 ## Development'ta yeniden yükleme
 
-Development'ta, yani `Config.DevMode` ya da tek başına `Config.Template.DevMode`
-açıkken, her render'dan önce bütün template'ler yeniden parse edilir. Bir template'i
+Development'ta, yani `Config.DevMode` açıkken, her render'dan önce bütün template'ler yeniden parse edilir. Bir template'i
 kaydettiğinizde bir sonraki request onu kullanır. Framework `COLLAGE_DEV`'i okumaz.
 Bu değişkeni `collage dev` set eder, scaffold edilen `main.go` da onu
 `Config.DevMode`'a çevirir.

@@ -1,6 +1,6 @@
 ---
 description: collage.Config ve alt struct'larının her alanı, varsayılan değerleri ve validation'ın neleri kontrol ettiği.
-reference: Config, CacheConfig, ServerConfig, SecurityConfig, TemplateConfig, LocaleConfig, ObservabilityConfig, Config.Validate
+reference: Config, CacheConfig, ServerConfig, SecurityConfig, TemplateConfig, LocaleConfig, ObservabilityConfig, CacheType, ParseOrigin
 ---
 
 # Config
@@ -17,17 +17,17 @@ app, err := collage.New(&collage.Config{
 
 `New` bu değerle sırasıyla üç şey yapar:
 
-1. **Varsayılanları doldurur.** `cfg.ApplyDefaults()`'u çağırır. Bu metot, varsayılanı
-   olan ve sıfır değerde duran her alanı ayarlar. Verdiğiniz değeri yerinde
+1. **Varsayılanları doldurur.** Varsayılanı olan ve sıfır değerde duran her alanı
+   ayarlar. Verdiğiniz değeri yerinde
    değiştirdiği için uygulamanın tam olarak hangi değerlerle kurulduğunu sonradan
    okuyabilirsiniz.
-2. **Validation yapar.** `cfg.Validate()`'i çağırır ve bulduğu ilk sorunu hata olarak
+2. **Validation yapar.** Sonucu kontrol eder ve bulduğu ilk sorunu hata olarak
    döner. Ayrıntılar için [Validation](#validation) bölümüne bakın.
 3. **Uygulamayı kurar.** Var olmayan bir template root'u, parse edilemeyen bir
    template ya da bir plugin'in `Configure` metodunun başarısız olması bu adımda
    bildirilir. Bu hataların hiçbiri ilk request'e kadar beklemez.
 
-`nil` verirseniz `ErrNilConfig` alırsınız. nil bir config varsayılanları istemek
+`nil` verirseniz bir hata alırsınız. nil bir config varsayılanları istemek
 anlamına gelmez, bir hatadır. Çünkü template'lerinizin nerede olduğunu config söyler.
 
 ## Config
@@ -38,6 +38,7 @@ anlamına gelmez, bir hatadır. Çünkü template'lerinizin nerede olduğunu con
 | `DevWatch` | `[]string` | yok | Değiştiğinde development'taki page'i yeniden yükleyen ek dizinler. v0.10.0'dan beri. |
 | `Logger` | `*slog.Logger` | başlangıçta seçilir | Framework'ün ve plugin'lerin log yazdığı logger. |
 | `Server` | `ServerConfig` | | HTTP sunucusu. |
+| `BaseURL` | `string` | yok | Sitenin public origin'i, `https://example.com`; bir render'ın başka türlü bilemeyeceği mutlak URL'ler için. |
 | `Security` | `SecurityConfig` | | Request forgery koruması. |
 | `Template` | `TemplateConfig` | | Template'lerin yüklenmesi ve render edilmesi. |
 | `Cache` | `CacheConfig` | | Page cache. |
@@ -58,7 +59,8 @@ hatada başarısız olan çağrının dosyası, satırı ve sütunu; v0.15.0'dan
 zincirinin tamamını gösterir. **Production'da kapalı olmalıdır.** Bu tanı bilgileri
 dosya yollarını, host adlarını ve hata mesajlarında ne varsa hepsini içerir.
 
-Geçerli değeri `cfg.IsDevMode()` verir. Bu değer `DevMode || Template.DevMode`'dur.
+Tek şalter `DevMode`'dur: v0.60.0'dan önce aynı işi yapan `Template.DevMode`
+kaldırıldı. Bir plugin onu `host.DevMode()` ile okur.
 Scaffold edilmiş bir proje bu alanı `COLLAGE_DEV=1`'e göre ayarlar. `collage dev` bu
 değişkeni sizin yerinize set eder.
 
@@ -91,7 +93,7 @@ ortamlarda `slog.Default()` olduğu gibi kullanılır. İstisnası, `NO_COLOR` a
 değilken `FORCE_COLOR`'ın ayarlı olmasıdır (v0.32.0'dan beri): [`collage dev`](/docs/cli#collage-dev)
 renkli bir terminalde çalıştırdığı program için bunu ayarlar. `slog.SetDefault`'u çağırmış bir
 uygulama kendi handler'ını korur. Sonuçtan emin olmak istiyorsanız bir logger verin,
-örneğin makinelerin okuyacağı loglar için bir JSON handler. `ApplyDefaults` bu alanı
+örneğin makinelerin okuyacağı loglar için bir JSON handler. `New` bu alanı
 `nil` bırakır.
 
 ### Plugins ve PluginConfig
@@ -147,7 +149,7 @@ Container içinde bu alanı `0.0.0.0` yapın. Scaffold edilen bir proje `Host` v
 `Port`'u `HOST` ve `PORT` ortam değişkenlerinden doldurur. `collage dev` altında bu
 değişkenler, `collage dev`'in seçtiği bir loopback adresidir; sizin adresinizde ise
 `collage dev`'in kendisi dinler. Bu yüzden onları ortamdan okumaya devam edin. Bkz.
-[CLI](/docs/cli#collage-dev). `MaxBodyBytes`'ı `ApplyDefaults` doldurmaz. Sıfır,
+[CLI](/docs/cli#collage-dev). `MaxBodyBytes`'ı `New` doldurmaz. Sıfır,
 request geldiğinde uygulanan yerleşik 4 MiB (`4 << 20` byte) demektir. Negatif bir
 değer ise sınır olmadığı anlamına gelir. Sınırsız bir body, boyutunu anonim bir
 çağıranın belirlediği bir bellek kullanımıdır. Bu yüzden bunu bilerek seçin. Bir
@@ -191,7 +193,7 @@ Bkz. [Deployment](/docs/deployment#behind-a-proxy-trustedproxies).
 | `DisableCSRF` | `bool` | `false` | Forgery kontrolünü bütün uygulama için kapatır. |
 | `CSRFTokenTTL` | `time.Duration` | `12h` | Bir forgery token'ının üretildikten sonra ne kadar geçerli kaldığı; negatif değer sona ermeyi kapatır (v0.39.0'dan beri). |
 | `FrameOptions` | `string` | `"SAMEORIGIN"` | Her response'ta gönderilen `X-Frame-Options`; `"-"` hiçbirini göndermez (v0.39.0'dan beri). |
-| `NoSniff` | `*bool` | açık | `false`'a işaret etmediği sürece her response'ta `X-Content-Type-Options: nosniff` gönderir (v0.39.0'dan beri). |
+| `DisableNoSniff` | `bool` | `false` | Her response'ta gönderilen `X-Content-Type-Options: nosniff` header'ını durdurur (header v0.39.0'dan beri; v0.60.0'dan önce bu alan `NoSniff *bool` idi). |
 
 **Form içeren herhangi bir şeyi deploy etmeden önce `CSRFKey`'i ayarlayın.** Key en
 az 32 byte rastgele veri olmalı, diğer secret'larınızla birlikte saklanmalı ve her
@@ -214,7 +216,7 @@ belirtir. Diğer her origin, geçerli bir token taşısa bile reddedilir. Ayrın
 [Form'lar ve action'lar](/docs/forms-and-actions#where-the-request-came-from)
 sayfasına bakın.
 
-Yukarıdaki isim varsayılanlarını `ApplyDefaults` değil forgery guard uygular. Bu
+Yukarıdaki isim varsayılanlarını `New` değil forgery guard uygular. Bu
 yüzden bu alanlar `Config`'inizde boş kalır. `CSRFFieldName` alanın adını iki tarafta
 birden değiştirir. `{{csrfToken}}` kontrolün okuduğu adı yazdığı için form'larınızda
 değişiklik gerekmez. Ancak token'ı form'dan okuyan script'lerin
@@ -234,7 +236,6 @@ başarısız kılar. Yalnızca tek bir action'ı muaf tutmak istiyorsanız o act
 | `Root` | `string` | diskte `"./templates"` | Template'lerin yüklendiği dizin. Her template adının başından çıkarılır. |
 | `Extension` | `string` | `".html"` | Template dosyalarının uzantısı. |
 | `Funcs` | `template.FuncMap` | yok | Built-in fonksiyonların üzerine eklenen ek template fonksiyonları. |
-| `DevMode` | `bool` | `false` | Template'leri her render'da diskten yeniden yükler. |
 | `Timeout` | `time.Duration` | `5s` | Data handler'ların varsayılan timeout'u ve her document handler'ın toplam süre bütçesi. |
 
 ### FS ve Root
@@ -286,22 +287,24 @@ bu süreyi aşabilir.
 | --- | --- | --- | --- |
 | `Enabled` | `bool` | `false` | Page cache'in ana şalteri. |
 | `Store` | `Cache` | `nil` | Kendi cache implementasyonunuz. |
-| `Type` | `string` | açıksa `"memory"` | `Store` `nil` olduğunda kullanılan built-in cache: `"memory"` ya da `"disk"`. |
+| `Type` | `CacheType` | açıksa `CacheMemory` | `Store` `nil` olduğunda kullanılan built-in cache: `collage.CacheMemory` ya da `collage.CacheDisk`. |
 | `DefaultTTL` | `time.Duration` | `5m` | Page bir süre koymadığında entry'nin ömrü. |
-| `MaxEntries` | `int` | `10000` | Cache entry sayısının üst sınırı; memory ve disk için de geçerli. Negatif değer sınırsız demektir (disk için v0.39.0'dan beri). |
+| `MaxEntries` | `int` | `10000` | Cache entry sayısının ve tek bir tag altında izlenen key sayısının üst sınırı; memory ve disk için de geçerli. Negatif değer sınırsız entry demektir (disk için v0.39.0'dan beri). |
 | `MaxBytes` | `int64` | memory için 256 MiB, disk için 1 GiB | Built-in bir cache'in sakladığı toplam boyutun üst sınırı. Negatif değer sınırsız demektir (v0.40.0'dan beri). |
-| `Dir` | `string` | yok | Disk cache'in entry'leri sakladığı yer. `"disk"` için zorunludur. |
+| `Dir` | `string` | yok | Disk cache'in entry'leri sakladığı yer. `CacheDisk` için zorunludur. |
 | `Version` | `string` | binary'den türetilir | Disk cache'teki entry'lerin hangi build'e ait olduğunu belirler. |
-| `MaxKeysPerTag` | `int` | `10000` | Tek bir tag altında tutulan cache key sayısının üst sınırı. Negatif değer sınırsız demektir. |
 
 **Caching varsayılan olarak kapalıdır.** `Enabled` false iken bir `Store` ayarlı olsa
 bile hiçbir şey cache'lenmez. `Type`'ın varsayılanı yalnızca `Enabled` true ve `Store`
-`nil` olduğunda `"memory"` olur.
+`nil` olduğunda `collage.CacheMemory` olur. Tipsiz bir literal, `Type: "disk"`, yine
+derlenir; bir değişkenden okunan string'in ise dönüştürülmesi gerekir:
+`Type: collage.CacheType(v)`.
 
 **Bir `Store`, validation dahil `Type`'ın yerini tamamen alır.** Page'leri Redis'e ya
-da başka bir yere koymak için `collage.Cache`'i (`Get`, `Set`, `Invalidate`,
-`InvalidateKey`, `Clear`) implement edin. `collage.TaggedCache`'i de implement eden bir
-store'a her entry yazılırken o entry'nin tag'leri de verilir. Somut bir tipin nil
+da başka bir yere koymak için `collage.Cache`'i (`Get`, `Set`, `InvalidateKey`, `Clear`) implement edin.
+`collage.TaggedCache`'i (`SetTagged`, `Invalidate`) de implement eden bir store'a her
+entry yazılırken o entry'nin tag'leri de verilir ve tag'e göre invalidate etmesi
+istenir. v0.60.0'dan önce `Invalidate`, `Cache`'in kendi metoduydu. Somut bir tipin nil
 pointer'ını atamak yerine alanı boş bırakın. Böyle bir pointer nil olmayan bir
 interface'tir ve ilk lookup'ta panic'e yol açar.
 
@@ -324,12 +327,13 @@ sınırlar (v0.40.0'dan beri). **`MaxBytes`**, built-in bir cache'in ne kadar ye
 kapladığını sınırlar: sıfır, tipin varsayılanını seçer. Sınırın tamamından büyük bir
 page sunulur ama saklanmaz. Kendi `Store`'unuz bunu yok sayar. Bkz.
 [Caching](/docs/caching#bounded-in-bytes-too).
-**`MaxKeysPerTag`** ise framework'ün dependency tracker'ını sınırlar. Bu
-tracker, her process'te bir tag'i cache key'lerine eşleyen bir index'tir. Her farklı
+**`MaxEntries` framework'ün dependency tracker'ını tag başına da sınırlar.**
+v0.60.0'dan önce bu ayrı bir alandı: `MaxKeysPerTag`. Bu tracker, her process'te bir tag'i cache key'lerine eşleyen bir index'tir. Her farklı
 query string ayrı bir key'dir. Cache bir entry'yi evict ettiğinde ya da entry'nin
 süresi dolduğunda key tracker'dan silinmez. Bu yüzden bir üst sınır olmasa bir client
 bu index'i sınırsızca büyütebilirdi. Bir tag sınıra ulaştığında o tag'in en eski key'i
-yalnızca tracker'dan düşürülür, cache'ten silinmez.
+yalnızca tracker'dan düşürülür, cache'ten silinmez. Negatif bir `MaxEntries`, tag
+başına bu sınırı 10000'de tutar.
 
 Bunun bedeli store'a göre değişir. Built-in memory ve disk cache'ler tag'leri
 kendileri index'ler (`TaggedCache`'i implement ederler). Bu yüzden `InvalidateTags`
@@ -337,10 +341,10 @@ tuttukları her entry'ye yine ulaşır. Yalnızca `InvalidateTagsN`'in raporlad�
 yani tracker'ın çözümlediği sayı, daha düşük çıkabilir. `TaggedCache`'i implement
 etmeyen custom bir `Store` ise yalnızca tracker'a güvenir. Onun için düşürülen bir
 key, `InvalidateTags`'in artık ulaşamadığı bir entry demektir ve bu entry süresi
-dolana kadar sunulmaya devam eder. Böyle bir store kullanıyorsanız sınırı, tek bir
+dolana kadar sunulmaya devam eder. Böyle bir store kullanıyorsanız `MaxEntries`'i, tek bir
 tag'in kapsayabileceği canlı entry sayısının üzerinde bir değere ayarlayın.
 
-İki sınırda da sıfır varsayılan değer demektir. Sınırsız anlamına gelen tek değer
+`MaxEntries` ve `MaxBytes`'ta sıfır varsayılan değer demektir. Sınırsız anlamına gelen tek değer
 negatif bir değerdir. Ayrıntılar için [Caching](/docs/caching) sayfasına bakın.
 
 ## LocaleConfig
@@ -349,7 +353,6 @@ negatif bir değerdir. Ayrıntılar için [Caching](/docs/caching) sayfasına ba
 | --- | --- | --- | --- |
 | `Default` | `string` | `"en"` | Locale prefix'i olmayan bir URL'nin locale'i. |
 | `Supported` | `[]string` | `[Default]` | Uygulamanın sunduğu bütün locale'ler. |
-| `DisablePathLocale` | `bool` | `false` | Locale path'ten çözümlenmez. Her request `Default` locale'indedir. |
 | `PrefixDefault` | `bool` | `false` | `Default`'un page'leri de prefix alır: `/en/about`. v0.14.0'dan beri. |
 
 Locale'i seçen tek şey URL'dir. `/about` `Default` locale'indedir, `/tr/hakkinda` ise
@@ -402,18 +405,17 @@ key için zaten çalışmakta olan bir render tarafından karşılandığı anla
 
 ## Validation
 
-`Validate`, `ApplyDefaults` çalıştıktan sonra aşağıdaki durumlardan bulduğu ilkini
+`New`, varsayılanları doldurduktan sonra aşağıdaki durumlardan bulduğu ilkini
 döner:
 
 | Koşul | Hata |
 | --- | --- |
 | `Server.Port` `1`–`65535` aralığının dışında | `ErrInvalidPort` |
-| `Template.Root` boş ve `Template.FS` nil | `ErrEmptyTemplateRoot` |
-| `Cache.Enabled` açık, `Store` yok ve `Type` ne `"memory"` ne `"disk"` | `ErrInvalidCacheType` |
-| `Cache.Enabled` açık, `Store` yok, `Type` `"disk"` ve `Cache.Dir` boş | `ErrEmptyCacheDir` |
-| `Locale.Default` boş | `ErrEmptyLocaleDefault` |
+| `Cache.Enabled` açık, `Store` yok ve `Type` ne `CacheMemory` ne `CacheDisk` | `ErrInvalidCacheType` |
+| `Cache.Enabled` açık, `Store` yok, `Type` `CacheDisk` ve `Cache.Dir` boş | `ErrEmptyCacheDir` |
 | `Locale.Default`, `Locale.Supported` içinde yok | `ErrLocaleDefaultNotSupported` |
 | `Server.ReadTimeout`, `ReadHeaderTimeout`, `WriteTimeout`, `IdleTimeout`, `ShutdownTimeout`, `DrainDelay`, `Template.Timeout` ya da `Cache.DefaultTTL` negatif | `ErrNegativeDuration` |
+| `BaseURL` set edilmiş ve yalın bir `scheme://host[:port]` değil | `ErrInvalidOrigin` |
 
 Negatif süre hatası sekiz alanın hepsi için tek bir sentinel error'dır. Mesaj, hataya
 yol açan alanın adını verir, örneğin `server.read_timeout`. Varsayılanlar önce
@@ -422,17 +424,17 @@ validation'a hiç ulaşmaz. Yalnızca açıkça set ettiğiniz bir değer hataya
 açabilir. Bu hataları `errors.Is` ile karşılaştırın. Tam liste
 [Hatalar](/docs/errors#configuration) sayfasındadır.
 
-İki metodu da kendiniz çağırabilirsiniz. Örneğin bir testte bir config'i kontrol etmek
-için:
+Varsayılanları doldurmak ve validation v0.60.0'dan beri ayrı ayrı export edilmez.
+İkisinin çalıştığı tek yer `New`'dur, bu yüzden bir test bir config'i onu çağırarak
+kontrol eder:
 
 ```go
-cfg := collage.Config{Server: collage.ServerConfig{Port: 70000}}
-cfg.ApplyDefaults()
-err := cfg.Validate() // wraps collage.ErrInvalidPort
+_, err := collage.New(&collage.Config{Server: collage.ServerConfig{Port: 70000}})
+// errors.Is(err, collage.ErrInvalidPort)
 ```
 
-`ApplyDefaults` idempotent'tir. Varsayılanları zaten uygulanmış bir config'e tekrar
-uygulandığında hiçbir şeyi değiştirmez.
+Varsayılanları doldurmak idempotent'tir. Varsayılanları zaten taşıyan bir config
+olduğu gibi kalır.
 
 ## Eksiksiz bir config
 
@@ -458,7 +460,7 @@ app, err := collage.New(&collage.Config{
 	},
 	Cache: collage.CacheConfig{
 		Enabled:    true,
-		Type:       "disk",
+		Type:       collage.CacheDisk,
 		Dir:        ".cache",
 		DefaultTTL: 5 * time.Minute,
 	},

@@ -1,6 +1,6 @@
 ---
 description: Fragments, the slots they expose, what happens when one fails, and slots filled from content at render time.
-reference: NewFragment, NewInlineFragment, InlineHTML, FragmentBuilder, Fragment, FragmentBuilder.WithFallback, FragmentBuilder.WithSlot, FragmentBuilder.WithData, FragmentBuilder.WithoutTypeCheck, FragmentBuilder.Static, FragmentBuilder.Shared, Data, Value, SlotResolverFunc, ErrUnknownSlot
+reference: NewFragment, NewInlineFragment, InlineHTML, FragmentBuilder, Fragment, FragmentBuilder.WithFallback, FragmentBuilder.WithSlot, FragmentBuilder.WithData, FragmentBuilder.WithoutTypeCheck, FragmentBuilder.Static, FragmentBuilder.Shared, Data, Value, SlotResolverFunc, SlotRule, SlotRequired, SlotSingle, ErrUnknownSlot
 ---
 
 # Fragments and slots
@@ -12,7 +12,7 @@ a comment list. A page is a tree of them, with the layout at the root.
 
 ```go
 author := collage.NewFragment("author", "fragments/author.html").
-	WithData(collage.DataHandler(loadAuthor)).
+	WithData(collage.LoadTagged(loadAuthor)).
 	WithTimeout(time.Second).
 	WithFallback(anonymousAuthor).
 	Build()
@@ -38,10 +38,10 @@ Everything else is optional:
 
 | Method | What it sets |
 | --- | --- |
-| `WithData(d)` | The template's data: a handler from `collage.DataHandler` or `collage.Load`, a value fixed when the program starts from `collage.Value`, or `collage.Effect` — see [Data handlers](/docs/data-handlers) |
+| `WithData(d)` | The template's data: a handler from `collage.LoadTagged` or `collage.Load`, a value fixed when the program starts from `collage.Value`, or `collage.Effect` — see [Data handlers](/docs/data-handlers) |
 | `WithoutTypeCheck()` | Leaves the template out of the check against its data's type — see [How templates are checked](/docs/data-handlers#how-templates-are-checked). Since v0.49.0 |
 | `WithTitle(s)` | The page's `<title>`, without a handler — see [Head and SEO](/docs/head-and-seo) |
-| `WithSlot(name, required, allowMultiple)` | Makes a slot required, or limits it to one fragment |
+| `WithSlot(name, rules...)` | Makes a slot required, or limits it to one fragment |
 | `WithSlotFragment(slot, child)` | Binds a child fragment into a slot |
 | `WithSlotResolver(slot, resolve)` | Fills a slot per render instead |
 | `Required()` | This fragment's failure fails the page |
@@ -83,7 +83,7 @@ row := collage.NewInlineFragment("post-row", `
     <td>{{.Title}}</td>
     <td>{{template "partials/date.html" .Date}}</td>
   </tr>`).
-	WithData(collage.DataHandler(loadRow)).
+	WithData(collage.LoadTagged(loadRow)).
 	Build()
 ```
 
@@ -143,8 +143,8 @@ children into it by name:
 
 ```go
 post := collage.NewFragment("post", "pages/post.html").
-	WithData(collage.DataHandler(loadPost)).
-	WithSlot("author", true, false).
+	WithData(collage.LoadTagged(loadPost)).
+	WithSlot("author", collage.SlotRequired, collage.SlotSingle).
 	WithSlotFragment("author", author).
 	WithSlotFragment("related", relatedPosts).
 	WithSlotFragment("related", popularPosts).
@@ -166,16 +166,19 @@ after another; `related` above holds two. A slot nothing is bound to renders
 nothing. A layout's `"content"` slot needs no declaring either: registration puts
 a page's content into it.
 
-`WithSlot(name, required, allowMultiple)` is for when that is not what you want —
-`author` above must be filled, and holds one. It may come before or after the
-bindings it constrains.
+`WithSlot(name, rules...)` is for when that is not what you want — `author` above
+must be filled, and holds one. It may come before or after the bindings it
+constrains. A rule is a `collage.SlotRule`:
 
-- **`required`** — the slot must have something in it. A required slot with
+- **`collage.SlotRequired`** — the slot must have something in it. A required slot with
   nothing bound is refused at registration (`ErrRequiredSlotUnfilled`), and checked
   again before the template runs, so it is caught even if the template never asks
   for it.
-- **`allowMultiple`** set to false — the slot holds one fragment at most. Binding a
+- **`collage.SlotSingle`** — the slot holds one fragment at most. Binding a
   second records `ErrSlotOccupied`.
+
+Any other value records `ErrInvalidSlotDefinition`. Before v0.60.0 the two were
+booleans, `WithSlot(name, required, allowMultiple)`.
 
 `WithSlotFragment` records `ErrNilFragment` for a nil child. Calling `WithSlot`
 twice with one name records `ErrDuplicateSlot`.
@@ -219,17 +222,17 @@ What happens next is the fragment's **failure policy**, and there are three.
 
 ```go
 postContent := collage.NewFragment("post", "pages/post.html").
-	WithData(collage.DataHandler(loadPost)).
+	WithData(collage.LoadTagged(loadPost)).
 	Required().
 	Build()
 
 comments := collage.NewFragment("comments", "fragments/comments.html").
-	WithData(collage.DataHandler(loadComments)).
+	WithData(collage.LoadTagged(loadComments)).
 	WithFallback(collage.NewFragment("comments-unavailable", "fragments/comments-unavailable.html").Build()).
 	Build()
 
 related := collage.NewFragment("related", "fragments/related.html").
-	WithData(collage.DataHandler(loadRelated)).
+	WithData(collage.LoadTagged(loadRelated)).
 	Build()
 ```
 
@@ -283,7 +286,7 @@ records `ErrInvalidTimeout`.
 
 ```go
 recommendations := collage.NewFragment("recommendations", "fragments/recommendations.html").
-	WithData(collage.DataHandler(loadRecommendations)).
+	WithData(collage.LoadTagged(loadRecommendations)).
 	WithTimeout(300 * time.Millisecond).
 	WithFallback(nothingToRecommend).
 	Build()
@@ -304,8 +307,8 @@ in a CMS, a dashboard of widgets a user chose. Binding those at startup would me
 a restart for every change, and code that has to agree with the data about what
 goes where.
 
-`WithSlotResolver` fills a slot per render. The resolver receives the render
-context and returns the fragments the slot holds this time:
+`WithSlotResolver` fills a slot per render. The resolver receives the render's
+context and its `RenderContext` (the context since v0.60.0), and returns the fragments the slot holds this time:
 
 ```go
 type block struct {
@@ -325,8 +328,8 @@ landing := collage.NewFragment("landing", "pages/landing.html").
 		blocksKey.Set(rc, blocks)
 		return nil
 	})).
-	WithSlot("blocks", true, true).
-	WithSlotResolver("blocks", func(rc *collage.RenderContext) ([]*collage.Fragment, error) {
+	WithSlot("blocks", collage.SlotRequired).
+	WithSlotResolver("blocks", func(ctx context.Context, rc *collage.RenderContext) ([]*collage.Fragment, error) {
 		blocks, _ := blocksKey.Get(rc)
 		fragments := make([]*collage.Fragment, 0, len(blocks))
 		for i, b := range blocks {
@@ -383,7 +386,7 @@ The rules:
   of block kinds a resolver can use is still fixed by the program.
 
 A page whose sections come from content should also report that content's tags —
-here the landing handler could be written with `collage.DataHandler` rather than
+here the landing handler could be written with `collage.LoadTagged` rather than
 with `collage.Effect`, returning `"landing"` as a tag — so a cached page is
 dropped when an editor reorders it. See [Caching](/docs/caching).
 

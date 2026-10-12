@@ -88,7 +88,7 @@ the content into the layout's `content` slot**
 (`collage.DefaultContentSlot`). You do not bind it yourself, and a layout whose
 template never calls `{{slot "content"}}` is refused at registration with
 `ErrUnknownSlot`, because the content would have nowhere to render.
-`WithSlot(collage.DefaultContentSlot, true, false)` on the layout is still
+`WithSlot(collage.DefaultContentSlot, collage.SlotRequired, collage.SlotSingle)` on the layout is still
 accepted, for a layout that should refuse any fragment bound into `content` besides
 the page's own (`ErrSlotOccupied`).
 
@@ -214,8 +214,8 @@ What the guard covers:
 - **The page's renders**, `GET` and `HEAD`. The guard runs after routing and
   **before the page's cache is read**, so a blocked reader never reaches a cached
   render, and a private page may be `Static()`. It also runs before
-  `PageResolvedHook`: a blocked request never reached the page, so plugins
-  watching pages are not told about it.
+  any render hook: a blocked request never reached the page, so plugins
+  watching renders are not told about it.
 - **The actions on the page's own URL.** A form posts to the page it sits on, and
   a page a reader may not see is a page whose form they may not submit. The guard
   runs before the body is read and before the forgery check.
@@ -372,7 +372,7 @@ outside it can tell, so a page with one renders per request until it says
 `Static()` or `Incremental(ttl)`. [Caching](/docs/caching#a-page-that-declares-none)
 has the whole rule.
 
-`Incremental` needs a positive TTL (`ErrMissingTTL`). Static and incremental
+`Incremental` needs a positive TTL (`ErrInvalidTTL`). Static and incremental
 pages are also the ones `collage export` can write to files; a dynamic page is
 [skipped](/docs/static-export#what-is-skipped), because it exists to render per
 request.
@@ -381,7 +381,7 @@ Caching only happens when the application enables it (`Config.Cache.Enabled`, on
 in the scaffold), and never in development, where a cached page would hide the
 template you just edited.
 
-Two more builder methods shape a cached page. `WithDependency(tags...)` adds
+Two more builder methods shape a cached page. `WithDependencyTags(tags...)` adds
 dependency tags of the page's own to those its data handlers report, and
 `WithCacheParams(names...)` says which query parameters take part in the cache
 key. How all of this fits together — tags, invalidation, query parameters, caching
@@ -528,11 +528,13 @@ adds what it writes to this call.
 
 ### Why the registered value matters
 
-Registration changes the page it is given. Step 3 replaces `page.LayoutFragment`
-with the page's private, bound copy of its outermost layout, and that copy — with
-the rest of the chain and the content inside it — is what renders. A page built
-again by calling the same constructor is a different value, whose layouts have
-empty `content` slots.
+Registration changes the page it is given. Step 3 replaces the page's outermost
+layout with a private, bound copy of it, and that copy — with the rest of the
+chain and the content inside it — is what renders. A page built again by calling
+the same constructor is a different value, whose layouts have empty `content`
+slots. So, since v0.60.0, is a second `Build()` on the same builder: each call
+returns an independent copy, and `WithPath` on the builder afterwards reaches
+neither. Build once and keep the `*Page`.
 
 So the value you passed to `RegisterPage` is the page from then on, and everything
 that refers to a page by value must use that one:

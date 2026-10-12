@@ -1,6 +1,6 @@
 ---
 description: Render the site to static files with collage export — what is written, what is skipped and why, dynamic paths, and publishing to a static host.
-reference: NewBuilder, BuildOptions, BuildReport, PrintBuildReport, StaticParamsFunc, SkipRecord, ErrNotStatic, ErrGuarded, ErrDynamicPathUnresolved, ErrRouteParams, ErrBuildFindings, ErrDuplicateRedirect, ErrRedirectShadowsFile, IsCapture, BuiltFile, BuiltRedirect, RedirectSource
+reference: Build, BuildOptions, BuildReport, PrintBuildReport, StaticParamsFunc, SkipRecord, ErrNotStatic, ErrGuarded, ErrDynamicPathUnresolved, ErrRouteParams, ErrBuildFindings, ErrDuplicateRedirect, ErrRedirectShadowsFile, IsCapture, BuiltFile, BuiltRedirect, RedirectSource
 ---
 
 # Static export
@@ -42,15 +42,10 @@ pages exist is not its business, because each page says that
 
 ```go
 func staticBuild(app *collage.App, outDir string, clean bool) error {
-	builder, err := collage.NewBuilder(app, collage.BuildOptions{
+	report, buildErr := collage.Build(context.Background(), app, collage.BuildOptions{
 		OutDir: outDir,
 		Clean:  clean,
 	})
-	if err != nil {
-		return err
-	}
-
-	report, buildErr := builder.Build(context.Background())
 
 	collage.PrintBuildReport(os.Stdout, report, buildErr)
 
@@ -58,7 +53,8 @@ func staticBuild(app *collage.App, outDir string, clean bool) error {
 }
 ```
 
-`Build` returns a report even when it also returns an error: one failing page does
+`collage.Build` (before v0.60.0, `collage.NewBuilder` and then `Build` on what it
+returned) returns a report even when it also returns an error: one failing page does
 not stop the others, and every failure is in `report.Errors`. The returned error is
 all of them joined, and `main` exits non-zero on it, so a CI job fails when a page
 could not be written. Skipped pages and warnings do not fail the build; an
@@ -131,11 +127,6 @@ report, with the reason:
 - **A `{param}` pattern with no `WithStaticParams`.** `/blog/{slug}` cannot be
   written until something says which slugs exist, and it is skipped with
   `collage.ErrDynamicPathUnresolved`. See below.
-- **Two documents on one file.** A document whose `WithStaticParams` lists one set
-  of values twice resolves two tasks to one file; the first is written and the rest are
-  skipped with `collage.ErrDuplicateOutputPath`. One pattern in two locales is not
-  this — each locale is written under its own prefix. See
-  [Documents](/docs/documents#documents-in-a-static-export).
 
 Error pages registered without a path are not listed at all: they are not URLs.
 
@@ -174,10 +165,15 @@ These are errors: the page is not written, the build reports it and exits non-ze
   against that page; the rest of the build continues.
 - **A not-found page with a form**, `collage.ErrUnresolvedToken`, because a static
   host needs that one as a file.
-- **Two pages on one output path**, `collage.ErrOutputPathCollision` — two patterns
-  that differ only in a trailing slash, or `WithStaticParams` listing one set of
-  values twice. No page is rendered when this is found; the documents, the `404.html`
-  pages and the mounted assets are still written, and the build still fails.
+- **Two routes on one output path**, `collage.ErrOutputPathCollision` — two pages,
+  two documents, or a page and a document: patterns that differ only in a trailing
+  slash, `WithStaticParams` listing one set of values twice, or a document at a
+  page's `index.html`. One pattern in two locales is not this — each locale is
+  written under its own prefix. The build stops before `OutDir` is touched: nothing
+  is cleaned or written, no `404.html` or mounted file is copied, and
+  `BuildFinishedHook` is not called. Since v0.60.0 documents are checked too; before,
+  a second document on one file was skipped as `ErrDuplicateOutputPath`. Documents'
+  `WithStaticParams` run before any page renders, so the check covers them.
 
 - **Two redirects from one path**, `collage.ErrDuplicateRedirect` (since v0.52.0) —
   `/old` and `/old/`, or `/blog/{slug}` and `/blog/{x}`, which the router takes for
@@ -319,7 +315,7 @@ func listing(ctx context.Context, rc *collage.RenderContext) (BlogList, []string
 }
 
 list := func(name string) *collage.Fragment {
-	return collage.NewFragment(name, "blog/list.html").WithData(collage.DataHandler(listing)).Required().Build()
+	return collage.NewFragment(name, "blog/list.html").WithData(collage.LoadTagged(listing)).Required().Build()
 }
 app.RegisterPage(collage.NewPage("blog").
 	WithContent(list("blog-list")).
@@ -419,17 +415,16 @@ project.
 
 The export renders in the state the server does. A build starts the application
 first, running every plugin's `Init` before pages are enumerated (since v0.24.0), so
-a page a plugin registers, or the `WithStaticParams` of data a plugin loads, is
+a document a plugin registers, or the `WithStaticParams` of data a plugin loads, is
 built, and a plugin reads the same configuration; `OnBeforeRender`, `OnAfterRender` and
 `OnDocumentRendered` fire for every page and document, so what a minifier or a
-structured-data plugin does to a served page it does to the file. `OnPageResolved`
-does not fire for those renders, because they are not requests. Since v0.21.0
+structured-data plugin does to a served page it does to the file. Since v0.21.0
 `OnBuildFinished` runs once every file is written, for a plugin that checks the
 build as a whole.
 
 When such a plugin is registered, the build first
 [captures every file's headers](#headers-and-redirects) through `App.Handler()`
-(since v0.52.0). Those are requests: middleware, `OnRequest` and `OnPageResolved`
+(since v0.52.0). Those are requests: middleware and `OnRequest`
 see them, and the page renders again with `OnBeforeRender` and `OnAfterRender` —
 with `ev.Static` false. A plugin that counts or limits traffic, or writes files
 from a render hook, skips them when `collage.IsCapture(ctx)` is true. See
@@ -467,7 +462,7 @@ Skips are counted as routes, pages and documents together — `3 skipped`, not
 
 To act on the report in code, read `report.Skipped`, `report.Warnings`,
 `report.Findings` and `report.Errors` yourself. Each skip is a
-`collage.SkipRecord` with the route's name (`Page`), its `Locale`, a `Reason` for
+`collage.SkipRecord` with the route's `Name` (`Page` before v0.60.0), its `Locale`, a `Reason` for
 people and, since v0.10.0, an `Err` to match with `errors.Is` — see
 [Errors](/docs/errors#static-builds).
 [Testing](/docs/testing#testing-the-export) turns that into a test.

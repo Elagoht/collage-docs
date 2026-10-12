@@ -183,7 +183,7 @@ Bir fragment'in data handler'ı değeri `collage.Varied` ile geri okur:
 
 ```go
 func languageData(ctx context.Context, rc *collage.RenderContext) (string, []string, error) {
-	lang, _ := collage.Varied(rc, "Accept-Language") // "tr" or "en"
+	lang, _ := collage.Varied(ctx, "Accept-Language") // "tr" or "en"
 	return greeting(lang), nil, nil
 }
 ```
@@ -249,7 +249,7 @@ cevapları ise handler'ın kendi sorumluluğundadır.
 ### Prefix'ler ve çakışmalar
 
 Prefix `/` ile başlamalıdır ve tek başına `/` olamaz
-(`collage.ErrInvalidHandlerPrefix`). `/` ile biterse altındaki her path'i üstlenir.
+(`collage.ErrInvalidPrefix`). `/` ile biterse altındaki her path'i üstlenir.
 Sonunda `/` yoksa tek bir tam path'tir ve yalnızca o path'e cevap verir:
 `app.Handle("/metrics", h)`, `/metrics`'i sunar, `/metrics/x`'i sunmaz (v0.24.0'dan
 beri; öncesinde prefix'in `/` ile bitmesi gerekiyordu).
@@ -326,7 +326,7 @@ count := collage.NewAction("count").
 	WithPath("en", "/api/count").
 	WithMethods(http.MethodPost).
 	WithHandler(func(context.Context, *collage.RenderContext) (*collage.ActionResult, error) {
-		result, err := collage.JSONOf(http.StatusOK, countResponse{Count: store.Increment()})
+		result, err := collage.JSON(http.StatusOK, countResponse{Count: store.Increment()})
 		if err != nil {
 			return nil, err
 		}
