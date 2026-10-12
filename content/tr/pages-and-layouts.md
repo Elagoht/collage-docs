@@ -539,7 +539,7 @@ yapılan tek bir çağrıdan ibarettir:
 ```go
 func register(app *collage.App) error {
 	if err := app.Register(
-		landingpages.Home(),
+		pages.Home(),
 		blogpages.Post(),
 		documents.Health(),
 		actions.Logout(),

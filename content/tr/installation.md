@@ -108,10 +108,10 @@ mysite/
 ├── .gitignore
 ├── README.md
 ├── pages/
-│   └── landing/home.go         the home page: its layout, content and path
+│   └── home.go                 the home page: its layout, content and path
 ├── fragments/
 │   ├── layouts/main.go         Master(), the layout every page shares, and the site's title
-│   └── pages/landing/home.go   the home page's content and its data
+│   └── pages/home.go           the home page's content and its data
 ├── templates/
 │   ├── layouts/default.html    the layout's HTML, with {{slot "content"}}
 │   └── pages/home.html         <h1>Hello from {{.Name}}</h1>

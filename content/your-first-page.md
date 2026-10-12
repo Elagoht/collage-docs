@@ -69,10 +69,10 @@ moment. See [Head and SEO](/docs/head-and-seo#keys-and-the-innermost-wins).
 
 ## Look at the home page
 
-A page is two files, one beside the other by area: the page in `pages/<area>/`,
-and its content in `fragments/pages/<area>/`. The home page is in the `landing`
-area. Its content, `fragments/pages/landing/home.go`, shows the shortest way to
-give a template data:
+A page is two files, one beside the other: the page in `pages/`, and its content
+in `fragments/pages/`, each in an area's directory below them when the site groups
+its pages (`pages/blog/`). The home page has no area. Its content,
+`fragments/pages/home.go`, shows the shortest way to give a template data:
 
 ```go
 // Types data used on this page: what templates/pages/home.html renders as ".".
@@ -87,7 +87,7 @@ func Home() *collage.Fragment {
 }
 ```
 
-And the page, `pages/landing/home.go`, puts that content in the layout at a path:
+And the page, `pages/home.go`, puts that content in the layout at a path:
 
 ```go
 // No Static() needed: nothing here fetches per render, so the page is static.
@@ -101,8 +101,8 @@ func Home() *collage.Page {
 ```
 
 `fragments` there is the content's package, imported as
-`fragments "cookbook/fragments/pages/landing"`: both packages are called after
-what they hold, `pages` and `fragments`, and the directory says which area.
+`fragments "cookbook/fragments/pages"`: both packages are called after what they
+hold, `pages` and `fragments`, and an area's directory below them says which area.
 
 `collage.Value` hands the template the same value on every render, and in
 `templates/pages/home.html` that value is `.`:
@@ -308,7 +308,7 @@ told it: `routes.go` now lists the recipe page beside the home page.
 ```go
 func register(app *collage.App) error {
 	return app.Register(
-		landingpages.Home(),
+		pages.Home(),
 		recipespages.Recipe(),
 	)
 }

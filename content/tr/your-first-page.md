@@ -73,10 +73,10 @@ Birazdan tarif page'i de bunu yapacak. Bkz.
 
 ## Home page'e bakın
 
-Bir page, alanına (area) göre yan yana duran iki dosyadan oluşur: page
-`pages/<area>/` altında, içeriği ise `fragments/pages/<area>/` altındadır. Home page
-`landing` alanındadır. İçeriği olan `fragments/pages/landing/home.go`, bir
-template'e veri vermenin en kısa yolunu gösterir:
+Bir page, yan yana duran iki dosyadan oluşur: page `pages/` altında, içeriği ise
+`fragments/pages/` altındadır. Site sayfalarını gruplarsa her biri, altlarında bir
+alanın (area) dizinine girer (`pages/blog/`). Home page'in alanı yoktur. İçeriği olan
+`fragments/pages/home.go`, bir template'e veri vermenin en kısa yolunu gösterir:
 
 ```go
 // Types data used on this page: what templates/pages/home.html renders as ".".
@@ -91,7 +91,7 @@ func Home() *collage.Fragment {
 }
 ```
 
-Page'in kendisi olan `pages/landing/home.go` ise bu içeriği bir path'te layout'un
+Page'in kendisi olan `pages/home.go` ise bu içeriği bir path'te layout'un
 içine yerleştirir:
 
 ```go
@@ -106,9 +106,9 @@ func Home() *collage.Page {
 ```
 
 Buradaki `fragments`, içeriğin package'ıdır ve
-`fragments "cookbook/fragments/pages/landing"` olarak import edilir. İki package da
-içerdikleri şeyin adını taşır, `pages` ve `fragments`; hangi alan olduğunu ise dizin
-söyler.
+`fragments "cookbook/fragments/pages"` olarak import edilir. İki package da
+içerdikleri şeyin adını taşır, `pages` ve `fragments`; hangi alan olduğunu ise
+altlarındaki alan dizini söyler.
 
 `collage.Value`, template'e her render'da aynı değeri verir. `templates/pages/home.html`
 içinde bu değer `.` olarak kullanılır:
@@ -321,7 +321,7 @@ yanında listeliyor.
 ```go
 func register(app *collage.App) error {
 	return app.Register(
-		landingpages.Home(),
+		pages.Home(),
 		recipespages.Recipe(),
 	)
 }
