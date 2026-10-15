@@ -308,10 +308,18 @@ func loadArticle(ctx context.Context, rc *collage.RenderContext) (*Article, []st
   `jsonld.Emit(rc, jsonld.Person{Key: p.Slug, Name: p.Name})` in a loop keeps
   every person. Without a `Key`, a later `Person` replaces the earlier one. `ID` is
   separate: it is written as `"@id"`, so set it only to a real IRI.
-- Typed nodes cover `Article`, `BlogPosting`, `Blog`, `Person`, `Organization`,
-  `Event`, `FAQPage`, `WebSite` and `BreadcrumbList` (the middle three since
-  v0.5.0); `jsonld.Raw` is the escape hatch for anything else, and refuses invalid
-  JSON.
+- Typed nodes cover every feature in Google Search's structured data gallery
+  (v0.6.0): pages (`WebSite`, `WebPage` and its kinds, `ProfilePage`,
+  `BreadcrumbList`, `ItemList`), writing (`Article`, `NewsArticle`,
+  `BlogPosting`, `Blog`, `DiscussionForumPosting`, `QAPage`, `FAQPage`), people
+  and organizations (`Person`, `Organization`, `LocalBusiness`,
+  `EmployerAggregateRating`), `Event`, commerce (`Product` with shipping and
+  returns, `SoftwareApplication`, `VacationRental`, `Review`,
+  `AggregateRating`), media (`VideoObject`, `ImageObject`, `Movie`, `Recipe`,
+  `HowTo`) and learning and data (`Course`, `Quiz`, `MathSolver`, `Dataset`,
+  `JobPosting`). Shared parts — `Agent`, `Offer`, `Money`, `Rating`,
+  `PostalAddress`, `GeoCoordinates` — mean the same in every node. `jsonld.Raw`
+  is the escape hatch for anything else, and refuses invalid JSON.
 - An `Event`'s location is a `Place`, an `OnlineURL`, or both for a mixed event.
   Its times are written with their own offset: read a wall-clock time with
   `time.ParseInLocation` in the event's zone, not `time.Parse`, which means UTC.

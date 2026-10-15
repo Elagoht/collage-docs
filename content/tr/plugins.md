@@ -330,9 +330,17 @@ func loadArticle(ctx context.Context, rc *collage.RenderContext) (*Article, []st
   `jsonld.Emit(rc, jsonld.Person{Key: p.Slug, Name: p.Name})` her kişiyi korur.
   `Key` verilmezse sonraki `Person` öncekinin yerini alır. `ID` ayrı bir alandır:
   `"@id"` olarak yazılır, bu yüzden yalnızca gerçek bir IRI'niz varsa verin.
-- Tipli node'lar `Article`, `BlogPosting`, `Blog`, `Person`, `Organization`,
-  `Event`, `FAQPage`, `WebSite` ve `BreadcrumbList` tiplerini kapsar (ortadaki üçü
-  v0.5.0'dan beri). Bunların dışındaki her şey için `jsonld.Raw` kullanılır.
+- Tipli node'lar Google Search'ün structured data galerisindeki her özelliği
+  kapsar (v0.6.0): sayfalar (`WebSite`, türleriyle `WebPage`, `ProfilePage`,
+  `BreadcrumbList`, `ItemList`), yazı (`Article`, `NewsArticle`, `BlogPosting`,
+  `Blog`, `DiscussionForumPosting`, `QAPage`, `FAQPage`), kişi ve kurumlar
+  (`Person`, `Organization`, `LocalBusiness`, `EmployerAggregateRating`),
+  `Event`, ticaret (kargo ve iadeyle `Product`, `SoftwareApplication`,
+  `VacationRental`, `Review`, `AggregateRating`), medya (`VideoObject`,
+  `ImageObject`, `Movie`, `Recipe`, `HowTo`) ve eğitim ve veri (`Course`,
+  `Quiz`, `MathSolver`, `Dataset`, `JobPosting`). Ortak parçalar — `Agent`,
+  `Offer`, `Money`, `Rating`, `PostalAddress`, `GeoCoordinates` — her node'da
+  aynı anlama gelir. Bunların dışındaki her şey için `jsonld.Raw` kullanılır.
   `jsonld.Raw` geçersiz JSON'u reddeder.
 - Bir `Event`'in konumu bir `Place`, bir `OnlineURL` ya da karma bir etkinlik için
   ikisi birden olur. Saatleri kendi ofsetiyle yazılır: duvar saati biçimindeki bir
