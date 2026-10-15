@@ -330,9 +330,14 @@ func loadArticle(ctx context.Context, rc *collage.RenderContext) (*Article, []st
   `jsonld.Emit(rc, jsonld.Person{Key: p.Slug, Name: p.Name})` her kişiyi korur.
   `Key` verilmezse sonraki `Person` öncekinin yerini alır. `ID` ayrı bir alandır:
   `"@id"` olarak yazılır, bu yüzden yalnızca gerçek bir IRI'niz varsa verin.
-- Tipli node'lar `Article`, `BlogPosting`, `Blog`, `Person`, `WebSite` ve
-  `BreadcrumbList` tiplerini kapsar. Bunların dışındaki her şey için `jsonld.Raw`
-  kullanılır. `jsonld.Raw` geçersiz JSON'u reddeder.
+- Tipli node'lar `Article`, `BlogPosting`, `Blog`, `Person`, `Organization`,
+  `Event`, `FAQPage`, `WebSite` ve `BreadcrumbList` tiplerini kapsar (ortadaki üçü
+  v0.5.0'dan beri). Bunların dışındaki her şey için `jsonld.Raw` kullanılır.
+  `jsonld.Raw` geçersiz JSON'u reddeder.
+- Bir `Event`'in konumu bir `Place`, bir `OnlineURL` ya da karma bir etkinlik için
+  ikisi birden olur. Saatleri kendi ofsetiyle yazılır: duvar saati biçimindeki bir
+  zamanı `time.Parse` ile değil (UTC demektir), etkinliğin saat diliminde
+  `time.ParseInLocation` ile okuyun.
 - Marshal edilemeyen bir node, page'i başarısız kılmaz, yalnızca atlanır; log'a
   tipini adlandıran bir uyarı düşülür.
 

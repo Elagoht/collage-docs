@@ -308,9 +308,13 @@ func loadArticle(ctx context.Context, rc *collage.RenderContext) (*Article, []st
   `jsonld.Emit(rc, jsonld.Person{Key: p.Slug, Name: p.Name})` in a loop keeps
   every person. Without a `Key`, a later `Person` replaces the earlier one. `ID` is
   separate: it is written as `"@id"`, so set it only to a real IRI.
-- Typed nodes cover `Article`, `BlogPosting`, `Blog`, `Person`, `WebSite` and
-  `BreadcrumbList`; `jsonld.Raw` is the escape hatch for anything else, and refuses
-  invalid JSON.
+- Typed nodes cover `Article`, `BlogPosting`, `Blog`, `Person`, `Organization`,
+  `Event`, `FAQPage`, `WebSite` and `BreadcrumbList` (the middle three since
+  v0.5.0); `jsonld.Raw` is the escape hatch for anything else, and refuses invalid
+  JSON.
+- An `Event`'s location is a `Place`, an `OnlineURL`, or both for a mixed event.
+  Its times are written with their own offset: read a wall-clock time with
+  `time.ParseInLocation` in the event's zone, not `time.Parse`, which means UTC.
 - A node that cannot be marshalled is skipped rather than failing the page, with a
   warning in the log naming its type.
 
