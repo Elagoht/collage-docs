@@ -273,8 +273,8 @@ func loadPost(ctx context.Context, rc *collage.RenderContext) (*Post, []string, 
 ```
 
 `jsonld.Emit`, `"head"` area'sına hoist eder. Bu yüzden bu sayfada anlatılan diğer
-her şeyle aynı marker'a ihtiyaç duyar ve aynı kurallara uyar: her schema.org tipi için
-bir key vardır ve en içteki kazanır. Plugin'i register ettiğinizde (`Config.Plugins`
+her şeyle aynı marker'a ihtiyaç duyar ve aynı kurallara uyar: her schema.org tipi ve
+node'un `Key`'i için bir key vardır ve en içteki kazanır. Plugin'i register ettiğinizde (`Config.Plugins`
 içinde `jsonld.New(jsonld.Options{})`), bir site adıyla yapılandırılmışsa site genelinde bir
 `WebSite` node'u ekler. Page'e özel veri ise her zaman data handler'larınızdan gelir.
 Çünkü page'in ne hakkında olduğunu yalnızca onlar bilir.

@@ -302,8 +302,12 @@ func loadArticle(ctx context.Context, rc *collage.RenderContext) (*Article, []st
   `RegisterPlugin` accepts it too. v0.3.0 removed `siteURL`: set the application's
   `BaseURL` instead.
 - `Emit` appends and works whether or not the plugin is registered. Nodes are keyed
-  by schema.org type, so a nested fragment's `Article` replaces one declared
-  further out, and nodes of different types all appear.
+  by schema.org type and their `Key` field, so a nested fragment's `Article`
+  replaces one declared further out, and nodes of different types all appear.
+- Several nodes of one type need a `Key` each (v0.4.0), never written to the page:
+  `jsonld.Emit(rc, jsonld.Person{Key: p.Slug, Name: p.Name})` in a loop keeps
+  every person. Without a `Key`, a later `Person` replaces the earlier one. `ID` is
+  separate: it is written as `"@id"`, so set it only to a real IRI.
 - Typed nodes cover `Article`, `BlogPosting`, `Blog`, `Person`, `WebSite` and
   `BreadcrumbList`; `jsonld.Raw` is the escape hatch for anything else, and refuses
   invalid JSON.

@@ -321,9 +321,15 @@ func loadArticle(ctx context.Context, rc *collage.RenderContext) (*Article, []st
   yüzden `RegisterPlugin` de bu plugin'i kabul eder. v0.3.0 `siteURL`'i kaldırdı:
   onun yerine uygulamanın `BaseURL`'ünü ayarlayın.
 - `Emit` mevcut node'lara ekleme yapar ve plugin register edilmiş olsun ya da
-  olmasın çalışır. Node'lar schema.org tipine göre key'lenir. Bu yüzden iç içe bir
-  fragment'in `Article`'ı, daha dıştaki bir fragment'te tanımlanan `Article`'ın
-  yerini alır. Farklı tipteki node'ların ise hepsi çıktıda yer alır.
+  olmasın çalışır. Node'lar schema.org tipine ve `Key` alanına göre key'lenir. Bu
+  yüzden iç içe bir fragment'in `Article`'ı, daha dıştaki bir fragment'te
+  tanımlanan `Article`'ın yerini alır. Farklı tipteki node'ların ise hepsi çıktıda
+  yer alır.
+- Aynı tipten birden fazla node için her birine bir `Key` verin (v0.4.0). `Key`
+  page'e yazılmaz: döngü içinde
+  `jsonld.Emit(rc, jsonld.Person{Key: p.Slug, Name: p.Name})` her kişiyi korur.
+  `Key` verilmezse sonraki `Person` öncekinin yerini alır. `ID` ayrı bir alandır:
+  `"@id"` olarak yazılır, bu yüzden yalnızca gerçek bir IRI'niz varsa verin.
 - Tipli node'lar `Article`, `BlogPosting`, `Blog`, `Person`, `WebSite` ve
   `BreadcrumbList` tiplerini kapsar. Bunların dışındaki her şey için `jsonld.Raw`
   kullanılır. `jsonld.Raw` geçersiz JSON'u reddeder.
