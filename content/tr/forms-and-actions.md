@@ -633,14 +633,18 @@ gerçekleşmiştir.
 Tag'ler tam olarak [Caching](/docs/caching#dependency-tags) sayfasında anlatıldığı
 gibi çalışır ve `collage.Cached` ile saklanan değerlere de ulaşır.
 
-Page'ler gider. Onları oluşturan `collage.Cached` değerleri ise stale olarak
-işaretlenip tutulur. Redirect'in vardığı page stale değerden render edilir. Bu
-render, değerin yerini alacak çekme işlemini de başlatır. Okuyucu değişikliği bu
-yüklemede değil, o çekme işlemi bittikten sonra görür. Upstream'i kapalıyken de cevap vermeyi
+Page'ler de, onları oluşturan `collage.Cached` değerleri de stale olarak
+işaretlenir. İkisi de tutulur (page'ler v0.63.0'dan beri). `Cached` verisi okuyan bir page,
+invalidation'ın hemen ardından degraded olur, çünkü stale bir değer okumuştur.
+Degraded bir render da stale page'in yerini almaz. Bu yüzden redirect *eski*
+page'e varır. Bu page, değerin yerini alacak çekme işlemi arka planda çalışırken
+stale olarak sunulur (`X-Collage-Cache: STALE`, `Cache-Control: no-store`). O
+çekme işlemi bittikten sonraki ilk request yeni page'i render eder ve saklar.
+Upstream'i kapalıyken de cevap vermeyi
 sürdüren bir site'ın bedeli budur. Bir action kendi değişikliğini hemen
 göstermek zorundaysa, bunun yerine handler'dan o tag'ler için `app.PurgeTags`
-çağırın. Bu durumda hiçbir şey tutulmaz, dolayısıyla başarısız bir çekme işlemi
-page'i de başarısız kılar.
+çağırın. Bu durumda hiçbir şey tutulmaz. Böylece redirect değişikliği hemen
+gösterir, ama başarısız bir çekme işlemi page'i de başarısız kılar.
 
 ## Kendi URL'sinde bir fragment
 

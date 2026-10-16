@@ -457,8 +457,8 @@ Three things are true of this page that were not written down anywhere.
   failed and why. A broken sidebar is a missing sidebar, not a 500.
 - **The page's tags are both fragments' tags.** The page now depends on
   `recipe:pancakes` and on `recipes`. Once it is cached, invalidating `recipes`
-  drops every recipe page — which is what adding a recipe should do — and
-  invalidating `recipe:pancakes` drops only this one.
+  re-renders every recipe page — which is what adding a recipe should do — and
+  invalidating `recipe:pancakes` only this one.
 - **The two handlers did not wait on each other more than they had to.** A child's
   handler starts once its parent's has returned; siblings in the slots of one
   fragment start together. Give the recipe fragment a second slot with a slow

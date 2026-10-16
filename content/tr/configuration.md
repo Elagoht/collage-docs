@@ -291,8 +291,8 @@ bu süreyi aşabilir.
 | `Type` | `CacheType` | açıksa `CacheMemory` | `Store` `nil` olduğunda kullanılan built-in cache: `collage.CacheMemory` ya da `collage.CacheDisk`. |
 | `DefaultTTL` | `time.Duration` | `5m` | Page bir süre koymadığında entry'nin ömrü. |
 | `MaxEntries` | `int` | `10000` | Cache entry sayısının ve tek bir tag altında izlenen key sayısının üst sınırı; memory ve disk için de geçerli. Negatif değer sınırsız entry demektir (disk için v0.39.0'dan beri). |
-| `MaxBytes` | `int64` | memory için 256 MiB, disk için 1 GiB | Built-in bir cache'in sakladığı toplam boyutun üst sınırı. Negatif değer sınırsız demektir (v0.40.0'dan beri). |
-| `Dir` | `string` | yok | Disk cache'in entry'leri, `Dir/data/` altında ise `collage.Cached` değerlerini sakladığı yer. `CacheDisk` için zorunludur. |
+| `MaxBytes` | `int64` | memory için 256 MiB, disk için 1 GiB | Built-in bir cache'in sakladığı toplam boyutun üst sınırı. Negatif değer sınırsız demektir (v0.40.0'dan beri). Bir disk cache'in memory katmanı 256 MiB tutar, `MaxBytes` bundan küçükse de `MaxBytes` kadar tutar (v0.63.0'dan beri). |
+| `Dir` | `string` | yok | Disk cache'in entry'leri, `Dir/data/` altında ise `collage.Cached` değerlerini sakladığı yer. `CacheDisk` için zorunludur. Her instance'ın kendi dizini olmalıdır: bir dizini paylaşan instance'lar bir cache'i paylaşmaz. |
 | `Version` | `string` | binary'den türetilir | Disk cache'teki entry'lerin hangi build'e ait olduğunu belirler. |
 
 **Caching varsayılan olarak kapalıdır.** `Enabled` false iken bir `Store` ayarlı olsa
@@ -305,7 +305,12 @@ derlenir; bir değişkenden okunan string'in ise dönüştürülmesi gerekir:
 da başka bir yere koymak için `collage.Cache`'i (`Get`, `Set`, `InvalidateKey`, `Clear`) implement edin.
 `collage.TaggedCache`'i (`SetTagged`, `Invalidate`) de implement eden bir store'a her
 entry yazılırken o entry'nin tag'leri de verilir ve tag'e göre invalidate etmesi
-istenir. v0.60.0'dan önce `Invalidate`, `Cache`'in kendi metoduydu. Somut bir tipin nil
+istenir. v0.60.0'dan önce `Invalidate`, `Cache`'in kendi metoduydu. Ayrıca
+`collage.StaleCache`'i (`GetStale`, `MarkStaleKey`, `MarkStale`, v0.63.0'dan beri)
+implement eden bir store'dan, invalidate edilen entry'leri silmek yerine stale
+olarak işaretlemesi istenir. Böyle bir store başarısız bir yeniden render'a eski
+page'le cevap verebilir. Bkz. [Caching](/docs/caching#stale-pages-in-your-own-store).
+Somut bir tipin nil
 pointer'ını atamak yerine alanı boş bırakın. Böyle bir pointer nil olmayan bir
 interface'tir ve ilk lookup'ta panic'e yol açar.
 
@@ -321,6 +326,15 @@ oluşturulamadığında da (örneğin salt okunur bir dosya sisteminde) aynısı
 Uygulama çalışırken başarısız olan bir yazma log'lanır ve page cache'lenmeden sunulur.
 Development'ta disk cache hiç kullanılmaz, onun yerine bir memory cache devreye
 girer.
+
+**Disk cache'in önünde memory vardır** (v0.63.0'dan beri). Bir hit, memory
+katmanından sunulur. Bu katmanı `MaxEntries` ve 256 MiB (`MaxBytes` bundan küçükse
+`MaxBytes`) sınırlar. Katman açılışta geçerli build'in dizininden, en yenilerden
+başlanarak doldurulur. Böylece bir restart son page'lerini hemen memory'den sunar.
+Her instance'ın kendi katmanı vardır, bu yüzden her instance'a kendi `Dir`'ini
+verin. Paylaşılan bir dizinde, bir instance'taki invalidation'dan sonra diğerleri
+kendi memory'lerindeki kopyayı taze diye sunmaya devam eder. Bkz.
+[Caching](/docs/caching#memory-in-front-of-the-disk).
 
 **`Dir/data/`, disk cache'in `collage.Cached` değerlerini tutar.** Böylece uygulama
 restart'tan sonra boş bir data cache'le başlamaz. Entry'lerin aksine bu değerler build'in alt dizininde
@@ -405,8 +419,11 @@ type Span interface {
 ```
 
 `CacheEvent` şu değerlerden biridir: `collage.CacheHit`, `CacheMiss`, `CacheSet`,
-`CacheEvict`, `CacheInvalidate` ve `CacheCoalesced`. Sonuncusu, bir request'in aynı
-key için zaten çalışmakta olan bir render tarafından karşılandığı anlamına gelir.
+`CacheEvict`, `CacheInvalidate`, `CacheCoalesced` ve `CacheStale`. `CacheCoalesced`,
+bir request'in aynı key için zaten çalışmakta olan bir render tarafından
+karşılandığı anlamına gelir. `CacheStale` ise bir `collage.Cached` değerinin ya da
+cache'lenmiş bir page'in stale olarak sunulduğu anlamına gelir. Sunulan her değer
+ya da response için bir kez sayılır.
 
 ## Validation
 

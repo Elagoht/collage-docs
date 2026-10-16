@@ -15,8 +15,8 @@ Bunun dışındaki her şeyi document page ile paylaşır. Aynı router'da yaşa
 bir page ile çakışan bir path, ikisinden ikincisi register edilirken
 `collage.ErrDuplicateRoute` ile reddedilir. Document aynı key altında cache'lenir,
 aynı content hash tabanlı `ETag`'i ve `304` cevaplarını alır, aynı üç stratejiyi
-kullanır. Dependency tag'ler taşır ve aynı `app.InvalidateTags` çağrısıyla cache'ten
-düşer.
+kullanır. Dependency tag'ler taşır ve aynı `app.InvalidateTags` çağrısıyla
+invalidate edilir.
 
 ```go
 robots := collage.NewDocument("robots", "text/plain; charset=utf-8").
@@ -165,8 +165,8 @@ key; path, locale, path parametreleri ve query string'den oluşur. Cache'ten yal
 `GET` ve `HEAD` request'leri sunulur. `Cache-Control` header'ı stratejiye göre
 belirlenir.
 
-Post'larınızdan üretilen bir sitemap, yeni bir post yayımlandığında cache'ten
-düşürülmelidir. Tag'ler tam da bunun içindir:
+Post'larınızdan üretilen bir sitemap, yeni bir post yayımlandığında invalidate
+edilmelidir. Tag'ler tam da bunun içindir:
 
 ```go
 // Declared by the sitemap, the feed, the blog index and every post page.
@@ -180,6 +180,12 @@ bir plugin, document'ın body'sini cache'lenip sunulmadan önce yeniden yazabili
 Minifier buna bir örnektir. Page render hook'ları (`OnBeforeRender`, `OnAfterRender`)
 çalışmaz, çünkü render edilen bir şey yoktur. Bkz.
 [Plugin yazmak](/docs/writing-plugins).
+
+Invalidate edilen bir document bir sonraki request'te yeniden render edilir.
+v0.63.0'dan beri o zamana kadar stale olarak tutulur. Bu render başarısız olursa
+stale bir page gibi sunulur: `Cache-Control: no-store` ve `X-Collage-Cache: STALE`
+ile. 404 dönen bir render onu düşürür. Bkz.
+[Caching](/docs/caching#stale-pages-and-x-collage-cache).
 
 ## Örnek: sitemap
 
@@ -322,7 +328,7 @@ func FeedDocument(app *collage.App, posts *store.Posts) *collage.Document {
 `encoding/xml` başlıkları ve özetleri doğru şekilde escape eder. Page kullanmamanın
 bütün nedeni de budur. Feed `Static()`'tir: yalnızca bir post değiştiğinde değişir.
 Her post'un tag'i feed'in üzerindedir. Bu yüzden feed'deki herhangi bir post'u
-düzenlemek feed'i cache'ten düşürür.
+düzenlemek feed'i invalidate eder.
 
 Layout'a bir `<link rel="alternate">` koyarak okuyucuları feed'e yönlendirin. Bkz.
 [Head ve SEO](/docs/head-and-seo).

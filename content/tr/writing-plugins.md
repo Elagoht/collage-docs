@@ -113,7 +113,7 @@ ulaşabileceği bir cache olmazdı.
 | `ConfigReader` (embed edilmiş) | `collage.PluginConfig(host, defaults)` bu plugin'in config bölümünü bunun üzerinden okur. |
 | `Pages() []*collage.Page` | Register edilmiş bütün page'leri döner. Her biri bir defensive copy'dir. |
 | `Page(name) (*collage.Page, bool)` | Adı verilen page'i defensive copy olarak döner. |
-| `InvalidateTags(ctx, tags...) error` | Bu tag'lerden herhangi biriyle oluşturulmuş bütün cache'lenmiş page'leri düşürür ve `collage.Cached` değerlerini stale olarak işaretler. |
+| `InvalidateTags(ctx, tags...) error` | Bu tag'lerden herhangi biriyle oluşturulmuş bütün cache'lenmiş page'leri invalidate eder (built-in store'larda onları başarısız ya da degraded bir yeniden render için tutarak stale olarak işaretler) ve `collage.Cached` değerlerini stale olarak işaretler. |
 | `RegisterDocument(doc) error` | Plugin'in eklediği bir document'ı register eder. |
 | `Mount(prefix, fsys, opts...) error` | Bir dosya sistemini bir URL prefix'i altında sunar. |
 | `Handle(prefix, handler) error` | `App.Handle` gibi, bir `http.Handler`'ı `/` ile biten bir URL prefix'i altında ya da sonunda `/` olmayan tek bir tam path'te (`/metrics`, v0.24.0'dan beri) sunar. Örneğin bir event stream ya da bir WebSocket (v0.18.0'dan beri). |
@@ -711,7 +711,7 @@ etmez. Çünkü page'i yoktur ve template render etmez.
 ```go
 type CacheInvalidateEvent struct {
 	Tags    []string
-	Entries []InvalidatedEntry // the cached entries dropped, each with its host, sorted
+	Entries []InvalidatedEntry // the cached entries invalidated, each with its host, sorted
 }
 
 type InvalidatedEntry struct {
@@ -720,18 +720,24 @@ type InvalidatedEntry struct {
 }
 ```
 
-`InvalidateTags` bazı tag'lerin entry'lerini düşürdükten sonra çalışır. Onu uygulamanın,
+`InvalidateTags` ya da `PurgeTags` bazı tag'lerin entry'lerine ulaştıktan sonra
+çalışır. Onu uygulamanın,
 bir action'ın ya da bir plugin'in çağırması fark etmez. Hook bir request'ten değil,
 o çağrının içinden dispatch edilir. Dönen bir hata, `InvalidateTags`'in döndüğü
 hatayla join edilir. Invalidation'ı kendiniz tetiklemek için `Host.InvalidateTags`'i
 çağırın.
 
-`Entries`, invalidation'ın düşürdüğü cache'lenmiş page ve document'ları listeler. Bir CDN'in purge etmesi ve bir arama
-motoruna değiştiği bildirilmesi gereken budur. Cache'lenmemiş bir page burada asla
-yer almaz, çünkü ondan düşürülen bir şey yoktur. Cache'lenen her entry ayrıca
+`Entries`, invalidation'ın ulaştığı cache'lenmiş page ve document'ları listeler. Bir
+CDN'in purge etmesi ve bir arama motoruna değiştiği bildirilmesi gereken budur.
+Built-in store'larda `InvalidateTags`'in ulaştığı bir entry silinmez, stale olarak
+işaretlenir (v0.63.0'dan beri). Artık taze diye sunulmaz. Yalnızca yeniden
+render'ı başarısız ya da degraded olursa `STALE` olarak yeniden sunulur. Cache'lenmemiş bir page
+burada asla yer almaz, çünkü onun için ulaşılacak bir entry yoktur. Daha önceki bir
+invalidation'ın stale olarak işaretlediği bir page de yeniden render edilip
+saklanana kadar burada yer almaz. Cache'lenen her entry ayrıca
 `collage.PathTag(path)` tag'ine de bağlıdır. Bu yüzden tag'i değil path'i bilen bir
 plugin, oradaki cache'i `host.InvalidateTags(ctx, collage.PathTag("/blog"))` ile
-düşürür. Bkz. [Caching](/docs/caching#invalidating-by-path).
+invalidate eder. Bkz. [Caching](/docs/caching#invalidating-by-path).
 
 Her entry bir host ve bir URL path'tir; önce host'a, sonra path'e göre sıralıdır.
 İki host altında cache'lenmiş bir path iki entry'dir ve request bir port içeriyorsa
@@ -836,7 +842,11 @@ değildir; yalnızca framework'ün `collage: request failed` log satırındaki a
 
 `Status` (v0.45.0'dan beri), hatanın cevaplandığı HTTP status'tür: var olmayan bir
 asset için 404, başarısız bir render ya da panic için 500. Hata için hiçbir cevap
-yazılmıyorsa 0'dır; page sunulduktan sonra başarısız olan bir cache yazımı gibi.
+yazılmıyorsa 0'dır; page sunulduktan sonra başarısız olan bir cache yazımı ya da
+yerine stale bir page sunulan başarısız bir render gibi (v0.63.0'dan beri). Bu
+sonuncusu başarısız olduğu stage'i korur, örneğin `"render"`. Onu kaç okuyucu
+beklemiş ve stale page'i almış olursa olsun, `OnError`'a başarısız her render için
+bir kez ulaşır. Bkz. [Caching](/docs/caching#stale-pages-and-x-collage-cache).
 `"error_page"` event'i her zaman 500 der. `Request`, okuyucunun canlı request'idir ve
 yalnızca okumak içindir: URL'si, method'u ve header'ları; body'si daha önce okunmuş
 olabilir. Hata bir request'ten gelmediyse `nil`'dir. İhtiyacınız olanı `OnError`

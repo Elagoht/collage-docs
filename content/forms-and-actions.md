@@ -601,13 +601,17 @@ logged rather than failing the response — the change has already happened.
 Tags work exactly as in [Caching](/docs/caching#dependency-tags), and reach values
 stored with `collage.Cached` too.
 
-The pages go; the `collage.Cached` values they were built from are kept, marked
-stale. The page the redirect lands on is rendered from the stale value, which
-also starts the fetch that replaces it, so the reader sees the change once that
-fetch has finished, not on this load. That is the price of a site that keeps
-answering while its upstream is down. When an action must show its own change at
-once, call `app.PurgeTags` from the handler for those tags instead. Nothing is
-then kept, so a failed fetch fails the page.
+The pages are marked stale, and so are the `collage.Cached` values they were
+built from: both are kept (pages since v0.63.0). A page that reads `Cached` data is
+degraded right after the invalidation, since it read a stale value, and a degraded
+render does not replace the stale page. So the redirect lands on the *old* page,
+served stale (`X-Collage-Cache: STALE`, `Cache-Control: no-store`), while the
+fetch that replaces the value runs in the background; the next request after that
+fetch has finished renders the new page and stores it. That is the price of a site
+that keeps answering while its upstream is down. When an action must show its own
+change at once, call `app.PurgeTags` from the handler for those tags instead.
+Nothing is then kept, so the redirect shows the change at once, and a failed fetch
+fails the page.
 
 ## A fragment at its own URL
 

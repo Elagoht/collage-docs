@@ -1,6 +1,6 @@
 ---
 description: How collage caches rendered pages and the data they are made from, and how it knows what to throw away.
-reference: CacheConfig, Cached, App.PurgeTags, CacheStale, Once, Key, TaggedCache, SkipCache, Vary, PageBuilder.Static, PageBuilder.Incremental, PageBuilder.Dynamic, FragmentBuilder.Static, FragmentBuilder.Shared, StrategyAuto, PathTag
+reference: CacheConfig, Cached, App.PurgeTags, CacheStale, Once, Key, TaggedCache, StaleCache, CacheStatusHeader, SkipCache, Vary, PageBuilder.Static, PageBuilder.Incremental, PageBuilder.Dynamic, FragmentBuilder.Static, FragmentBuilder.Shared, StrategyAuto, PathTag
 ---
 
 # Caching
@@ -56,6 +56,7 @@ goes out `private, no-store` whatever the strategy — see
 Since v0.34.0 there are two more. A degraded render (see
 [below](#what-is-cached-and-when)) goes out `no-store`: it is not kept by this
 server, so it must not be kept by a CDN in front of it for the page's TTL either.
+So does a stale page served in place of a failed render (since v0.63.0).
 And in development every page and document goes out `no-store`, so the browser
 does not keep a page from before your edit.
 
@@ -71,7 +72,9 @@ page := collage.NewPage("blog-post").
 
 `Static()` has no practical expiry, and `DefaultTTL` does not apply to it. It
 renders again only when one of its tags is invalidated, or when the cache evicts
-it to make room. That is the right strategy for content that changes when someone
+it to make room — and when that render fails, the invalidated copy is what answers
+(see [Stale pages](#stale-pages-and-x-collage-cache)). That is the right strategy
+for content that changes when someone
 publishes, and only then. Its `Cache-Control` tells browsers and CDNs to keep it
 but ask every time, and the [ETag](#etags-and-304) makes asking cheap.
 
@@ -169,9 +172,12 @@ That last rule matters more than it looks. A fragment that failed — even an
 optional one, even one whose fallback covered for it — makes the render
 **degraded**, and a degraded render is served but not stored. Storing it would pin
 one request's passing failure in front of every reader until the TTL ran out.
+Where a stale copy of the page is kept, that copy is served instead (see
+[Stale pages](#stale-pages-and-x-collage-cache)).
 
 Error responses are never cached either. A 404 or a 500 is written `no-store`, and
-the tags an error page's own render declared are dropped. An
+the tags an error page's own render declared are dropped. A 404 also drops the
+stale entry the request found. An
 [action's](/docs/forms-and-actions) response is never cached, whatever the page it
 rendered was declared as: it was produced from one submission and belongs to
 whoever sent it.
@@ -228,8 +234,8 @@ cache key, so every reader served a copy asked for the same host, and the origin
 the render built absolute URLs against is theirs too. A static build has no request
 and gets `Config.BaseURL`. A site with no `OriginResolver` plugin sees no
 difference; see [Which origin a host has](/docs/writing-plugins#which-origin-a-host-has-originresolver).
-When an invalidation drops entries, `CacheInvalidateEvent.Entries` names each one's
-host as well as its path.
+When an invalidation reaches entries, `CacheInvalidateEvent.Entries` names each
+one's host as well as its path.
 
 ## Dependency tags
 
@@ -263,11 +269,18 @@ if err := app.InvalidateTags(ctx, "post:"+slug, "blog:posts"); err != nil {
 }
 ```
 
-Every cached page carrying any of those tags is dropped. Every value
-`collage.Cached` stored under them is marked stale: kept, and served once more
-while a fetch in the background replaces it (see
-[How it behaves](#how-it-behaves)). Nothing else is touched. The next reader of
-each dropped page gets a fresh render.
+Every cached page carrying any of those tags is marked stale (since v0.63.0; before,
+it was dropped). It is no longer served as fresh: the next request for each one
+renders it again, and a good render is stored in its place. But the old page is
+kept, to answer with when that render fails or comes out degraded — see
+[Stale pages](#stale-pages-and-x-collage-cache).
+Every value `collage.Cached` stored under the tags is marked stale too: kept, and
+served once more while a fetch in the background replaces it (see
+[How it behaves](#how-it-behaves)). Nothing else is touched.
+
+That is the built-in stores, memory and disk. A store of your own keeps dropping
+entries on `InvalidateTags`, unless it implements
+[`collage.StaleCache`](#stale-pages-in-your-own-store).
 
 `App.PurgeTags` takes the same tags and removes outright, with nothing left to
 serve stale, from disk too:
@@ -279,7 +292,8 @@ if err := app.PurgeTags(ctx, "post:"+slug); err != nil {
 ```
 
 Use it for data that must not be shown again even once. The cost is that a failed
-fetch then fails the page, as there is nothing to fall back on.
+fetch, or a failed render, then fails the page, as there is nothing to fall back
+on.
 
 `InvalidateTagsN` does the same and tells you how many cache keys the tags
 reached:
@@ -288,41 +302,42 @@ reached:
 reached, err := app.InvalidateTagsN(ctx, "author:ada")
 ```
 
-The count is the number of keys collage's own tag index resolved and dropped, not
-an exact figure for live pages removed, and it errs both ways: a key whose entry
-had already expired is still counted, and an entry the store reached through its
-own tag index — past the cap [below](#the-tag-index-is-per-process-and-bounded), or
-written by another instance — is removed without being counted. It is good for a
-log line or a metric, not for logic.
+The count is the number of keys collage's own tag index resolved and invalidated,
+not an exact figure for live pages reached, and it errs both ways: a key whose
+entry had already expired is still counted, and an entry the store reached through
+its own tag index — past the cap [below](#the-tag-index-is-per-process-and-bounded),
+or written by another instance — is invalidated without being counted. It is good
+for a log line or a metric, not for logic.
 
-If the cache fails to drop some keys, the rest are still dropped and the failures
-come back joined in the error. A partial invalidation that reported success is how
+If the cache fails to invalidate some keys, the rest are still invalidated and the
+failures come back joined in the error. A partial invalidation that reported success is how
 stale pages survive a deploy.
 
 The usual place to call it is wherever your content changes: a CMS webhook, an
 admin form. An action can do it declaratively, with
 [`InvalidateTags` on its result](/docs/forms-and-actions#invalidating-what-an-action-changed),
 which runs before the response is written — so a reader redirected to the page
-they just changed is never served the old *page*. The `collage.Cached` values it
-is built from may still be the old ones for that one load: see
+they just changed is not served the old page as though it were fresh: it renders
+again. A page that reads `collage.Cached` data still lands on the old page for
+that one load, served stale while its data refreshes: see
 [the note there](/docs/forms-and-actions#invalidating-what-an-action-changed).
 
 ### Invalidating by path
 
 Every cached page and document also depends on a tag naming the URL path it was
-rendered for, `collage.PathTag(path)` (since v0.23.0), so an entry can be dropped
-by its path when that is what you know rather than a tag:
+rendered for, `collage.PathTag(path)` (since v0.23.0), so an entry can be
+invalidated by its path when that is what you know rather than a tag:
 
 ```go
 app.InvalidateTags(ctx, collage.PathTag("/blog/hello"))
 ```
 
-It drops what is cached for that path, whatever else it depends on.
+It invalidates what is cached for that path, whatever else it depends on.
 
-An invalidation also says what it dropped. A plugin hears of every one through
+An invalidation also says what it reached. A plugin hears of every one through
 `OnCacheInvalidate`, and the event carries the tags and — in `Entries`, each a host
-and a path — the cached pages and documents dropped: what a CDN has to purge, and a search
-engine be told has changed. A page that was never cached is not in it. See
+and a path — the cached pages and documents invalidated: what a CDN has to purge,
+and a search engine be told has changed. A page that was never cached is not in it. See
 [Writing a plugin](/docs/writing-plugins#cacheinvalidatehook);
 [elagoht/cdnpurge](/docs/plugins#elagohtcdnpurge) and
 [elagoht/indexnow](/docs/plugins#elagohtindexnow) are built on it.
@@ -359,6 +374,65 @@ of a large site, flooded with invented queries, while the cache itself held
 10000 entries in all. No more keys than `MaxEntries` can still be live, so the
 oldest written go first; a negative `MaxEntries` leaves this off. A store of your
 own keeps the per-tag cap only, since collage cannot know its size.
+
+## Stale pages and `X-Collage-Cache`
+
+Since v0.63.0 a page or document that is stale — marked so by `InvalidateTags`, or
+past its TTL — is not thrown away by the built-in stores. A request for it renders
+again, through the same shared render as any miss
+([below](#concurrent-misses-render-once)), and what happens next depends on that
+render:
+
+- **A good render** is stored and served in place of the stale page. The response
+  is a `MISS`.
+- **A render that fails, or comes out degraded**, is not stored, and the stale
+  page is served instead, with `Cache-Control: no-store` so that no browser or
+  CDN keeps it, and `X-Collage-Cache: STALE`. The reader sees the old page, not a
+  500. Reading a stale `collage.Cached` value makes a render degraded, and that is
+  the usual cause right after an invalidation: the page's data is stale until the
+  background fetch replaces it.
+- **A render that answers 404** drops the entry: the content is gone.
+
+Before v0.63.0 an invalidated page was gone, so an invalidation followed by a
+failing render was a 500. `PurgeTags` still leaves nothing to fall back on, so a
+purged page that fails to render fails.
+
+An expired page is stale in the same sense, so an `Incremental` page whose upstream
+is down keeps answering with its last good render after its TTL. There is no
+maximum stale age. Only eviction at `MaxEntries` or `MaxBytes` takes a stale page
+away.
+
+A render that overlaps any `InvalidateTags` or `PurgeTags` call — one that began
+while a call was under way, or during which one began — is not stored, whatever
+its tags: it may have read the data from before the change, and storing it would
+bring the old page back as fresh.
+
+**A stale serve is reported, once per failure.** Each stale response is counted as
+the `CacheStale` metrics event. The failure it hides is reported once per failed
+render, however many requests were waiting on it: logged once at warn
+(`collage: serving a stale page, its render failed`, with the path and the error) —
+not also as an error-level `collage: request failed`, since no error page was
+served — and handed to plugins' `OnError` hook once, with a `Status` of 0, since no
+error response was sent. A render degraded only because it read stale
+`collage.Cached` data is no outage — its data is refreshing — so its stale serve is
+logged at debug (`collage: serving a stale page while its data refreshes`), and
+nothing reaches `OnError`. Documents are reported the same way.
+
+**`X-Collage-Cache` says which it was.** `collage.CacheStatusHeader` is
+`X-Collage-Cache`, and a cacheable `GET` or `HEAD` that answered with a page or
+document carries one of:
+
+| Value | Meaning |
+| --- | --- |
+| `HIT` | A fresh entry, served without rendering. |
+| `MISS` | Rendered — there was no entry, or only a stale one. |
+| `STALE` | The stale entry, served because the render replacing it failed or was degraded. |
+
+A `304` answer to a conditional request carries it too. It is not sent in
+development, where the cache is not read, on an error response, on a page that is
+not cacheable (`Dynamic()`, `collage.SkipCache`), or in a static build, and a store
+of your own that is not a `StaleCache` never answers `STALE`. It is there for
+whoever debugs from outside; collage itself does not read it.
 
 ## Query parameters in the key
 
@@ -413,7 +487,8 @@ Documents have the same `WithCacheParams`.
 empty after every restart. It holds at most `MaxEntries` pages (default 10000;
 negative for no limit) and at most `MaxBytes` of them (default 256 MiB), and when
 either is full drops the oldest by insertion — reading a page does not make it
-younger. An expired entry is dropped when it is next looked up.
+younger. An expired entry is not served as fresh, but it is kept, as
+[stale](#stale-pages-and-x-collage-cache), until eviction needs the room.
 
 `Type: "disk"` keeps pages as files, so a restart does not render everything
 again:
@@ -455,10 +530,12 @@ stored.
 
 | `MaxBytes` | Memory | Disk |
 | --- | --- | --- |
-| `0` | 256 MiB | 1 GiB |
+| `0` | 256 MiB | 1 GiB (its memory tier: 256 MiB) |
 | negative | no limit | no limit |
 
-It counts the content a memory cache holds, and the size of the files on disk.
+It counts the content a memory cache holds, and the size of the files on disk. A
+disk cache's memory tier ([below](#memory-in-front-of-the-disk)) holds 256 MiB,
+or `MaxBytes` when that is smaller.
 Go's allocator rounds a large value up to whole pages, so a memory cache full of
 50 KB pages takes some 10% more heap than `MaxBytes` says, and the process takes
 more than its heap: in a container, set `GOMEMLIMIT` too — see
@@ -466,6 +543,37 @@ more than its heap: in a container, set `GOMEMLIMIT` too — see
 bounds itself and ignores the field. Naming the query parameters a page reads with
 [`WithCacheParams`](#query-parameters-in-the-key) is the other half: a page that
 ignores the query stores one copy, not thousands.
+
+### Memory in front of the disk
+
+Since v0.63.0 a `"disk"` cache is two tiers: a [memory cache](#memory-or-disk) in
+front of the directory. Reading a page from a file is an open, a read and a decode
+on every request, so a hit is served from memory instead. A write goes to disk and
+then to memory, and a read asks memory first and copies what it finds on disk into
+memory as it goes. `MaxEntries` bounds both tiers. `MaxBytes` bounds the disk; the
+memory tier holds 256 MiB, or `MaxBytes` when that is smaller. That is memory of
+your process on top of the disk, so in a small container set `GOMEMLIMIT` as for a
+memory cache, and lower `MaxBytes` or `MaxEntries` if the tier must hold less (see
+[Deployment](/docs/deployment#a-memory-cache-and-the-containers-limit)).
+
+**A restart starts warm.** At startup the memory tier is filled from the current
+build's directory, newest entries first, until the next one would make it evict.
+The pages written most recently are `HIT`s from memory at once, and the rest are
+one file read away. Stale entries are warmed too, so a restart in the middle of an
+upstream outage still has them to serve. Files written by v0.62 or earlier carry
+no key in their header and are not warmed; they are still served, on the first
+request that reads them.
+
+**One `Dir` per instance.** Instances that share a `Dir` do not share a cache.
+Each has its own memory tier, and memory's answer is final once it holds a page.
+An invalidation in one instance marks the disk and its own memory; every other
+instance goes on serving the copy in its memory as a fresh `HIT` until that copy
+expires — for a `Static` page, which has no TTL, until the instance restarts or
+evicts it — and a CDN that refetches the page meanwhile can be handed the old copy
+and keep it. Give each instance its own directory. A fleet that must see one
+another's invalidations needs a shared [store of its own](#your-own-store) that
+implements `collage.StaleCache` and `collage.TaggedCache`, instead of
+`Type: "disk"`.
 
 ### The namespace
 
@@ -476,7 +584,9 @@ rendered.
 So entries live in a subdirectory named for the build. Leave `Cache.Version`
 empty and it is a hash of the running executable: it changes exactly when your
 code or templates compiled into it change, and two runs of the same build — or
-every machine in a fleet running it — share one cache. Set `Version` yourself only
+every machine in a fleet running it — derive the same directory. That keeps one
+build from reading another's pages; it does not make a fleet share one cache (see
+[above](#memory-in-front-of-the-disk)). Set `Version` yourself only
 when something outside the binary decides what the output looks like, such as a
 content revision.
 
@@ -490,8 +600,8 @@ carrying another key's marker — rendered before the key changed, or by a proce
 that generated its own — is treated as a miss: it is dropped and rendered again.
 Pages without a form are unaffected by the key entirely.
 
-Everything that shares a `Dir` and a build shares entries, including two apps in
-one test binary. Give each test its own directory with `t.TempDir()` — see
+Everything that shares a `Dir` and a build shares the files on disk, including
+two apps in one test binary. Give each test its own directory with `t.TempDir()` — see
 [Testing](/docs/testing#isolate-the-disk-cache).
 
 ### Your own store
@@ -501,6 +611,49 @@ ignored. `Enabled` is still the master switch. Do not assign a typed nil pointer
 it — a nil `*myCache` in an interface field is not a nil interface, and collage will
 call straight through it.
 
+`InvalidateKey` and `Invalidate` remove. A store that implements only these keeps
+the behaviour from before v0.63.0: an invalidated page is gone, and a re-render
+that fails fails the request.
+
+### Stale pages in your own store
+
+Implement `collage.StaleCache` as well when your store can keep an entry past its
+invalidation or expiry. The framework type-asserts for it, and asks a store that
+has it to mark entries stale instead of removing them, which is what lets a failed
+re-render be answered with the last page that rendered:
+
+```go
+type StaleCache interface {
+	Cache
+	GetStale(ctx context.Context, key string) (content []byte, etag string, stale, found bool)
+	MarkStaleKey(ctx context.Context, key string) error
+	MarkStale(ctx context.Context, tags []string) error
+}
+```
+
+- `GetStale` is `Get` that also returns an entry past its invalidation or its
+  expiry, with `stale` true. `found` is false only when the key has no entry at
+  all.
+- `Get` still reports neither a stale entry nor an expired one: they are misses,
+  as before.
+- `MarkStaleKey` keeps the entry, with its content, ETag, expiry and tags, and
+  marks it. Marking a key with no entry is not an error. A later `Set` or
+  `SetTagged` for the key stores a fresh entry, which clears the mark.
+- `MarkStale` does the same for every entry carrying any of the tags, which only
+  a store that indexes tags can do. A `StaleCache` that is also a `TaggedCache` is
+  asked to mark by tag instead of to invalidate.
+- Nothing bounds how long an entry stays stale. Evict it yourself, under your own
+  limits.
+
+`PurgeTags` still calls `InvalidateKey` and `Invalidate`. A page already marked
+stale has been forgotten by collage's own tag index, so only a store that is also
+a `TaggedCache` can purge it by tag: a `StaleCache` that is not keeps such a page
+until it is evicted or its key is purged.
+
+```go
+var _ collage.StaleCache = (*myCache)(nil)
+```
+
 ## ETags and 304
 
 Every cached page is stored with an ETag, a hash of its content, and every
@@ -509,7 +662,8 @@ page sends it back in `If-None-Match`, and if it still matches, collage answers
 `304 Not Modified` with no body.
 
 This is what makes `Static()` pages cheap to revalidate: `must-revalidate` means
-the client asks every time, and the answer is usually a few bytes.
+the client asks every time, and the answer is usually a few bytes. A `304` carries
+[`X-Collage-Cache`](#stale-pages-and-x-collage-cache) like the full answer would.
 
 A page with a form is the exception again. What a reader is sent carries their own
 forgery token, so its ETag names that reader's copy rather than the stored one, and
@@ -553,7 +707,7 @@ behave as they will in production; what is gone is serving a page rendered befor
 the edit.
 
 A disk cache is replaced by a memory one in development, and collage logs that it
-did. `collage.Cached` keeps nothing across renders there either (see below).
+did. No response carries `X-Collage-Cache` there. `collage.Cached` keeps nothing across renders there either (see below).
 
 ## Caching data across pages
 
@@ -605,8 +759,7 @@ returned them. So a single call —
 app.InvalidateTags(ctx, "author:ada")
 ```
 
-— marks the stored author stale *and* drops every cached page that showed her,
-together.
+— marks the stored author stale *and* every cached page that showed her, together.
 
 This is the part that is easy to get wrong without it. An application that
 memoises authors inside its own API client, and invalidates pages by tag, has two
@@ -644,12 +797,15 @@ the old author they were meant to replace.
   and so on up to a minute after each further failure, so a down upstream is not
   asked once per request. A successful fetch ends the cooldown, and so does an
   invalidation of the key: a webhook is news that the upstream is answering.
-- **A render built from stale data is not cached.** It is served with
-  `Cache-Control: no-store` and stored nowhere, so the page is rendered again
-  once the value is fresh. Plugins see it as degraded
-  (`AfterRenderEvent.Degraded`).
+- **A render built from stale data is not cached.** Plugins see it as degraded
+  (`AfterRenderEvent.Degraded`), and it is stored nowhere, so the page is rendered
+  again once the value is fresh. Where the page cache holds a stale copy of the
+  page — right after an invalidation, say — that old page is served instead,
+  marked `STALE` (see [Stale pages](#stale-pages-and-x-collage-cache)); where it
+  holds none, the degraded render is served, with `Cache-Control: no-store`.
 - **Stale serves are reported.** Each stale value served is reported as the
-  `CacheStale` metrics event, cooldown or not. Each failed refresh is logged at
+  `CacheStale` metrics event, cooldown or not. The page cache reports the same
+  event, with its own key, for each stale page it serves. Each failed refresh is logged at
   warn with its error, and the first success after failures at info, with how
   many there were.
 - **Not found is the exception.** A fetch whose error wraps `collage.ErrNotFound`
@@ -703,7 +859,7 @@ page.
 | --- | --- | --- |
 | `collage.Once` | the fragments of one render | that render |
 | `collage.Cached` | every render in the process | fresh for its `ttl` or until its tags are invalidated, then served stale until replaced |
-| page cache | every request for one URL | the page's strategy, or until its tags are invalidated |
+| page cache | every request for one URL | fresh for the page's strategy or until its tags are invalidated, then served stale only when its re-render fails or is degraded |
 
 Use `Once` for what one page fetches twice, `Cached` for what many pages fetch,
 and the page cache for the page itself. They combine: a cached page is not
