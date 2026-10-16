@@ -278,12 +278,12 @@ if err := app.InvalidateTags(ctx, "post:"+slug, "blog:posts"); err != nil {
 
 Bu tag'lerden herhangi birini taşıyan her cache'lenmiş page atılır. `collage.Cached`
 ile bu tag'ler altında saklanan her değer ise stale olarak işaretlenir. Değer
-tutulur ve arka plandaki bir fetch onun yerini alırken bir kez daha sunulur
+tutulur ve arka plandaki bir çekme işlemi onun yerini alırken bir kez daha sunulur
 (bkz. [Nasıl davranır](#how-it-behaves)). Başka hiçbir şeye dokunulmaz. Atılan her
 page'i sonra açan okuyucu yeni bir render alır.
 
-`App.PurgeTags` aynı tag'leri alır ve sunacak stale bir şey bırakmadan, diskten de
-olmak üzere tamamen siler:
+`App.PurgeTags` aynı tag'leri alır ve onlara bağlı her şeyi, diskteki kopyalar
+dahil, stale olarak sunulacak bir şey bırakmadan siler:
 
 ```go
 if err := app.PurgeTags(ctx, "post:"+slug); err != nil {
@@ -292,7 +292,7 @@ if err := app.PurgeTags(ctx, "post:"+slug); err != nil {
 ```
 
 Bunu, bir kez bile olsa bir daha gösterilmemesi gereken veri için kullanın. Bedeli
-şudur: arkasında dönülecek bir şey kalmadığı için fetch başarısız olursa page de
+şudur: geri dönülecek bir değer kalmadığı için çekme işlemi başarısız olursa page de
 başarısız olur.
 
 `InvalidateTagsN` aynı işi yapar ve ayrıca tag'lerin kaç cache key'ine ulaştığını
@@ -319,7 +319,7 @@ da bir admin form'unda. Bir action bunu declarative olarak da yapabilir. Bunun i
 [result'ındaki `InvalidateTags`](/docs/forms-and-actions#invalidating-what-an-action-changed)
 alanını kullanır. Bu invalidation response yazılmadan önce çalışır. Böylece az önce
 değiştirdiği page'e redirect edilen okuyucuya eski *page* hiçbir zaman sunulmaz.
-Page'in kendisini oluşturan `collage.Cached` değerleri ise o tek yüklemede hâlâ eski
+Page'i oluşturan `collage.Cached` değerleri ise o tek yüklemede hâlâ eski
 olabilir. Bkz. [oradaki not](/docs/forms-and-actions#invalidating-what-an-action-changed).
 
 ### Path'e göre invalidate etmek
@@ -450,8 +450,8 @@ Cache: collage.CacheConfig{
 `Dir`'in varsayılan bir değeri yoktur. Dosyaları nereye yazacağını kendisi seçen bir
 framework, onları kimsenin bakmadığı bir yere yazar. Bu dizini `.gitignore`'a
 ekleyin. `collage.Cached` değerleri de `Dir/data/` altında tutulur. Bkz.
-[Restart'tan sonra](#across-a-restart). v0.11.0'dan beri oluşturulamayan bir dizin, uygulamanın başlamaması için
-bir neden değildir. Salt okunur bir dosya sistemi ya da yazacak yeri olmayan bir
+[Restart'tan sonra](#across-a-restart). v0.11.0'dan beri oluşturulamayan bir
+dizin, uygulamanın başlamaması için bir neden değildir. Salt okunur bir dosya sistemi ya da yazacak yeri olmayan bir
 container buna örnektir. collage bu durumda bir uyarı log'lar ve onun yerine
 memory'de cache'ler.
 
@@ -648,7 +648,7 @@ birlikte atar.
 Bu mekanizma olmadan en kolay hata burada yapılır. Yazarları kendi API client'ı
 içinde memoize eden ve page'leri tag'e göre invalidate eden bir uygulamanın, birlikte
 temizlenmesi gereken iki cache'i vardır. Yalnızca page'leri temizlerseniz, page'ler
-yerine geçmeleri gereken stale yazar verisinden yeniden render edilir.
+yerine geçmeleri gereken eski yazar verisinden yeniden render edilir.
 
 ### Nasıl davranır
 
@@ -659,37 +659,42 @@ yerine geçmeleri gereken stale yazar verisinden yeniden render edilir.
   `collage.ErrCachedTypeMismatch` hatasıydı).
 - **Key başına aynı anda tek bir çekme işlemi.** Bir key çekilirken onu isteyen
   render'lar kendi çekme işlemlerini başlatmaz, süren işlemi bekler.
-- **Hatalar saklanmaz.** Bekleyen herkes hatayı alır. Bir sonraki render yeniden
-  dener. v0.34.0'dan beri iki başarısızlık bekleyenlere aktarılmaz. Onu başlatan
+- **Hatalar saklanmaz.** Geri dönülecek stale bir değeri olmayan bir çekme işlemi
+  hatasını bekleyen herkese iletir. Bir sonraki render yeniden dener. (Stale bir
+  değer varsa başarısız bir çekme işlemi, başarısız bir yenilemedir: aşağıya
+  bakın.) v0.34.0'dan beri iki başarısızlık bekleyenlere aktarılmaz. Onu başlatan
   request ortadan kalktığı için başarısız olan bir çekme işlemini, hâlâ sunulmakta
   olan bir bekleyen yeniden çeker. Panic'e düşen bir çekme işlemi ise key'ini serbest
   bırakır ve bekleyenlerine `collage.ErrCachedFetchPanicked` ile cevap verir. Eskiden
   key, bir restart'a kadar dolu kalırdı.
-- **Invalidation eski değeri tutar, yenisi gelene kadar sunar.** `InvalidateTags` ve
-  süresi dolan bir `ttl`, bir değeri silmek yerine stale olarak işaretler. Sonraki
-  render'a stale değer hemen sunulur ve arka planda çalışan tek bir fetch onun
-  yerini alır. Bu fetch'in timeout'u sabit 30 saniyedir ve request'ten bağımsız
-  çalışır. Fetch bittikten sonra gelen request değişikliği görür. Tag'leri
-  invalidate edildiğinde hâlâ süren bir fetch, sonucunu bekleyenlere iletir ve
-  sonuç saklanır, ama stale olarak. `PurgeTags`'in geçersiz kıldığı bir fetch ise
-  hiç saklanmaz.
-- **Başarısız bir refresh stale sunmaya devam eder.** Arka plandaki fetch başarısız
-  olursa stale değer kalır ve upstream ne kadar süre kapalı olursa olsun sunulmaya
-  devam eder. Key cooldown'a girer: ona ait yeni bir fetch önce bir saniye, sonra
-  iki, dört ve her yeni başarısızlıktan sonra en fazla bir dakikaya kadar başlamaz.
-  Böylece kapalı bir upstream her request'te sorgulanmaz. Başarılı bir fetch
-  cooldown'u bitirir. Key'in invalidate edilmesi de bitirir, çünkü bir webhook
-  upstream'in cevap verdiğinin haberidir.
+- **Invalidation eski değeri tutar, yenisi gelene kadar sunar.** `InvalidateTags`
+  ve bir değerin `ttl`'inin dolması, değeri silmez, stale olarak işaretler. Sonraki
+  render'a stale değer hemen sunulur ve arka planda tek bir çekme işlemi onun
+  yerini alır. Bu çekme işleminin timeout'u sabit 30 saniyedir ve request'ten
+  bağımsız çalışır. Çekme işlemi bittikten sonra gelen request değişikliği görür.
+  Tag'leri invalidate edildiğinde hâlâ süren bir çekme işlemi, sonucunu
+  bekleyenlere iletir. Sonuç da saklanır, ama stale olarak. Araya `PurgeTags`
+  girmişse sonuç hiç saklanmaz.
+- **Başarısız bir yenileme, stale değeri sunmayı sürdürür.** Arka plandaki çekme
+  işlemi başarısız olursa stale değer kalır. Upstream ne kadar uzun süre kapalı
+  kalırsa kalsın sunulmaya devam eder. Key'e bir bekleme süresi konur: ilk
+  başarısızlıktan sonra bir saniye boyunca onun için yeni bir çekme işlemi
+  başlamaz. Sonraki her başarısızlıkta bu süre iki, dört saniye diye ikiye
+  katlanarak en fazla bir dakikaya çıkar. Böylece kapalı bir upstream'e her
+  request'te sorulmaz. Başarılı bir çekme işlemi bekleme süresini bitirir. Key'in
+  invalidate edilmesi de bitirir, çünkü bir webhook upstream'in cevap verdiğinin
+  haberidir.
 - **Stale veriden oluşan bir render cache'lenmez.** `Cache-Control: no-store` ile
   sunulur ve hiçbir yerde saklanmaz. Böylece değer taze olunca page yeniden render
   edilir. Plugin'ler bunu degraded olarak görür (`AfterRenderEvent.Degraded`).
-- **Stale sunumlar raporlanır.** Sunulan her stale değer, cooldown olsun olmasın,
-  `CacheStale` metrics event'i olarak raporlanır. Başarısız her refresh hatasıyla
-  birlikte warn seviyesinde, başarısızlıklardan sonraki ilk başarı ise kaç tane
-  olduğuyla birlikte info seviyesinde log'lanır.
-- **Not found istisnadır.** Hatası `collage.ErrNotFound`'ı saran bir fetch değeri
-  düşürür. Böylece upstream'de silinen bir kayıt site'tan kaybolur ve page'i 404
-  döner.
+- **Sunulan stale değerler raporlanır.** Sunulan her stale değer, bekleme süresi
+  içinde olsun olmasın, `CacheStale` metrics event'i olarak raporlanır. Başarısız
+  her yenileme hatasıyla birlikte warn seviyesinde log'lanır. Başarısızlıklardan
+  sonraki ilk başarı ise kaç başarısızlık olduğuyla birlikte info seviyesinde
+  log'lanır.
+- **Bulunamayan kayıt istisnadır.** Hatası `collage.ErrNotFound`'ı saran bir çekme
+  işlemi değeri düşürür. Böylece upstream'de silinen bir kayıt site'tan kaybolur
+  ve page'i 404 döner.
 - **Static export hiçbir zaman stale veri kullanmaz.** `collage.Build` upstream'i
   bekler ve upstream başarısız olursa başarısız olur. Bir invalidation'dan sonra
   yeniden render edilmiş bir fragment'i push etmek için plugin'in çağırdığı
@@ -709,24 +714,25 @@ yerine geçmeleri gereken stale yazar verisinden yeniden render edilir.
 
 `Cache.Type` `"disk"` iken değerler ayrıca `<Cache.Dir>/data/` altına JSON olarak
 yazılır. Yazma işini arka planda bir writer yapar ve `App.Shutdown` onu bekler.
-Değerler startup'ta geri okunur. Restart'tan sonra site sıcak başlar: kalıcı
-değerleri upstream'i beklemeden hemen sunar ve her birini ilk kullanımında arka
-planda yeniler. Çünkü process kapalıyken neyin değiştiğini söyleyen bir şey yoktur.
+Değerler başlangıçta geri okunur. Böylece uygulama restart'tan sonra boş bir data
+cache'le başlamaz: diske yazılmış değerleri upstream'i beklemeden hemen sunar ve her
+birini ilk kullanımında arka planda yeniler. Çünkü process kapalıyken neyin
+değiştiğini söyleyen bir şey yoktur.
 
 - **Build'e göre namespace'lenmez.** Page'lerin aksine bu dizin build'ler arasında
   paylaşılır. Bu yüzden upstream'i kapalıyken yapılan yeni bir deploy, bir önceki
-  deploy'un verisinden render eder. Dizinde yalnızca store'un kendi dosyaları
-  silinir.
+  deploy'un verisinden render eder. Dizinden yalnızca store'un kendi dosyaları
+  silinir, başka hiçbir dosyaya dokunulmaz.
 - **JSON'la geri gelmeyen bir tip memory'de kalır.** JSON'un olduğu gibi geri
-  getiremeyeceği bir tip memory'de tutulur. Unexported bir alan, `json:"-"` etiketli
-  bir alan ya da içinde herhangi bir yerde interface bulunan tipler buna girer.
-  Bunun istisnası, ilgili kısmın `time.Time` gibi hem `json.Marshaler` hem
-  `json.Unmarshaler` implement etmesidir. Tipinin şekli değişmiş bir değer geri
+  getiremeyeceği bir tip yalnızca memory'de tutulur. Unexported bir alanı ya
+  da `json:"-"` etiketli bir alanı olan, ya da herhangi bir yerinde interface
+  bulunan tipler buna girer. Tipin o kısmı, `time.Time` gibi hem `json.Marshaler` hem
+  `json.Unmarshaler` implement ediyorsa bu kural uygulanmaz. Tipinin şekli değişmiş bir değer geri
   okunmaz.
 - **Şifrelenmez.** Dosyalar düz JSON'dur. Bu yüzden disk cache ile `Cached`
   üzerinden kişisel veri geçirmeyin.
 - **Aynı `Cache.Dir`'i paylaşan instance'lar data dizinini de paylaşır.** Her biri
-  startup'ta dizini kendi `MaxEntries` değerine göre budar.
+  başlangıçta dizini kendi `MaxEntries` değerine göre budar.
 
 ### Hiçbir şey saklamadığı durumlar
 

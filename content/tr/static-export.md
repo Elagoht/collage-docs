@@ -169,9 +169,9 @@ kodla çıkar.
   zaman cache'lenmez. Bir dosyanın ise kendini toparlayacağı bir TTL'i yoktur, yani
   o hatayı bir sonraki export'a kadar taşır. Sidebar'ı eksik bir page, hiç page
   olmamasından iyiyse `BuildOptions.AllowDegraded` ayarını açın.
-- **Başarısız bir `collage.Cached` fetch'i.** Export hiçbir zaman stale veri
-  kullanmaz. Sunulan bir page yenilenirken ona stale bir değer verilebilir, ama
-  bir dosyanın beklenecek bir refresh'i yoktur. `collage.Build` upstream'i bekler
+- **Başarısız olan bir `collage.Cached` çekme işlemi.** Export hiçbir zaman stale
+  veri kullanmaz. Sunulan bir page'e, değer yenilenirken stale hali verilebilir.
+  Ama bir dosyanın bekleyeceği bir yenileme yoktur. `collage.Build` upstream'i bekler
   ve upstream başarısız olursa page yazılmaz.
 - **Boş bir render** (`collage.ErrEmptyRender`) ve boş bir document
   (`collage.ErrEmptyDocumentBody`). Sıfır byte'lık bir `index.html` hiçbir zaman

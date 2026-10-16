@@ -322,8 +322,8 @@ Uygulama çalışırken başarısız olan bir yazma log'lanır ve page cache'len
 Development'ta disk cache hiç kullanılmaz, onun yerine bir memory cache devreye
 girer.
 
-**`Dir/data/`, disk cache'in `collage.Cached` değerlerini tutar.** Böylece restart'tan
-sonra site sıcak başlar. Entry'lerin aksine bu değerler build'in alt dizininde
+**`Dir/data/`, disk cache'in `collage.Cached` değerlerini tutar.** Böylece uygulama
+restart'tan sonra boş bir data cache'le başlamaz. Entry'lerin aksine bu değerler build'in alt dizininde
 durmaz ve şifrelenmez. Bkz. [Caching](/docs/caching#across-a-restart).
 
 **`MaxEntries`**, `collage.Cached`'in request'ler arasında tuttuğu değerleri ve

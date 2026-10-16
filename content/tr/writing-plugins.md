@@ -169,8 +169,8 @@ onları kendi sahip olduğu bir bağlantı üzerinden gönderen plugin'ler için
 bağlantı bir event stream ya da bir WebSocket olabilir. Metot, fragment'in path'ine
 gelen bir request'in render edeceği şeyin tam olarak aynısını render eder. Bir
 response yerine parçaları döner. Bir fark vardır: `collage.Cached` ile okunan değerler
-tazedir. Bir request'e yenilenirken stale bir değer sunulabilir, ama push edilen bir
-fragment bir daha istenmez. Bu yüzden `RenderFragment` upstream'i bekler ve upstream
+tazedir. Bir request'e, değer yenilenirken stale hali sunulabilir. Ama push edilen
+bir fragment bir daha istenmez. Bu yüzden `RenderFragment` upstream'i bekler ve upstream
 başarısız olursa hata döner:
 
 | Field | |

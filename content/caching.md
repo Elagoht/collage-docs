@@ -611,7 +611,7 @@ together.
 This is the part that is easy to get wrong without it. An application that
 memoises authors inside its own API client, and invalidates pages by tag, has two
 caches that must be cleared in step. Clear only the pages, and they re-render from
-the stale author they were meant to replace.
+the old author they were meant to replace.
 
 ### How it behaves
 
@@ -622,14 +622,16 @@ the stale author they were meant to replace.
   `collage.ErrCachedTypeMismatch`).
 - **One fetch per key at a time.** Renders that ask for a key while it is being
   fetched wait for that fetch rather than starting their own.
-- **Errors are not stored.** Everyone waiting gets the error; the next render
-  tries again. Since v0.34.0 two failures are not handed on: a fetch that failed
+- **Errors are not stored.** A fetch with no stale value to fall back on hands
+  its error to everyone waiting; the next render tries again. (With a stale value,
+  a failed fetch is a failed refresh: see below.) Since v0.34.0 two failures are not handed on: a fetch that failed
   because the request that started it went away is fetched again by a waiter
   still being served, and a fetch that panicked frees its key and answers its
   waiters with `collage.ErrCachedFetchPanicked` — before, the key stayed taken
   until a restart.
 - **Invalidation keeps the old value, to serve until a new one arrives.**
-  `InvalidateTags` and a passed `ttl` mark a value stale rather than removing it.
+  `InvalidateTags`, and a value's `ttl` running out, mark it stale rather than
+  removing it.
   The next render is served the stale value at once, and one fetch in the
   background replaces it, with a fixed 30-second timeout and detached from the
   request. A request after that fetch has finished sees the change. A fetch that

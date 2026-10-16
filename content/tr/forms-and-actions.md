@@ -635,12 +635,12 @@ gibi çalışır ve `collage.Cached` ile saklanan değerlere de ulaşır.
 
 Page'ler gider. Onları oluşturan `collage.Cached` değerleri ise stale olarak
 işaretlenip tutulur. Redirect'in vardığı page stale değerden render edilir. Bu
-render, değerin yerini alacak fetch'i de başlatır. Okuyucu değişikliği bu yüklemede
-değil, o fetch bittikten sonra görür. Upstream'i kapalıyken de cevap vermeyi
+render, değerin yerini alacak çekme işlemini de başlatır. Okuyucu değişikliği bu
+yüklemede değil, o çekme işlemi bittikten sonra görür. Upstream'i kapalıyken de cevap vermeyi
 sürdüren bir site'ın bedeli budur. Bir action kendi değişikliğini hemen
 göstermek zorundaysa, bunun yerine handler'dan o tag'ler için `app.PurgeTags`
-çağırın. Bu durumda hiçbir şey tutulmaz, dolayısıyla başarısız bir fetch page'i de
-başarısız kılar.
+çağırın. Bu durumda hiçbir şey tutulmaz, dolayısıyla başarısız bir çekme işlemi
+page'i de başarısız kılar.
 
 ## Kendi URL'sinde bir fragment
 
