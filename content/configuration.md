@@ -275,7 +275,7 @@ handler that never checks `ctx.Done()` can run past it.
 | `DefaultTTL` | `time.Duration` | `5m` | Entry lifetime when a page sets none. |
 | `MaxEntries` | `int` | `10000` | Cap on cache entries, memory and disk alike, and on the keys tracked under one tag; negative means unlimited entries (disk since v0.39.0). |
 | `MaxBytes` | `int64` | 256 MiB memory, 1 GiB disk | Cap on the total size a built-in cache stores; negative means unlimited (since v0.40.0). |
-| `Dir` | `string` | none | Where a disk cache stores entries. Required for `CacheDisk`. |
+| `Dir` | `string` | none | Where a disk cache stores entries, and, in `Dir/data/`, the `collage.Cached` values. Required for `CacheDisk`. |
 | `Version` | `string` | derived from the binary | Identifies the build a disk cache's entries belong to. |
 
 **Caching is off by default.** With `Enabled` false nothing is cached, even with a
@@ -301,6 +301,10 @@ since v0.11.0, when the directory cannot be created, a read-only filesystem say:
 `collage.New` warns and carries on with memory rather than failing. A write that
 fails once the application is running is logged, and the page is served uncached.
 In development a disk cache is never used: an in-memory one stands in for it.
+
+**`Dir/data/` holds the `collage.Cached` values** of a disk cache, so a restart
+comes up warm. Unlike the entries, they are not in a build's subdirectory, and
+they are not encrypted: see [Caching](/docs/caching#across-a-restart).
 
 **`MaxEntries`** also bounds the values `collage.Cached` keeps across requests, and,
 with a built-in cache, the number of keys the dependency tracker holds in all

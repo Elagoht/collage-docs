@@ -159,6 +159,10 @@ These are errors: the page is not written, the build reports it and exits non-ze
   fragment is shown but never cached; a file has no TTL to recover through, so it
   would keep that failure until the next export. Set `BuildOptions.AllowDegraded`
   if a page with a missing sidebar is better than no page.
+- **A `collage.Cached` fetch that fails.** An export never uses stale data: a
+  served page may be given a stale value while it is refreshed, but a file has
+  no refresh to wait for. `collage.Build` waits for the upstream, and the page
+  is not written if the upstream fails.
 - **An empty render**, `collage.ErrEmptyRender`, and an empty document,
   `collage.ErrEmptyDocumentBody`. A zero-byte `index.html` is never written.
 - **A panic** in one page, `collage.ErrBuildPanic`. It is recovered and recorded

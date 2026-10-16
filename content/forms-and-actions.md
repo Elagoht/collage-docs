@@ -601,6 +601,14 @@ logged rather than failing the response — the change has already happened.
 Tags work exactly as in [Caching](/docs/caching#dependency-tags), and reach values
 stored with `collage.Cached` too.
 
+The pages go; the `collage.Cached` values they were built from are kept, marked
+stale. The page the redirect lands on is rendered from the stale value, which
+also starts the fetch that replaces it, so the reader sees the change once that
+fetch has finished, not on this load. That is the price of a site that keeps
+answering while its upstream is down. When an action must show its own change at
+once, call `app.PurgeTags` from the handler for those tags instead. Nothing is
+then kept, so a failed fetch fails the page.
+
 ## A fragment at its own URL
 
 Refreshing part of a page without a client framework takes two things: a URL that

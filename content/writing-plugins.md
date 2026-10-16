@@ -107,7 +107,7 @@ cache to reach.
 | `ConfigReader` (embedded) | What `collage.PluginConfig(host, defaults)` reads this plugin's configuration section through. |
 | `Pages() []*collage.Page` | Every registered page, each a defensive copy. |
 | `Page(name) (*collage.Page, bool)` | One page by name, a defensive copy. |
-| `InvalidateTags(ctx, tags...) error` | Drops every cached entry built from any of the tags. |
+| `InvalidateTags(ctx, tags...) error` | Drops every cached page built from any of the tags, and marks the `collage.Cached` values stale. |
 | `RegisterDocument(doc) error` | Registers a document the plugin contributes. |
 | `Mount(prefix, fsys, opts...) error` | Serves a filesystem under a URL prefix. |
 | `Handle(prefix, handler) error` | Serves an `http.Handler` under a URL prefix ending in `/`, or at one exact path without it (`/metrics`, since v0.24.0), as `App.Handle` does — an event stream, a WebSocket (since v0.18.0). |
@@ -157,7 +157,10 @@ a race decided by registration order.
 `RenderFragment` is for a plugin that sends fragments over a connection it owns — an
 event stream or a WebSocket — instead of waiting for the browser to ask for them. It
 renders exactly what a request to the fragment's path renders, and returns the parts
-instead of a response:
+instead of a response. One difference: values read through `collage.Cached` are
+fresh. A request may be served a stale value while it is refreshed, but a pushed
+fragment is not asked for again, so `RenderFragment` waits for the upstream, and
+returns an error when it fails:
 
 | Field | |
 | --- | --- |
@@ -460,7 +463,7 @@ and handed to no error hook.
 type AfterRenderEvent struct {
 	Page     *collage.Page
 	Locale   string
-	Degraded bool   // some fragment failed, fallback or not
+	Degraded bool   // some fragment failed, fallback or not, or stale cached data was used
 	Static   bool   // rendered for a static build, not for a request
 	HTML     []byte // replace it to post-process the page
 	// Fragments: each fragment's time and failure, as collage.FragmentReport

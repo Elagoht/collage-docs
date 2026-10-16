@@ -113,7 +113,7 @@ ulaşabileceği bir cache olmazdı.
 | `ConfigReader` (embed edilmiş) | `collage.PluginConfig(host, defaults)` bu plugin'in config bölümünü bunun üzerinden okur. |
 | `Pages() []*collage.Page` | Register edilmiş bütün page'leri döner. Her biri bir defensive copy'dir. |
 | `Page(name) (*collage.Page, bool)` | Adı verilen page'i defensive copy olarak döner. |
-| `InvalidateTags(ctx, tags...) error` | Bu tag'lerden herhangi biriyle oluşturulmuş bütün cache entry'lerini düşürür. |
+| `InvalidateTags(ctx, tags...) error` | Bu tag'lerden herhangi biriyle oluşturulmuş bütün cache'lenmiş page'leri düşürür ve `collage.Cached` değerlerini stale olarak işaretler. |
 | `RegisterDocument(doc) error` | Plugin'in eklediği bir document'ı register eder. |
 | `Mount(prefix, fsys, opts...) error` | Bir dosya sistemini bir URL prefix'i altında sunar. |
 | `Handle(prefix, handler) error` | `App.Handle` gibi, bir `http.Handler`'ı `/` ile biten bir URL prefix'i altında ya da sonunda `/` olmayan tek bir tam path'te (`/metrics`, v0.24.0'dan beri) sunar. Örneğin bir event stream ya da bir WebSocket (v0.18.0'dan beri). |
@@ -168,7 +168,10 @@ kaydın kazanacağı register sırasına bırakılmaz.
 onları kendi sahip olduğu bir bağlantı üzerinden gönderen plugin'ler içindir. Bu
 bağlantı bir event stream ya da bir WebSocket olabilir. Metot, fragment'in path'ine
 gelen bir request'in render edeceği şeyin tam olarak aynısını render eder. Bir
-response yerine parçaları döner:
+response yerine parçaları döner. Bir fark vardır: `collage.Cached` ile okunan değerler
+tazedir. Bir request'e yenilenirken stale bir değer sunulabilir, ama push edilen bir
+fragment bir daha istenmez. Bu yüzden `RenderFragment` upstream'i bekler ve upstream
+başarısız olursa hata döner:
 
 | Field | |
 | --- | --- |
@@ -485,7 +488,7 @@ seviyesinde log'lanır ve hiçbir error hook'una verilmez.
 type AfterRenderEvent struct {
 	Page     *collage.Page
 	Locale   string
-	Degraded bool   // some fragment failed, fallback or not
+	Degraded bool   // some fragment failed, fallback or not, or stale cached data was used
 	Static   bool   // rendered for a static build, not for a request
 	HTML     []byte // replace it to post-process the page
 	// Fragments: each fragment's time and failure, as collage.FragmentReport
