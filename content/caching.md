@@ -1,6 +1,6 @@
 ---
 description: How collage caches rendered pages and the data they are made from, and how it knows what to throw away.
-reference: CacheConfig, Cached, Once, Key, TaggedCache, SkipCache, Vary, PageBuilder.Static, PageBuilder.Incremental, PageBuilder.Dynamic, FragmentBuilder.Static, FragmentBuilder.Shared, StrategyAuto, PathTag
+reference: CacheConfig, Cached, App.PurgeTags, CacheStale, Once, Key, TaggedCache, SkipCache, Vary, PageBuilder.Static, PageBuilder.Incremental, PageBuilder.Dynamic, FragmentBuilder.Static, FragmentBuilder.Shared, StrategyAuto, PathTag
 ---
 
 # Caching
@@ -263,9 +263,23 @@ if err := app.InvalidateTags(ctx, "post:"+slug, "blog:posts"); err != nil {
 }
 ```
 
-Every cached page carrying any of those tags is dropped, and so is every value
-`collage.Cached` stored under them. Nothing else is touched. The next reader of
+Every cached page carrying any of those tags is dropped. Every value
+`collage.Cached` stored under them is marked stale: kept, and served once more
+while a fetch in the background replaces it (see
+[How it behaves](#how-it-behaves)). Nothing else is touched. The next reader of
 each dropped page gets a fresh render.
+
+`App.PurgeTags` takes the same tags and removes outright, with nothing left to
+serve stale, from disk too:
+
+```go
+if err := app.PurgeTags(ctx, "post:"+slug); err != nil {
+	log.Printf("purge: %v", err)
+}
+```
+
+Use it for data that must not be shown again even once. The cost is that a failed
+fetch then fails the page, as there is nothing to fall back on.
 
 `InvalidateTagsN` does the same and tells you how many cache keys the tags
 reached:
@@ -289,7 +303,9 @@ The usual place to call it is wherever your content changes: a CMS webhook, an
 admin form. An action can do it declaratively, with
 [`InvalidateTags` on its result](/docs/forms-and-actions#invalidating-what-an-action-changed),
 which runs before the response is written — so a reader redirected to the page
-they just changed never sees the old version.
+they just changed is never served the old *page*. The `collage.Cached` values it
+is built from may still be the old ones for that one load: see
+[the note there](/docs/forms-and-actions#invalidating-what-an-action-changed).
 
 ### Invalidating by path
 
@@ -411,7 +427,8 @@ Cache: collage.CacheConfig{
 ```
 
 `Dir` has no default: a framework that picks where to write files writes them
-somewhere nobody looked. Add it to `.gitignore`. Since v0.11.0 a directory that
+somewhere nobody looked. Add it to `.gitignore`. The `collage.Cached` values are
+kept in `Dir/data/` too: see [Across a restart](#across-a-restart). Since v0.11.0 a directory that
 cannot be created — a read-only filesystem, a container with nowhere to write — is
 not a reason not to start: collage logs a warning and caches in memory instead.
 
@@ -588,12 +605,13 @@ returned them. So a single call —
 app.InvalidateTags(ctx, "author:ada")
 ```
 
-— drops the stored author *and* every cached page that showed her, together.
+— marks the stored author stale *and* drops every cached page that showed her,
+together.
 
 This is the part that is easy to get wrong without it. An application that
 memoises authors inside its own API client, and invalidates pages by tag, has two
 caches that must be cleared in step. Clear only the pages, and they re-render from
-the stale author they were meant to replace.
+the old author they were meant to replace.
 
 ### How it behaves
 
@@ -604,37 +622,87 @@ the stale author they were meant to replace.
   `collage.ErrCachedTypeMismatch`).
 - **One fetch per key at a time.** Renders that ask for a key while it is being
   fetched wait for that fetch rather than starting their own.
-- **Errors are not stored.** Everyone waiting gets the error; the next render
-  tries again. Since v0.34.0 two failures are not handed on: a fetch that failed
+- **Errors are not stored.** A fetch with no stale value to fall back on hands
+  its error to everyone waiting; the next render tries again. (With a stale value,
+  a failed fetch is a failed refresh: see below.) Since v0.34.0 two failures are not handed on: a fetch that failed
   because the request that started it went away is fetched again by a waiter
   still being served, and a fetch that panicked frees its key and answers its
   waiters with `collage.ErrCachedFetchPanicked` — before, the key stayed taken
   until a restart.
-- **An invalidated fetch is not stored.** If a key's tags are invalidated while its
-  fetch is still running, the result goes to whoever was waiting but is not kept —
-  it is exactly what the invalidation was meant to replace.
-- **`ttl` is independent of the page's.** It bounds how long the value is kept when
-  nothing invalidates it; zero keeps it until something does. A page that
-  re-renders every minute can still reuse an author fetched an hour ago, which is
-  the point.
+- **Invalidation keeps the old value, to serve until a new one arrives.**
+  `InvalidateTags`, and a value's `ttl` running out, mark it stale rather than
+  removing it.
+  The next render is served the stale value at once, and one fetch in the
+  background replaces it, with a fixed 30-second timeout and detached from the
+  request. A request after that fetch has finished sees the change. A fetch that
+  was still running when its tags were invalidated hands its result to whoever
+  was waiting and is kept, but as stale; one overtaken by `PurgeTags` is not kept
+  at all.
+- **A failed refresh keeps serving stale.** If the background fetch fails, the
+  stale value stays and keeps being served, however long the upstream is down.
+  The key cools down: no new fetch starts for it for a second, then two, four,
+  and so on up to a minute after each further failure, so a down upstream is not
+  asked once per request. A successful fetch ends the cooldown, and so does an
+  invalidation of the key: a webhook is news that the upstream is answering.
+- **A render built from stale data is not cached.** It is served with
+  `Cache-Control: no-store` and stored nowhere, so the page is rendered again
+  once the value is fresh. Plugins see it as degraded
+  (`AfterRenderEvent.Degraded`).
+- **Stale serves are reported.** Each stale value served is reported as the
+  `CacheStale` metrics event, cooldown or not. Each failed refresh is logged at
+  warn with its error, and the first success after failures at info, with how
+  many there were.
+- **Not found is the exception.** A fetch whose error wraps `collage.ErrNotFound`
+  drops the value, so a record deleted upstream disappears from the site and its
+  page answers 404.
+- **A static export never uses stale data.** `collage.Build` waits for the
+  upstream, and fails if the upstream fails. So does `App.RenderFragment`, which
+  a plugin calls to push a re-rendered fragment after an invalidation: what it
+  pushes is not asked for again, so it must be the new value.
+- **`ttl` is independent of the page's.** It bounds how long a value is fresh when
+  nothing invalidates it; once it passes, the value is stale, not gone. Zero keeps
+  it fresh until something invalidates it. A page that re-renders every minute can
+  still reuse an author fetched an hour ago, which is the point.
 - **In memory, bounded.** Values are kept in the process, up to
   `Cache.MaxEntries`, the least recently used going first — even when pages are
   cached on disk. Each instance of a multi-instance deployment keeps its own.
+
+### Across a restart
+
+With `Cache.Type` `"disk"`, values are also written to `<Cache.Dir>/data/` as JSON,
+by a background writer that `App.Shutdown` waits for, and read back at startup. A
+restart comes up warm: it serves the persisted values at once, without waiting on
+the upstream, and refreshes each in the background on its first use, since
+nothing says what changed while the process was down.
+
+- **Not namespaced by build.** Unlike the pages, the directory is shared across
+  builds, so a new deploy with its upstream down renders from the last one's
+  data. Only the store's own files in it are ever removed.
+- **A type that does not round-trip stays in memory.** A type JSON would not bring
+  back as it was — one with an unexported field, a field tagged `json:"-"`, or an
+  interface anywhere in it — is kept in memory only, unless that part of it
+  implements both `json.Marshaler` and `json.Unmarshaler`, as `time.Time` does. A
+  value whose type changed shape is not read back.
+- **Not encrypted.** The files are plain JSON, so personal data should not go
+  through `Cached` with a disk cache.
+- **Instances sharing a `Cache.Dir` share the data directory**, and each prunes it
+  to its own `MaxEntries` at startup.
 
 ### Where it keeps nothing
 
 With `Cache.Enabled` false, in development, for a request whose middleware called
 `collage.SkipCache` (a [preview](/docs/previews)), and inside an action's own
 handler, `Cached` stores nothing and behaves like `collage.Once`: fragments of the
-same render share one fetch, and the next render fetches again. A preview
-therefore sees fresh data as well as a fresh page.
+same render share one fetch, and the next render fetches again, with nothing
+stale to fall back on. A preview therefore sees fresh data as well as a fresh
+page.
 
 ### Once, Cached and the page cache
 
 | | Shared between | Lives for |
 | --- | --- | --- |
 | `collage.Once` | the fragments of one render | that render |
-| `collage.Cached` | every render in the process | its `ttl`, or until its tags are invalidated |
+| `collage.Cached` | every render in the process | fresh for its `ttl` or until its tags are invalidated, then served stale until replaced |
 | page cache | every request for one URL | the page's strategy, or until its tags are invalidated |
 
 Use `Once` for what one page fetches twice, `Cached` for what many pages fetch,

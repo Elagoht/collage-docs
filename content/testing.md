@@ -56,6 +56,7 @@ func client(t *testing.T) *collagetest.Client {
 	if err != nil {
 		t.Fatalf("newApp() = %v, want nil", err)
 	}
+	t.Cleanup(func() { _ = app.Shutdown(context.Background()) })
 	return collagetest.New(t, app.Handler())
 }
 ```
@@ -146,6 +147,11 @@ shared by everything that uses the same directory and the same build. Without
 or an earlier run, since the cache survives the process — and pass or fail for
 reasons that have nothing to do with the code. It would also leave a `.cache`
 directory in your package.
+
+Shut the application down in a `t.Cleanup` registered after it, as `client` does:
+the data cache writes to that directory in the background, and `App.Shutdown`
+waits for those writes, so the directory is not removed while one is still being
+made. `collagetest.NewSite` does this itself.
 
 Because `cacheDir` is shared by the whole package, these tests do not call
 `t.Parallel()`. If you want parallel tests, pass the directory to `newApp` as a

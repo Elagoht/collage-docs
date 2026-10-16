@@ -292,7 +292,7 @@ bu süreyi aşabilir.
 | `DefaultTTL` | `time.Duration` | `5m` | Page bir süre koymadığında entry'nin ömrü. |
 | `MaxEntries` | `int` | `10000` | Cache entry sayısının ve tek bir tag altında izlenen key sayısının üst sınırı; memory ve disk için de geçerli. Negatif değer sınırsız entry demektir (disk için v0.39.0'dan beri). |
 | `MaxBytes` | `int64` | memory için 256 MiB, disk için 1 GiB | Built-in bir cache'in sakladığı toplam boyutun üst sınırı. Negatif değer sınırsız demektir (v0.40.0'dan beri). |
-| `Dir` | `string` | yok | Disk cache'in entry'leri sakladığı yer. `CacheDisk` için zorunludur. |
+| `Dir` | `string` | yok | Disk cache'in entry'leri, `Dir/data/` altında ise `collage.Cached` değerlerini sakladığı yer. `CacheDisk` için zorunludur. |
 | `Version` | `string` | binary'den türetilir | Disk cache'teki entry'lerin hangi build'e ait olduğunu belirler. |
 
 **Caching varsayılan olarak kapalıdır.** `Enabled` false iken bir `Store` ayarlı olsa
@@ -321,6 +321,10 @@ oluşturulamadığında da (örneğin salt okunur bir dosya sisteminde) aynısı
 Uygulama çalışırken başarısız olan bir yazma log'lanır ve page cache'lenmeden sunulur.
 Development'ta disk cache hiç kullanılmaz, onun yerine bir memory cache devreye
 girer.
+
+**`Dir/data/`, disk cache'in `collage.Cached` değerlerini tutar.** Böylece uygulama
+restart'tan sonra boş bir data cache'le başlamaz. Entry'lerin aksine bu değerler build'in alt dizininde
+durmaz ve şifrelenmez. Bkz. [Caching](/docs/caching#across-a-restart).
 
 **`MaxEntries`**, `collage.Cached`'in request'ler arasında tuttuğu değerleri ve
 built-in bir cache'le dependency tracker'ın toplamda tuttuğu key sayısını da

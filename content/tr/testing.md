@@ -57,6 +57,7 @@ func client(t *testing.T) *collagetest.Client {
 	if err != nil {
 		t.Fatalf("newApp() = %v, want nil", err)
 	}
+	t.Cleanup(func() { _ = app.Shutdown(context.Background()) })
 	return collagetest.New(t, app.Handler())
 }
 ```
@@ -150,6 +151,11 @@ olmasaydı, bir teste önceki bir testin render ettiği bir page sunulabilirdi. 
 process bittikten sonra da kaldığı için bu page önceki bir çalıştırmadan da
 gelebilirdi. Test de kodla hiçbir ilgisi olmayan nedenlerle geçer ya da kalırdı.
 Ayrıca package'ınızın içinde bir `.cache` dizini bırakırdı.
+
+Uygulamayı, `client`'ın yaptığı gibi, onu oluşturduktan sonra register ettiğiniz bir
+`t.Cleanup` içinde kapatın. Data cache o dizine arka planda yazar ve `App.Shutdown`
+bu yazmaları bekler. Böylece dizin, bir yazma hâlâ sürerken silinmez.
+`collagetest.NewSite` bunu kendisi yapar.
 
 `cacheDir` bütün package tarafından paylaşıldığı için bu testler `t.Parallel()`
 çağırmaz. Paralel test istiyorsanız dizini bunun yerine `newApp`'e parametre olarak
