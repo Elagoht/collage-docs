@@ -685,7 +685,7 @@ Plugins: []collage.Plugin{indexnow.New(indexnow.Options{
   kapsar. `window` ve `backoff` süre string'leridir, negatif bir `retries` ya da
   `batchSize` uygulamayı durdurur.
 - Gönderdiği, cache'in bıraktıklarıdır: yani
-  [bir invalidation'ın düşürdüğü path'ler](/docs/caching#invalidating-by-path). Tag'i
+  [bir invalidation'ın ulaştığı path'ler](/docs/caching#invalidating-by-path). Tag'i
   invalidate edildiğinde cache'te olmayan bir page gönderilmez.
 - URL'ler `window` boyunca toplanır, arka planda gönderilir ve bir `429` ya da `5xx`
   gelirse yeniden denenir. Bekleyenler shutdown'da gönderilir.
@@ -2187,7 +2187,7 @@ Plugins: []collage.Plugin{cdnpurge.New(cdnpurge.Options{
   token'ı tutan ortam değişkeninin adını veren `apiTokenEnv` ve `tokenEnv` gelir
   (Go'dan `APIToken` ve `Token` değeri doğrudan alır). Süreler string'dir; negatif
   bir `retries` hatadır. Eski bir key uygulamayı başlangıçta durdurur.
-- Tam olarak [bir invalidation'ın düşürdüğü path'leri](/docs/caching#invalidating-by-path)
+- Tam olarak [bir invalidation'ın ulaştığı path'leri](/docs/caching#invalidating-by-path)
   `Config.BaseURL` altında purge eder ve her entry'yi, bir `OriginResolver`
   plugin'inin adlandırdığı kendi host'unun origin'i altında purge eder. Bir origin'i paylaşan iki host için URL bir
   kez purge edilir. Origin'in cache'lemediği bir page adlandırılmaz. Bu

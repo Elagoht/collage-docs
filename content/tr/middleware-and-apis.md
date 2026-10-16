@@ -271,7 +271,7 @@ ettiğinizde bu ödünü kabul etmiş olursunuz.
 
 ### API'nizden invalidate etmek
 
-Handler'ınız da cache'teki page'leri diğer her şey gibi düşürebilir. Bir API çağrısı
+Handler'ınız da cache'teki page'leri diğer her şey gibi invalidate edebilir. Bir API çağrısı
 içeriği değiştirdiğinde, o içerikten oluşturulan page'lerin bildirdiği tag'leri
 invalidate edin:
 
@@ -316,7 +316,7 @@ bir endpoint için bir [action](/docs/forms-and-actions) kullanın:
 - Bir fragment ya da page ile cevap veren bir endpoint, örneğin bir form'un değişen
   kısmı ya da bir validation hatası. Action `collage.RenderFragment` ya da
   `collage.RenderPage` dönebilir.
-- Başarılı olduğunda `ActionResult.InvalidateTags` ile cache'teki page'leri düşüren
+- Başarılı olduğunda `ActionResult.InvalidateTags` ile cache'teki page'leri invalidate eden
   bir endpoint.
 - Sitenin her locale'inde bulunması gereken bir URL. Action'ın path'leri, page'in
   path'leri gibi locale'e göre tanımlanır.

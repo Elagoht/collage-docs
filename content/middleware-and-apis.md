@@ -255,7 +255,7 @@ under the prefix: with a catch-all page at `/{rest...}` and a handler at `/api/`
 
 ### Invalidating from your API
 
-Your handler can drop cached pages like anything else can. When an API call changes
+Your handler can invalidate cached pages like anything else can. When an API call changes
 content, invalidate the tags the pages built from it declared:
 
 ```go
@@ -296,7 +296,7 @@ that belongs to the site, use an [action](/docs/forms-and-actions):
 - An endpoint that answers with a fragment or a page — the changed part of a form,
   a validation failure — since an action can return `collage.RenderFragment` or
   `collage.RenderPage`.
-- An endpoint that drops cached pages when it succeeds, through
+- An endpoint that invalidates cached pages when it succeeds, through
   `ActionResult.InvalidateTags`.
 - A URL that should exist in every locale the site has: an action's paths are
   keyed by locale, like a page's.

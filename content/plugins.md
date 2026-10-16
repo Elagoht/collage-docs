@@ -649,7 +649,7 @@ Plugins: []collage.Plugin{indexnow.New(indexnow.Options{
   `backoff` are duration strings, and a negative `retries` or `batchSize` stops the
   application.
 - What it sends is what the cache let go of: the
-  [paths an invalidation dropped](/docs/caching#invalidating-by-path). A page that
+  [paths an invalidation reached](/docs/caching#invalidating-by-path). A page that
   was not cached when its tag was invalidated is not sent.
 - URLs are batched for `window`, sent in the background and retried on a `429` or
   `5xx`; what is waiting is flushed on shutdown.
@@ -2105,7 +2105,7 @@ Plugins: []collage.Plugin{cdnpurge.New(cdnpurge.Options{
   `tokenEnv`, naming the environment variable that holds the token (`APIToken` and
   `Token` take it from Go); durations are strings, and a negative `retries` is an
   error. An old key stops the application at start.
-- It purges exactly the [paths an invalidation dropped](/docs/caching#invalidating-by-path),
+- It purges exactly the [paths an invalidation reached](/docs/caching#invalidating-by-path),
   under `Config.BaseURL`, and purges each entry under its own host's origin, as an
   `OriginResolver` plugin names it; two hosts of one origin purge the URL once. A page the origin had not cached is not named, so make sure what
   the CDN caches, collage caches too.

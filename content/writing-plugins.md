@@ -107,7 +107,7 @@ cache to reach.
 | `ConfigReader` (embedded) | What `collage.PluginConfig(host, defaults)` reads this plugin's configuration section through. |
 | `Pages() []*collage.Page` | Every registered page, each a defensive copy. |
 | `Page(name) (*collage.Page, bool)` | One page by name, a defensive copy. |
-| `InvalidateTags(ctx, tags...) error` | Drops every cached page built from any of the tags, and marks the `collage.Cached` values stale. |
+| `InvalidateTags(ctx, tags...) error` | Invalidates every cached page built from any of the tags — on the built-in stores marks it stale, kept for a re-render that fails or is degraded — and marks the `collage.Cached` values stale. |
 | `RegisterDocument(doc) error` | Registers a document the plugin contributes. |
 | `Mount(prefix, fsys, opts...) error` | Serves a filesystem under a URL prefix. |
 | `Handle(prefix, handler) error` | Serves an `http.Handler` under a URL prefix ending in `/`, or at one exact path without it (`/metrics`, since v0.24.0), as `App.Handle` does — an event stream, a WebSocket (since v0.18.0). |
@@ -671,7 +671,7 @@ it has no page and renders no templates.
 ```go
 type CacheInvalidateEvent struct {
 	Tags    []string
-	Entries []InvalidatedEntry // the cached entries dropped, each with its host, sorted
+	Entries []InvalidatedEntry // the cached entries invalidated, each with its host, sorted
 }
 
 type InvalidatedEntry struct {
@@ -680,15 +680,20 @@ type InvalidatedEntry struct {
 }
 ```
 
-Fires after `InvalidateTags` dropped the entries for some tags — whether the
-application, an action or a plugin called it. It is dispatched from that call, not
+Fires after `InvalidateTags` or `PurgeTags` reached the entries for some tags —
+whether the application, an action or a plugin called it. It is dispatched from that call, not
 from a request, and an error is joined into what `InvalidateTags` returns. To
 trigger an invalidation yourself, call `Host.InvalidateTags`.
 
-`Entries` names the cached pages and documents the invalidation dropped — what a CDN has to purge, and a search engine be told has
-changed. A page that was not cached is never in it: nothing of it was dropped.
-Every cached entry also depends on the tag `collage.PathTag(path)`, so a plugin
-that knows a path rather than a tag drops what is cached there with
+`Entries` names the cached pages and documents the invalidation reached — what a
+CDN has to purge, and a search engine be told has changed. On the built-in stores
+an `InvalidateTags` entry was marked stale, not removed (since v0.63.0): it is no
+longer served as fresh, and is served again only, marked `STALE`, when its
+re-render fails or is degraded. A page that was not cached is never in it: nothing of it was
+reached. Nor is a page an earlier invalidation already marked stale, until it is
+rendered and stored again. Every cached entry also depends on the tag
+`collage.PathTag(path)`, so a plugin that knows a path rather than a tag
+invalidates what is cached there with
 `host.InvalidateTags(ctx, collage.PathTag("/blog"))`. See
 [Caching](/docs/caching#invalidating-by-path).
 
@@ -790,7 +795,11 @@ reads `PanicError.Stack` instead.
 
 `Status` (since v0.45.0) is the HTTP status the failure is answered with: 404 for a
 missing asset, 500 for a failed render or a panic, and 0 when no response is written
-for it, as for a cache write that failed after the page was served. An
+for it, as for a cache write that failed after the page was served, or a failed
+render a stale page was served in place of (since v0.63.0). That one keeps the
+stage it failed in, `"render"` say, and reaches `OnError` once per failed render,
+however many readers were waiting on it and were served the stale page; see
+[Caching](/docs/caching#stale-pages-and-x-collage-cache). An
 `"error_page"` event always says 500. `Request` is the reader's live request, for
 reading only: its URL, method and headers, with a body that may already have been
 read. It is `nil` when the failure did not come from a request. Read what you need

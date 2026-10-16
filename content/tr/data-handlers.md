@@ -79,7 +79,7 @@ Bir `LoadTagged`'ın üç dönüş değerinin her birinin ayrı bir görevi vard
   `"post:hello-world"` ya da `"author:ada"`. Page'deki her fragment'ten, page'in
   kendi `WithDependencyTags` tag'leriyle birlikte toplanır ve cache'lenen page ile
   birlikte saklanır. Böylece bir tag'i invalidate ettiğinizde, o tag'i gösteren her
-  page cache'ten düşer. Veri değişen hiçbir şeye bağlı değilse `nil` dönün.
+  page de invalidate edilir. Veri değişen hiçbir şeye bağlı değilse `nil` dönün.
   Ayrıntılar için [Caching](/docs/caching) sayfasına bakın.
 - **Hata:** nil olmayan bir hata fragment'i başarısız kılar. Bunun page için ne
   anlama geldiğine fragment'in
@@ -351,7 +351,7 @@ author, err := collage.Cached(rc, authorKey.With(id), time.Hour, []string{"autho
 
 Verdiğiniz tag'ler page'in kendi tag'lerine eklenir. Bunlardan birini invalidate
 ettiğinizde hem saklanan değer hem de o değerden oluşturulmuş bütün cache'lenmiş
-page'ler düşer. Render'lar arasında hiçbir şeyin tutulmadığı durumlarda (cache
+page'ler stale olarak işaretlenir. Render'lar arasında hiçbir şeyin tutulmadığı durumlarda (cache
 kapalıyken, development'ta, bir preview'da) `collage.Cached` tam olarak `Once`
 gibi davranır. Ayrıntılar [Caching](/docs/caching#caching-data-across-pages)
 sayfasındadır.

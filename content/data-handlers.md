@@ -75,7 +75,7 @@ The three results of a `LoadTagged` each have a job.
 - **The tags** — the pieces of content this data was built from, such as
   `"post:hello-world"` or `"author:ada"`. They are collected from every fragment on
   the page, together with the page's own `WithDependencyTags` tags, and stored with the
-  cached page, so invalidating a tag drops every page that showed it. Return `nil`
+  cached page, so invalidating a tag invalidates every page that showed it. Return `nil`
   when the data depends on nothing that changes. See [Caching](/docs/caching).
 - **The error** — a non-nil error fails the fragment, and the fragment's
   [failure policy](/docs/fragments-and-slots#when-a-fragment-fails) decides what
@@ -328,8 +328,8 @@ author, err := collage.Cached(rc, authorKey.With(id), time.Hour, []string{"autho
 	func(ctx context.Context) (Author, error) { return api.Author(ctx, id) })
 ```
 
-Its tags are added to the page's own, and invalidating one drops both the stored
-value and every cached page built from it. Where nothing is kept across renders —
+Its tags are added to the page's own, and invalidating one marks both the stored
+value and every cached page built from it stale. Where nothing is kept across renders —
 caching off, development, a preview — it behaves exactly like `Once`. The details
 are in [Caching](/docs/caching#caching-data-across-pages).
 

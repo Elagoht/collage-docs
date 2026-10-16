@@ -1,6 +1,6 @@
 ---
 description: collage'ın render edilmiş page'leri ve onları oluşturan veriyi nasıl cache'lediği, neyi atacağını nasıl bildiği.
-reference: CacheConfig, Cached, App.PurgeTags, CacheStale, Once, Key, TaggedCache, SkipCache, Vary, PageBuilder.Static, PageBuilder.Incremental, PageBuilder.Dynamic, FragmentBuilder.Static, FragmentBuilder.Shared, StrategyAuto, PathTag
+reference: CacheConfig, Cached, App.PurgeTags, CacheStale, Once, Key, TaggedCache, StaleCache, CacheStatusHeader, SkipCache, Vary, PageBuilder.Static, PageBuilder.Incremental, PageBuilder.Dynamic, FragmentBuilder.Static, FragmentBuilder.Shared, StrategyAuto, PathTag
 ---
 
 # Caching
@@ -61,6 +61,8 @@ sayfasına bakın.
 v0.34.0'dan beri iki istisna daha vardır. Degraded bir render
 ([aşağıya](#what-is-cached-and-when) bakın) `no-store` ile gider. Bu sunucu onu
 saklamaz; dolayısıyla önündeki bir CDN de onu page'in TTL'i boyunca saklamamalıdır.
+Başarısız bir render'ın yerine sunulan stale bir page de öyle gider (v0.63.0'dan
+beri).
 Development'ta ise her page ve document `no-store` ile gider. Böylece tarayıcı,
 düzenlemenizden önceki bir page'i tutmaz.
 
@@ -76,7 +78,9 @@ page := collage.NewPage("blog-post").
 
 `Static()` için pratikte bir sona erme süresi yoktur ve `DefaultTTL` ona uygulanmaz.
 Page yalnızca tag'lerinden biri invalidate edildiğinde ya da cache yer açmak için
-onu çıkardığında yeniden render edilir. Yalnızca birisi yayımladığında değişen
+onu çıkardığında yeniden render edilir. Bu render başarısız olursa cevabı
+invalidate edilmiş kopya verir (bkz. [Stale page'ler](#stale-pages-and-x-collage-cache)).
+Yalnızca birisi yayımladığında değişen
 içerik için doğru strateji budur. Gönderdiği `Cache-Control`, tarayıcılara
 ve CDN'lere page'i tutmalarını ama her seferinde sormalarını söyler.
 [ETag](#etags-and-304) de bu sormayı ucuz hâle getirir.
@@ -180,9 +184,12 @@ Son kural göründüğünden daha önemlidir. Hata veren bir fragment render'ı
 **degraded** yapar. Fragment optional olsa, hatta fallback'i onun yerini doldurmuş
 olsa bile bu değişmez. Degraded bir render sunulur ama saklanmaz. Saklansaydı, tek
 bir request'teki geçici bir hata TTL dolana kadar her okuyucunun karşısına çıkardı.
+Page'in stale bir kopyası tutuluyorsa onun yerine o kopya sunulur (bkz.
+[Stale page'ler](#stale-pages-and-x-collage-cache)).
 
 Hata response'ları da hiçbir zaman cache'lenmez. 404 ya da 500 `no-store` ile
-yazılır ve bir error page'in kendi render'ında bildirilen tag'ler atılır. Bir
+yazılır ve bir error page'in kendi render'ında bildirilen tag'ler atılır. Bir 404,
+request'in bulduğu stale entry'yi de düşürür. Bir
 [action'ın](/docs/forms-and-actions) response'u da hiçbir zaman cache'lenmez. Render
 ettiği page nasıl tanımlanmış olursa olsun bu değişmez, çünkü o response tek bir
 gönderimden üretilmiştir ve onu gönderen kişiye aittir.
@@ -242,7 +249,7 @@ cache key'in içindedir; bu yüzden bir kopyanın sunulduğu her okuyucu aynı h
 istemiştir ve render'ın mutlak URL'leri kurduğu origin de onlarındır. Static build'in
 request'i yoktur, o `Config.BaseURL`'ü alır. `OriginResolver` plugin'i olmayan bir
 site hiçbir fark görmez; bkz. [Bir host'un origin'i](/docs/writing-plugins#which-origin-a-host-has-originresolver).
-Bir invalidation entry düşürdüğünde `CacheInvalidateEvent.Entries` her birinin
+Bir invalidation entry'lere ulaştığında `CacheInvalidateEvent.Entries` her birinin
 path'ine ek olarak host'unu da adlandırır.
 
 ## Dependency tag'ler
@@ -276,11 +283,18 @@ if err := app.InvalidateTags(ctx, "post:"+slug, "blog:posts"); err != nil {
 }
 ```
 
-Bu tag'lerden herhangi birini taşıyan her cache'lenmiş page atılır. `collage.Cached`
-ile bu tag'ler altında saklanan her değer ise stale olarak işaretlenir. Değer
+Bu tag'lerden herhangi birini taşıyan her cache'lenmiş page stale olarak
+işaretlenir (v0.63.0'dan beri; önceden atılırdı). Artık taze diye sunulmaz. Her
+biri için gelen bir sonraki request page'i yeniden render eder ve başarılı bir
+render eskisinin yerine saklanır. Ama eski page tutulur, çünkü render başarısız
+olur ya da degraded çıkarsa cevap onunla verilir. Bkz. [Stale page'ler](#stale-pages-and-x-collage-cache). `collage.Cached`
+ile bu tag'ler altında saklanan her değer de stale olarak işaretlenir. Değer
 tutulur ve arka plandaki bir çekme işlemi onun yerini alırken bir kez daha sunulur
-(bkz. [Nasıl davranır](#how-it-behaves)). Başka hiçbir şeye dokunulmaz. Atılan her
-page'i sonra açan okuyucu yeni bir render alır.
+(bkz. [Nasıl davranır](#how-it-behaves)). Başka hiçbir şeye dokunulmaz.
+
+Bu, built-in store'lar için, yani memory ve disk için geçerlidir. Kendi store'unuz
+[`collage.StaleCache`](#stale-pages-in-your-own-store)'i implement etmedikçe
+`InvalidateTags`'te entry'leri düşürmeye devam eder.
 
 `App.PurgeTags` aynı tag'leri alır ve onlara bağlı her şeyi, diskteki kopyalar
 dahil, stale olarak sunulacak bir şey bırakmadan siler:
@@ -292,8 +306,8 @@ if err := app.PurgeTags(ctx, "post:"+slug); err != nil {
 ```
 
 Bunu, bir kez bile olsa bir daha gösterilmemesi gereken veri için kullanın. Bedeli
-şudur: geri dönülecek bir değer kalmadığı için çekme işlemi başarısız olursa page de
-başarısız olur.
+şudur: geri dönülecek bir şey kalmadığı için çekme işlemi ya da render başarısız
+olursa page de başarısız olur.
 
 `InvalidateTagsN` aynı işi yapar ve ayrıca tag'lerin kaç cache key'ine ulaştığını
 söyler:
@@ -302,41 +316,43 @@ söyler:
 reached, err := app.InvalidateTagsN(ctx, "author:ada")
 ```
 
-Bu sayı, collage'ın kendi tag index'inin çözümleyip attığı key'lerin sayısıdır.
-Gerçekten kaldırılan canlı page'lerin tam sayısı değildir ve iki yönde de sapabilir.
-Entry'si zaten expire olmuş bir key yine sayılır. Öte yandan store'un kendi tag
-index'i üzerinden ulaştığı bir entry, sayılmadan kaldırılır. Bu, örneğin
+Bu sayı, collage'ın kendi tag index'inin çözümleyip invalidate ettiği key'lerin
+sayısıdır. Gerçekten ulaşılan canlı page'lerin tam sayısı değildir ve iki yönde de
+sapabilir. Entry'si zaten expire olmuş bir key yine sayılır. Öte yandan store'un
+kendi tag index'i üzerinden ulaştığı bir entry, sayılmadan invalidate edilir. Bu, örneğin
 [aşağıda](#the-tag-index-is-per-process-and-bounded) anlatılan sınırın ötesinde
 kalan ya da başka bir instance'ın yazdığı bir entry olabilir. Sayı bir log satırı ya
 da bir metrik için uygundur, uygulama mantığı için değil.
 
-Cache bazı key'leri atamazsa geri kalanlar yine atılır ve hatalar birleştirilip
-tek bir hata olarak döner. Başarılı görünen kısmi bir invalidation, stale page'lerin bir
+Cache bazı key'leri invalidate edemezse geri kalanlar yine invalidate edilir ve
+hatalar birleştirilip tek bir hata olarak döner. Başarılı görünen kısmi bir invalidation, stale page'lerin bir
 deploy'dan sağ çıkmasına yol açar.
 
 Bunu genellikle içeriğinizin değiştiği yerde çağırırsınız: bir CMS webhook'unda ya
 da bir admin form'unda. Bir action bunu declarative olarak da yapabilir. Bunun için
 [result'ındaki `InvalidateTags`](/docs/forms-and-actions#invalidating-what-an-action-changed)
 alanını kullanır. Bu invalidation response yazılmadan önce çalışır. Böylece az önce
-değiştirdiği page'e redirect edilen okuyucuya eski *page* hiçbir zaman sunulmaz.
-Page'i oluşturan `collage.Cached` değerleri ise o tek yüklemede hâlâ eski
-olabilir. Bkz. [oradaki not](/docs/forms-and-actions#invalidating-what-an-action-changed).
+değiştirdiği page'e redirect edilen okuyucuya eski page taze bir page gibi
+sunulmaz, page yeniden render edilir. Yine de `collage.Cached` verisi okuyan bir
+page'de okuyucu o tek yüklemede eski page'e varır. Bu page, verisi yenilenirken
+stale olarak sunulur. Bkz. [oradaki not](/docs/forms-and-actions#invalidating-what-an-action-changed).
 
 ### Path'e göre invalidate etmek
 
 Cache'lenen her page ve document ayrıca render edildiği URL path'ini adlandıran bir
 tag'e de bağlıdır: `collage.PathTag(path)` (v0.23.0'dan beri). Bu yüzden elinizde
-bir tag değil de path varsa, entry'yi path'iyle atabilirsiniz:
+bir tag değil de path varsa, entry'yi path'iyle invalidate edebilirsiniz:
 
 ```go
 app.InvalidateTags(ctx, collage.PathTag("/blog/hello"))
 ```
 
-Bu, o path için cache'lenmiş olanı, başka neye bağlı olursa olsun atar.
+Bu, o path için cache'lenmiş olanı, başka neye bağlı olursa olsun invalidate eder.
 
-Bir invalidation ne attığını da söyler. Bir plugin her invalidation'ı
-`OnCacheInvalidate` üzerinden duyar. Event tag'leri ve `Entries` içinde atılan
-cache'lenmiş page ve document'ları, her biri bir host ve bir path olarak taşır. Bir CDN'in purge etmesi
+Bir invalidation neye ulaştığını da söyler. Bir plugin her invalidation'ı
+`OnCacheInvalidate` üzerinden duyar. Event tag'leri ve `Entries` içinde invalidate
+edilen cache'lenmiş page ve document'ları, her biri bir host ve bir path olarak
+taşır. Bir CDN'in purge etmesi
 ve bir arama motoruna değiştiği bildirilmesi gereken budur. Hiç cache'lenmemiş bir
 page burada yer almaz. Bkz. [Plugin yazmak](/docs/writing-plugins#cacheinvalidatehook).
 [elagoht/cdnpurge](/docs/plugins#elagohtcdnpurge) ve
@@ -376,6 +392,71 @@ için 10000 key, oysa cache'in kendisi toplamda 10000 entry tutuyordu. Artık
 `MaxEntries`'ten fazla key yaşıyor olamaz, bu yüzden önce en eski yazılanlar gider.
 Negatif bir `MaxEntries` bunu kapatır. Kendi store'unuz yalnızca tag başına sınırı
 korur, çünkü collage onun boyutunu bilemez.
+
+## Stale page'ler ve `X-Collage-Cache`
+
+v0.63.0'dan beri stale olan bir page ya da document, built-in store'lar tarafından
+atılmaz. Stale olması `InvalidateTags` ile işaretlendiği ya da TTL'i geçtiği
+anlamına gelir. Onu isteyen bir request page'i yeniden render eder. Bu render, her
+miss'te olduğu gibi bekleyen request'ler arasında paylaşılır
+([aşağıya](#concurrent-misses-render-once) bakın). Sonrasında ne olacağını bu
+render belirler:
+
+- **Başarılı bir render** stale page'in yerine saklanır ve sunulur. Response bir
+  `MISS`'tir.
+- **Başarısız olan ya da degraded çıkan bir render** saklanmaz. Onun yerine stale
+  page sunulur. Response `X-Collage-Cache: STALE` taşır ve hiçbir tarayıcı ya da
+  CDN onu tutmasın diye `Cache-Control: no-store` ile gider. Okuyucu 500 değil,
+  eski page'i görür.
+  Stale bir `collage.Cached` değerini okumak render'ı degraded yapar. Bir
+  invalidation'ın hemen ardından en sık neden de budur: arka plandaki çekme işlemi
+  onu değiştirene kadar page'in verisi stale'dir.
+- **404 dönen bir render** entry'yi düşürür, çünkü içerik artık yoktur.
+
+v0.63.0'dan önce bir page invalidate edildiğinde tamamen giderdi. Bu yüzden bir
+invalidation'ın ardından başarısız olan bir render 500 demekti. `PurgeTags` ise yine
+geri dönülecek bir şey bırakmaz. Bu yüzden purge edilmiş bir page render edilemezse
+başarısız olur.
+
+Expire olmuş bir page de aynı anlamda stale'dir. Bu yüzden upstream'i kapalı olan
+bir `Incremental` page, TTL'i dolduktan sonra da son başarılı render'ıyla cevap
+vermeyi sürdürür. Stale bir page için bir üst yaş sınırı yoktur. Onu yalnızca
+`MaxEntries` ya da `MaxBytes`'ta yapılan eviction ortadan kaldırır.
+
+Herhangi bir `InvalidateTags` ya da `PurgeTags` çağrısıyla çakışan bir render,
+tag'leri ne olursa olsun saklanmaz. Çakışan render, bir çağrı sürerken başlamış ya
+da kendisi sürerken bir çağrının başladığı render'dır. Böyle bir render
+değişiklikten önceki veriyi okumuş olabilir. Onu saklamak, eski page'i taze diye
+geri getirirdi.
+
+**Stale sunulan her page raporlanır, gizlediği başarısızlık ise bir kez.** Her
+stale response `CacheStale` metrics event'i olarak sayılır. Gizlediği başarısızlık
+ise başarısız her render için bir kez raporlanır. O render'ı kaç request'in
+beklediği bunu değiştirmez. Warn
+seviyesinde bir kez log'lanır (`collage: serving a stale page, its render failed`,
+path ve hatayla birlikte). Hiçbir error page sunulmadığı için ayrıca error
+seviyesinde bir `collage: request failed` olarak log'lanmaz. Plugin'lerin `OnError`
+hook'una da bir kez iletilir. Hiçbir hata response'u gönderilmediği için `Status`
+0'dır. Yalnızca stale `collage.Cached` verisi okuduğu için degraded olan bir render
+bir kesinti değildir, çünkü verisi yenilenmektedir. Bu yüzden page'in stale
+olarak sunulması debug seviyesinde log'lanır (`collage: serving a stale page while its data refreshes`)
+ve `OnError`'a hiçbir şey ulaşmaz. Document'lar da aynı şekilde raporlanır.
+
+**Hangisi olduğunu `X-Collage-Cache` söyler.** `collage.CacheStatusHeader`,
+`X-Collage-Cache`'tir. Bir page ya da document ile cevap veren cache'lenebilir bir
+`GET` ya da `HEAD` şunlardan birini taşır:
+
+| Değer | Anlamı |
+| --- | --- |
+| `HIT` | Render edilmeden sunulan taze bir entry. |
+| `MISS` | Render edildi: hiç entry yoktu ya da yalnızca stale bir entry vardı. |
+| `STALE` | Yerine geçecek render başarısız ya da degraded olduğu için sunulan stale entry. |
+
+Conditional bir request'e verilen `304` cevabı da bu header'ı taşır. Header şu
+durumlarda gönderilmez: cache'in okunmadığı development'ta, bir hata response'unda,
+cache'lenemeyen bir page'de (`Dynamic()`, `collage.SkipCache`) ve static build'de.
+`StaleCache` olmayan kendi store'unuz da hiçbir zaman `STALE` cevabını vermez.
+Header, dışarıdan debug eden kişi içindir; collage'ın kendisi onu okumaz.
 
 ## Key'deki query parametreleri
 
@@ -433,8 +514,9 @@ Varsayılan olan `Type: "memory"`, page'leri process içinde tutar. Hızlıdır,
 restart'tan sonra boş başlar. En fazla `MaxEntries` kadar page tutar (varsayılan
 10000, limitsiz için negatif) ve bunların toplamı en fazla `MaxBytes` kadar olabilir
 (varsayılan 256 MiB). İkisinden biri dolduğunda eklenme sırasına göre en eskisini
-atar. Bir page'in okunması onu daha yeni yapmaz. Expire olmuş bir entry, bir sonraki
-lookup'ta atılır.
+atar. Bir page'in okunması onu daha yeni yapmaz. Expire olmuş bir entry taze diye
+sunulmaz, ama eviction'ın yere ihtiyacı olana kadar
+[stale](#stale-pages-and-x-collage-cache) olarak tutulur.
 
 `Type: "disk"` page'leri dosya olarak tutar. Böylece bir restart her şeyin yeniden
 render edilmesine yol açmaz:
@@ -479,10 +561,12 @@ evict edilir. Sınırın tamamından büyük bir page ise sunulur ama saklanmaz.
 
 | `MaxBytes` | Memory | Disk |
 | --- | --- | --- |
-| `0` | 256 MiB | 1 GiB |
+| `0` | 256 MiB | 1 GiB (memory katmanı: 256 MiB) |
 | negatif | sınır yok | sınır yok |
 
-Memory cache'te tutulan içeriği, diskte ise dosyaların boyutunu sayar. Go'nun
+Memory cache'te tutulan içeriği, diskte ise dosyaların boyutunu sayar. Bir disk
+cache'in memory katmanı ([aşağıda](#memory-in-front-of-the-disk)) 256 MiB tutar.
+`MaxBytes` bundan küçükse katman da `MaxBytes` kadar tutar. Go'nun
 allocator'ı büyük bir değeri tam bellek sayfalarına yuvarlar. Bu yüzden 50 KB'lık page'lerle
 dolu bir memory cache, `MaxBytes`'ın söylediğinden yaklaşık %10 daha fazla heap
 kaplar. Process'in kendisi de heap'inden fazlasını kaplar. Bu yüzden bir
@@ -493,6 +577,44 @@ query parametrelerini [`WithCacheParams`](#query-parameters-in-the-key) ile
 belirtmek işin diğer yarısıdır: query'yi yok sayan bir page binlerce değil, tek bir
 kopya saklar.
 
+### Diskin önünde memory
+
+v0.63.0'dan beri bir `"disk"` cache iki katmandır: dizinin önünde bir
+[memory cache](#memory-or-disk). Bir page'i dosyadan okumak her request'te bir
+açma, bir okuma ve bir decode demektir. Bu yüzden bir hit, bunun yerine memory'den
+sunulur. Bir yazma önce diske, sonra memory'ye gider. Bir okuma ise önce memory'ye
+sorar ve diskte bulduğunu giderken memory'ye kopyalar. `MaxEntries` iki katmanı da
+sınırlar. `MaxBytes` diski sınırlar. Memory katmanı 256 MiB tutar, `MaxBytes`
+bundan küçükse de `MaxBytes` kadar tutar. Bu katman diske ek olarak process'inizin
+belleğini kullanır.
+Bu yüzden küçük bir container'da bir memory cache'teki gibi `GOMEMLIMIT`'i
+ayarlayın. Katmanın daha azını tutması gerekiyorsa `MaxBytes`'ı ya da
+`MaxEntries`'i düşürün (bkz.
+[Deployment](/docs/deployment#a-memory-cache-and-the-containers-limit)).
+
+**Restart'tan sonra cache boş başlamaz.** Açılışta memory katmanı, geçerli
+build'in dizininden en yeni entry'lerden başlanarak doldurulur. Bu, bir sonraki
+entry katmanı evict etmeye zorlayana kadar sürer. En son yazılan page'ler hemen memory'den `HIT` olur, geri
+kalanlar için de tek bir dosya okuması yeter. Stale entry'ler de katmana yüklenir.
+Böylece
+bir upstream kesintisinin ortasındaki bir restart, sunacak stale entry'leri yine
+bulur. v0.62 ya da daha önceki sürümlerin yazdığı dosyaların header'ında key
+yoktur. Bu yüzden onlar açılışta yüklenmez, ama onları okuyan ilk request'te yine
+sunulur.
+
+**Her instance için bir `Dir`.** Bir `Dir`'i paylaşan instance'lar bir cache'i
+paylaşmaz. Her birinin kendi memory katmanı vardır. Memory bir page'i tuttuğu
+sürece o page için verdiği cevap kesindir. Bir instance'taki invalidation diski ve
+kendi memory'sini
+işaretler. Diğer her instance kendi memory'sindeki kopyayı, o kopya expire olana
+kadar taze bir `HIT` olarak sunmaya devam eder. TTL'i olmayan bir `Static` page
+için bu, instance restart olana ya da kopyayı evict edene kadar sürer. Bu arada
+page'i yeniden çeken bir CDN'e eski kopya verilebilir ve CDN onu tutabilir. Her
+instance'a kendi dizinini verin. Instance'larının birbirinin invalidation'larını
+görmesi gereken bir filonun, `Type: "disk"` yerine `collage.StaleCache` ve
+`collage.TaggedCache`'i implement eden, paylaşılan
+[kendi store'una](#your-own-store) ihtiyacı vardır.
+
 ### Namespace
 
 Disk cache, onu dolduran process'ten daha uzun yaşar. Bu hem işin amacıdır hem de
@@ -502,8 +624,10 @@ HTML'i sunmamalıdır.
 Bu yüzden entry'ler build'e göre adlandırılmış bir alt dizinde durur.
 `Cache.Version`'ı boş bırakırsanız bu ad, çalışan executable'ın hash'i olur. Hash,
 tam olarak binary'ye derlenen kodunuz ya da template'leriniz değiştiğinde değişir.
-Aynı build'in iki çalıştırması, ya da onu çalıştıran bir filodaki her makine, tek
-bir cache'i paylaşır. `Version`'ı kendiniz yalnızca çıktının nasıl görüneceğini
+Aynı build'in iki çalıştırması, ya da onu çalıştıran bir filodaki her makine, aynı
+dizini türetir. Bu, bir build'in başka bir build'in page'lerini okumasını engeller.
+Ama bir filonun tek bir cache'i paylaşmasını sağlamaz
+([yukarıya](#memory-in-front-of-the-disk) bakın). `Version`'ı kendiniz yalnızca çıktının nasıl görüneceğini
 binary dışındaki bir şey belirliyorsa ayarlayın. Buna örnek olarak bir içerik
 revizyonu verilebilir.
 
@@ -518,7 +642,7 @@ ve yeniden render edilir. Böyle bir page, key değişmeden önce ya da kendi ke
 üreten bir process tarafından render edilmiş olabilir. Form içermeyen page'ler
 key'den hiç etkilenmez.
 
-Aynı `Dir`'i ve aynı build'i paylaşan her şey entry'leri de paylaşır. Tek bir test
+Aynı `Dir`'i ve aynı build'i paylaşan her şey diskteki dosyaları da paylaşır. Tek bir test
 binary'sindeki iki uygulama da buna dahildir. Her teste `t.TempDir()` ile kendi
 dizinini verin. Ayrıntılar için [Test yazmak](/docs/testing#isolate-the-disk-cache)
 sayfasına bakın.
@@ -530,6 +654,53 @@ sayfasına bakın.
 atamayın. Interface tipindeki bir alanda duran nil bir `*myCache`, nil bir interface
 değildir ve collage doğrudan onun üzerinden çağrı yapar.
 
+`InvalidateKey` ve `Invalidate` siler. Yalnızca bunları implement eden bir store
+v0.63.0 öncesindeki gibi davranır: invalidate edilen bir page gider ve başarısız olan
+bir yeniden render request'i de başarısız kılar.
+
+### Kendi store'unuzda stale page'ler
+
+Store'unuz bir entry'yi invalidation'ından ya da expire olmasından sonra da
+tutabiliyorsa `collage.StaleCache`'i de implement edin. Framework bunun için type
+assertion yapar ve bu interface'i implement eden bir store'dan entry'leri silmek
+yerine stale olarak işaretlemesini ister. Başarısız bir yeniden render'a son
+başarılı render'ın page'iyle cevap verilebilmesini sağlayan budur:
+
+```go
+type StaleCache interface {
+	Cache
+	GetStale(ctx context.Context, key string) (content []byte, etag string, stale, found bool)
+	MarkStaleKey(ctx context.Context, key string) error
+	MarkStale(ctx context.Context, tags []string) error
+}
+```
+
+- `GetStale`, invalidation'ını ya da expire süresini geçmiş bir entry'yi de
+  `stale` true olarak dönen bir `Get`'tir. `found` yalnızca key'in hiç entry'si
+  yoksa false olur.
+- `Get` ise stale bir entry'yi de expire olmuş bir entry'yi de bildirmez. Bunlar
+  eskisi gibi miss'tir.
+- `MarkStaleKey` entry'yi içeriği, ETag'i, expire süresi ve tag'leriyle birlikte
+  tutar ve işaretler. Entry'si olmayan bir key'i işaretlemek hata değildir. Key için
+  sonra yapılan bir `Set` ya da `SetTagged` taze bir entry saklar ve işareti
+  kaldırır.
+- `MarkStale` aynı şeyi tag'lerden herhangi birini taşıyan her entry için yapar.
+  Bunu yalnızca tag'leri indeksleyen bir store yapabilir. Aynı zamanda
+  `TaggedCache` olan bir `StaleCache`'ten, tag'e göre invalidate etmesi yerine
+  işaretlemesi istenir.
+- Bir entry'nin ne kadar süre stale kalacağını hiçbir şey sınırlamaz. Onu kendi
+  sınırlarınıza göre kendiniz evict edin.
+
+`PurgeTags` yine `InvalidateKey`'i ve `Invalidate`'i çağırır. Zaten stale olarak
+işaretlenmiş bir page, collage'ın kendi tag index'i tarafından unutulmuştur. Bu
+yüzden onu tag'e göre yalnızca aynı zamanda `TaggedCache` olan bir store purge
+edebilir. `TaggedCache` olmayan bir `StaleCache`, böyle bir page'i evict edilene ya
+da key'i purge edilene kadar tutar.
+
+```go
+var _ collage.StaleCache = (*myCache)(nil)
+```
+
 ## ETag'ler ve 304
 
 Cache'lenen her page, içeriğinin hash'i olan bir ETag ile saklanır. Cache'ten sunulan
@@ -539,6 +710,8 @@ bir `304 Not Modified` ile cevap verir.
 
 `Static()` page'lerin yeniden doğrulanmasını ucuz yapan budur. `must-revalidate`,
 client'ın her seferinde sorması anlamına gelir ve cevap genellikle birkaç byte'tır.
+Bir `304`, tam cevabın taşıyacağı [`X-Collage-Cache`](#stale-pages-and-x-collage-cache)
+header'ını taşır.
 
 Form içeren bir page burada da istisnadır. Okuyucuya gönderilen kopya, o okuyucunun
 kendi forgery token'ını taşır. Bu yüzden ETag, saklanan kopyayı değil, o okuyucunun
@@ -588,7 +761,7 @@ production'daki gibi davranır. Ortadan kalkan tek şey, değişiklikten önce r
 edilmiş bir page'in sunulmasıdır.
 
 Development'ta disk cache'in yerini bir memory cache alır ve collage bunu yaptığını
-log'lar. `collage.Cached` de orada render'lar arasında hiçbir şey tutmaz (aşağıya
+log'lar. Orada hiçbir response `X-Collage-Cache` taşımaz. `collage.Cached` de orada render'lar arasında hiçbir şey tutmaz (aşağıya
 bakın).
 
 ## Veriyi page'ler arasında cache'lemek
@@ -642,8 +815,8 @@ Böylece tek bir çağrı
 app.InvalidateTags(ctx, "author:ada")
 ```
 
-saklanan yazarı stale olarak işaretler *ve* onu gösteren her cache'lenmiş page'i
-birlikte atar.
+saklanan yazarı *ve* onu gösteren her cache'lenmiş page'i birlikte stale olarak
+işaretler.
 
 Bu mekanizma olmadan en kolay hata burada yapılır. Yazarları kendi API client'ı
 içinde memoize eden ve page'leri tag'e göre invalidate eden bir uygulamanın, birlikte
@@ -684,11 +857,16 @@ yerine geçmeleri gereken eski yazar verisinden yeniden render edilir.
   request'te sorulmaz. Başarılı bir çekme işlemi bekleme süresini bitirir. Key'in
   invalidate edilmesi de bitirir, çünkü bir webhook upstream'in cevap verdiğinin
   haberidir.
-- **Stale veriden oluşan bir render cache'lenmez.** `Cache-Control: no-store` ile
-  sunulur ve hiçbir yerde saklanmaz. Böylece değer taze olunca page yeniden render
-  edilir. Plugin'ler bunu degraded olarak görür (`AfterRenderEvent.Degraded`).
+- **Stale veriden oluşan bir render cache'lenmez.** Plugin'ler bunu degraded
+  olarak görür (`AfterRenderEvent.Degraded`). Render hiçbir yerde saklanmaz,
+  böylece değer taze olunca page yeniden render edilir. Page cache'te page'in
+  stale bir kopyası varsa, render'ın yerine o eski page `STALE` olarak sunulur. Bir
+  invalidation'ın hemen ardından olan budur (bkz.
+  [Stale page'ler](#stale-pages-and-x-collage-cache)). Kopya yoksa degraded render
+  `Cache-Control: no-store` ile sunulur.
 - **Sunulan stale değerler raporlanır.** Sunulan her stale değer, bekleme süresi
-  içinde olsun olmasın, `CacheStale` metrics event'i olarak raporlanır. Başarısız
+  içinde olsun olmasın, `CacheStale` metrics event'i olarak raporlanır. Page cache
+  de sunduğu her stale page için aynı event'i kendi key'iyle raporlar. Başarısız
   her yenileme hatasıyla birlikte warn seviyesinde log'lanır. Başarısızlıklardan
   sonraki ilk başarı ise kaç başarısızlık olduğuyla birlikte info seviyesinde
   log'lanır.
@@ -749,7 +927,7 @@ yoktur. Bu yüzden bir preview, yeni bir page'in yanında güncel veriyi de gör
 | --- | --- | --- |
 | `collage.Once` | tek bir render'ın fragment'leri | o render boyunca |
 | `collage.Cached` | process'teki her render | `ttl` süresince ya da tag'leri invalidate edilene kadar taze, sonra yenisi gelene kadar stale sunulur |
-| page cache | tek bir URL için gelen her request | page'in stratejisine göre ya da tag'leri invalidate edilene kadar |
+| page cache | tek bir URL için gelen her request | page'in stratejisine göre ya da tag'leri invalidate edilene kadar taze, sonra yalnızca yeniden render'ı başarısız ya da degraded olursa stale sunulur |
 
 Bir page'in iki kez çektiği şey için `Once`'ı, birçok page'in çektiği şey için
 `Cached`'i, page'in kendisi için de page cache'i kullanın. Üçü birlikte çalışır.

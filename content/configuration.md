@@ -274,8 +274,8 @@ handler that never checks `ctx.Done()` can run past it.
 | `Type` | `CacheType` | `CacheMemory` when enabled | Built-in cache when `Store` is `nil`: `collage.CacheMemory` or `collage.CacheDisk`. |
 | `DefaultTTL` | `time.Duration` | `5m` | Entry lifetime when a page sets none. |
 | `MaxEntries` | `int` | `10000` | Cap on cache entries, memory and disk alike, and on the keys tracked under one tag; negative means unlimited entries (disk since v0.39.0). |
-| `MaxBytes` | `int64` | 256 MiB memory, 1 GiB disk | Cap on the total size a built-in cache stores; negative means unlimited (since v0.40.0). |
-| `Dir` | `string` | none | Where a disk cache stores entries, and, in `Dir/data/`, the `collage.Cached` values. Required for `CacheDisk`. |
+| `MaxBytes` | `int64` | 256 MiB memory, 1 GiB disk | Cap on the total size a built-in cache stores; negative means unlimited (since v0.40.0). A disk cache's memory tier holds 256 MiB, or `MaxBytes` when smaller (since v0.63.0). |
+| `Dir` | `string` | none | Where a disk cache stores entries, and, in `Dir/data/`, the `collage.Cached` values. Required for `CacheDisk`. One per instance: instances sharing it do not share a cache. |
 | `Version` | `string` | derived from the binary | Identifies the build a disk cache's entries belong to. |
 
 **Caching is off by default.** With `Enabled` false nothing is cached, even with a
@@ -287,7 +287,11 @@ read from a variable needs converting: `Type: collage.CacheType(v)`.
 `collage.Cache` (`Get`, `Set`, `InvalidateKey`, `Clear`) to put pages in Redis or
 anywhere else; a store that also implements `collage.TaggedCache` (`SetTagged`,
 `Invalidate`) is handed each entry's tags on write and asked to invalidate by tag.
-Before v0.60.0 `Invalidate` was a method of `Cache` itself. Leave the field unset rather than assigning a
+Before v0.60.0 `Invalidate` was a method of `Cache` itself. A store that also
+implements `collage.StaleCache` (`GetStale`, `MarkStaleKey`, `MarkStale`, since
+v0.63.0) is asked to mark invalidated entries stale instead of removing them, and
+can then answer a failed re-render with the old page: see
+[Caching](/docs/caching#stale-pages-in-your-own-store). Leave the field unset rather than assigning a
 nil pointer of a concrete type, which is a non-nil interface that panics on the
 first lookup.
 
@@ -301,6 +305,14 @@ since v0.11.0, when the directory cannot be created, a read-only filesystem say:
 `collage.New` warns and carries on with memory rather than failing. A write that
 fails once the application is running is logged, and the page is served uncached.
 In development a disk cache is never used: an in-memory one stands in for it.
+
+**A disk cache has memory in front of it** (since v0.63.0). A hit is served from a
+memory tier, bounded by `MaxEntries` and by 256 MiB, or `MaxBytes` when that is
+smaller, and filled from the current build's directory at startup, newest first,
+so a restart serves its recent pages from memory at once. Each instance has its
+own tier, so give each instance its own `Dir`: with a shared one, an invalidation
+in one instance leaves the others serving their in-memory copy as fresh. See
+[Caching](/docs/caching#memory-in-front-of-the-disk).
 
 **`Dir/data/` holds the `collage.Cached` values** of a disk cache, so a restart
 comes up warm. Unlike the entries, they are not in a build's subdirectory, and
@@ -381,8 +393,10 @@ type Span interface {
 ```
 
 `CacheEvent` is one of `collage.CacheHit`, `CacheMiss`, `CacheSet`, `CacheEvict`,
-`CacheInvalidate` and `CacheCoalesced` — the last meaning a request was served by a
-render of the same key that was already running.
+`CacheInvalidate`, `CacheCoalesced` and `CacheStale`. `CacheCoalesced` means a
+request was served by a render of the same key that was already running;
+`CacheStale`, that a `collage.Cached` value or a cached page was served stale,
+counted once per value or response served.
 
 ## Validation
 

@@ -389,7 +389,18 @@ cache. What a new build finds depends on what changed:
   deploy.
 - **Each instance has its own.** In a container the directory is inside the
   container, so each instance fills its own cache, at one render per page per
-  instance.
+  instance. Keep it that way: instances that share a directory do not share a
+  cache. An invalidation on one marks the disk and its own memory, and every other
+  instance keeps serving its in-memory copy as a fresh `HIT` until it expires —
+  for a `Static` page, until a restart or an eviction — where a CDN refetching it
+  can pick it up again.
+- **It has memory in front of it, and a restart starts warm** (since v0.63.0). A
+  hit is served from a memory tier, filled from the directory at startup, newest
+  pages first, so a restarted instance serves its recent pages from memory at once.
+  That tier is up to 256 MiB of the process, or `MaxBytes` when that is smaller:
+  see [below](#a-memory-cache-and-the-containers-limit).
+- **An invalidated page is kept** to be served, marked `STALE`, if its re-render
+  fails or is degraded — see [Caching](/docs/caching#stale-pages-and-x-collage-cache).
 
 A CDN in front keeps copies of its own:
 [elagoht/cdnpurge](/docs/plugins#elagohtcdnpurge) purges them when collage
@@ -419,12 +430,14 @@ is what the runtime aims for, not a cap it enforces, so leave `MaxBytes` well be
 it — what the cache holds is live and cannot be collected however hard the runtime
 tries. A cache sized at a third to a half of the limit leaves room for the renders
 themselves; in a 512 MiB container, lower `MaxBytes` from its default to
-128–192 MiB. The scaffold's disk cache keeps its pages on disk and does not need
-this.
+128–192 MiB. The scaffold's disk cache keeps its pages on disk, but since v0.63.0
+it has a memory tier in front of them that this applies to as well: up to 256 MiB,
+or `MaxBytes` when that is smaller. Set `GOMEMLIMIT`, and lower `MaxBytes` or
+`MaxEntries` if the tier must hold less.
 
 ### Invalidation with several instances
 
-`app.InvalidateTags` drops entries from the cache of the process it runs in. With
+`app.InvalidateTags` invalidates entries in the cache of the process it runs in. With
 one instance, a CMS webhook that invalidates a post's tag updates the site. With
 several, it updates only the instance the webhook reached; the others keep serving
 the old page until its TTL runs out.
@@ -432,13 +445,16 @@ the old page until its TTL runs out.
 Choose one of three answers: give pages that change `Incremental(ttl)` so a stale
 copy expires on its own, send the webhook to every instance, or configure a shared
 store through `Cache.Store` that implements `collage.TaggedCache`, which lets one
-invalidation reach entries any instance wrote. See [Caching](/docs/caching).
+invalidation reach entries any instance wrote, and `collage.StaleCache` too, so
+that it keeps an invalidated page to fall back on. A `"disk"` cache whose `Dir` the
+instances share is not such a store: each instance's memory tier keeps serving
+what it holds. See [Caching](/docs/caching#memory-in-front-of-the-disk).
 
 A shared store holds pages, not data. Values kept with
 [`collage.Cached`](/docs/caching#caching-data-across-pages) live in each process's
 memory, whatever `Cache.Store` is, and an invalidation reaches only the instance it
 ran in. After a webhook reaches instance A, instance B renders a fresh page — the
-shared store dropped it — from the old value it still holds. Give those values a
+shared store invalidated it — from the old value it still holds. Give those values a
 TTL short enough to live with, or send the invalidation to every instance.
 
 ## TLS, behind a proxy

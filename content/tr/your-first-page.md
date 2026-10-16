@@ -477,9 +477,9 @@ Bu page hakkında, hiçbir yerde açıkça yazılmamış üç şey geçerlidir.
   bir sidebar olur.
 - **Page'in tag'leri, iki fragment'in tag'lerinin birleşimidir.** Page artık hem
   `recipe:pancakes`'e hem de `recipes`'e bağlıdır. Page cache'lendikten sonra
-  `recipes`'i invalidate etmek bütün tarif page'lerini cache'ten düşürür. Yeni bir
-  tarif eklendiğinde olması gereken de budur. `recipe:pancakes`'i invalidate etmek
-  ise yalnızca bu page'i düşürür.
+  `recipes`'i invalidate etmek bütün tarif page'lerinin yeniden render edilmesini
+  sağlar. Yeni bir tarif eklendiğinde olması gereken de budur. `recipe:pancakes`'i
+  invalidate etmek ise yalnızca bu page'in yeniden render edilmesini sağlar.
 - **İki handler birbirini gereğinden fazla beklemedi.** Bir child'ın handler'ı,
   parent'ınınki döndükten sonra başlar. Tek bir fragment'in slot'larındaki
   sibling'ler ise birlikte başlar. Tarif fragment'ine içinde yavaş bir fragment olan

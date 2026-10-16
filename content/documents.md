@@ -15,7 +15,7 @@ A document shares everything else with a page. It lives in the same router, so a
 path that collides with a page is refused when the second of the two is registered,
 with `collage.ErrDuplicateRoute`. It is cached under the same key,
 gets the same content-hash `ETag` and `304` answers, uses the same three strategies,
-carries dependency tags, and is dropped by the same `app.InvalidateTags` call.
+carries dependency tags, and is invalidated by the same `app.InvalidateTags` call.
 
 ```go
 robots := collage.NewDocument("robots", "text/plain; charset=utf-8").
@@ -158,8 +158,8 @@ Everything in [Caching](/docs/caching) applies. The cache key is the path, the
 locale, the path parameters and the query string; only `GET` and `HEAD` are served
 from cache; the `Cache-Control` header follows the strategy.
 
-A sitemap built from your posts should be dropped when a post is published, which
-is what tags are for:
+A sitemap built from your posts should be invalidated when a post is published,
+which is what tags are for:
 
 ```go
 // Declared by the sitemap, the feed, the blog index and every post page.
@@ -172,6 +172,12 @@ Plugins see documents too: a plugin implementing `collage.DocumentRenderedHook` 
 rewrite a document's body before it is cached and served — a minifier, say. The
 page render hooks (`OnBeforeRender`, `OnAfterRender`) do not fire, since nothing is
 rendered. See [Writing a plugin](/docs/writing-plugins).
+
+An invalidated document renders again on its next request. Since v0.63.0 it is
+kept until then, as stale, and served the way a stale page is when that render
+fails: with `Cache-Control: no-store` and `X-Collage-Cache: STALE`. A render that
+answers 404 drops it. See
+[Caching](/docs/caching#stale-pages-and-x-collage-cache).
 
 ## Example: a sitemap
 
@@ -311,7 +317,7 @@ func FeedDocument(app *collage.App, posts *store.Posts) *collage.Document {
 
 `encoding/xml` escapes titles and summaries correctly, which is the whole reason for
 not using a page. The feed is `Static()`: it changes only when a post does, and each
-post's tag is on it, so editing any post in the feed drops it.
+post's tag is on it, so editing any post in the feed invalidates it.
 
 Point readers at it from the layout, with a `<link rel="alternate">` — see
 [Head and SEO](/docs/head-and-seo).

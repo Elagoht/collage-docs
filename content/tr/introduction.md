@@ -55,7 +55,7 @@ Page'leri bu şekilde kurmanın üç sonucu vardır.
 - **Bir page neyden oluştuğunu bilir.** Her data handler hangi içerik parçalarını
   kullandığını bildirir: `post:hello-world`, `author:ada` gibi. Cache'teki page bu
   tag'leri taşır. Bir yazar değiştiğinde tek bir çağrı, o yazarı gösteren bütün
-  page'leri cache'ten düşürür ve başka hiçbir şeye dokunmaz.
+  page'leri invalidate eder ve başka hiçbir şeye dokunmaz.
 - **Bir parça, page'i de beraberinde götürmeden hata verebilir.** Bir fragment
   required olabilir, bir fallback'i olabilir ya da hiçbir şey render etmeyebilir.
   Bozuk bir sidebar, 500 hatası değil, yalnızca eksik bir sidebar olur.

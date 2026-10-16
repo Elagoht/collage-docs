@@ -50,8 +50,8 @@ Three things follow from building pages this way.
   every time.
 - **A page knows what it is made of.** Every data handler says which pieces of
   content it used — `post:hello-world`, `author:ada` — and the cached page carries
-  those tags. When an author changes, one call drops every page that showed them,
-  and nothing else.
+  those tags. When an author changes, one call invalidates every page that showed
+  them, and nothing else.
 - **A part can fail without taking the page with it.** A fragment can be required,
   or have a fallback, or simply render nothing. A broken sidebar is a missing
   sidebar, not a 500.

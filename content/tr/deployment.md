@@ -412,7 +412,20 @@ bulacağı, neyin değiştiğine bağlıdır:
   değildir. Bu uyarıyı takip edin ve deploy'dan sonra dizinin dolduğunu kontrol edin.
 - **Her instance'ın kendi cache'i vardır.** Container'da dizin container'ın
   içindedir. Bu yüzden her instance kendi cache'ini doldurur. Her page, her instance'ta
-  bir kez render edilir.
+  bir kez render edilir. Bunu böyle bırakın: bir dizini paylaşan instance'lar bir
+  cache'i paylaşmaz. Birindeki invalidation diski ve kendi memory'sini işaretler.
+  Diğer her instance kendi memory'sindeki kopyayı expire olana kadar taze bir `HIT`
+  olarak sunmaya devam eder. Bir `Static` page için bu, bir restart'a ya da bir
+  eviction'a kadar sürer. Bu arada page'i yeniden çeken bir CDN eski kopyayı tekrar
+  alabilir.
+- **Önünde memory vardır ve restart'tan sonra boş başlamaz** (v0.63.0'dan beri). Bir hit,
+  memory katmanından sunulur. Bu katman açılışta dizinden, en yeni page'lerden
+  başlanarak doldurulur. Böylece restart edilen bir instance son page'lerini hemen
+  memory'den sunar. Katman process'in belleğinden en fazla 256 MiB kullanır.
+  `MaxBytes` bundan küçükse en fazla `MaxBytes` kadar kullanır.
+  [Aşağıya](#a-memory-cache-and-the-containers-limit) bakın.
+- **Invalidate edilen bir page tutulur.** Yeniden render'ı başarısız ya da degraded
+  olursa `STALE` olarak sunulur. Bkz. [Caching](/docs/caching#stale-pages-and-x-collage-cache).
 
 Öndeki bir CDN kendi kopyalarını tutar.
 [elagoht/cdnpurge](/docs/plugins#elagohtcdnpurge), collage bir page'i invalidate
@@ -446,11 +459,14 @@ runtime'ın hedeflediği bir değerdir, zorla uyguladığı bir tavan değildir.
 ne kadar uğraşırsa uğraşsın toplanamaz. Boyutu sınırın üçte biri ile yarısı
 arasında olan bir cache, render'ların kendisine de yer bırakır. 512 MiB'lık bir
 container'da `MaxBytes`'ı varsayılanından 128–192 MiB'a indirin. Scaffold'un disk
-cache'i page'leri diskte tuttuğu için buna ihtiyaç duymaz.
+cache'i page'leri diskte tutar. Ama v0.63.0'dan beri önlerinde bir memory katmanı
+vardır ve bu ayar ona da uygulanır. Katman en fazla 256 MiB tutar, `MaxBytes`
+bundan küçükse de `MaxBytes` kadar tutar. `GOMEMLIMIT`'i ayarlayın. Katmanın daha azını tutması
+gerekiyorsa `MaxBytes`'ı ya da `MaxEntries`'i düşürün.
 
 ### Birden fazla instance ile invalidation
 
-`app.InvalidateTags`, içinde çalıştığı process'in cache'inden entry'leri düşürür. Tek
+`app.InvalidateTags`, içinde çalıştığı process'in cache'indeki entry'leri invalidate eder. Tek
 instance varken, bir yazının tag'ini invalidate eden bir CMS webhook'u siteyi
 günceller. Birden fazla instance varsa yalnızca webhook'un ulaştığı instance
 güncellenir. Diğerleri eski page'i TTL'i dolana kadar sunmaya devam eder.
@@ -459,13 +475,17 @@ güncellenir. Diğerleri eski page'i TTL'i dolana kadar sunmaya devam eder.
 kopya kendiliğinden expire olur. Ya da webhook'u her instance'a gönderin. Ya da
 `Cache.Store` üzerinden `collage.TaggedCache`'i implement eden paylaşımlı bir store
 yapılandırın. Böylece tek bir invalidation, herhangi bir instance'ın yazdığı
-entry'lere ulaşır. [Caching](/docs/caching) sayfasına bakın.
+entry'lere ulaşır. Store `collage.StaleCache`'i de implement ederse invalidate
+edilen page'i, geri dönülecek bir kopya olarak tutar. `Dir`'ini instance'ların paylaştığı bir
+`"disk"` cache böyle bir store değildir: her instance'ın memory katmanı elindekini
+sunmaya devam eder. [Caching](/docs/caching#memory-in-front-of-the-disk) sayfasına
+bakın.
 
 Paylaşımlı bir store veriyi değil, page'leri tutar.
 [`collage.Cached`](/docs/caching#caching-data-across-pages) ile tutulan değerler,
 `Cache.Store` ne olursa olsun her process'in kendi belleğinde yaşar. Bir invalidation
 da yalnızca içinde çalıştığı instance'a ulaşır. Webhook A instance'ına ulaştıktan
-sonra, paylaşımlı store page'i düşürdüğü için B instance'ı page'i yeniden render eder.
+sonra, paylaşımlı store page'i invalidate ettiği için B instance'ı page'i yeniden render eder.
 Ama bunu hâlâ elinde tuttuğu eski değerle yapar. Bu değerlere katlanabileceğiniz
 kadar kısa bir TTL verin ya da invalidation'ı her instance'a gönderin.
 
