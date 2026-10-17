@@ -21,30 +21,82 @@
     "next": "Sonraki"
   },
   "home": {
-    "title": "collage — Go ile cache'lenmiş fragment'lerden page'ler",
-    "description": "Cache'lenmiş fragment'lerden oluşan, sunucuda render edilen page'ler için bir Go framework'ü. Hiçbir bağımlılığı yoktur.",
-    "eyebrow": "Bir Go framework'ü",
-    "headline": "<mark>Cache'lenmiş fragment'lerden</mark> oluşan page'ler.",
-    "tagline": "collage, sunucuda render edilen siteler için bir Go framework'üdür. Bir page, fragment'leri saran bir layout'tur. Her fragment kendi verisini çeker. Page ise neyden oluştuysa ona göre cache'lenir ve invalidate edilir. Client framework'ü, JavaScript build adımı ya da bağımlılık gerekmez.",
+    "title": "collage — Client framework'süz Go siteleri, web uygulamaları",
+    "description": "Sunucuda render edilen siteler ve web uygulamaları için Go framework'ü: fragment'lerden HTML, neye bağlıysa ona göre cache, plugin'ler. Client framework'ü yok.",
+    "eyebrow": "Sunucuda render edilen web için bir Go framework'ü",
+    "headline": "Sitenizin bir <mark>client framework'üne</mark> ihtiyacı yok.",
+    "tagline": "İşin çoğunu HTML zaten yapar, kalanını birkaç satır sade JavaScript halleder. collage page'leri sunucuda fragment'lerden render eder, bir şey değiştiğinde yalnızca değişen kısmı gönderir ve tek bir Go binary'si olarak dağıtılır.",
     "readGuide": "Rehberi oku",
     "viewOnGitHub": "GitHub'da görüntüle",
-    "whatYouGet": "Neler sunuyor",
-    "points": {
-      "fragments": {
-        "title": "Component değil, fragment",
-        "text": "Bir fragment; bir template, bir data handler ve dışarı açtığı slot'lardan oluşur. Kardeş fragment'ler verilerini eşzamanlı çeker, page yine de sırasıyla yazılır."
+    "why": {
+      "title": "Bir landing page, single-page app değildir",
+      "text": "Bir ürün sayfası, bir landing page, tıklanacak pek bir şeyi olmayan birkaç sayfalık bir site: hiçbiri sunucuda bir JavaScript runtime'ına, bir client framework'üne ve bir hydration adımına ihtiyaç duymaz. Böyle bir runtime Go'dan yavaştır ve sunucuda daha fazla bellek ve disk tüketir. Client framework'ü ise tarayıcıya, doğrudan alabileceği HTML'i kurması için bir program gönderir. collage HTML'i gönderir.",
+      "d": {
+        "label": "Tipik bir stack (JavaScript bundle'ı, hydration, SSR framework'ü, bir bağımlılık ağacı ve bir JavaScript runtime'ı) ve yanında collage: HTML, birkaç satır JavaScript ve tek bir Go binary'si.",
+        "typical": "tipik bir stack",
+        "bundle": "JS bundle",
+        "hydration": "hydration",
+        "framework": "SSR framework",
+        "modules": "bağımlılık ağacı",
+        "runtime": "JS runtime",
+        "collage": "collage",
+        "html": "HTML",
+        "js": "birkaç satır JS",
+        "binary": "tek Go binary'si",
+        "deps": "kurulacak runtime yok"
+      }
+    },
+    "fragments": {
+      "title": "Component değil, fragment",
+      "text": "Bir page, fragment'leri saran bir layout'tur. Her fragment bir template ve kendi verisini çeken bir fonksiyondur. Kardeş fragment'ler verilerini aynı anda çeker, page yine de sırasıyla yazılır. Bir fragment'i <code>WithFragmentPath</code> ile kendine ait bir URL'de açın; üç satırlık bir <code>fetch</code> page'in yalnızca o kısmını yenisiyle değiştirir. Sunucudaki state sunucuda render edilir ve her seferinde bir fragment güncellenir.",
+      "note": "fetch, XHR, server-sent events ve WebSocket tam da bunun için yapıldı. Script'i yazmak istemezseniz bir plugin fragment'leri belirli aralıklarla ya da sunucu push ettiğinde yeniler, isterseniz yerinde morph da eder.",
+      "liveLink": "elagoht/live"
+    },
+    "cache": {
+      "title": "Neye bağlıysa ona göre cache'lenir",
+      "text": "Her page ve cache'lenen her değer, neyden oluştuysa onun tag'lerini taşır: <code>post:hello</code>, <code>author:ada</code>. <code>InvalidateTags</code>, bir tag'i kullanan page'leri stale olarak işaretler ve arka planda yeniden render eder, bu sırada eski page'i fallback olarak saklar. <code>PurgeTags</code> ise onları doğrudan siler; bu, bir daha asla gösterilmemesi gereken içerik içindir. Geri kalan her şey cache'te kalır."
+    },
+    "plugins": {
+      "title": "İstediğiniz kadar middleware ve plugin",
+      "text": "Bir framework size tek bir middleware dosyası verip bir request'in ihtiyaç duyduğu her şeyi onun içinde elle zincirletiyorsa, collage'da <code>app.Use</code>'u istediğiniz kadar çağırabilirsiniz; her çağrı herhangi bir <code>func(http.Handler) http.Handler</code> alır. Her plugin de kendi middleware'ini getirir ve bunlar plugin'leri listelediğiniz sırayla çalışır. Çekirdek küçük kalır: session, spam koruması, canlı güncelleme, SEO ve metrikler plugin'dir. Kırk dört plugin yayımlanmış durumda. Kendi plugin'iniz ise ihtiyaç duyduğu hook'lara sahip bir Go tipidir.",
+      "groups": {
+        "forms": "Form'lar ve state",
+        "security": "Güvenlik",
+        "live": "Canlı güncellemeler",
+        "seo": "SEO ve içerik",
+        "ops": "Teslimat ve operasyon"
       },
-      "cached": {
-        "title": "Neye bağlıysa ona göre cache'lenir",
-        "text": "Page'ler ve veriler tag taşır. Bir yazarı değiştirdiğinizde tek bir çağrı hem yazarı hem de onu gösteren her page'i cache'ten düşürür."
+      "all": "Tüm plugin'ler ve kendi plugin'inizi nasıl yazacağınız"
+    },
+    "go": {
+      "title": "Hâlâ Go",
+      "text": "İkinci bir dil de ikinci bir process de yok. Veri katmanınız Go kodunuzdur: veritabanı, kuyruk, dış API. Elinizdeki bir API'yi ya da servisi <code>app.Handle</code> ile collage'ın kendi mux'ına mount edersiniz. Page'lerin yanında, aynı middleware'lerin arkasında çalışır. Tek proje, tek binary."
+    },
+    "apps": {
+      "title": "Siteler ve web uygulamaları için küçük bir çekirdek",
+      "text": "collage batteries-included değildir ve size neyi bıraktığını açıkça söyler. Sahip oldukları, sunucuda render edilen bir front end'in ihtiyaç duyduklarıdır. Bu yüzden çok kullanıcılı, rol bazlı bir web uygulaması da bir landing page kadar rahat yazılır: session'lar ve roller, sahtesi üretilemeyen form'lar, spam koruması, page'in canlı güncellenen kısımları.",
+      "in": {
+        "title": "Çekirdekte",
+        "fragments": "Fragment'ler ve fragment path'leri",
+        "actions": "Forgery korumalı action'lar",
+        "cache": "Cache, tag'ler, invalidate ve purge",
+        "guards": "Private page'ler ve roller için guard'lar",
+        "locales": "Locale URL'leri ve adla link'ler",
+        "export": "Static export"
       },
-      "forms": {
-        "title": "JavaScript'siz form'lar",
-        "text": "Action'lar POST request'lerini yerleşik forgery korumasıyla karşılar. Cache'lenmiş bir page de form içerebilir."
+      "plugin": {
+        "title": "Bir plugin ile",
+        "session": "Session'lar",
+        "honeypot": "Honeypot ve validation",
+        "flash": "Flash mesajları",
+        "live": "SSE ya da WebSocket üzerinden canlı fragment'ler",
+        "auth": "OAuth, basic auth, rate limit'ler"
       },
-      "served": {
-        "title": "Serve edin ya da export edin",
-        "text": "Tek bir program hem sunucu hem de static site generator'dır. Bu site ikinci yolla üretildi."
+      "out": {
+        "title": "Dahil değil",
+        "orm": "ORM",
+        "migrations": "Migration'lar",
+        "db": "Veritabanı katmanı: o sizin Go kodunuz"
       }
     },
     "howItWorks": "Nasıl çalışır",
@@ -53,17 +105,17 @@
         "title": "Layout'lar ve slot'lar",
         "text": "Layout, page'in içeriği için bir slot bırakır. Bir fragment da kendi slot'larını bırakabilir. Slot'ları fragment'lerle doldurun, collage page'i birleştirir."
       },
-      "fetch": {
-        "title": "Aynı anda çekin",
-        "text": "Her fragment'in kendi data handler'ı vardır. Kardeş fragment'ler verilerini eşzamanlı çeker, HTML yine de sırasıyla yazılır."
-      },
       "invalidate": {
         "title": "Tag ile invalidate edin",
-        "text": "Bir page neyden oluştuğunu bilir. Tek bir tag'i invalidate edin, yalnızca onu kullanan page'ler cache'ten düşer."
+        "text": "Bir page neyden oluştuğunu hatırlar. Bir tag'i invalidate edin, yalnızca onu kullanan page'ler yeniden render edilir; geri kalanı olduğu gibi kalır."
+      },
+      "fetch": {
+        "title": "Aynı anda çekin",
+        "text": "Her fragment'in kendi data handler'ı vardır. Kardeş fragment'ler verilerini aynı anda çeker, HTML yine de sırasıyla yazılır."
       },
       "live": {
         "title": "Fragment'leri canlı stream edin",
-        "text": "collage-live ile bir tag'i invalidate etmek, onu kullanan ve açık olan her fragment'i yeniden render eder ve tek bir stream üzerinden tarayıcıya gönderir. Yalnızca o parça değişir. Örneğin burada, sunucunun CPU kullanımı."
+        "text": "collage-live ile bir tag'i invalidate etmek, onu kullanan ve açık olan her fragment'i yeniden render eder ve tek bir stream üzerinden tarayıcıya gönderir. Yalnızca o kısım değişir. Örneğin burada, sunucunun CPU kullanımı."
       },
       "dev": {
         "title": "Kaydedin ve görün",

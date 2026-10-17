@@ -22,40 +22,49 @@
     </div>
   </section>
 
-  <section class="points" aria-label="{{t "home.whatYouGet"}}">
-    {{with "home.points.fragments"}}
-    <article>
-      <span class="point-icon" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24"><path d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zM4 10h16M10 10v10" /></svg></span>
-      <h2>{{t (print . ".title")}}</h2>
-      <p>{{t (print . ".text")}}</p>
-    </article>
-    {{end}}
-    {{with "home.points.cached"}}
-    <article>
-      <span class="point-icon" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24"><path d="M7.5 7.5h.01M3 6v5.2a2 2 0 0 0 .6 1.4l8.8 8.8a2 2 0 0 0 2.8 0l5.2-5.2a2 2 0 0 0 0-2.8L11.6 4.6A2 2 0 0 0 10.2 4H5a2 2 0 0 0-2 2z" /></svg></span>
-      <h2>{{t (print . ".title")}}</h2>
-      <p>{{t (print . ".text")}}</p>
-    </article>
-    {{end}}
-    {{with "home.points.forms"}}
-    <article>
-      <span class="point-icon" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24"><path d="M9 11l3 3 8-8M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9" /></svg></span>
-      <h2>{{t (print . ".title")}}</h2>
-      <p>{{t (print . ".text")}}</p>
-    </article>
-    {{end}}
-    {{with "home.points.served"}}
-    <article>
-      <span class="point-icon" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24"><path d="M3 6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM3 16a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM7 6.5h.01M7 16.5h.01" /></svg></span>
-      <h2>{{t (print . ".title")}}</h2>
-      <p>{{t (print . ".text")}}</p>
-    </article>
-    {{end}}
+  <section class="feature" id="why" aria-labelledby="why-title">
+    <div class="feature-text">
+      <h2 id="why-title">{{t "home.why.title"}}</h2>
+      <p>{{th "home.why.text"}}</p>
+    </div>
+    <div class="feature-art">
+        <figure class="feature-figure">
+          <svg class="diagram" viewBox="0 0 320 236" role="img" aria-labelledby="why-diagram">
+            <title id="why-diagram">{{t "home.why.d.label"}}</title>
+            <text x="80" y="16" text-anchor="middle">{{t "home.why.d.typical"}}</text>
+            <rect class="d-frame" x="10" y="26" width="140" height="32" rx="6" /><text x="80" y="46" text-anchor="middle">{{t "home.why.d.bundle"}}</text>
+            <rect class="d-frame" x="10" y="64" width="140" height="32" rx="6" /><text x="80" y="84" text-anchor="middle">{{t "home.why.d.hydration"}}</text>
+            <rect class="d-frame" x="10" y="102" width="140" height="32" rx="6" /><text x="80" y="122" text-anchor="middle">{{t "home.why.d.framework"}}</text>
+            <rect class="d-frame" x="10" y="140" width="140" height="32" rx="6" /><text x="80" y="160" text-anchor="middle">{{t "home.why.d.modules"}}</text>
+            <rect class="d-frame" x="10" y="178" width="140" height="48" rx="6" /><text x="80" y="206" text-anchor="middle">{{t "home.why.d.runtime"}}</text>
+            <text class="d-slot-text-a" x="240" y="16" text-anchor="middle">{{t "home.why.d.collage"}}</text>
+            <rect class="d-b" x="170" y="26" width="140" height="32" rx="6" /><text class="d-on-b" x="240" y="46" text-anchor="middle">{{t "home.why.d.html"}}</text>
+            <rect class="d-chip" x="170" y="64" width="140" height="24" rx="12" /><text x="240" y="80" text-anchor="middle">{{t "home.why.d.js"}}</text>
+            <rect class="d-a" x="170" y="160" width="140" height="66" rx="6" /><text class="d-on-a" x="240" y="190" text-anchor="middle">{{t "home.why.d.binary"}}</text><text class="d-on-a d-small" x="240" y="206" text-anchor="middle">{{t "home.why.d.deps"}}</text>
+          </svg>
+        </figure>
+    </div>
   </section>
 
-  <section class="how" aria-labelledby="how-title">
-    <h2 id="how-title">{{t "home.howItWorks"}}</h2>
-    <div class="diagrams">
+  <section class="feature" id="fragments" aria-labelledby="fragments-title">
+    <div class="feature-text">
+      <h2 id="fragments-title">{{t "home.fragments.title"}}</h2>
+      <p>{{th "home.fragments.text"}}</p>
+      <p>{{th "home.fragments.note"}} <a href="{{pageURL "doc" "slug" "plugins"}}#elagohtlive">{{t "home.fragments.liveLink"}}</a></p>
+    </div>
+    <div class="feature-art">
+      <pre><code class="language-go">collage.NewPage("search").
+	WithLayouts(layout).
+	WithContent(searchPage).
+	WithPath("en", "/search").
+	WithFragmentPath("en", "/search/results", results).
+	Build()</code></pre>
+      <pre><code class="language-js">input.addEventListener("input", async () =&gt; {
+  const res = await fetch("/search/results?q=" + encodeURIComponent(input.value));
+  document.querySelector("#results").outerHTML = await res.text();
+});</code></pre>
+    </div>
+    <div class="diagrams feature-wide">
       <svg class="diagram diagram-defs" aria-hidden="true" focusable="false">
         <defs>
           <marker id="d-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
@@ -127,34 +136,18 @@
         </figcaption>
       </figure>
       {{end}}
+    </div>
+  </section>
 
-      {{with "home.diagrams.fetch"}}
-      <figure>
-        <svg class="diagram" viewBox="0 0 320 180" aria-hidden="true">
-          <defs>
-            <marker id="d1-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
-              <path class="d-head" d="M0 0 8 4 0 8z" />
-            </marker>
-          </defs>
-          <rect class="d-pill" x="12" y="54" width="54" height="24" rx="12" /><text x="39" y="70" text-anchor="middle">cms</text>
-          <rect class="d-pill" x="12" y="94" width="54" height="24" rx="12" /><text x="39" y="110" text-anchor="middle">db</text>
-          <rect class="d-pill" x="12" y="131" width="54" height="24" rx="12" /><text x="39" y="147" text-anchor="middle">api</text>
-          <rect class="d-frame" x="140" y="14" width="168" height="152" rx="8" />
-          <line class="d-flow" x1="70" y1="66" x2="148" y2="66" marker-end="url(#d1-arrow)" />
-          <line class="d-flow" x1="70" y1="106" x2="148" y2="106" marker-end="url(#d1-arrow)" />
-          <line class="d-flow" x1="70" y1="143" x2="148" y2="143" marker-end="url(#d1-arrow)" />
-          <rect class="d-bar" x="150" y="24" width="148" height="18" rx="3" /><text x="158" y="37">layout</text>
-          <rect class="d-a" x="150" y="50" width="148" height="32" rx="4" /><text class="d-on-a" x="160" y="70">post</text>
-          <rect class="d-b" x="150" y="90" width="148" height="32" rx="4" /><text class="d-on-b" x="160" y="110">author</text>
-          <rect class="d-c" x="150" y="130" width="148" height="26" rx="4" /><text class="d-on-c" x="160" y="147">related</text>
-        </svg>
-        <figcaption>
-          <h3>{{t (print . ".title")}}</h3>
-          <p>{{t (print . ".text")}}</p>
-        </figcaption>
-      </figure>
-      {{end}}
-
+  <section class="feature" id="cache" aria-labelledby="cache-title">
+    <div class="feature-text">
+      <h2 id="cache-title">{{t "home.cache.title"}}</h2>
+      <p>{{th "home.cache.text"}}</p>
+    </div>
+    <div class="feature-art">
+      <pre><code class="language-go">app.InvalidateTags(ctx, "author:ada")
+app.PurgeTags(ctx, "user:42")</code></pre>
+      <div class="diagrams">
       {{with "home.diagrams.invalidate"}}
       <figure>
         <svg class="diagram" viewBox="0 0 320 180" aria-hidden="true">
@@ -186,6 +179,133 @@
             <rect class="d-chip" x="224" y="96" width="76" height="20" rx="10" /><text x="262" y="110" text-anchor="middle">page:about</text>
             <text class="d-kept" x="262" y="156" text-anchor="middle">✓</text>
           </g>
+        </svg>
+        <figcaption>
+          <h3>{{t (print . ".title")}}</h3>
+          <p>{{t (print . ".text")}}</p>
+        </figcaption>
+      </figure>
+      {{end}}
+      </div>
+    </div>
+  </section>
+
+  <section class="feature" id="plugins" aria-labelledby="plugins-title">
+    <div class="feature-text">
+      <h2 id="plugins-title">{{t "home.plugins.title"}}</h2>
+      <p>{{th "home.plugins.text"}}</p>
+    </div>
+    <div class="feature-art">
+      <pre><code class="language-go">app, err := collage.New(&amp;collage.Config{
+	Plugins: []collage.Plugin{
+		session.New(session.Options{KeyEnv: "SESSION_KEY"}),
+		honeypot.New(honeypot.Options{KeyEnv: "HONEYPOT_KEY"}),
+		live.New(live.Options{}),
+	},
+})
+
+app.Use(requestID)
+app.Use(auditLog)</code></pre>
+    </div>
+    <div class="plugin-grid">
+      <div class="plugin-group">
+        <h3>{{t "home.plugins.groups.forms"}}</h3>
+        <p><a href="{{pageURL "doc" "slug" "plugins"}}#elagohtvalidate">validate</a> <a href="{{pageURL "doc" "slug" "plugins"}}#elagohthoneypot">honeypot</a> <a href="{{pageURL "doc" "slug" "plugins"}}#elagohtflash">flash</a> <a href="{{pageURL "doc" "slug" "plugins"}}#elagohtsession">session</a> <a href="{{pageURL "doc" "slug" "plugins"}}#elagohtuploads">uploads</a></p>
+      </div>
+      <div class="plugin-group">
+        <h3>{{t "home.plugins.groups.security"}}</h3>
+        <p><a href="{{pageURL "doc" "slug" "plugins"}}#elagohtsecure">secure</a> <a href="{{pageURL "doc" "slug" "plugins"}}#elagohtratelimit">ratelimit</a> <a href="{{pageURL "doc" "slug" "plugins"}}#elagohtbasicauth">basicauth</a> <a href="{{pageURL "doc" "slug" "plugins"}}#elagohtoauth">oauth</a> <a href="{{pageURL "doc" "slug" "plugins"}}#elagohtfail2ban">fail2ban</a> <a href="{{pageURL "doc" "slug" "plugins"}}#elagohtconsent">consent</a></p>
+      </div>
+      <div class="plugin-group">
+        <h3>{{t "home.plugins.groups.live"}}</h3>
+        <p><a href="{{pageURL "doc" "slug" "plugins"}}#elagohtlive">live</a> <a href="{{pageURL "doc" "slug" "plugins"}}#elagohtwebsocket">websocket</a></p>
+      </div>
+      <div class="plugin-group">
+        <h3>{{t "home.plugins.groups.seo"}}</h3>
+        <p><a href="{{pageURL "doc" "slug" "plugins"}}#elagohtmeta">meta</a> <a href="{{pageURL "doc" "slug" "plugins"}}#elagohtjsonld">jsonld</a> <a href="{{pageURL "doc" "slug" "plugins"}}#elagohtsitemap">sitemap</a> <a href="{{pageURL "doc" "slug" "plugins"}}#elagohtrobots">robots</a> <a href="{{pageURL "doc" "slug" "plugins"}}#elagohtfeed">feed</a> <a href="{{pageURL "doc" "slug" "plugins"}}#elagohtogimage">ogimage</a> <a href="{{pageURL "doc" "slug" "plugins"}}#elagohtmarkdown">markdown</a> <a href="{{pageURL "doc" "slug" "plugins"}}#elagohthighlight">highlight</a> <a href="{{pageURL "doc" "slug" "plugins"}}#elagohttoc">toc</a> <a href="{{pageURL "doc" "slug" "plugins"}}#elagohtsearch">search</a> <a href="{{pageURL "doc" "slug" "plugins"}}#elagohti18n">i18n</a></p>
+      </div>
+      <div class="plugin-group">
+        <h3>{{t "home.plugins.groups.ops"}}</h3>
+        <p><a href="{{pageURL "doc" "slug" "plugins"}}#elagohtminimizer">minimizer</a> <a href="{{pageURL "doc" "slug" "plugins"}}#elagohtcompress">compress</a> <a href="{{pageURL "doc" "slug" "plugins"}}#elagohtbundle">bundle</a> <a href="{{pageURL "doc" "slug" "plugins"}}#elagohtopti-image">opti-image</a> <a href="{{pageURL "doc" "slug" "plugins"}}#elagohtdeploy">deploy</a> <a href="{{pageURL "doc" "slug" "plugins"}}#elagohtprometheus">prometheus</a> <a href="{{pageURL "doc" "slug" "plugins"}}#elagohtotel">otel</a> <a href="{{pageURL "doc" "slug" "plugins"}}#elagohthealth">health</a> <a href="{{pageURL "doc" "slug" "plugins"}}#elagohtjobs">jobs</a> <a href="{{pageURL "doc" "slug" "plugins"}}#elagohtaccesslog">accesslog</a></p>
+      </div>
+      <p class="plugin-all"><a href="{{pageURL "doc" "slug" "plugins"}}">{{t "home.plugins.all"}}</a></p>
+    </div>
+  </section>
+
+  <section class="feature" id="go" aria-labelledby="go-title">
+    <div class="feature-text">
+      <h2 id="go-title">{{t "home.go.title"}}</h2>
+      <p>{{th "home.go.text"}}</p>
+    </div>
+    <div class="feature-art">
+      <pre><code class="language-go">api := http.NewServeMux()
+api.HandleFunc("GET /api/users/{id}", users.Get)
+api.HandleFunc("POST /api/users", users.Create)
+
+app.Handle("/api/", api)</code></pre>
+    </div>
+  </section>
+
+  <section class="feature" id="apps" aria-labelledby="apps-title">
+    <div class="feature-text">
+      <h2 id="apps-title">{{t "home.apps.title"}}</h2>
+      <p>{{th "home.apps.text"}}</p>
+    </div>
+    <div class="scope">
+      <div class="scope-col scope-in">
+        <h3>{{t "home.apps.in.title"}}</h3>
+        <ul>
+          <li>{{t "home.apps.in.fragments"}}</li>
+          <li>{{t "home.apps.in.actions"}}</li>
+          <li>{{t "home.apps.in.cache"}}</li>
+          <li>{{t "home.apps.in.guards"}}</li>
+          <li>{{t "home.apps.in.locales"}}</li>
+          <li>{{t "home.apps.in.export"}}</li>
+        </ul>
+      </div>
+      <div class="scope-col scope-plugin">
+        <h3>{{t "home.apps.plugin.title"}}</h3>
+        <ul>
+          <li>{{t "home.apps.plugin.session"}}</li>
+          <li>{{t "home.apps.plugin.honeypot"}}</li>
+          <li>{{t "home.apps.plugin.flash"}}</li>
+          <li>{{t "home.apps.plugin.live"}}</li>
+          <li>{{t "home.apps.plugin.auth"}}</li>
+        </ul>
+      </div>
+      <div class="scope-col scope-out">
+        <h3>{{t "home.apps.out.title"}}</h3>
+        <ul>
+          <li>{{t "home.apps.out.orm"}}</li>
+          <li>{{t "home.apps.out.migrations"}}</li>
+          <li>{{t "home.apps.out.db"}}</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="how" aria-labelledby="how-title">
+    <h2 id="how-title">{{t "home.howItWorks"}}</h2>
+    <div class="diagrams">
+      {{with "home.diagrams.fetch"}}
+      <figure>
+        <svg class="diagram" viewBox="0 0 320 180" aria-hidden="true">
+          <defs>
+            <marker id="d1-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+              <path class="d-head" d="M0 0 8 4 0 8z" />
+            </marker>
+          </defs>
+          <rect class="d-pill" x="12" y="54" width="54" height="24" rx="12" /><text x="39" y="70" text-anchor="middle">cms</text>
+          <rect class="d-pill" x="12" y="94" width="54" height="24" rx="12" /><text x="39" y="110" text-anchor="middle">db</text>
+          <rect class="d-pill" x="12" y="131" width="54" height="24" rx="12" /><text x="39" y="147" text-anchor="middle">api</text>
+          <rect class="d-frame" x="140" y="14" width="168" height="152" rx="8" />
+          <line class="d-flow" x1="70" y1="66" x2="148" y2="66" marker-end="url(#d1-arrow)" />
+          <line class="d-flow" x1="70" y1="106" x2="148" y2="106" marker-end="url(#d1-arrow)" />
+          <line class="d-flow" x1="70" y1="143" x2="148" y2="143" marker-end="url(#d1-arrow)" />
+          <rect class="d-bar" x="150" y="24" width="148" height="18" rx="3" /><text x="158" y="37">layout</text>
+          <rect class="d-a" x="150" y="50" width="148" height="32" rx="4" /><text class="d-on-a" x="160" y="70">post</text>
+          <rect class="d-b" x="150" y="90" width="148" height="32" rx="4" /><text class="d-on-b" x="160" y="110">author</text>
+          <rect class="d-c" x="150" y="130" width="148" height="26" rx="4" /><text class="d-on-c" x="160" y="147">related</text>
         </svg>
         <figcaption>
           <h3>{{t (print . ".title")}}</h3>

@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -38,6 +39,123 @@ func TestHomePage(t *testing.T) {
 	}
 	if n := strings.Count(rec.Body.String(), "<title>"); n != 1 {
 		t.Errorf("home has %d titles, want 1", n)
+	}
+}
+
+// The home page tells the story in the order the positioning fixes, in every
+// language, with its code coloured.
+func TestHomeSections(t *testing.T) {
+	for _, path := range []string{"/en/", "/tr/"} {
+		body := get(t, path).Body.String()
+		last := -1
+		for _, id := range []string{`id="why"`, `id="fragments"`, `id="cache"`, `id="plugins"`, `id="go"`, `id="apps"`, `id="how-title"`, `id="guide-title"`} {
+			i := strings.Index(body, id)
+			if i < 0 || i < last {
+				t.Errorf("GET %s: %s missing or out of order", path, id)
+			}
+			last = i
+		}
+		for _, want := range []string{"WithFragmentPath", "InvalidateTags", "PurgeTags", "app.Handle", `class="chroma"`} {
+			if !strings.Contains(body, want) {
+				t.Errorf("GET %s has no %s", path, want)
+			}
+		}
+	}
+}
+
+// Morphing is something elagoht/live can be asked to do, not what it always does.
+func TestHomeMorphIsOptIn(t *testing.T) {
+	if strings.Contains(get(t, "/en/").Body.String(), "and morphs them in place") {
+		t.Error("the home page says elagoht/live always morphs")
+	}
+}
+
+// Every plugin the home page links to has its section on the plugins page, in
+// the same language.
+func TestHomePluginLinks(t *testing.T) {
+	anchor := regexp.MustCompile(`docs/plugins/#([a-z0-9-]+)`)
+	for _, locale := range []string{"en", "tr"} {
+		links := anchor.FindAllStringSubmatch(get(t, "/"+locale+"/").Body.String(), -1)
+		if len(links) < 30 {
+			t.Errorf("/%s/ links %d plugins, want at least 30", locale, len(links))
+		}
+		plugins := get(t, "/"+locale+"/docs/plugins/").Body.String()
+		for _, link := range links {
+			if !strings.Contains(plugins, `id="`+link[1]+`"`) {
+				t.Errorf("/%s/ links #%s, which the plugins page has no heading for", locale, link[1])
+			}
+		}
+	}
+}
+
+// A code block on the home page scrolls inside itself, so a narrow screen does
+// not scroll the page sideways.
+func TestHomeCodeScrolls(t *testing.T) {
+	css, err := os.ReadFile("static/app.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	block := regexp.MustCompile(`(?s)\.feature pre \{[^}]*\}`).FindString(string(css))
+	if !strings.Contains(block, "overflow-x: auto") {
+		t.Errorf(".feature pre does not scroll: %q", block)
+	}
+}
+
+// Diagrams take their colours from classes, which follow the colour scheme; a
+// colour written into the SVG would not.
+func TestDiagramsUseClasses(t *testing.T) {
+	home, err := os.ReadFile("templates/pages/home.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []string{`fill="#`, `stroke="#`} {
+		if strings.Contains(string(home), bad) {
+			t.Errorf("home.html sets a colour with %s", bad)
+		}
+	}
+}
+
+// The introduction's diagram is an image to a screen reader, with a caption, in
+// every language, and takes its colours from classes.
+func TestIntroDiagramAccessible(t *testing.T) {
+	for _, path := range []string{"/en/docs/introduction/", "/tr/docs/introduction/"} {
+		body := get(t, path).Body.String()
+		for _, want := range []string{`<figure class="diagram-figure"`, `role="img"`, `aria-labelledby=`, `<figcaption`} {
+			if !strings.Contains(body, want) {
+				t.Errorf("GET %s has no %s", path, want)
+			}
+		}
+		for _, bad := range []string{`fill="#`, `stroke="#`} {
+			if strings.Contains(body, bad) {
+				t.Errorf("GET %s sets a colour with %s", path, bad)
+			}
+		}
+	}
+}
+
+// Only a page is cached: the introduction's diagram does not send a fragment
+// path or an action through the cache, in either language.
+func TestIntroDiagramCachesOnlyPages(t *testing.T) {
+	for path, wrong := range map[string]string{
+		"/en/docs/introduction/": "fragments and actions render through the cache",
+		"/tr/docs/introduction/": "fragment'ler ve action'lar cache üzerinden",
+	} {
+		if strings.Contains(get(t, path).Body.String(), wrong) {
+			t.Errorf("GET %s says %q; fragment paths and actions are never cached", path, wrong)
+		}
+	}
+}
+
+// The introduction says what collage is for and what it is not.
+func TestIntroPositioning(t *testing.T) {
+	body := get(t, "/en/docs/introduction/").Body.String()
+	for _, want := range []string{"WithFragmentPath", "PurgeTags", "app.Handle", "WithGuard"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the introduction has no %s", want)
+		}
+	}
+	if strings.Contains(body, "session store") {
+		t.Error("the introduction still says there is no session store")
 	}
 }
 
