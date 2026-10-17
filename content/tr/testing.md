@@ -1,5 +1,5 @@
 ---
-description: Gerçek uygulamayı app.Handler() ve pkg/collagetest ile test edin. pkg/collagetest, cookie'leri saklayan ve form'ları bir tarayıcının yaptığı gibi gönderen bir client'tır. Page'leri, forgery token'ıyla birlikte form'ları, document'ları ve static export'u bu şekilde sınayabilirsiniz.
+description: Gerçek uygulamayı app.Handler() ve cookie saklayıp form'ları tarayıcı gibi gönderen pkg/collagetest ile test edin: page'ler, form'lar, document'lar, export.
 reference: Build, BuildOptions, App
 ---
 

@@ -1,5 +1,5 @@
 ---
-description: collage CLI'ın bütün komutları (new, add, dev, build, export, serve, inspect, check, plugin, version ve help), flag'leri ve her birinin tam olarak neyi çalıştırdığı.
+description: collage CLI'ın bütün komutları (new, add, dev, build, export, serve, inspect, check, plugin, version, help), flag'leri ve her birinin neyi çalıştırdığı.
 reference: DispatchCommands, Command, ErrUnknownCommand, FragmentBuilder.WithoutTypeCheck, App, Registrable
 ---
 

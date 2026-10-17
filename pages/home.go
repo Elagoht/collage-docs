@@ -5,14 +5,15 @@ import (
 
 	"github.com/Elagoht/collage/pkg/collage"
 
+	i18n "github.com/Elagoht/collage-i18n"
+	meta "github.com/Elagoht/collage-meta"
+
 	"github.com/Elagoht/collage-docs/fragments/layouts"
 	"github.com/Elagoht/collage-docs/site"
-	"github.com/Elagoht/collage-docs/ui"
 )
 
 // homeView is what templates/pages/home.html renders.
 type homeView struct {
-	T        ui.Text
 	Sections []site.Section
 }
 
@@ -24,14 +25,13 @@ func HomePage(app *collage.App, docs func() (*site.Set, error)) *collage.Page {
 			if err != nil {
 				return homeView{}, err
 			}
-			text := ui.For(rc.Locale)
-			rc.HoistTitle(text.HomeTitle)
-			rc.HoistMeta("description", text.HomeDescription)
+			rc.HoistTitle(i18n.T(rc, "home.title"))
+			meta.Set(rc, meta.Page{Description: i18n.T(rc, "home.description")})
 			var sections []site.Section
 			if loaded := set.Site(rc.Locale); loaded != nil {
 				sections = loaded.Sections
 			}
-			return homeView{T: text, Sections: sections}, nil
+			return homeView{Sections: sections}, nil
 		})).
 		Build()
 

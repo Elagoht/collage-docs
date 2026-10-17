@@ -49,6 +49,9 @@ var templatesFS embed.FS
 //go:embed all:static
 var staticFS embed.FS
 
+//go:embed all:locales
+var localesFS embed.FS
+
 // cacheDir is where rendered pages are kept between restarts. A variable so the
 // tests can point it at a directory of their own: a disk cache is shared by
 // everything that uses the same directory, build and key, so a test would
@@ -120,6 +123,9 @@ func newApp(devMode bool, port int) (*collage.App, error) {
 		// redirect. With the slash, every link collage builds — canonical,
 		// hreflang, sitemap — is the address the host answers.
 		TrailingSlash: true,
+		// What the sitemap, robots.txt, canonical links and Open Graph tags put in
+		// front of a path.
+		BaseURL: site.Origin,
 		Server: collage.ServerConfig{
 			Host: envString("HOST", "localhost"),
 			Port: port,
@@ -139,13 +145,9 @@ func newApp(devMode bool, port int) (*collage.App, error) {
 			Dir:        cacheDir,
 			DefaultTTL: 5 * time.Minute,
 		},
+		// The plugins are in plugins.go, and their settings in plugins-config.json.
+		Plugins:      plugins(devMode),
 		PluginConfig: pluginConfig,
-		// Plugins go here, and their settings in plugins-config.json:
-		//
-		//	Plugins: []collage.Plugin{minimizer.New(minimizer.Options{}), jsonld.New(jsonld.Options{})},
-		//
-		// A plugin that contributes to the document head reaches it through
-		// {{hoist "head"}} in the layout.
 		Security: collage.SecurityConfig{
 			// Signs the forgery tokens forms carry. Unset, one is generated
 			// per process: fine in development, wrong to deploy, because every
@@ -221,6 +223,18 @@ func staticFiles(devMode bool) (fs.FS, error) {
 	// fs.Sub, because the embedded tree contains the "static" directory
 	// itself: mounting it whole would serve "/static/static/app.css".
 	return fs.Sub(staticFS, "static")
+}
+
+// locales returns the filesystem the i18n catalogs are read from: the embedded
+// copy, except in development, where locales/ on disk wins so an edited catalog
+// shows on the next reload.
+func locales(devMode bool) fs.FS {
+	if devMode {
+		if _, err := os.Stat("locales"); err == nil {
+			return os.DirFS(".")
+		}
+	}
+	return localesFS
 }
 
 // envString returns the environment variable named key, or fallback.

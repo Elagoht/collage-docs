@@ -1,5 +1,5 @@
 ---
-description: collage plugin add'in bir repository'yi kurabilmesi için neye sahip olması gerektiği (ad, manifest, ayar istemeyen bir New, release tag'i) ve collage plugin check'in bunu nasıl doğruladığı.
+description: collage plugin add'in repository'yi kurması için gerekenler (ad, manifest, ayar istemeyen bir New, release tag'i) ve collage plugin check'in bunu doğrulaması.
 reference: Plugin, Host, FindPlugin, Configurer, PluginConfig
 ---
 

@@ -1,5 +1,5 @@
 ---
-description: Page nedir, layout'ları ve içeriği nasıl bir araya gelir, onu kim görebilir, ona hangi path'ler ulaşır, nasıl cache'lenir, başarısız olduğunda ne gösterir ve register edilmek onu nasıl değiştirir.
+description: Page nedir: layout'ları ve içeriği, kimin görebileceği, ona ulaşan path'ler, nasıl cache'lendiği, başarısız olunca ne gösterdiği ve register etmenin etkisi.
 reference: Registrable, ErrNilRegistrable, NewPage, PageBuilder, PageBuilder.WithLayouts, Page, RenderPage, DefaultContentSlot, StrategyAuto, FragmentBuilder.WithGuard, GuardFunc, GuardDecision
 ---
 

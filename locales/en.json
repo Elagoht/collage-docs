@@ -1,0 +1,86 @@
+{
+  "language": {
+    "label": "Language"
+  },
+  "nav": {
+    "label": "Site",
+    "docs": "Docs",
+    "goReference": "Go reference",
+    "menu": "Menu"
+  },
+  "footer": {
+    "text": "collage is MIT-licensed. These pages are a collage site, exported to static files.",
+    "links": "Links"
+  },
+  "doc": {
+    "contents": "Contents",
+    "documentation": "Documentation",
+    "onThisPage": "On this page",
+    "pages": "Pages",
+    "previous": "Previous",
+    "next": "Next"
+  },
+  "home": {
+    "title": "collage — server-rendered pages from cached fragments, in Go",
+    "description": "A Go framework for server-rendered pages composed from cached fragments. No dependencies.",
+    "eyebrow": "A Go framework",
+    "headline": "Pages composed from <mark>cached fragments</mark>.",
+    "tagline": "collage is a Go framework for server-rendered sites. A page is a layout around fragments; each fragment fetches its own data, and the page is cached and invalidated by what it was built from. No client framework, no JavaScript build step, no dependencies.",
+    "readGuide": "Read the guide",
+    "viewOnGitHub": "View on GitHub",
+    "whatYouGet": "What you get",
+    "points": {
+      "fragments": {
+        "title": "Fragments, not components",
+        "text": "A template, a data handler and the slots it exposes. Siblings fetch concurrently; the page is written in order."
+      },
+      "cached": {
+        "title": "Cached by what it depends on",
+        "text": "Pages and data carry tags. Change an author and one call drops the author and every page that shows them."
+      },
+      "forms": {
+        "title": "Forms without JavaScript",
+        "text": "Actions answer POST with forgery protection built in, and a cached page can still carry a form."
+      },
+      "served": {
+        "title": "Served or exported",
+        "text": "One program is a server and a static site generator. This site is the second."
+      }
+    },
+    "howItWorks": "How it works",
+    "diagrams": {
+      "layouts": {
+        "title": "Layouts and slots",
+        "text": "A layout leaves a slot for the page's content, and a fragment can leave slots of its own. Fill them with fragments and collage assembles the page."
+      },
+      "fetch": {
+        "title": "Fetch at once",
+        "text": "Every fragment has its own data handler. Sibling fragments fetch together, and the HTML still comes out in order."
+      },
+      "invalidate": {
+        "title": "Invalidate by tag",
+        "text": "A page remembers what it was built from. Invalidate one tag and only the pages that used it are dropped."
+      },
+      "live": {
+        "title": "Stream fragments live",
+        "text": "With collage-live, invalidating a tag re-renders every open fragment that used it and pushes it to the browser over one stream. Only that part changes. For example CPU usage of the server here."
+      },
+      "dev": {
+        "title": "Save and see",
+        "text": "collage dev reloads the browser when a template changes and rebuilds when Go does. A failed render shows its file and line in the browser."
+      },
+      "build": {
+        "title": "Build, export, serve",
+        "text": "collage build makes one static binary, the site's whole server, for any operating system and architecture. collage export writes the site as static files, and collage serve serves them the way a static host would."
+      }
+    },
+    "theGuide": "The guide"
+  },
+  "notFound": {
+    "title": "Not found — collage",
+    "headline": "There is nothing here.",
+    "before": "The page may have moved. The ",
+    "guideLink": "guide",
+    "after": " starts at the beginning."
+  }
+}

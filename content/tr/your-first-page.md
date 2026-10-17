@@ -1,5 +1,5 @@
 ---
-description: Uygulamalı bir rehber. Bir layout, bir data handler ve bir template ile bir tarif page'i kurarsınız, bir slot'a ikinci bir fragment eklersiniz ve bütün tarifleri static dosyalara export edersiniz.
+description: Uygulamalı bir rehber: layout, data handler ve template ile tarif page'i kurar, slot'a ikinci bir fragment ekler, tarifleri static dosyalara export edersiniz.
 reference: New, NewPage, NewFragment, FragmentBuilder.WithData, FragmentBuilder.WithTitle, PageBuilder.WithStaticParams, Registrable, LoadTagged, Load, Value, ErrNotFound, ErrUnknownSlot, ErrTemplateType
 ---
 

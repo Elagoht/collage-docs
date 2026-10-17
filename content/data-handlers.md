@@ -1,5 +1,5 @@
 ---
-description: How a fragment fetches its data — the handler contract, fixed data, dependency tags, 404s, concurrency, the render context, sharing data, timeouts, and how templates are checked against their data.
+description: How a fragment fetches its data: the handler contract, dependency tags, 404s, concurrency, the render context, timeouts, and checking templates against data.
 reference: Data, FragmentBuilder.WithData, FragmentBuilder.WithTitle, FragmentBuilder.WithoutTypeCheck, LoadTagged, Load, Value, RenderContext, Key, NewKey, Once, Effect, ErrNotFound, ErrConflictingData, TemplateTypeError, ErrTemplateType, PanicError
 ---
 

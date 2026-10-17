@@ -137,10 +137,8 @@ func TestOneAddressPerPage(t *testing.T) {
 		"/en/docs/caching": "/en/docs/caching/",
 		"/tr":              "/tr/",
 		"/tr/docs/caching": "/tr/docs/caching/",
-		"/sitemap.xml":     "/en/sitemap.xml",
-		"/search.json":     "/en/search.json",
+		"/en/sitemap.xml":  "/sitemap.xml",
 		"/en/robots.txt":   "/robots.txt",
-		"/en/llms.txt":     "/llms.txt",
 	} {
 		rec := get(t, from)
 		if rec.Code != http.StatusMovedPermanently || rec.Header().Get("Location") != to {
@@ -157,8 +155,9 @@ func TestUnknownDocIsNotFound(t *testing.T) {
 	}
 }
 
-// The export writes the home page, every doc and the 404 page.
-func TestExport(t *testing.T) {
+// export writes the site the way "collage export" does and returns where.
+func export(t *testing.T) string {
+	t.Helper()
 	cacheDir = t.TempDir()
 	app, err := newApp(false, 0)
 	if err != nil {
@@ -168,10 +167,17 @@ func TestExport(t *testing.T) {
 	if err := staticBuild(app, out, false); err != nil {
 		t.Fatalf("staticBuild: %v", err)
 	}
+	return out
+}
+
+// The export writes the home page, every doc, the 404 page and what the plugins
+// serve: the sitemap, robots.txt, the search index and the icons.
+func TestExport(t *testing.T) {
+	out := export(t)
 	want := []string{
 		"index.html", "404.html", "robots.txt", "llms.txt", "llms-full.txt",
-		"en/index.html", "en/sitemap.xml", "en/search.json",
-		"tr/index.html", "tr/sitemap.xml", "tr/search.json",
+		"sitemap.xml", "search-index.json", "favicon.ico", "site.webmanifest",
+		"en/index.html", "tr/index.html",
 	}
 	eachPage(t, func(_ string, page *site.Page) {
 		want = append(want, filepath.Join(page.URL(), "index.html"))
@@ -183,40 +189,41 @@ func TestExport(t *testing.T) {
 	}
 }
 
-// Each language's sitemap lists its own pages at their published addresses, and
-// every language each page is in as an alternate.
-func TestSitemap(t *testing.T) {
-	set := load(t)
-	bodies := map[string]string{}
-	for _, locale := range set.Locales() {
-		rec := get(t, "/"+locale+"/sitemap.xml")
-		if rec.Code != http.StatusOK {
-			t.Fatalf("GET /%s/sitemap.xml = %d", locale, rec.Code)
+// A page of the documentation has its code coloured by elagoht/highlight, a table
+// of contents and a reading time from elagoht/toc, and its tables in a box that
+// scrolls.
+func TestDocPagePlugins(t *testing.T) {
+	body := get(t, "/en/docs/caching/").Body.String()
+	for _, want := range []string{`class="chroma"`, `/_highlight/style.`, `class="toc"`, "min read", `class="table-scroll"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("GET /en/docs/caching/ has no %s", want)
 		}
-		bodies[locale] = rec.Body.String()
 	}
+}
+
+// The sitemap lists every page in every language at its published address, with
+// every language it is in as an alternate.
+func TestSitemap(t *testing.T) {
+	rec := get(t, "/sitemap.xml")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /sitemap.xml = %d", rec.Code)
+	}
+	body := rec.Body.String()
 	eachPage(t, func(locale string, page *site.Page) {
-		if loc := "<loc>" + site.Origin + page.URL() + "</loc>"; !strings.Contains(bodies[locale], loc) {
-			t.Errorf("/%s/sitemap.xml has no %s", locale, loc)
+		if loc := "<loc>" + site.Origin + page.URL() + "</loc>"; !strings.Contains(body, loc) {
+			t.Errorf("sitemap.xml has no %s", loc)
 		}
-		for other, body := range bodies {
-			if other != locale && strings.Contains(body, "<loc>"+site.Origin+page.URL()+"</loc>") {
-				t.Errorf("/%s/sitemap.xml lists %s, a page in %s", other, page.URL(), locale)
-			}
-			if link := `hreflang="` + locale + `" href="` + site.Origin + page.URL() + `"`; !strings.Contains(body, link) {
-				t.Errorf("/%s/sitemap.xml has no alternate %s", other, link)
-			}
+		if link := `hreflang="` + locale + `" href="` + site.Origin + page.URL() + `"`; !strings.Contains(body, link) {
+			t.Errorf("sitemap.xml has no alternate %s", link)
 		}
 	})
 }
 
-// robots.txt is at the root and names every language's sitemap.
+// robots.txt is at the root and names the sitemap at an address that answers.
 func TestRobots(t *testing.T) {
 	body := get(t, "/robots.txt").Body.String()
-	for _, locale := range site.Locales() {
-		if want := "Sitemap: " + site.Origin + "/" + locale + "/sitemap.xml\n"; !strings.Contains(body, want) {
-			t.Errorf("robots.txt has no %q:\n%s", want, body)
-		}
+	if want := "Sitemap: " + site.Origin + "/sitemap.xml\n"; !strings.Contains(body, want) {
+		t.Errorf("robots.txt has no %q:\n%s", want, body)
 	}
 }
 
@@ -246,44 +253,34 @@ func TestLLMs(t *testing.T) {
 	}
 }
 
-// The search index has an entry for every page, each linking to a page that
-// exists, and none of them carries the text of a code block.
+// The export's search index has an entry for every page in its language, and
+// none of them carries the text of a code block. It lists a page by its path
+// without the trailing slash, which the host redirects to the page.
 func TestSearch(t *testing.T) {
-	set := load(t)
-	for _, locale := range set.Locales() {
-		searchIndex(t, "/"+locale+"/search.json", set.Site(locale))
-	}
-}
-
-func searchIndex(t *testing.T, index string, loaded *site.Site) {
-	rec := get(t, index)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("GET %s = %d", index, rec.Code)
-	}
-	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
-		t.Errorf("Content-Type = %q", ct)
+	raw, err := os.ReadFile(filepath.Join(export(t), "search-index.json"))
+	if err != nil {
+		t.Fatal(err)
 	}
 	var entries []struct {
-		Title string `json:"t"`
-		URL   string `json:"u"`
-		Text  string `json:"x"`
+		Path   string `json:"path"`
+		Text   string `json:"text"`
+		Locale string `json:"locale"`
 	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &entries); err != nil {
-		t.Fatalf("search.json does not decode: %v", err)
+	if err := json.Unmarshal(raw, &entries); err != nil {
+		t.Fatalf("search-index.json does not decode: %v", err)
 	}
-	seen := map[string]bool{}
+	seen := map[string]string{}
 	for _, entry := range entries {
-		path, _, _ := strings.Cut(entry.URL, "#")
-		seen[path] = true
+		seen[entry.Path] = entry.Locale
 		if strings.Contains(entry.Text, `WithSlotFragment("author", author)`) {
-			t.Errorf("%s indexes a code block", entry.URL)
+			t.Errorf("%s indexes a code block", entry.Path)
 		}
 	}
-	for _, page := range loaded.Pages() {
-		if !seen[page.URL()] {
-			t.Errorf("%s has nothing for %s", index, page.URL())
+	eachPage(t, func(locale string, page *site.Page) {
+		if got, ok := seen[strings.TrimSuffix(page.URL(), "/")]; !ok || got != locale {
+			t.Errorf("search-index.json has %s as %q, want %q", page.URL(), got, locale)
 		}
-	}
+	})
 }
 
 // Every identifier a page links to in the Go reference exists in the version of

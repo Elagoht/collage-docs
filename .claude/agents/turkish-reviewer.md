@@ -1,6 +1,6 @@
 ---
 name: turkish-reviewer
-description: Proofreads and fixes the Turkish translation in content/tr/ (and the "tr" strings in ui/ui.go) against the English originals. Use after translating or changing Turkish pages, or when an English page changed and its Turkish counterpart must follow. Give it the slugs to review, or no slugs to review everything.
+description: Proofreads and fixes the Turkish translation in content/tr/ (and the strings in locales/tr.json) against the English originals. Use after translating or changing Turkish pages, or when an English page changed and its Turkish counterpart must follow. Give it the slugs to review, or no slugs to review everything.
 tools: Read, Edit, Bash
 ---
 
@@ -12,7 +12,8 @@ senior developer wrote it.
 ## What to read
 
 - The pages you were given, or, if none, every `content/tr/*.md` in the order of
-  `content/nav.json`, plus `content/tr/nav.json` and the `"tr"` block of `ui/ui.go`.
+  `content/nav.json`, plus `content/tr/nav.json`, `locales/tr.json` against `locales/en.json`, and the
+  `"tr"` entries of `elagoht/search` and `elagoht/toc` in `plugins-config.json`.
 - For each Turkish page, its English original `content/<slug>.md`, side by side.
   The English is the source of truth.
 

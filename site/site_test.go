@@ -29,15 +29,15 @@ func TestLoad(t *testing.T) {
 	if strings.Contains(string(one.Body), "<h1") {
 		t.Error("the title heading is still in the body; the template writes it")
 	}
-	if len(one.Headings) != 1 || one.Headings[0].ID != "setup" {
-		t.Errorf("headings = %+v", one.Headings)
+	if len(one.outline) != 1 || one.outline[0].ID != "setup" {
+		t.Errorf("headings = %+v", one.outline)
 	}
 	if one.Next == nil || one.Next.Slug != "two" || one.Prev != nil {
 		t.Errorf("one's neighbours are wrong")
 	}
 	two, _ := s.Page("two")
-	if !strings.Contains(string(two.Body), `class="chroma"`) {
-		t.Errorf("code was not highlighted: %s", two.Body)
+	if !strings.Contains(string(two.Body), `<code class="language-go">`) {
+		t.Errorf("code does not name its language, which elagoht/highlight needs: %s", two.Body)
 	}
 }
 
@@ -62,32 +62,18 @@ func TestLoad_Refusals(t *testing.T) {
 	}
 }
 
-// A page's text is split at its headings for search, code blocks left out.
-func TestLoad_Parts(t *testing.T) {
+// A table scrolls in a box of its own, so it never widens the page.
+func TestLoad_TablesScroll(t *testing.T) {
 	s, err := Load(files(map[string]string{
-		"one": "# One\n\nIntro with `inline()` code.\n\n## Setup\n\nFirst **step**.\n\n```go\nfunc hidden() {}\n```\n\n- a list item\n\n| a | b |\n|---|---|\n| cell | two |\n",
+		"one": "# One\n\n| a | b |\n|---|---|\n| cell | two |\n",
 	}, `[{"title":"S","pages":["one"]}]`))
 	if err != nil {
 		t.Fatal(err)
 	}
 	one, _ := s.Page("one")
-	if len(one.Parts) != 2 {
-		t.Fatalf("parts = %+v, want the intro and Setup", one.Parts)
-	}
-	if one.Parts[0].Heading != "" || one.Parts[0].Text != "Intro with inline() code." {
-		t.Errorf("intro = %+v", one.Parts[0])
-	}
-	setup := one.Parts[1]
-	if setup.ID != "setup" || setup.Heading != "Setup" {
-		t.Errorf("setup = %+v", setup)
-	}
-	for _, want := range []string{"First step.", "a list item", "cell", "two"} {
-		if !strings.Contains(setup.Text, want) {
-			t.Errorf("setup text %q lacks %q", setup.Text, want)
-		}
-	}
-	if strings.Contains(setup.Text, "hidden") {
-		t.Errorf("setup text %q includes a code block", setup.Text)
+	if !strings.Contains(string(one.Body), `<div class="table-scroll" tabindex="0"><table>`) ||
+		!strings.Contains(string(one.Body), "</table></div>") {
+		t.Errorf("the table is not in a scroll box: %s", one.Body)
 	}
 }
 
@@ -124,7 +110,7 @@ func TestLoadSet(t *testing.T) {
 	if one.URL() != "/tr/docs/one/" || one.Path() != "/docs/one" || one.Section != "Başlangıç" {
 		t.Errorf("one: URL %q, Path %q, Section %q", one.URL(), one.Path(), one.Section)
 	}
-	if got := one.Headings; len(got) != 2 || got[0].ID != "setup" || got[1].ID != "details" || got[0].Text != "Kurulum" {
+	if got := one.outline; len(got) != 2 || got[0].ID != "setup" || got[1].ID != "details" || got[0].Text != "Kurulum" {
 		t.Errorf("headings = %+v, want the original's ids with the translation's text", got)
 	}
 	body := string(one.Body)

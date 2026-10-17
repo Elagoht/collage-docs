@@ -14,7 +14,6 @@ import (
 func register(app *collage.App, docs func() (*site.Set, error)) error {
 	if err := app.Register(
 		pages.HomePage(app, docs), pages.DocPage(app, docs),
-		documents.Robots(app), documents.Sitemap(app, docs), documents.Search(app, docs),
 		documents.LLMs(app, docs), documents.LLMsFull(app, docs),
 	); err != nil {
 		return err

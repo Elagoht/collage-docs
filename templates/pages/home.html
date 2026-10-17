@@ -1,32 +1,56 @@
 <main class="home">
   <section class="hero">
-    <svg class="logo" viewBox="0 0 96 96" aria-hidden="true">
-      <rect class="tile tile-a" x="8" y="14" width="46" height="46" rx="6" />
-      <rect class="tile tile-b" x="40" y="8" width="44" height="34" rx="6" />
-      <rect class="tile tile-c" x="30" y="44" width="56" height="42" rx="6" />
-    </svg>
-    <h1>{{.T.HomeHeadline}}</h1>
-    <p class="tagline">{{.T.HomeTagline}}</p>
-    <div class="actions">
-      <a class="button primary" href="{{pageURL "doc" "slug" "introduction"}}">{{.T.ReadGuide}}</a>
-      <a class="button" href="https://github.com/Elagoht/collage">{{.T.ViewOnGitHub}}</a>
+    <div class="hero-text">
+      <p class="eyebrow">{{t "home.eyebrow"}}</p>
+      <h1>{{th "home.headline"}}</h1>
+      <p class="tagline">{{t "home.tagline"}}</p>
+      <div class="actions">
+        <a class="button primary" href="{{pageURL "doc" "slug" "introduction"}}">{{t "home.readGuide"}}</a>
+        <a class="button" href="https://github.com/Elagoht/collage">{{t "home.viewOnGitHub"}}</a>
+      </div>
     </div>
-    <pre class="install"><code>go install github.com/Elagoht/collage/cmd/collage@latest
-collage new mysite && cd mysite && go mod tidy
-collage dev</code></pre>
+    <div class="hero-art">
+      <figure style="display: flex; align-items: center;">
+        <img src="{{asset "/static/favicon.svg"}}" alt="Collage Logo" height="128" width="128"/>
+        <span style="font-size: 128px; color: var(--tile-c); font-weight: bold;">ollage</span>
+      </figure>
+      <pre class="install"><code><span class="prompt">$</span> go install github.com/Elagoht/collage/cmd/collage@latest
+<span class="prompt">$</span> collage new &lt;project_name&gt;
+<span class="prompt">$</span> cd &lt;project_name&gt;
+<span class="prompt">$</span> go mod tidy
+<span class="prompt">$</span> collage dev</code></pre>
+    </div>
   </section>
 
-  <section class="points" aria-label="{{.T.WhatYouGet}}">
-    {{range .T.Points}}
+  <section class="points" aria-label="{{t "home.whatYouGet"}}">
+    {{with "home.points.fragments"}}
     <article>
-      <h2>{{.Title}}</h2>
-      <p>{{.Text}}</p>
+      <h2>{{t (print . ".title")}}</h2>
+      <p>{{t (print . ".text")}}</p>
+    </article>
+    {{end}}
+    {{with "home.points.cached"}}
+    <article>
+      <h2>{{t (print . ".title")}}</h2>
+      <p>{{t (print . ".text")}}</p>
+    </article>
+    {{end}}
+    {{with "home.points.forms"}}
+    <article>
+      <h2>{{t (print . ".title")}}</h2>
+      <p>{{t (print . ".text")}}</p>
+    </article>
+    {{end}}
+    {{with "home.points.served"}}
+    <article>
+      <h2>{{t (print . ".title")}}</h2>
+      <p>{{t (print . ".text")}}</p>
     </article>
     {{end}}
   </section>
 
   <section class="how" aria-labelledby="how-title">
-    <h2 id="how-title">{{.T.HowItWorks}}</h2>
+    <h2 id="how-title">{{t "home.howItWorks"}}</h2>
     <div class="diagrams">
       <svg class="diagram diagram-defs" aria-hidden="true" focusable="false">
         <defs>
@@ -71,7 +95,7 @@ collage dev</code></pre>
         </defs>
       </svg>
 
-      {{with index .T.Diagrams 0}}
+      {{with "home.diagrams.layouts"}}
       <figure class="wide">
         <svg class="diagram only-wide" viewBox="0 0 680 180" aria-hidden="true">
           <use href="#c-layout" x="10" y="10" width="140" height="160" />
@@ -94,13 +118,13 @@ collage dev</code></pre>
           <use href="#c-page" x="70" y="264" width="180" height="160" />
         </svg>
         <figcaption>
-          <h3>{{.Title}}</h3>
-          <p>{{.Text}}</p>
+          <h3>{{t (print . ".title")}}</h3>
+          <p>{{t (print . ".text")}}</p>
         </figcaption>
       </figure>
       {{end}}
 
-      {{with index .T.Diagrams 1}}
+      {{with "home.diagrams.fetch"}}
       <figure>
         <svg class="diagram" viewBox="0 0 320 180" aria-hidden="true">
           <defs>
@@ -121,13 +145,13 @@ collage dev</code></pre>
           <rect class="d-c" x="150" y="130" width="148" height="26" rx="4" /><text class="d-on-c" x="160" y="147">related</text>
         </svg>
         <figcaption>
-          <h3>{{.Title}}</h3>
-          <p>{{.Text}}</p>
+          <h3>{{t (print . ".title")}}</h3>
+          <p>{{t (print . ".text")}}</p>
         </figcaption>
       </figure>
       {{end}}
 
-      {{with index .T.Diagrams 2}}
+      {{with "home.diagrams.invalidate"}}
       <figure>
         <svg class="diagram" viewBox="0 0 320 180" aria-hidden="true">
           <defs>
@@ -160,18 +184,18 @@ collage dev</code></pre>
           </g>
         </svg>
         <figcaption>
-          <h3>{{.Title}}</h3>
-          <p>{{.Text}}</p>
+          <h3>{{t (print . ".title")}}</h3>
+          <p>{{t (print . ".text")}}</p>
         </figcaption>
       </figure>
       {{end}}
 
-      {{with index .T.Diagrams 3}}
+      {{with "home.diagrams.live"}}
       <figure>
         <svg class="diagram" viewBox="0 0 320 180" aria-hidden="true">
           <rect class="d-frame" x="12" y="38" width="92" height="104" rx="8" />
           <rect class="d-bar" x="22" y="50" width="72" height="22" rx="3" /><circle class="d-dot" cx="32" cy="61" r="3" />
-          <rect class="d-a" x="22" y="79" width="72" height="22" rx="3" /><text class="d-on-a" x="36" y="94">cpu</text>
+          <rect class="d-a" x="22" y="79" width="72" height="22" rx="3" /><text class="d-on-a" x="36" y="94">cpu%12</text>
           <rect class="d-bar" x="22" y="108" width="72" height="22" rx="3" /><circle class="d-dot" cx="32" cy="119" r="3" />
 
           <line class="d-stream-track" x1="104" y1="90" x2="196" y2="90" />
@@ -183,17 +207,17 @@ collage dev</code></pre>
           <circle class="d-dot" cx="207" cy="31" r="2.5" /><circle class="d-dot" cx="215" cy="31" r="2.5" /><circle class="d-dot" cx="223" cy="31" r="2.5" />
           <rect class="d-bar" x="206" y="50" width="92" height="12" rx="3" />
           <rect class="d-bar" x="206" y="70" width="44" height="82" rx="3" />
-          <rect class="d-a d-pulse" x="256" y="70" width="42" height="38" rx="3" /><text class="d-on-a" x="277" y="93" text-anchor="middle">cpu</text>
+          <rect class="d-a d-pulse" x="256" y="70" width="42" height="38" rx="3" /><text class="d-on-a" x="277" y="93" text-anchor="middle">cpu%12</text>
           <rect class="d-bar" x="256" y="114" width="42" height="38" rx="3" />
         </svg>
         <figcaption>
-          <h3>{{.Title}}</h3>
-          <p>{{.Text}}</p>
+          <h3>{{t (print . ".title")}}</h3>
+          <p>{{t (print . ".text")}}</p>
         </figcaption>
       </figure>
       {{end}}
 
-      {{with index .T.Diagrams 4}}
+      {{with "home.diagrams.dev"}}
       <figure>
         <svg class="diagram" viewBox="0 0 320 180" aria-hidden="true">
           <defs>
@@ -220,13 +244,13 @@ collage dev</code></pre>
           </g>
         </svg>
         <figcaption>
-          <h3>{{.Title}}</h3>
-          <p>{{.Text}}</p>
+          <h3>{{t (print . ".title")}}</h3>
+          <p>{{t (print . ".text")}}</p>
         </figcaption>
       </figure>
       {{end}}
 
-      {{with index .T.Diagrams 5}}
+      {{with "home.diagrams.build"}}
       <figure class="wide">
         <svg class="diagram only-wide" viewBox="0 0 680 190" aria-hidden="true">
           <rect class="d-frame" x="10" y="64" width="110" height="62" rx="8" />
@@ -280,15 +304,15 @@ collage dev</code></pre>
           <text class="d-small" x="240" y="252" text-anchor="middle">*.html · static</text>
         </svg>
         <figcaption>
-          <h3>{{.Title}}</h3>
-          <p>{{.Text}}</p>
+          <h3>{{t (print . ".title")}}</h3>
+          <p>{{t (print . ".text")}}</p>
         </figcaption>
       </figure>
       {{end}}
     </div>
   </section>
 
-  <section class="map" aria-label="{{.T.TheGuide}}">
+  <section class="map" aria-label="{{t "home.theGuide"}}">
     {{range .Sections}}
     <div>
       <h2>{{.Title}}</h2>

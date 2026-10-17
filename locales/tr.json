@@ -1,0 +1,86 @@
+{
+  "language": {
+    "label": "Dil"
+  },
+  "nav": {
+    "label": "Site",
+    "docs": "Dokümantasyon",
+    "goReference": "Go referansı",
+    "menu": "Menü"
+  },
+  "footer": {
+    "text": "collage MIT lisanslıdır. Bu sayfalar, static dosyalara export edilmiş bir collage sitesidir.",
+    "links": "Bağlantılar"
+  },
+  "doc": {
+    "contents": "İçindekiler",
+    "documentation": "Dokümantasyon",
+    "onThisPage": "Bu sayfada",
+    "pages": "Sayfalar",
+    "previous": "Önceki",
+    "next": "Sonraki"
+  },
+  "home": {
+    "title": "collage — Go ile cache'lenmiş fragment'lerden page'ler",
+    "description": "Cache'lenmiş fragment'lerden oluşan, sunucuda render edilen page'ler için bir Go framework'ü. Hiçbir bağımlılığı yoktur.",
+    "eyebrow": "Bir Go framework'ü",
+    "headline": "<mark>Cache'lenmiş fragment'lerden</mark> oluşan page'ler.",
+    "tagline": "collage, sunucuda render edilen siteler için bir Go framework'üdür. Bir page, fragment'leri saran bir layout'tur. Her fragment kendi verisini çeker. Page ise neyden oluştuysa ona göre cache'lenir ve invalidate edilir. Client framework'ü, JavaScript build adımı ya da bağımlılık gerekmez.",
+    "readGuide": "Rehberi oku",
+    "viewOnGitHub": "GitHub'da görüntüle",
+    "whatYouGet": "Neler sunuyor",
+    "points": {
+      "fragments": {
+        "title": "Component değil, fragment",
+        "text": "Bir fragment; bir template, bir data handler ve dışarı açtığı slot'lardan oluşur. Kardeş fragment'ler verilerini eşzamanlı çeker, page yine de sırasıyla yazılır."
+      },
+      "cached": {
+        "title": "Neye bağlıysa ona göre cache'lenir",
+        "text": "Page'ler ve veriler tag taşır. Bir yazarı değiştirdiğinizde tek bir çağrı hem yazarı hem de onu gösteren her page'i cache'ten düşürür."
+      },
+      "forms": {
+        "title": "JavaScript'siz form'lar",
+        "text": "Action'lar POST request'lerini yerleşik forgery korumasıyla karşılar. Cache'lenmiş bir page de form içerebilir."
+      },
+      "served": {
+        "title": "Serve edin ya da export edin",
+        "text": "Tek bir program hem sunucu hem de static site generator'dır. Bu site ikinci yolla üretildi."
+      }
+    },
+    "howItWorks": "Nasıl çalışır",
+    "diagrams": {
+      "layouts": {
+        "title": "Layout'lar ve slot'lar",
+        "text": "Layout, page'in içeriği için bir slot bırakır. Bir fragment da kendi slot'larını bırakabilir. Slot'ları fragment'lerle doldurun, collage page'i birleştirir."
+      },
+      "fetch": {
+        "title": "Aynı anda çekin",
+        "text": "Her fragment'in kendi data handler'ı vardır. Kardeş fragment'ler verilerini eşzamanlı çeker, HTML yine de sırasıyla yazılır."
+      },
+      "invalidate": {
+        "title": "Tag ile invalidate edin",
+        "text": "Bir page neyden oluştuğunu bilir. Tek bir tag'i invalidate edin, yalnızca onu kullanan page'ler cache'ten düşer."
+      },
+      "live": {
+        "title": "Fragment'leri canlı stream edin",
+        "text": "collage-live ile bir tag'i invalidate etmek, onu kullanan ve açık olan her fragment'i yeniden render eder ve tek bir stream üzerinden tarayıcıya gönderir. Yalnızca o parça değişir. Örneğin burada, sunucunun CPU kullanımı."
+      },
+      "dev": {
+        "title": "Kaydedin ve görün",
+        "text": "collage dev, bir template değiştiğinde tarayıcıyı yeniler, Go kodu değiştiğinde yeniden build eder. Başarısız bir render, dosyasını ve satırını tarayıcıda gösterir."
+      },
+      "build": {
+        "title": "Build edin, export edin, serve edin",
+        "text": "collage build, her işletim sistemi ve mimari için sitenin sunucusunun tamamı olan tek bir static binary üretir. collage export siteyi static dosyalar olarak yazar, collage serve de onları bir static host gibi serve eder."
+      }
+    },
+    "theGuide": "Rehber"
+  },
+  "notFound": {
+    "title": "Bulunamadı — collage",
+    "headline": "Burada bir şey yok.",
+    "before": "Aradığınız sayfa taşınmış olabilir. ",
+    "guideLink": "Rehberi",
+    "after": " en baştan okuyabilirsiniz."
+  }
+}

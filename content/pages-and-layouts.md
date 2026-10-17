@@ -1,5 +1,5 @@
 ---
-description: What a page is, how its layouts and content fit together, who may see it, the paths that reach it, how it is cached, what it shows when it fails, and what registration does to it.
+description: What a page is: its layouts and content, who may see it, the paths that reach it, how it is cached, what it shows when it fails, and what registration does.
 reference: Registrable, ErrNilRegistrable, NewPage, PageBuilder, PageBuilder.WithLayouts, Page, RenderPage, DefaultContentSlot, StrategyAuto, FragmentBuilder.WithGuard, GuardFunc, GuardDecision
 ---
 

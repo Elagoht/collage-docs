@@ -1,5 +1,5 @@
 ---
-description: A hands-on tutorial — build a recipe page with a layout, a data handler and a template, add a second fragment in a slot, and export every recipe to static files.
+description: A hands-on tutorial: build a recipe page with a layout, a data handler and a template, add a second fragment in a slot, and export every recipe to static files.
 reference: New, NewPage, NewFragment, FragmentBuilder.WithData, FragmentBuilder.WithTitle, PageBuilder.WithStaticParams, Registrable, LoadTagged, Load, Value, ErrNotFound, ErrUnknownSlot, ErrTemplateType
 ---
 

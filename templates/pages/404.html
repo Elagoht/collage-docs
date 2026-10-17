@@ -1,4 +1,5 @@
 <main class="not-found">
-  <h1>{{.NotFoundHeadline}}</h1>
-  <p>{{.NotFoundBefore}}<a href="{{pageURL "doc" "slug" "introduction"}}">{{.NotFoundGuideLink}}</a>{{.NotFoundAfter}}</p>
+  <p class="code" aria-hidden="true">404</p>
+  <h1>{{t "notFound.headline"}}</h1>
+  <p>{{t "notFound.before"}}<a href="{{pageURL "doc" "slug" "introduction"}}">{{t "notFound.guideLink"}}</a>{{t "notFound.after"}}</p>
 </main>

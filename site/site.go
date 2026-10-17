@@ -17,9 +17,7 @@ import (
 	"regexp"
 	"strings"
 
-	chromahtml "github.com/alecthomas/chroma/v2/formatters/html"
 	"github.com/yuin/goldmark"
-	highlighting "github.com/yuin/goldmark-highlighting/v2"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
@@ -61,31 +59,16 @@ type Page struct {
 	// every link to another page pointing where the site serves it — the text
 	// llms-full.txt is made of.
 	Markdown string
-	Headings []Heading
 	// References are the identifiers of package collage the page is about, as
 	// "Name" or "Type.Method", linked to their Go reference.
 	References []Reference
-	// Parts are the page's text, split at its headings, for search.
-	Parts      []Part
 	Prev, Next *Page
 
 	prefix string
 	// outline is every heading below the title, in order, whatever its level:
-	// what a translation's headings are held to.
+	// what a translation's headings are held to, and what a link's fragment is
+	// checked against.
 	outline []Heading
-}
-
-// Part is one stretch of a page between headings: what search matches and where a
-// result links to.
-type Part struct {
-	// ID is the heading's anchor, empty for the text before the first heading.
-	ID string
-	// Heading is the heading's text, empty likewise.
-	Heading string
-	// Text is the prose under it — paragraphs, lists, tables, inline code — with
-	// the markup taken away. Code blocks are left out: they are long, and the
-	// names in them are in the prose around them too.
-	Text string
 }
 
 // ReferenceBase is the Go reference of package collage; an identifier's entry is
@@ -100,7 +83,7 @@ type Reference struct {
 // URL is the identifier's entry in the Go reference.
 func (r Reference) URL() string { return ReferenceBase + "#" + r.Name }
 
-// Heading is one entry of a page's table of contents.
+// Heading is one heading of a page below its title.
 type Heading struct {
 	ID    string
 	Text  string
@@ -321,8 +304,7 @@ func (s *Site) checkLinks(base *Site) error {
 	return nil
 }
 
-// hasHeading reports whether the page has a heading with the id, at any level: an
-// h4 is as much an anchor as the h2 and h3 the table of contents lists.
+// hasHeading reports whether the page has a heading with the id, at any level.
 func (p *Page) hasHeading(id string) bool {
 	for _, h := range p.outline {
 		if h.ID == id {
@@ -332,14 +314,11 @@ func (p *Page) hasHeading(id string) bool {
 	return false
 }
 
+// newMarkdown renders code blocks as <pre><code class="language-go">, which
+// elagoht/highlight colours once the page has rendered.
 func newMarkdown() goldmark.Markdown {
 	return goldmark.New(
-		goldmark.WithExtensions(
-			extension.GFM,
-			highlighting.NewHighlighting(
-				highlighting.WithFormatOptions(chromahtml.WithClasses(true)),
-			),
-		),
+		goldmark.WithExtensions(extension.GFM),
 		goldmark.WithParserOptions(parser.WithAutoHeadingID()),
 		goldmark.WithRendererOptions(html.WithUnsafe()),
 	)
@@ -408,11 +387,7 @@ func parsePage(md goldmark.Markdown, name string, source []byte, original *Page,
 		}
 		id, _ := heading.AttributeString("id")
 		idText, _ := id.([]byte)
-		entry := Heading{ID: string(idText), Text: label, Level: heading.Level}
-		page.outline = append(page.outline, entry)
-		if heading.Level <= 3 {
-			page.Headings = append(page.Headings, entry)
-		}
+		page.outline = append(page.outline, Heading{ID: string(idText), Text: label, Level: heading.Level})
 		return ast.WalkContinue, nil
 	})
 	if err != nil {
@@ -421,7 +396,6 @@ func parsePage(md goldmark.Markdown, name string, source []byte, original *Page,
 	for _, title := range titles {
 		title.Parent().RemoveChild(title.Parent(), title)
 	}
-	page.Parts = parts(doc, body)
 	if page.Title == "" {
 		return nil, fmt.Errorf("site: %s.md has no title", slug)
 	}
@@ -432,8 +406,16 @@ func parsePage(md goldmark.Markdown, name string, source []byte, original *Page,
 	if err := md.Renderer().Render(&out, body, doc); err != nil {
 		return nil, fmt.Errorf("site: %s.md: %w", slug, err)
 	}
-	page.Body = template.HTML(out.String())
+	page.Body = template.HTML(scrollTables(out.String()))
 	return page, nil
+}
+
+// scrollTables puts every table in a box that scrolls sideways, so a table wider
+// than a phone scrolls inside the page rather than widening it. The box can take
+// focus, so a keyboard can scroll it too.
+func scrollTables(body string) string {
+	body = strings.ReplaceAll(body, "<table>", `<div class="table-scroll" tabindex="0"><table>`)
+	return strings.ReplaceAll(body, "</table>", "</table></div>")
 }
 
 // align gives a translation's headings the ids of the original's, so that an
@@ -511,36 +493,6 @@ func retarget(doc ast.Node, linkTo func(slug string) string) {
 		link.Destination = []byte(target)
 		return ast.WalkContinue, nil
 	})
-}
-
-// parts splits a page's top-level blocks at its headings, keeping the text of
-// everything but code and raw HTML.
-func parts(doc ast.Node, source []byte) []Part {
-	current := Part{}
-	var out []Part
-	var text strings.Builder
-	flush := func() {
-		current.Text = strings.Join(strings.Fields(text.String()), " ")
-		if current.Text != "" || current.Heading != "" {
-			out = append(out, current)
-		}
-		text.Reset()
-	}
-	for block := doc.FirstChild(); block != nil; block = block.NextSibling() {
-		switch node := block.(type) {
-		case *ast.Heading:
-			flush()
-			id, _ := node.AttributeString("id")
-			idText, _ := id.([]byte)
-			current = Part{ID: string(idText), Heading: headingText(node, source)}
-		case *ast.FencedCodeBlock, *ast.CodeBlock, *ast.HTMLBlock:
-		default:
-			text.WriteString(headingText(block, source))
-			text.WriteByte(' ')
-		}
-	}
-	flush()
-	return out
 }
 
 // headingText is a heading's text as a reader sees it: its inline content with

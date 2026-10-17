@@ -1,1 +1,39 @@
-{}
+{
+  "elagoht/i18n": { "strict": true },
+  "elagoht/meta": {
+    "siteName": "collage",
+    "locales": { "en": "en_US", "tr": "tr_TR" }
+  },
+  "elagoht/jsonld": { "siteName": "collage" },
+  "elagoht/sitemap": {},
+  "elagoht/robots": { "sitemaps": ["/sitemap.xml"] },
+  "elagoht/favicon": {
+    "source": "static/icon.png",
+    "svg": "static/favicon.svg",
+    "name": "collage",
+    "themeColor": "#1f1e1d",
+    "backgroundColor": "#f7f7f7"
+  },
+  "elagoht/toc": {
+    "maxLevel": 3,
+    "text": { "label": "On this page", "readingTime": "{n} min read" },
+    "locales": { "tr": { "label": "Bu sayfada", "readingTime": "{n} dk okuma" } }
+  },
+  "elagoht/highlight": { "light": "github", "dark": "github-dark", "noBackground": true },
+  "elagoht/search": {
+    "exclude": ["home"],
+    "text": { "label": "Search", "placeholder": "Search the docs" },
+    "locales": {
+      "tr": {
+        "label": "Ara",
+        "placeholder": "Dokümantasyonda ara",
+        "results": "{n} sonuç",
+        "oneResult": "1 sonuç",
+        "noResults": "Sonuç yok",
+        "unavailable": "Arama, export edilmiş sitede çalışır."
+      }
+    }
+  },
+  "elagoht/htmlcheck": {},
+  "elagoht/minimizer": { "js": true }
+}

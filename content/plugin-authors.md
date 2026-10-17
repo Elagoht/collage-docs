@@ -1,5 +1,5 @@
 ---
-description: What a repository must hold for collage plugin add to install it — the name, the manifest, a New that needs no setup, a release tag — and how collage plugin check proves it.
+description: What a repository needs for collage plugin add to install it — a name, a manifest, a New with no setup, a release tag — and how collage plugin check proves it.
 reference: Plugin, Host, FindPlugin, Configurer, PluginConfig
 ---
 

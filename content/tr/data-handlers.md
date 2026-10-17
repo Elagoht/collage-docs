@@ -1,5 +1,5 @@
 ---
-description: Bir fragment'in verisini nasıl çektiğini anlatır: handler sözleşmesi, sabit veri, dependency tag'ler, 404'ler, eşzamanlılık, render context'i, veri paylaşımı, timeout'lar ve template'lerin verilerine göre nasıl kontrol edildiği.
+description: Fragment'in verisini nasıl çektiği: handler sözleşmesi, dependency tag'ler, 404'ler, eşzamanlılık, render context'i, timeout'lar, template'in veriyle kontrolü.
 reference: Data, FragmentBuilder.WithData, FragmentBuilder.WithTitle, FragmentBuilder.WithoutTypeCheck, LoadTagged, Load, Value, RenderContext, Key, NewKey, Once, Effect, ErrNotFound, ErrConflictingData, TemplateTypeError, ErrTemplateType, PanicError
 ---
 

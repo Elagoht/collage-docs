@@ -1,5 +1,5 @@
 ---
-description: Template'lerin nerede durduğu, nasıl yüklenip binary'ye embed edildiği, development'ta nasıl yeniden yüklendiği; slot'lar, built-in ve kendi fonksiyonlarınız, escaping.
+description: Template'lerin nerede durduğu, nasıl yüklenip binary'ye embed edildiği, development'ta nasıl yeniden yüklendiği; slot'lar, fonksiyonlar ve escaping.
 reference: TemplateConfig, Config, ErrUnknownSlot, ErrTemplateType
 ---
 

@@ -1,5 +1,5 @@
 ---
-description: Built-in template fonksiyonlarının tamamını imzaları, örnekleri ve sınır durumlarıyla anlatır. Bunlar slot, hoist, asset, stylesheet, csrfToken, URL fonksiyonları ve string yardımcılarıdır.
+description: Built-in template fonksiyonlarının tamamı (slot, hoist, asset, csrfToken, URL fonksiyonları, string yardımcıları), imzaları, örnekleri ve sınır durumları.
 reference: TemplateConfig, DefaultContentSlot, ErrUnknownSlot, FragmentBuilder.WithTitle, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath
 ---
 

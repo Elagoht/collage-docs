@@ -1,5 +1,5 @@
 ---
-description: Test the real application through app.Handler() with pkg/collagetest — a client that keeps cookies and submits forms the way a browser does — pages, forms with their forgery token, documents and the static export.
+description: Test the real application through app.Handler() with pkg/collagetest, a client that keeps cookies and submits forms like a browser: pages, forms, the export.
 reference: Build, BuildOptions, App
 ---
 

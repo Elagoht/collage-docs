@@ -13,3 +13,6 @@ var Translations = []string{"tr"}
 
 // Locales is every language the site is in, the original first.
 func Locales() []string { return append([]string{Original}, Translations...) }
+
+// LanguageNames is each language's name in itself, for the language switcher.
+var LanguageNames = map[string]string{"en": "English", "tr": "Türkçe"}

@@ -7,15 +7,16 @@ import (
 
 	"github.com/Elagoht/collage/pkg/collage"
 
+	jsonld "github.com/Elagoht/collage-jsonld"
+	meta "github.com/Elagoht/collage-meta"
+
 	"github.com/Elagoht/collage-docs/fragments/layouts"
 	"github.com/Elagoht/collage-docs/site"
-	"github.com/Elagoht/collage-docs/ui"
 )
 
 // docView is what templates/pages/doc.html renders: the page, and the whole
 // navigation for the sidebar, in the page's language.
 type docView struct {
-	T        ui.Text
 	Page     *site.Page
 	Sections []site.Section
 }
@@ -46,10 +47,14 @@ func DocPage(app *collage.App, docs func() (*site.Set, error)) *collage.Page {
 				return docView{}, err
 			}
 			rc.HoistTitle(page.Title + " — collage")
-			if page.Description != "" {
-				rc.HoistMeta("description", page.Description)
-			}
-			return docView{T: ui.For(rc.Locale), Page: page, Sections: loaded.Sections}, nil
+			meta.Set(rc, meta.Page{Title: page.Title, Description: page.Description, Type: meta.Article})
+			jsonld.Emit(rc, jsonld.Article{
+				Headline:    page.Title,
+				Description: page.Description,
+				Section:     page.Section,
+				URL:         site.Origin + page.URL(),
+			})
+			return docView{Page: page, Sections: loaded.Sections}, nil
 		})).
 		Required().
 		Build()

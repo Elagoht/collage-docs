@@ -1,5 +1,5 @@
 ---
-description: Stylesheet'leri, script'leri, görselleri ve indirilecek dosyaları bir dizinden ya da gömülü bir dosya sisteminden, bir yıl boyunca cache'lenebilen URL'lerle sunmak.
+description: Stylesheet'leri, script'leri, görselleri ve indirilecek dosyaları bir dizinden ya da gömülü bir dosya sisteminden, bir yıl cache'lenebilen URL'lerle sunmak.
 reference: App.Mount, MountOption, WithCacheControl, WithoutBuildCopy, ErrUnknownAsset
 ---
 
