@@ -1,5 +1,5 @@
 [
-  { "title": "Getting started", "pages": ["introduction", "installation", "your-first-page"] },
+  { "title": "Getting started", "pages": ["introduction", "installation", "your-first-page", "update-part-of-a-page"] },
   { "title": "Core concepts", "pages": ["pages-and-layouts", "fragments-and-slots", "data-handlers", "templates"] },
   { "title": "Building a site", "pages": ["caching", "forms-and-actions", "links-and-locales", "head-and-seo", "assets", "documents", "middleware-and-apis", "previews"] },
   { "title": "Shipping", "pages": ["static-export", "deployment", "security", "testing"] },

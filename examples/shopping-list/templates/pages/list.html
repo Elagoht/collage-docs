@@ -1,0 +1,13 @@
+<main>
+  <h1>Shopping list</h1>
+
+  {{slot "items"}}
+
+  <form id="add" method="post" action="{{pageURL "list"}}">
+    {{csrfToken}}
+    <label>Item <input name="name" required autocomplete="off"></label>
+    <button>Add</button>
+  </form>
+
+  <script src="{{asset "/static/list.js"}}" defer></script>
+</main>

@@ -595,6 +595,8 @@ See [Testing](/docs/testing) for forms, cookies and the rest of the client, and
 
 ## Where to go next
 
+- [Update part of a page](/docs/update-part-of-a-page) — the next tutorial: a
+  fragment at its own URL, a form, and a few lines of JavaScript.
 - [Pages and layouts](/docs/pages-and-layouts) — paths, strategies, error pages,
   and what registration does to a page.
 - [Fragments and slots](/docs/fragments-and-slots) — slots, failure policy, and

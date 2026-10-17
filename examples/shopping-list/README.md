@@ -1,0 +1,37 @@
+# shopping-list
+
+A [collage](https://collage.furkanbaytekin.dev/en/) project, scaffolded by
+`collage new --template minimal`.
+
+```
+go mod tidy
+collage dev       # http://localhost:6060, reloading as you edit
+collage build     # -> bin/shopping-list
+collage export    # -> dist/, static files
+```
+
+`main.go` is how `collage dev` and `collage export` run this program: if you
+rewrite it, keep both working. The guide starts at
+https://collage.furkanbaytekin.dev/en/docs/introduction/.
+
+## Plugins
+
+What the framework leaves out comes as plugins, each its own module. A few worth
+adding early:
+
+- [collage-htmlcheck](https://github.com/Elagoht/collage-htmlcheck) checks the
+  HTML you render — a missing `alt`, a skipped heading, a link to nothing — over the
+  page in development and in `collage export`'s report.
+- [collage-sitemap](https://github.com/Elagoht/collage-sitemap),
+  [collage-robots](https://github.com/Elagoht/collage-robots) and
+  [collage-feed](https://github.com/Elagoht/collage-feed) for search engines and
+  feed readers.
+- [collage-secure](https://github.com/Elagoht/collage-secure) for security headers,
+  [collage-flash](https://github.com/Elagoht/collage-flash) for a "saved" message
+  after a form, [collage-i18n](https://github.com/Elagoht/collage-i18n) for
+  translations.
+
+`collage plugin add elagoht/sitemap` fetches one, adds it to `plugins.go`, and
+gives it an empty section in `plugins-config.json`, where its settings go;
+`collage plugin del` takes it out again. All of them:
+https://collage.furkanbaytekin.dev/en/docs/plugins/.
