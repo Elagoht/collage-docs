@@ -1,14 +1,5 @@
 <main class="home">
   <section class="hero">
-    <div class="hero-text">
-      <p class="eyebrow">{{t "home.eyebrow"}}</p>
-      <h1>{{th "home.headline"}}</h1>
-      <p class="tagline">{{t "home.tagline"}}</p>
-      <div class="actions">
-        <a class="button primary" href="{{pageURL "doc" "slug" "introduction"}}">{{t "home.readGuide"}}</a>
-        <a class="button" href="https://github.com/Elagoht/collage">{{t "home.viewOnGitHub"}}</a>
-      </div>
-    </div>
     <div class="hero-art">
       <p class="wordmark" role="img" aria-label="collage">
         <img src="{{asset "/static/favicon.svg"}}" alt="" width="128" height="128">
@@ -19,6 +10,15 @@
 <span class="prompt">$</span> cd &lt;project_name&gt;
 <span class="prompt">$</span> go mod tidy
 <span class="prompt">$</span> collage dev</code></pre>
+    </div>
+    <div class="hero-text">
+      <p class="eyebrow">{{t "home.eyebrow"}}</p>
+      <h1>{{th "home.headline"}}</h1>
+      <p class="tagline">{{t "home.tagline"}}</p>
+      <div class="actions">
+        <a class="button primary" href="{{pageURL "doc" "slug" "introduction"}}">{{t "home.readGuide"}}</a>
+        <a class="button" href="https://github.com/Elagoht/collage">{{t "home.viewOnGitHub"}}</a>
+      </div>
     </div>
   </section>
 

@@ -473,7 +473,7 @@ mark:hover {
 
 .hero {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr);
   align-items: center;
   gap: clamp(2rem, 6vw, 6rem);
   padding: clamp(3rem, 9vw, 6rem) 0 3rem;
@@ -566,13 +566,13 @@ mark:hover {
 .install {
   width: 100%;
   margin: 0;
-  padding: 1rem 1.2rem;
+  padding: 1rem;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   box-shadow: 0 12px 40px rgb(0 0 0 / .08);
   overflow-x: auto;
-  font: .8rem/1.8 var(--mono);
+  font: .72rem/1.8 var(--mono);
 }
 
 .install .prompt {
