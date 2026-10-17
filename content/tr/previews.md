@@ -318,7 +318,7 @@ page'i vardır. `hello` yazısı yayımlanmıştır ve okuyuculara page cache'te
 Editör Ada, CMS'te yazının girişini yeniden yazar ve yayımlamadan önce sonucu sitede
 görmek ister.
 
-Site yukarıdaki gibi bağlanmıştır: preview middleware'i, iki action ve `postData`.
+Site yukarıdaki gibi ve cache açık olarak (`Cache: collage.CacheConfig{Enabled: true}`) bağlanmıştır: preview middleware'i, iki action ve `postData`.
 Yazının page'i bir saat cache'lenir:
 
 ```go
@@ -348,11 +348,11 @@ Development dışında request'ler sırasıyla şunları alır:
 | --- | --- | --- | --- | --- | --- |
 | 1 | Bir okuyucu | `GET /blog/hello` | Yayımlanmış yazı, render edilip saklanır | `public, max-age=3600` | `MISS` |
 | 2 | Başka bir okuyucu | `GET /blog/hello` | Saklanan kopya | `public, max-age=3600` | `HIT` |
-| 3 | Ada, CMS'in preview düğmesinden | `GET /api/preview?secret=…&slug=hello` | `/blog/hello`'ya bir `303` ve preview cookie'si | — | — |
+| 3 | Ada, CMS'in preview düğmesinden | `GET /api/preview?secret=…&slug=hello` | `/blog/hello`'ya bir `303` ve preview cookie'si | `no-store` | — |
 | 4 | Ada | `GET /blog/hello` | Banner'lı taslak | `private, no-store` | yok |
 | 5 | Ada, bir düzenlemeden sonra | `GET /blog/hello` | Yeni taslak: `collage.Cached` veriyi yeniden çekti | `private, no-store` | yok |
 | 6 | Bir okuyucu | `GET /blog/hello` | Hâlâ yayımlanmış kopya | `public, max-age=3600` | `HIT` |
-| 7 | Ada, banner'dan | `GET /api/preview/exit` | `/`'ye bir `303` ve silinen cookie | — | — |
+| 7 | Ada, banner'dan | `GET /api/preview/exit` | `/`'ye bir `303` ve silinen cookie | `no-store` | — |
 
 4. ve 5. satırlar yalnızca Ada için render edilir. Bu render'ların çektiği hiçbir
 şey cache'e ulaşmaz. Bu yüzden 6. satırdaki okuyucuya, 2. satırdaki okuyucuyla aynı

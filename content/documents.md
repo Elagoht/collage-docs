@@ -709,10 +709,13 @@ if err := app.InvalidateTags(ctx, "catalog"); err != nil {
 </figure>
 
 The documents a visitor has read are warmed, as pages are; see
-[Caching](/docs/caching#warming-after-an-invalidation). The same call reaches cached
-pages too: a page whose handler returns `catalog`, as the catalogue page on
+[Caching](/docs/caching#warming-after-an-invalidation). Each tag
+reaches cached pages too, the ones whose handlers returned it: `product:<id>`
+also reaches that product's page, and `catalog` also reaches a catalogue page whose
+handler returns `catalog`, as the one on
 [Links and locales](/docs/links-and-locales#example-a-bilingual-product-catalogue)
-does, is invalidated with the feeds and sitemaps whenever it is cached.
+does, whenever it is cached. Changing one product does not refresh the
+catalogue listing; invalidate `catalog` for that.
 
 ## What documents do not do
 

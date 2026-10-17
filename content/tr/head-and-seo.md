@@ -410,7 +410,8 @@ func loadProduct(ctx context.Context, rc *collage.RenderContext) (product, []str
 		return product{}, nil, err
 	}
 
-	return p, []string{"product:" + id}, nil
+	return product{ID: p.ID, Name: p.Name, Price: p.Price, Summary: p.Summary, ImageURL: p.ImageURL},
+		[]string{"product:" + id}, nil
 }
 
 func loadStock(ctx context.Context, rc *collage.RenderContext) (stockLevel, error) {

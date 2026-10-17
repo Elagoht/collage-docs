@@ -723,11 +723,13 @@ if err := app.InvalidateTags(ctx, "catalog"); err != nil {
 </figure>
 
 Bir ziyaretçinin okuduğu document'lar, page'ler gibi warm edilir. Bkz.
-[Caching](/docs/caching#warming-after-an-invalidation). Aynı çağrı cache'lenmiş
-page'lere de ulaşır.
+[Caching](/docs/caching#warming-after-an-invalidation). Her tag,
+handler'ı onu dönen cache'lenmiş page'lere de ulaşır: `product:<id>` o ürünün
+page'ine de ulaşır. `catalog` ise
 [Link'ler ve locale'ler](/docs/links-and-locales#example-a-bilingual-product-catalogue)
-sayfasındaki katalog page'inde olduğu gibi handler'ı `catalog` dönen bir page,
-cache'lenmişse feed'ler ve sitemap'lerle birlikte invalidate edilir.
+sayfasındaki gibi handler'ı `catalog` dönen bir katalog page'ine, cache'lenmişse,
+ulaşır. Tek bir ürünü değiştirmek katalog listesini yenilemez; bunun için
+`catalog`'u invalidate edin.
 
 ## Document'ların yapmadıkları
 

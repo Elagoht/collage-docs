@@ -310,7 +310,7 @@ post `hello` is published, and readers are served it from the page cache. Ada, a
 editor, rewrites its introduction in the CMS and wants to see the result on the
 site before she publishes it.
 
-The site is wired as above: the preview middleware, the two actions and `postData`.
+The site is wired as above, with caching on (`Cache: collage.CacheConfig{Enabled: true}`): the preview middleware, the two actions and `postData`.
 The post's page is cached for an hour:
 
 ```go
@@ -340,11 +340,11 @@ What each request gets, in order, outside development:
 | --- | --- | --- | --- | --- | --- |
 | 1 | A reader | `GET /blog/hello` | The published post, rendered and stored | `public, max-age=3600` | `MISS` |
 | 2 | Another reader | `GET /blog/hello` | The stored copy | `public, max-age=3600` | `HIT` |
-| 3 | Ada, from the CMS's preview button | `GET /api/preview?secret=…&slug=hello` | A `303` to `/blog/hello` and the preview cookie | — | — |
+| 3 | Ada, from the CMS's preview button | `GET /api/preview?secret=…&slug=hello` | A `303` to `/blog/hello` and the preview cookie | `no-store` | — |
 | 4 | Ada | `GET /blog/hello` | The draft, with the banner | `private, no-store` | none |
 | 5 | Ada, after another edit | `GET /blog/hello` | The new draft: `collage.Cached` fetched again | `private, no-store` | none |
 | 6 | A reader | `GET /blog/hello` | Still the published copy | `public, max-age=3600` | `HIT` |
-| 7 | Ada, from the banner | `GET /api/preview/exit` | A `303` to `/` and the cookie cleared | — | — |
+| 7 | Ada, from the banner | `GET /api/preview/exit` | A `303` to `/` and the cookie cleared | `no-store` | — |
 
 Rows 4 and 5 render for Ada alone. Nothing they fetched reaches the cache, so the
 reader in row 6 is served the same stored copy as the reader in row 2.
