@@ -1,0 +1,19 @@
+package pages
+
+import (
+	"shopping-list/fragments/layouts"
+	fragments "shopping-list/fragments/pages"
+
+	"github.com/Elagoht/collage/pkg/collage"
+)
+
+// Returns the home page: its layout, content and path.
+//
+// No Static() needed: nothing here fetches per render, so the page is static.
+func Home() *collage.Page {
+	return collage.NewPage("home").
+		WithLayouts(layouts.Master()).
+		WithContent(fragments.Home()).
+		WithPath("en", "/").
+		Build()
+}
