@@ -189,6 +189,25 @@ func TestExport(t *testing.T) {
 	}
 }
 
+// The export's root is the English home page itself, not a page that sends the
+// reader on, and it names /en/ as its canonical address.
+func TestExportRootIsHome(t *testing.T) {
+	root, err := os.ReadFile(filepath.Join(export(t), "index.html"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(root)
+	if !strings.Contains(body, `class="home"`) {
+		t.Errorf("index.html is not the home page:\n%s", body)
+	}
+	if strings.Contains(body, `http-equiv="refresh"`) {
+		t.Errorf("index.html refreshes to another page:\n%s", body)
+	}
+	if !strings.Contains(body, `rel="canonical"`) || !strings.Contains(body, site.Origin+"/en/") {
+		t.Errorf("index.html names no canonical %s/en/", site.Origin)
+	}
+}
+
 // A page of the documentation has its code coloured by elagoht/highlight, a table
 // of contents and a reading time from elagoht/toc, and its tables in a box that
 // scrolls.

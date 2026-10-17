@@ -95,8 +95,8 @@ Adla üretilen her link de prefix'i taşır. Document'lar da aynı şekilde pref
 `/en/sitemap.xml`, `/tr/sitemap.xml`'in yanında durur. Tek istisna, sitenin
 [`AtRoot`](/docs/documents#example-robotstxt) ile oluşturulan kendi dosyalarıdır:
 `/robots.txt` kökte durur, başka hiçbir yerde durmaz (v0.14.1'den beri). Export,
-varsayılan locale'i `en/` altına yazar ve köke de okuyucuyu `/en/`'e gönderen bir page
-koyar.
+varsayılan locale'i `en/` altına yazar ve köke de `/en/` home page'inin bir kopyasını
+koyar. Bu kopya, canonical adresi olarak `/en/`'i gösterir.
 
 Bir fragment bu sonucu `rc.Locale` olarak okur ve doğru içeriği çekmek için
 kullanır:
