@@ -276,23 +276,24 @@ cevap verir: `localhost` ya da onun altındaki bir ad, bir IP adresi, `example.c
 ya da `*.test` gibi ayrılmış bir ad (v0.56.0'dan beri), başlatıldığı `HOST` veya
 `COLLAGE_DEV_HOST` içindeki bir ad. Diğer her şeyi `403` ile reddeder.
 
-Başka bir sitedeki bir page,
-kendi adının `127.0.0.1`'e çözümlenmesini sağlayabilir (DNS rebinding) ve böylece
-`collage dev` ile same-origin olur. Bu durumda page'lerinizi, stack'leriyle birlikte
-development hata sayfalarını ve programın çıktısını okuyabilirdi. Gönderdiği `Host`
-ise kendi adıdır ve bunu değiştiremez.
+Başka bir sitedeki bir page, kendi adının `127.0.0.1`'e çözümlenmesini
+sağlayabilir (DNS rebinding) ve böylece `collage dev` ile same-origin olur. Bu
+durumda page'lerinizi, stack'leriyle birlikte development hata sayfalarını ve
+programın çıktısını okuyabilir. Gönderdiği `Host` ise kendi adıdır ve bunu
+değiştiremez.
 
-`collage dev`'e başka bir adla erişmek için
-onu `HOST` bu ada ayarlanmış olarak başlatın ya da adı `COLLAGE_DEV_HOST` içine
-yazın. Bu, virgülle ayrılmış bir listedir. Örneğin `app,mybox.lan`, bir
-docker-compose servisini ve bir LAN adını verir. `collage dev` onu shell'den ya da
-environment dosyasından okur, kendi proxy'sine uygular ve programı listeyi kendi
-`HOST`'uyla birlikte vererek başlatır. Program loopback'te dinler ama tarayıcının
-`Host`'unu görür. Program da development modunda aynı kuralı uygular.
+`collage dev`'e başka bir adla erişmek için onu `HOST` bu ada ayarlanmış olarak
+başlatın ya da adı `COLLAGE_DEV_HOST` içine yazın. Bu, virgülle ayrılmış bir
+listedir. Örneğin `app,mybox.lan`, bir docker-compose servisini ve bir LAN adını
+verir. `collage dev` onu shell'den ya da environment dosyasından okur ve kendi
+proxy'sine uygular. Programı da listeye kendi `HOST`'unu ekleyerek başlatır,
+çünkü program loopback'te dinler ama tarayıcının `Host`'unu görür. Program da
+development modunda aynı kuralı uygular.
 
 v0.56.0'dan beri `collage dev`, kendi proxy'si loopback dışında bir adrese
-bağlandığında ayrıca bir Warn log'lar, çünkü development sayfalarına o zaman başka
-makinelerden erişilebilir. Bkz. [Deployment](/docs/deployment#development-mode-stays-on-this-machine).
+bağlandığında ayrıca bir Warn log'lar, çünkü development sayfalarına o zaman
+başka makinelerden erişilebilir. Bkz.
+[Deployment](/docs/deployment#development-mode-stays-on-this-machine).
 
 Programın yazdıkları terminale programın yazdığı gibi ulaşır, tek bir farkla:
 programın kendi adresi `collage dev`'in adresiyle değiştirilir. Böylece
@@ -637,9 +638,8 @@ JSON'dur; arkasındaki Go tipleri (`App.Inspect`, `collage.Inspection`,
 `collage.InspectCommand`) v0.60.0'da public API'den çıktı ve çıktı byte byte
 öncekiyle aynıdır.
 
-Adı prefix'lidir, böylece
-hiçbir plugin'in komut adını elinden almaz. Scaffold edilen `main.go`, flag'lerinden
-sonraki kelimeyi `DispatchCommands`'a verir (bkz.
+Adı prefix'lidir, böylece hiçbir plugin'in komut adını elinden almaz. Scaffold
+edilen `main.go`, flag'lerinden sonraki kelimeyi `DispatchCommands`'a verir (bkz.
 [Plugin komutları](#plugin-commands)). Bu yüzden collage v0.27.0 veya daha yeni bir
 sürümle çalışan, scaffold edilmiş bir projenin başka hiçbir şeye ihtiyacı yoktur.
 Argümanlarını bu şekilde dispatch etmeyen bir programın ise cevap verecek bir şeyi
@@ -693,25 +693,22 @@ sırasında olduğu gibi kontrol edebilir (bkz.
   tip Go adıyla key'lenir ve export edilmiş alanlarını (promote edilenler dahil)
   ve kendisinin ve pointer'ının bir şey dönen export edilmiş method'larını
   içerir.
-  - Export edilmiş bir embedded alan da bir alandır: template ona
-    `{{.Base}}` diye ulaşır. Bu alan `"embedded": true` taşır, promote ettiği
-    alanlar da her zamanki gibi yanında listelenir (v0.51.1'den beri).
-  - İsimli bir
-    pointer, slice, array, map ya da chan, tuttuğu tipi `elem` ile verir. Map
-    ayrıca `key` de taşır (v0.51.1'den beri).
-  - Bir tip bir kez listelenir, diğer
-    her yerde adıyla anılır. Böylece
+  - Export edilmiş bir embedded alan da bir alandır: template ona `{{.Base}}`
+    diye ulaşır. Bu alan `"embedded": true` taşır, promote ettiği alanlar da her
+    zamanki gibi yanında listelenir (v0.51.1'den beri).
+  - İsimli bir pointer, slice, array, map ya da chan, tuttuğu tipi `elem` ile
+    verir. Map ayrıca `key` de taşır (v0.51.1'den beri).
+  - Bir tip bir kez listelenir, diğer her yerde adıyla anılır. Böylece
     özyinelemeli bir tip sonsuza gitmez. İsimsiz bir struct, Go yazımıyla
     listelenir. Diğer isimsiz bileşik tipler bir tip string'inin içinde yazılır
     (`[]blog.Comment`).
-  - `time.Time` ve `template.HTML` gibi standart kütüphane
-    tipleri ayrıntılandırılmaz, yalnızca adıyla anılır.
-  - Hiçbir fragment'in bilinen bir veri
-    tipi yoksa `types` yazılmaz.
-  - İki farklı tipin paylaştığı bir key (`models`
-    adlı iki paketteki `models.User`) alan ve method içermeden
-    `{"kind": "struct", "ambiguous": true}` olarak yazılır ve editör onu bilinmeyen
-    bir tip sayar (v0.51.2'den beri).
+  - `time.Time` ve `template.HTML` gibi standart kütüphane tipleri
+    ayrıntılandırılmaz, yalnızca adıyla anılır.
+  - Hiçbir fragment'in bilinen bir veri tipi yoksa `types` yazılmaz.
+  - İki farklı tipin paylaştığı bir key (`models` adlı iki paketteki
+    `models.User`), alan ve method içermeden
+    `{"kind": "struct", "ambiguous": true}` olarak yazılır ve editör onu
+    bilinmeyen bir tip sayar (v0.51.2'den beri).
 
 Bunlar eklemedir: çıktının `version`'ı hâlâ `1`'dir.
 
@@ -949,8 +946,9 @@ verildiğinde `collage: unknown command: "nope"` yazdırır ve `2` ile çıkar.
 
 ## Örnek: yeni bir projeden ilk deploy'a
 
-Yukarıdaki komutlar, bir sitenin onlarla karşılaştığı sırayla: bir laptop'ta
-yazılan ve başka platformdaki bir sunucuya deploy edilen `myblog` adlı bir proje.
+Bu bölüm, yukarıdaki komutları bir sitenin onlarla karşılaştığı sırayla izler.
+Proje, bir laptop'ta yazılan ve başka platformdaki bir sunucuya deploy edilen
+`myblog` adlı bir sitedir.
 Çıktıdaki saatler, boyutlar, hash'ler ve cache dizinleri sizin makinenizde
 farklı olur.
 
@@ -973,8 +971,8 @@ Next steps:
   collage dev
 ```
 
-Scaffold edilen `go.mod` yalnızca module'ü ve Go sürümünü içerir; collage'ı ona
-`go mod tidy` ekler.
+Scaffold edilen `go.mod` yalnızca module adını ve Go sürümünü içerir;
+collage'ı `go mod tidy` ekler.
 
 **2. Çalıştırın.**
 
@@ -990,8 +988,8 @@ collage dev
 ```
 
 `http://localhost:6060` adresinde `Hello from myblog` görünür. Çalışır hâlde
-bırakın: sonraki adım Go dosyaları ekler ve dosyalar geldiğinde proje yeniden
-build edilir.
+bırakın: sonraki adım Go dosyaları ekler ve `collage dev`, dosyalar oluştuğunda
+projeyi yeniden build eder.
 
 **3. Bir page ekleyin ve link'leri kontrol edin.** İkinci bir terminalde:
 
@@ -1019,7 +1017,7 @@ collage: check: nothing found
 ```
 
 İlk satır programın kendisine aittir, çünkü `check` programı başlatır. İkincisi
-sonuçtur ve çıkış kodu `0`'dır; CI'da bu, `collage build`'den önceki adımdır.
+kontrolün sonucudur ve çıkış kodu `0`'dır; CI'da bu, `collage build`'den önceki adımdır.
 
 **4. Sunucu için build edin.** Laptop sunucu değildir, bu yüzden sunucunun
 platformunu belirtin ve iki ek dosyayı `-i` ile isteyin:
@@ -1051,10 +1049,10 @@ yeniden çalıştırdığınızda iki soru da sorulmaz, çünkü dosyalar zaten 
 biri `bin/myblog`'u kullanır:
 
 - **Servis unit'i**, derlediğiniz binary'yi çalıştırır. `bin/myblog`'u sunucuda
-  `/usr/local/bin/myblog` olarak kopyalayın, unit'in `User` ve `WorkingDirectory`
-  değerlerini düzenleyin (dosya bunları bilemez) ve unit'i ilk yorumunun
-  söylediği yere kurun. `127.0.0.1:8080` üzerinde, önündeki bir reverse proxy
-  için dinler.
+  `/usr/local/bin/myblog` konumuna kopyalayın. Unit'in `User` ve
+  `WorkingDirectory` değerlerini düzenleyin (dosya bunları bilemez) ve unit'i
+  ilk yorum satırında belirtilen yere kurun. Önüne konacak bir reverse proxy
+  için `127.0.0.1:8080` üzerinde dinler.
 - **Image dosyası** kendi binary'sini derler: ilk aşaması projeyi kaynaktan aynı
   flag'lerle derler, ikinci aşaması da sonucu taşır. Raporun söylediği gibi proje
   kökünden build edin. `0.0.0.0:8080` üzerinde dinler.
@@ -1066,10 +1064,10 @@ biri `bin/myblog`'u kullanır:
 rastgele byte'a ayarlayın. Aksi hâlde her process için bir key üretilir ve bir
 restart'tan önce gönderilen her form, restart'tan sonra reddedilir.
 
-Plugin'leri `-i`'dan önce ekleyin. Image dosyası `plugins-config.json`'ı yalnızca
-dosya yazıldığı sırada projede varsa kopyalar ve `-i` dosyayı hiçbir zaman
-yeniden yazmaz; sonradan eklenen bir plugin, o `COPY` satırını elle eklemek
-demektir.
+Plugin'leri `-i`'den önce ekleyin. Image dosyası `plugins-config.json`'ı
+yalnızca dosya yazıldığı sırada projede varsa kopyalar ve `-i` dosyayı hiçbir
+zaman yeniden yazmaz. Sonradan eklenen bir plugin için o `COPY` satırını elle
+eklemeniz gerekir.
 
 **Ya da export edin.** Dosya sunan bir host için `collage export -clean`, bunun
 yerine `dist/`'i render eder ve raporu yeni page'i dışarıda bırakır:
@@ -1088,7 +1086,7 @@ yerine `dist/`'i render eder ve raporu yeni page'i dışarıda bırakır:
 
 `collage add`, `about`'a bir `collage.Load` handler'ı verdi ama strateji vermedi,
 bu yüzden page dynamic'tir. `pages/about.go` içindeki builder'ına `.Static()`
-ekleyin, bir sonraki export `dist/about/index.html`'i de yazar. Ardından
+ekleyin; bir sonraki export `dist/about/index.html`'i de yazar. Ardından
 `collage serve`, `dist/`'i `localhost:4000`'de bir static host'un sunacağı gibi
 gösterir.
 
@@ -1225,8 +1223,8 @@ go run . pages
 | `1` | açılış hatası, çalışıp başarısız olan bir komut ya da `Run`'ı olmayan bir komut |
 | `2` | nil bir app, argüman verilmemesi ya da hiçbir plugin'in register etmediği bir kelime (`ErrUnknownCommand`) |
 
-Hiçbir komuta karşılık gelmeyen bir
-kelime, yanlışlıkla başlatılmış bir sunucuya değil, kullanım hatasına yol açar.
+Hiçbir komuta karşılık gelmeyen bir kelime, yanlışlıkla başlatılmış bir sunucuya
+değil, kullanım hatasına yol açar.
 Hiçbir plugin'in register etmediği bir kelimeye yine de cevap verilir:
 [`collage inspect`](#collage-inspect) komutunun çalıştırdığı `collage-inspect`.
 Hiçbir komut eşleşmediğinde sunucuyu başlatmayı tercih eden bir program,
@@ -1234,11 +1232,9 @@ Hiçbir komut eşleşmediğinde sunucuyu başlatmayı tercih eden bir program,
 edebilir. Kendi kullanım metninizi yazdırmak isterseniz `app.Commands()`
 plugin'lerin register ettiği komutları listeler.
 
-Dispatch işlemi uygulamayı başlatır
-ve bu da register aşamasını kapatır. Sonradan çağrılan `ListenAndServe` aynı başlatmayı
-yeniden kullanır. `DispatchCommands` uygulamayı shutdown etmez, çünkü bir program
+Dispatch işlemi uygulamayı başlatır ve bu da register aşamasını kapatır. Sonradan
+çağrılan `ListenAndServe` aynı başlatmayı yeniden kullanır. `DispatchCommands` uygulamayı shutdown etmez, çünkü bir program
 ardından onunla hizmet vermeye devam edebilir. Bir komut çalıştıktan sonra,
 yukarıdaki gibi `app.Shutdown`'ı kendiniz çağırın. Böylece her plugin'in
-`Shutdown`'ı çalışır.
-Böyle bir komutun nasıl yazıldığı
+`Shutdown`'ı çalışır. Böyle bir komutun nasıl yazıldığı
 [Plugin yazmak](/docs/writing-plugins#commands) sayfasında anlatılır.

@@ -41,9 +41,9 @@ başarısız olur. Bu durumda fragment'in kendi failure policy'si uygulanır:
 - optional bir fragment fallback'ini render eder;
 - fallback'i yoksa hiçbir şey render etmez.
 
-Development mode'da bu "hiçbir şey", fragment'in adını ve hatasını içeren bir HTML
-yorumudur. Page'in üstündeki development paneli de fallback'i olsun olmasın,
-başarısız olan her fragment'i adıyla listeler. v0.36.0'dan beri hata her mode'da
+Development modunda bu "hiçbir şey", fragment'in adını ve hatasını içeren bir
+HTML yorumudur. Page'in üstündeki development paneli de fallback'i olsun olmasın,
+başarısız olan her fragment'i adıyla listeler. v0.36.0'dan beri hata her modda
 ayrıca bir uyarı olarak log'lanır. Ayrıntılar için
 [Fragment'ler ve slot'lar](/docs/fragments-and-slots) sayfasına bakın.
 
@@ -91,7 +91,7 @@ kalan dokuz fonksiyonu ise değiştirebilirsiniz.
 <line class="d-flow" x1="140" y1="174" x2="90" y2="188" marker-end="url(#tf-bind-arrow)" />
 <line class="d-flow" x1="180" y1="174" x2="230" y2="188" marker-end="url(#tf-bind-arrow)" />
 <rect class="d-a" x="12" y="192" width="146" height="40" rx="5" /><text class="d-on-a" x="85" y="208" text-anchor="middle">11 per-render</text><text class="d-on-a d-small" x="85" y="223" text-anchor="middle">bu render'dan bağlanır</text>
-<rect class="d-c" x="162" y="192" width="146" height="40" rx="5" /><text class="d-on-c" x="235" y="208" text-anchor="middle">AddRenderFunc</text><text class="d-on-c d-small" x="235" y="223" text-anchor="middle">plugin'in, her render</text>
+<rect class="d-c" x="162" y="192" width="146" height="40" rx="5" /><text class="d-on-c" x="235" y="208" text-anchor="middle">AddRenderFunc</text><text class="d-on-c d-small" x="235" y="223" text-anchor="middle">plugin'lerin, per-render</text>
 <text class="d-small" x="160" y="252" text-anchor="middle">bir Template.Funcs entry'si…</text>
 <g class="d-dropped"><rect class="d-frame" x="12" y="260" width="146" height="40" rx="6" /><text x="85" y="276" text-anchor="middle">"pageURL"</text><text class="d-small" x="85" y="291" text-anchor="middle">parse edilir, çalışmaz</text></g>
 <rect class="d-chip-hit" x="162" y="260" width="146" height="40" rx="8" /><text class="d-hit-text" x="235" y="276" text-anchor="middle">"upper"</text><text class="d-hit-text d-small" x="235" y="291" text-anchor="middle">built-in'in yerini alır</text>
@@ -120,9 +120,8 @@ bir slot'a sahip olabilir ve bu slot'lar birbirine karışmaz.
 - Slot'u tanımlayan, `slot`'un çağrılmasıdır. Fragment'in Go kodunda bunun için
   `WithSlot` gerekmez. Template'in çağırdığı ama hiçbir şey bağlanmamış bir slot
   hiçbir şey render etmez.
-- Kontrol ters yöndedir: bu template'in hiç çağırmadığı
-  bir slot'a bağlanmış bir fragment, register sırasında `ErrUnknownSlot` ile
-  başarısız olur. Hata, slot'u ve template'in gerçekten çağırdığı slot'ları söyler.
+- Kontrol ters yöndedir: bu template'in hiç çağırmadığı bir slot'a bağlanmış bir
+  fragment, register sırasında `ErrUnknownSlot` ile başarısız olur. Hata, slot'u ve template'in gerçekten çağırdığı slot'ları söyler.
   Aksi hâlde bağlamanın iki tarafından birindeki bir yazım hatası, sessizce eksik
   kalan bir bölüm olurdu. Literal dışında bir şeyle adlandırılan bir slot
   (`{{slot .Which}}`), o fragment için kontrolü kapatır.
@@ -253,8 +252,8 @@ form ise nedenini açıklayan hiçbir şey olmadan reddedilir.
 Render sırasında yazılan değer bir placeholder'dır. Response yazılırken bu
 placeholder her okuyucunun kendi token'ıyla değiştirilir.
 
-**Cache'lenmiş** bir page'in form taşıyabilmesinin nedeni budur: cache'teki byte'larda placeholder durur
-ve her okuyucu kendi token'ını alır.
+**Cache'lenmiş** bir page'in form taşıyabilmesinin nedeni budur: cache'teki
+byte'larda placeholder durur ve her okuyucu kendi token'ını alır.
 
 - `Security.DisableCSRF` set edildiğinde `csrfToken`, render'ı `ErrCSRFDisabled` ile
   başarısız kılar. Aksi hâlde token bekleyen bir form token'sız render edilirdi.
@@ -503,8 +502,8 @@ Bu fonksiyonlar built-in'lerin üzerine merge edilir. Bu yüzden built-in bir ad
 taşıyan entry, o built-in'in yerini alır. Her render'da bağlanan fonksiyonlar bunun
 dışındadır.
 
-Fonksiyonların `New`'dan önce tanımlı olması gerekir, çünkü
-`html/template` yalnızca template parse edilirken function map'te bulunan bir adı
+Fonksiyonların `New`'dan önce tanımlı olması gerekir, çünkü `html/template`
+yalnızca template parse edilirken function map'te bulunan bir adı
 çağırabilir. Kimsenin register etmediği bir adı çağıran template, ilk request'te
 değil, `New`'da hata verir.
 
@@ -579,11 +578,11 @@ func loadStock(ctx context.Context, rc *collage.RenderContext) (int, error) {
 }
 ```
 
-Page'in ve stok kutusunun her locale'de bir path'i var, sepet action'ının da öyle:
+Page'in, stok kutusunun ve sepet action'ının her locale'de bir path'i vardır:
 
 - Katalog page'i, Link'ler ve locale'ler sayfasının register ettiği page'dir.
-- `addToBasket` action'ın handler'ıdır,
-  [Form'lar ve action'lar](/docs/forms-and-actions) sayfasındaki gibi.
+- `addToBasket`, [Form'lar ve action'lar](/docs/forms-and-actions) sayfasındaki
+  gibi action'ın handler'ıdır.
 - `static/`, [Static asset'ler](/docs/assets) sayfasındaki gibi `/static/`
   altına mount edilir.
 - Ürün `Required`'dır: o olmadan page'in gösterecek bir şeyi yoktur.
@@ -664,10 +663,10 @@ zaman path yazmaz:
 <p class="stock">{{.}}</p>
 ```
 
-### Okuyucuya ne gider
+### Okuyucuya ulaşan
 
-`/tr/urunler/42` isteği 200 döner. Boş satırlar çıkarılmış ve token kısaltılmış
-olarak page şöyledir:
+`/tr/urunler/42` için gelen request 200 ile cevaplanır. Boş satırlar çıkarılmış ve
+token kısaltılmış hâliyle page şöyledir:
 
 ```html
 <!doctype html>
@@ -708,8 +707,8 @@ gelir; URL'ler render'ın locale'ine göre değişir:
 | `localeURL "en"`, `localeURL "tr"` | `/products/42`, `/tr/urunler/42` | aynı |
 | `asset .Image` | `/static/products/42.04115f7d8dde41ce.svg` | aynı |
 
-- **Title ve `product.css` marker'a yerleşir**, layout'un marker'ın üstüne yazdığı
-  `app.css`'in arkasına. Önce title gelir: handler onu template çalışmadan önce
+- **Title ve `product.css` marker'a yerleşir.** İkisi de layout'un marker'ın
+  üstüne yazdığı `app.css`'ten sonra gelir. Önce title gelir: handler onu template çalışmadan önce
   tanımlamıştır.
 - **`asset`, veriden gelen bir path'i de literal bir path kadar kolay alır.**
   Mount'ta olmayan bir resim `ErrUnknownAsset`'tir. Ürün required olduğu için page,

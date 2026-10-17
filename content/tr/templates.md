@@ -254,9 +254,9 @@ Aşağıdaki fonksiyonlar, `html/template`'in kendi fonksiyonlarıyla (`printf`,
 | `pageURL "name" "param" value …` | Register edilmiş bir page'in ya da document'ın, bu render'ın locale'indeki URL'sini verir |
 | `pageURLIn "locale" "name" …` | Aynısını, tam olarak verilen locale'de verir |
 | `localeURL "locale"` | Bu page'in başka bir locale'deki URL'sini verir. Page'in o locale'de bir path'i yoksa boş döner |
-| `actionURL "name" …` | Bir action'ın bu render'ın locale'indeki URL'si |
-| `fragmentURL "page" "fragment" …` | Bir fragment path'inin bu render'ın locale'indeki URL'si |
-| `fragmentURLIn "locale" "page" "fragment" …` | Aynısı, tam olarak verilen locale'de |
+| `actionURL "name" …` | Bir action'ın, bu render'ın locale'indeki URL'sini verir |
+| `fragmentURL "page" "fragment" …` | Bir fragment path'inin, bu render'ın locale'indeki URL'sini verir |
+| `fragmentURLIn "locale" "page" "fragment" …` | Aynısını, tam olarak verilen locale'de verir |
 | `asset "/static/app.css"` | Mount edilmiş bir dosyanın content-addressed URL'sini verir |
 | `stylesheet "/static/app.css"` | Page'in `<head>`'i için bir stylesheet tanımlar |
 | `hoist "head"` | Page'in bir alanı için yapılan tanımların yerleşeceği yeri belirler |
