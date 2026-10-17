@@ -91,7 +91,7 @@ Documents are prefixed the same way, `/en/sitemap.xml` beside `/tr/sitemap.xml`,
 except the site's own files, built with
 [`AtRoot`](/docs/documents#example-robotstxt): `/robots.txt` is at the root and
 nowhere else (since v0.14.1). An export writes the default locale under `en/`, and
-at its root a page that sends the reader to `/en/`.
+at its root a copy of the `/en/` home that names `/en/` as its canonical address.
 
 A fragment reads the result as `rc.Locale`, and uses it to fetch the right
 content:

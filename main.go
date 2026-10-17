@@ -115,7 +115,8 @@ func newApp(devMode bool, port int) (*collage.App, error) {
 			Default:   site.Original,
 			Supported: site.Locales(),
 			// English at /en/, like Turkish at /tr/: no language at the bare
-			// address, and "/" sends the reader to /en/.
+			// address. The server redirects "/" to /en/; the export writes the
+			// English home at its root too, with /en/ as its canonical address.
 			PrefixDefault: true,
 		},
 		// The export writes each page as <path>/index.html, which GitHub Pages

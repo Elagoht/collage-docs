@@ -80,7 +80,7 @@ If you rewrite `main.go`, keep the `-collage-build`, `-out` and `-clean` flags, 
 | A static or incremental document: `Static()`, `Incremental(ttl)`, or no strategy and a [fixed body](/docs/documents#a-fixed-body) | Its literal path: `/sitemap.xml` is `dist/sitemap.xml` |
 | The same document in a non-default locale | Under the locale's prefix: `dist/tr/sitemap.xml` |
 | A document built with `AtRoot` | Its bare path, in every configuration: `dist/robots.txt` |
-| A default-locale page or document, with [`PrefixDefault`](/docs/links-and-locales#the-url-decides-the-locale) | Under its prefix too, `dist/en/<path>/index.html` and `dist/en/sitemap.xml`, and `dist/index.html` sends the reader to `/en/` |
+| A default-locale page or document, with [`PrefixDefault`](/docs/links-and-locales#the-url-decides-the-locale) | Under its prefix too, `dist/en/<path>/index.html` and `dist/en/sitemap.xml`, and `dist/index.html` is a copy of the `/en/` home, with `/en/` as its canonical address |
 | The not-found page | `dist/404.html`, and `dist/<locale>/404.html` for each other locale |
 | Every mounted static file system | Under its prefix: `/static/app.css` is `dist/static/app.css` |
 
@@ -557,7 +557,8 @@ without being declared again. Left out:
   `Transfer-Encoding`, `Connection`, `Age` and `X-Collage-Render-Time`;
 - a header whose value differs between the two answers, such as a CSP nonce: a
   file cannot carry a new one per reader;
-- the `404.html` pages and the root redirect, which the build makes itself.
+- the `404.html` pages and the root copy of the home page, which the build makes
+  itself.
   `BuiltFile.Captured` is false for those and true for every file the build asked
   for, also one whose capture failed, which leaves `Status` 0.
 

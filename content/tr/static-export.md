@@ -81,7 +81,7 @@ koruyun. Aksi hâlde `collage export` işe yarar hiçbir şey yapmaz.
 | Static ya da incremental bir document: `Static()`, `Incremental(ttl)` ya da stratejisi olmayan ve [sabit bir body'si](/docs/documents#a-fixed-body) olan bir document | Birebir kendi path'ine: `/sitemap.xml` için `dist/sitemap.xml` |
 | Aynı document'ın varsayılan olmayan bir locale'deki hâli | Locale'in prefix'i altına: `dist/tr/sitemap.xml` |
 | `AtRoot` ile kurulan bir document | Her config'de prefix'siz path'ine: `dist/robots.txt` |
-| [`PrefixDefault`](/docs/links-and-locales#the-url-decides-the-locale) açıkken varsayılan locale'deki bir page ya da document | Bunlar da prefix'in altına yazılır: `dist/en/<path>/index.html` ve `dist/en/sitemap.xml`. `dist/index.html` ise okuyucuyu `/en/`'e yönlendirir |
+| [`PrefixDefault`](/docs/links-and-locales#the-url-decides-the-locale) açıkken varsayılan locale'deki bir page ya da document | Bunlar da prefix'in altına yazılır: `dist/en/<path>/index.html` ve `dist/en/sitemap.xml`. `dist/index.html` ise `/en/` home page'inin bir kopyasıdır ve canonical adresi olarak `/en/`'i gösterir |
 | Not-found page | `dist/404.html`, ayrıca diğer her locale için `dist/<locale>/404.html` |
 | Mount edilen her static dosya sistemi | Kendi prefix'i altına: `/static/app.css` için `dist/static/app.css` |
 
@@ -586,7 +586,8 @@ Middleware'lerinizin ve plugin'lerinizin set ettiği her şey (`Cache-Control`,
   `Transfer-Encoding`, `Connection`, `Age` ve `X-Collage-Render-Time`;
 - iki cevap arasında değeri değişen bir header, örneğin bir CSP nonce'ı. Bir dosya
   her okuyucu için yenisini taşıyamaz;
-- build'in kendisinin ürettiği `404.html` page'leri ve kök redirect.
+- build'in kendisinin ürettiği `404.html` page'leri ve home page'in kökteki
+  kopyası.
   `BuiltFile.Captured` bunlar için false'tur. Build'in sorduğu her dosya için ise
   true'dur; yakalaması başarısız olan bir dosya da buna dahildir ve onun `Status`'u
   0 kalır.
