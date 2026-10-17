@@ -55,23 +55,71 @@ func staticBuild(app *collage.App, outDir string, clean bool) error {
 
 `collage.Build` (before v0.60.0, `collage.NewBuilder` and then `Build` on what it
 returned) returns a report even when it also returns an error: one failing page does
-not stop the others, and every failure is in `report.Errors`. The returned error is
-all of them joined, and `main` exits non-zero on it, so a CI job fails when a page
-could not be written. Skipped pages and warnings do not fail the build; an
-error-level [finding](#reading-the-report) does, with every page still written.
+not stop the others, and every failure is in `report.Errors`.
+
+The returned error is all of them joined, and `main` exits non-zero on it, so a CI
+job fails when a page could not be written. Skipped pages and warnings do not fail
+the build; an error-level [finding](#reading-the-report) does, with every page still
+written.
 
 A build does not shut the application down either, and nothing serves after it,
 so a program that exits once it has built calls `app.Shutdown` itself; the
 scaffolded `main.go` does, from collage v0.55.0 (see
-[the CLI](/docs/cli#the-contract-with-maingo)). Otherwise no plugin's `Shutdown`
-runs: what a plugin holds is never flushed, and work a queue plugin such as
-[elagoht/jobs](/docs/plugins#elagohtjobs) was handed during the build vanishes
-without being logged.
+[the CLI](/docs/cli#the-contract-with-maingo)).
+
+Otherwise no plugin's `Shutdown` runs: what a plugin holds is never flushed, and
+work a queue plugin such as [elagoht/jobs](/docs/plugins#elagohtjobs) was handed
+during the build vanishes without being logged.
 
 If you rewrite `main.go`, keep the `-collage-build`, `-out` and `-clean` flags, or
 `collage export` stops doing anything useful.
 
 ## What is written
+
+Every route the application has ends up in one of three places: written to a file,
+skipped and named in the report, or not looked at at all because it is not a page.
+
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 548" role="img" aria-labelledby="export-routes-title">
+<title id="export-routes-title">What collage export does with each kind of route. Written to dist: a static or incremental page as path/index.html; a page with a param pattern as one index.html per map its StaticParams returns; a static document at its literal path; the not-found page as 404.html for each locale; mounted files under their own names plus the hashed names that were linked; under PrefixDefault, a copy of the /en/ home as index.html. Skipped and named in the report: a dynamic page or document, a param pattern with no StaticParams, a guarded page, and a page whose render carries csrfToken. Actions, a page's fragment paths and app.Handle handlers are not pages: not exported, not in the report. Once every file is written, redirects are checked against each other and the files; with a BuildFinishedHook plugin, headers are captured and OnBuildFinished runs; an error-level finding fails the build with ErrBuildFindings.</title>
+<defs><marker id="export-routes-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
+<rect class="d-cmd" x="100" y="8" width="120" height="24" rx="12" /><text class="d-cmd-text" x="160" y="24" text-anchor="middle">collage export</text>
+<text class="d-small" x="78" y="50" text-anchor="middle">route</text>
+<text class="d-small" x="242" y="50" text-anchor="middle">in dist/</text>
+<rect class="d-a" x="6" y="60" width="144" height="26" rx="5" /><text class="d-on-a d-small" x="78" y="77" text-anchor="middle">Static/Incremental page</text>
+<line class="d-flow" x1="150" y1="73" x2="166" y2="73" marker-end="url(#export-routes-arrow)" />
+<rect class="d-folder" x="170" y="60" width="144" height="26" rx="4" /><text class="d-small" x="242" y="77" text-anchor="middle">&lt;path&gt;/index.html</text>
+<rect class="d-a" x="6" y="92" width="144" height="26" rx="5" /><text class="d-on-a d-small" x="78" y="109" text-anchor="middle">{param} + StaticParams</text>
+<line class="d-flow" x1="150" y1="105" x2="166" y2="105" marker-end="url(#export-routes-arrow)" />
+<rect class="d-folder" x="170" y="92" width="144" height="26" rx="4" /><text class="d-small" x="242" y="109" text-anchor="middle">one index.html per map</text>
+<rect class="d-b" x="6" y="124" width="144" height="26" rx="5" /><text class="d-on-b d-small" x="78" y="141" text-anchor="middle">static document</text>
+<line class="d-flow" x1="150" y1="137" x2="166" y2="137" marker-end="url(#export-routes-arrow)" />
+<rect class="d-folder" x="170" y="124" width="144" height="26" rx="4" /><text class="d-small" x="242" y="141" text-anchor="middle">its literal path</text>
+<rect class="d-pill" x="6" y="156" width="144" height="26" rx="13" /><text class="d-small" x="78" y="173" text-anchor="middle">not-found page</text>
+<line class="d-flow" x1="150" y1="169" x2="166" y2="169" marker-end="url(#export-routes-arrow)" />
+<rect class="d-folder" x="170" y="156" width="144" height="26" rx="4" /><text class="d-small" x="242" y="173" text-anchor="middle">404.html per locale</text>
+<rect class="d-pill" x="6" y="192" width="144" height="26" rx="13" /><text class="d-small" x="78" y="209" text-anchor="middle">mounted files</text>
+<line class="d-flow" x1="150" y1="205" x2="166" y2="205" marker-end="url(#export-routes-arrow)" />
+<rect class="d-folder" x="170" y="188" width="144" height="34" rx="4" /><text class="d-small" x="242" y="202" text-anchor="middle">same names, plus the</text><text class="d-small" x="242" y="215" text-anchor="middle">hashed names linked</text>
+<rect class="d-pill" x="6" y="230" width="144" height="26" rx="13" /><text class="d-small" x="78" y="247" text-anchor="middle">home, PrefixDefault</text>
+<line class="d-flow" x1="150" y1="243" x2="166" y2="243" marker-end="url(#export-routes-arrow)" />
+<rect class="d-folder" x="170" y="230" width="144" height="26" rx="4" /><text class="d-small" x="242" y="247" text-anchor="middle">index.html: copy of /en/</text>
+<rect class="d-frame" x="6" y="272" width="144" height="26" rx="5" /><text class="d-small" x="78" y="289" text-anchor="middle">Dynamic page/document</text>
+<rect class="d-frame" x="6" y="304" width="144" height="26" rx="5" /><text class="d-small" x="78" y="321" text-anchor="middle">{param}, no StaticParams</text>
+<rect class="d-frame" x="6" y="336" width="144" height="26" rx="5" /><text class="d-small" x="78" y="353" text-anchor="middle">guarded page</text>
+<rect class="d-frame" x="6" y="368" width="144" height="26" rx="5" /><text class="d-small" x="78" y="385" text-anchor="middle">renders {{csrfToken}}</text>
+<line class="d-flow" x1="150" y1="285" x2="166" y2="285" marker-end="url(#export-routes-arrow)" />
+<line class="d-flow" x1="150" y1="317" x2="166" y2="317" marker-end="url(#export-routes-arrow)" />
+<line class="d-flow" x1="150" y1="349" x2="166" y2="349" marker-end="url(#export-routes-arrow)" />
+<line class="d-flow" x1="150" y1="381" x2="166" y2="381" marker-end="url(#export-routes-arrow)" />
+<g class="d-dropped"><rect class="d-frame" x="170" y="272" width="144" height="122" rx="6" /><text x="242" y="318" text-anchor="middle">skipped</text><text class="d-small" x="242" y="334" text-anchor="middle">named in the report</text><text class="d-small" x="242" y="347" text-anchor="middle">with its reason</text><text class="d-small" x="242" y="360" text-anchor="middle">and an Err</text></g>
+<rect class="d-frame" x="6" y="410" width="144" height="34" rx="5" /><text class="d-small" x="78" y="424" text-anchor="middle">action, fragment path</text><text class="d-small" x="78" y="437" text-anchor="middle">app.Handle</text>
+<line class="d-flow" x1="150" y1="427" x2="166" y2="427" marker-end="url(#export-routes-arrow)" />
+<rect class="d-frame" x="170" y="410" width="144" height="34" rx="5" /><text class="d-small" x="242" y="424" text-anchor="middle">not exported,</text><text class="d-small" x="242" y="437" text-anchor="middle">not in the report</text>
+<rect class="d-soft-a" x="6" y="460" width="308" height="80" rx="6" /><text x="160" y="477" text-anchor="middle">once every file is written:</text><text class="d-small" x="160" y="493" text-anchor="middle">redirects checked against each other and the files</text><text class="d-small" x="160" y="506" text-anchor="middle">with a BuildFinishedHook plugin: headers captured,</text><text class="d-small" x="160" y="519" text-anchor="middle">then OnBuildFinished runs;</text><text class="d-small" x="160" y="532" text-anchor="middle">an error-level finding fails the build</text>
+</svg>
+<figcaption>Each kind of route and what <code>collage export</code> does with it. Pages, documents, the not-found page and mounted files become files; a page in a locale other than the default is written under that locale's prefix. A page or document that declares no strategy counts as static when it fetches nothing and as dynamic when it does. A dynamic page or document, a <code>{param}</code> pattern with no <code>WithStaticParams</code>, a guarded page and a page whose render carries <code>{{csrfToken}}</code> are skipped, each named in the report with its reason. Actions, fragment paths and <code>app.Handle</code> handlers are not pages, so the export neither writes nor reports them. Once the files are written, the redirects are checked, headers are captured for a plugin that reads them, and an error-level finding fails the build with every file still written.</figcaption>
+</figure>
 
 | What | Where |
 | --- | --- |
@@ -131,11 +179,13 @@ report, with the reason:
 Error pages registered without a path are not listed at all: they are not URLs.
 
 Not exported, and not reported, because they are not pages: [actions](/docs/forms-and-actions),
-handlers mounted with `app.Handle`, and middleware. An export renders without a
-request, so no middleware runs for the files it writes and `collage.Vary` is never
-called — each page is written in the version a request with no preferences would
-get. The requests that [capture the headers](#headers-and-redirects) afterwards do
-go through middleware, but what they render is not written.
+handlers mounted with `app.Handle`, and middleware.
+
+An export renders without a request, so no middleware runs for the files it writes
+and `collage.Vary` is never called — each page is written in the version a request
+with no preferences would get. The requests that
+[capture the headers](#headers-and-redirects) afterwards do go through middleware,
+but what they render is not written.
 
 ## What is warned about
 
@@ -420,11 +470,12 @@ project.
 The export renders in the state the server does. A build starts the application
 first, running every plugin's `Init` before pages are enumerated (since v0.24.0), so
 a document a plugin registers, or the `WithStaticParams` of data a plugin loads, is
-built, and a plugin reads the same configuration; `OnBeforeRender`, `OnAfterRender` and
-`OnDocumentRendered` fire for every page and document, so what a minifier or a
-structured-data plugin does to a served page it does to the file. Since v0.21.0
-`OnBuildFinished` runs once every file is written, for a plugin that checks the
-build as a whole.
+built, and a plugin reads the same configuration.
+
+`OnBeforeRender`, `OnAfterRender` and `OnDocumentRendered` fire for every page and
+document, so what a minifier or a structured-data plugin does to a served page it
+does to the file. Since v0.21.0 `OnBuildFinished` runs once every file is written,
+for a plugin that checks the build as a whole.
 
 When such a plugin is registered, the build first
 [captures every file's headers](#headers-and-redirects) through `App.Handler()`
@@ -498,6 +549,111 @@ never fail the build: `unstable-header`, `capture-status`, `capture-failed`,
 `capture-dev-mode` and `capture-personal`. See
 [Headers and redirects](#headers-and-redirects).
 
+## Example: exporting a blog
+
+A blog is the kind of site an export suits: the posts change when someone
+publishes, not per reader. This one has a home page, a `/blog` listing, a page per
+post, a page per tag, a search page and a contact form, with
+[the feed](/docs/documents#example-an-rss-feed) and
+[the sitemap](/docs/documents#example-a-sitemap) from Documents beside them. The
+routes that decide what the export does:
+
+```go
+app.RegisterPage(collage.NewPage("blog-post").
+	WithLayouts(layout).
+	WithContent(post).
+	WithPath("en", "/blog/{slug}").
+	WithStaticParams(func(ctx context.Context, _ string) ([]map[string]string, error) {
+		slugs, err := posts.Slugs(ctx)
+		if err != nil {
+			return nil, err
+		}
+		params := make([]map[string]string, 0, len(slugs))
+		for _, slug := range slugs {
+			params = append(params, map[string]string{"slug": slug})
+		}
+		return params, nil
+	}).
+	Static().
+	Build())
+
+app.RegisterPage(collage.NewPage("tag").
+	WithLayouts(layout).
+	WithContent(tagList).
+	WithPath("en", "/tag/{tag}").
+	Static(). // no WithStaticParams yet
+	Build())
+
+app.RegisterPage(collage.NewPage("search").
+	WithLayouts(layout).
+	WithContent(results). // reads the q query parameter
+	WithPath("en", "/search").
+	WithCacheParams("q").
+	Static().
+	Build())
+
+app.RegisterPage(collage.NewPage("contact").
+	WithLayouts(layout).
+	WithContent(contactForm). // its <form> carries {{csrfToken}}
+	WithPath("en", "/contact").
+	WithAction("POST", sendMessage).
+	Build())
+
+app.RegisterDocument(FeedDocument(app, posts))
+app.RegisterDocument(SitemapDocument(app, posts))
+```
+
+With three posts, a not-found page and a stylesheet the layout links through
+`{{asset}}`, `collage export -clean` prints:
+
+```sh
+✓ 11 files written
+    dist/404.html
+    dist/blog/hello-world/index.html
+    dist/blog/index.html
+    dist/blog/static-files/index.html
+    dist/blog/tags-and-feeds/index.html
+    dist/feed.xml
+    dist/index.html
+    dist/search/index.html
+    dist/sitemap.xml
+    dist/static/app.2708d73bf31c36cd.css
+    … and 1 more
+
+▲ 2 skipped
+    tag (en)  collage: a path pattern with a {param} needs WithStaticParams to be built
+    contact (en)  page carries {{csrfToken}}; a form needs a server to submit to, so it is served rather than exported
+
+▲ 1 warning
+    search  reads the query parameters q, and a static file has no query string: only the version without them was written
+
+11 written · 2 skipped · 0 failed · 1 warning · 5.8ms
+```
+
+Line by line:
+
+- **Every post is a file.** `WithStaticParams` returned three slugs, so there are
+  three `index.html` files under `dist/blog/`. The eleventh file, past the ten the
+  report names, is `dist/static/app.css`, beside its hashed copy.
+- **The feed and the sitemap are written.** The feed is `Static()` and the sitemap
+  `Incremental(time.Hour)`, so both are files at their literal paths. With no
+  strategy, their handlers would have made them dynamic, and skipped.
+- **The tag pages are missing.** `/tag/{tag}` has no list of tags, so it is skipped
+  with `collage.ErrDynamicPathUnresolved`. A `WithStaticParams` returning one
+  `{"tag": t}` per tag writes them.
+- **The contact page is missing.** It rendered, and its render carried the form's
+  token, so it was not written; the skip's `Err` is `collage.ErrUnresolvedToken`. A
+  form needs a server to post to. `collage serve`, like most static hosts, answers
+  `/contact` with `404.html`.
+- **The search page is there, and does not search.** A file has no query string, so
+  `/search?q=feeds` gets the same `dist/search/index.html` as `/search`: the page
+  as it renders with no query. That is what the warning says.
+
+None of these fail the build, so it exits zero. If the search page should not be
+in the export at all, declare it `Dynamic()`: it is then skipped and named rather
+than written empty. The search box and the contact form work only on a server;
+see [Deployment](/docs/deployment).
+
 ## Looking at it: `collage serve`
 
 Opening `dist/index.html` in a browser does not work: a `file://` page has no root,
@@ -546,6 +702,7 @@ said, for a plugin to write those files. Collage writes none of them itself.
 build asks the application's own handler for each written file's path, twice — in
 process, with no network — and records the answer on the file as
 `BuiltFile.Status` and `BuiltFile.Headers`. With no such plugin it asks nothing.
+
 The requests carry the host of `Config.BaseURL`, and come over HTTPS when its
 scheme is `https`, so a header sent only over HTTPS, such as
 `Strict-Transport-Security`, is captured too. Whatever your middleware and plugins
@@ -557,10 +714,11 @@ without being declared again. Left out:
   `Transfer-Encoding`, `Connection`, `Age` and `X-Collage-Render-Time`;
 - a header whose value differs between the two answers, such as a CSP nonce: a
   file cannot carry a new one per reader;
-- the `404.html` pages and the root copy of the home page, which the build makes
-  itself.
-  `BuiltFile.Captured` is false for those and true for every file the build asked
-  for, also one whose capture failed, which leaves `Status` 0.
+- the `404.html` pages, which the build makes itself. `BuiltFile.Captured` is
+  false for them and true for every file the build asked for, also one whose
+  capture failed, which leaves `Status` 0. The root copy of the home page is not
+  asked for, since the application redirects `/`, but it carries what the home
+  page was captured with, `Captured` included.
 
 What the capture found is reported as warnings in the build's findings:
 
