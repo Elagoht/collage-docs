@@ -113,8 +113,9 @@ app, err := collage.New(&collage.Config{
 With `FS` set, `Root` is a directory inside that filesystem. It is still stripped
 from every name, which is why it is needed: `embed.FS` names files by their path in
 the source tree, and without `Root` every template would be called
-`templates/pages/post.html`. An empty `Root` with an `FS` means the root of the
-filesystem. The `all:` prefix makes the embed include files whose names begin with
+`templates/pages/post.html`.
+
+An empty `Root` with an `FS` means the root of the filesystem. The `all:` prefix makes the embed include files whose names begin with
 `.` or `_`, which a plain `//go:embed templates` would skip.
 
 This is what `collage new` scaffolds.
@@ -127,10 +128,36 @@ it. The framework does not read `COLLAGE_DEV`: `collage dev` sets it, and the
 scaffolded `main.go` turns it into `Config.DevMode`.
 
 An embedded set could not do that: its bytes were fixed when the binary was built,
-and reparsing them changes nothing. So **in development the directory on disk wins
+and reparsing them changes nothing.
+
+So **in development the directory on disk wins
 over the embedded copy** whenever `Root` exists as a directory relative to the
 working directory, and the application logs that it chose it. Under `collage dev`,
 which runs in your project directory, it always does.
+
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 254" role="img" aria-labelledby="tpl-src-title">
+<title id="tpl-src-title">Where collage.New reads templates from. With Template.FS not set, it reads the Root directory on disk through os.OpenRoot. With FS set and DevMode off, it reads the embedded FS. With FS set and DevMode on, it reads Root on disk when Root is a directory relative to the working directory, and logs that it does; otherwise it reads the embedded FS, where edits do not show. In development every render reparses the set it reads.</title>
+<defs><marker id="tpl-src-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
+<rect class="d-pill" x="55" y="8" width="120" height="24" rx="12" /><text x="115" y="24" text-anchor="middle">collage.New</text>
+<line class="d-flow" x1="115" y1="32" x2="115" y2="48" marker-end="url(#tpl-src-arrow)" />
+<rect class="d-frame" x="40" y="52" width="150" height="26" rx="6" /><text x="115" y="69" text-anchor="middle">Template.FS set?</text>
+<line class="d-flow" x1="190" y1="65" x2="221" y2="65" marker-end="url(#tpl-src-arrow)" /><text class="d-small" x="205" y="60" text-anchor="middle">no</text>
+<rect class="d-a" x="225" y="50" width="93" height="30" rx="5" /><text class="d-on-a d-small" x="271.5" y="62" text-anchor="middle">Root on disk</text><text class="d-on-a d-small" x="271.5" y="74" text-anchor="middle">os.OpenRoot</text>
+<line class="d-flow" x1="115" y1="78" x2="115" y2="94" marker-end="url(#tpl-src-arrow)" /><text class="d-small" x="121" y="90">yes</text>
+<rect class="d-frame" x="40" y="98" width="150" height="26" rx="6" /><text x="115" y="115" text-anchor="middle">Config.DevMode?</text>
+<line class="d-flow" x1="190" y1="111" x2="221" y2="111" marker-end="url(#tpl-src-arrow)" /><text class="d-small" x="205" y="106" text-anchor="middle">no</text>
+<rect class="d-b" x="225" y="96" width="93" height="30" rx="5" /><text class="d-on-b d-small" x="271.5" y="108" text-anchor="middle">embedded FS</text><text class="d-on-b d-small" x="271.5" y="120" text-anchor="middle">fixed at build</text>
+<line class="d-flow" x1="115" y1="124" x2="115" y2="140" marker-end="url(#tpl-src-arrow)" /><text class="d-small" x="121" y="136">yes</text>
+<rect class="d-frame" x="40" y="144" width="150" height="26" rx="6" /><text x="115" y="161" text-anchor="middle">Root a dir on disk?</text>
+<line class="d-flow" x1="190" y1="157" x2="221" y2="157" marker-end="url(#tpl-src-arrow)" /><text class="d-small" x="205" y="152" text-anchor="middle">no</text>
+<rect class="d-b" x="225" y="142" width="93" height="30" rx="5" /><text class="d-on-b d-small" x="271.5" y="154" text-anchor="middle">embedded FS</text><text class="d-on-b d-small" x="271.5" y="166" text-anchor="middle">edits won't show</text>
+<line class="d-flow" x1="115" y1="170" x2="115" y2="186" marker-end="url(#tpl-src-arrow)" /><text class="d-small" x="121" y="182">yes</text>
+<rect class="d-a" x="40" y="190" width="150" height="34" rx="5" /><text class="d-on-a" x="115" y="205" text-anchor="middle">Root on disk</text><text class="d-on-a d-small" x="115" y="218" text-anchor="middle">logged · edits show</text>
+<text class="d-small" x="160" y="244" text-anchor="middle">In development every render reparses the set.</text>
+</svg>
+<figcaption>Which copy of the templates an application renders is settled in <code>collage.New</code>. Without <code>Template.FS</code> it is the <code>Root</code> directory on disk. With an <code>FS</code>, it is the embedded copy, except in development when <code>Root</code> is also a directory relative to the working directory: then that directory is read instead, and the application logs it. In development every render reparses whichever copy was chosen, so an edit on disk shows on the next request, and an edit to a directory that is not read shows only once the binary is rebuilt.</figcaption>
+</figure>
 
 Two other things make an edit show up at once:
 
@@ -143,7 +170,9 @@ Two other things make an edit show up at once:
 
 Since the whole set is reparsed, a syntax error in any one template fails every
 render until it is fixed — in development, where you will see it straight away,
-with the file and line in the error. The checks registration makes are not made
+with the file and line in the error.
+
+The checks registration makes are not made
 again for a template edited after startup — the check against its data's type
 included, until the next restart: its failure shows on the development error page
 instead, template, line and cause first.
@@ -259,9 +288,10 @@ app, err := collage.New(&collage.Config{
   known when the template was parsed, and `New` is where parsing happens. A template
   calling a name nobody registered fails in `New`, which is the point: it is a typo
   you find at startup.
-- **An entry under a built-in's name replaces the built-in** — except the eight
+- **An entry under a built-in's name replaces the built-in** — except the eleven
   that depend on the render: `slot`, `hoist`, `asset`, `stylesheet`, `csrfToken`,
-  `pageURL`, `pageURLIn` and `localeURL`. The render engine binds its own of each
+  `pageURL`, `pageURLIn`, `localeURL`, `actionURL`, `fragmentURL` and
+  `fragmentURLIn`. The render engine binds its own of each
   for every render, so overriding any of them is accepted and has no effect.
 - **A function cannot see the request.** It is registered once for the whole
   program. Anything that depends on the request, the locale or the user belongs in
@@ -300,3 +330,218 @@ Two built-ins produce HTML that is inserted as is:
 `pageURL` and its siblings escape the parameter values they substitute into a path,
 and refuse a value of `.` or `..`, which a browser would resolve as a step up the
 path.
+
+## Example: a blog post
+
+A blog's post page puts most of this page to work. Each part reaches the page a
+different way:
+
+| Part | Declared in | Lands in the page through |
+| --- | --- | --- |
+| The post | `pages/post.html` | the layout's `{{slot "content"}}` |
+| The author card | `fragments/author.html` | the post's `{{slot "author"}}` |
+| The post's stylesheet | `{{stylesheet}}` in the post | the layout's `{{hoist "head"}}` |
+| `<title>` and description | `rc.HoistTitle`, `rc.HoistMeta` in the handler | the layout's `{{hoist "head"}}` |
+| Readers' comments | the post's data | `{{.Text}}`, escaped |
+
+The handlers read the post's slug from the path. The `blog` package stands for your
+own data layer:
+
+```go
+type comment struct {
+	Name string
+	Text string
+}
+
+type postView struct {
+	Title     string
+	Published time.Time
+	Body      template.HTML // rendered and sanitised by your own code
+	Comments  []comment
+}
+
+type authorView struct {
+	Name string
+	Bio  string
+}
+
+func loadPost(ctx context.Context, rc *collage.RenderContext) (postView, []string, error) {
+	slug := rc.Param("slug")
+	p, err := blog.GetPost(ctx, slug)
+	if err != nil {
+		return postView{}, nil, err
+	}
+	rc.HoistTitle(p.Title)
+	rc.HoistMeta("description", p.Summary)
+
+	view := postView{Title: p.Title, Published: p.Published, Body: p.Body}
+	for _, c := range p.Comments {
+		view.Comments = append(view.Comments, comment{Name: c.Name, Text: c.Text})
+	}
+	return view, []string{"post:" + slug}, nil
+}
+
+func loadAuthor(ctx context.Context, rc *collage.RenderContext) (authorView, error) {
+	a, err := blog.AuthorOf(ctx, rc.Param("slug"))
+	if err != nil {
+		return authorView{}, err
+	}
+	return authorView{Name: a.Name, Bio: a.Bio}, nil
+}
+```
+
+The author card is a fragment of its own, bound into the post's `author` slot:
+
+```go
+layout := collage.NewFragment("layout", "layouts/default.html").Build()
+
+author := collage.NewFragment("author", "fragments/author.html").
+	WithData(collage.Load(loadAuthor)).
+	Build()
+
+post := collage.NewFragment("post", "pages/post.html").
+	WithData(collage.LoadTagged(loadPost)).
+	WithSlotFragment("author", author).
+	Required().
+	Build()
+
+page := collage.NewPage("post").
+	WithLayouts(layout).
+	WithContent(post).
+	WithPath("en", "/posts/{slug}").
+	Build()
+
+if err := app.RegisterPage(page); err != nil {
+	return err
+}
+```
+
+The three templates:
+
+```html
+<!-- templates/layouts/default.html -->
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  {{hoist "head"}}
+</head>
+<body>{{slot "content"}}</body>
+</html>
+```
+
+```html
+<!-- templates/pages/post.html -->
+{{stylesheet "/static/post.css"}}
+<article>
+  <h1>{{.Title}}</h1>
+  <p class="meta">{{formatTime .Published "2 January 2006"}}</p>
+  {{slot "author"}}
+  <div class="body">{{.Body}}</div>
+  <section class="comments">
+    {{range .Comments}}<p><b>{{.Name}}</b> {{.Text}}</p>{{end}}
+  </section>
+</article>
+```
+
+```html
+<!-- templates/fragments/author.html -->
+<aside class="author">
+  <strong>{{.Name}}</strong>
+  <p>{{.Bio}}</p>
+</aside>
+```
+
+`/static/post.css` must be a file in a [mount](/docs/assets): `{{stylesheet}}`
+links its content-addressed URL, and a path no mount serves fails the render.
+
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 254" role="img" aria-labelledby="tpl-post-title">
+<title id="tpl-post-title">The blog post page as rendered. The layout's hoist head marker is filled, once the whole page has rendered, with the title and the description meta the post's handler hoisted and the link to post.css the post's template declared with stylesheet. The layout's content slot holds the post fragment, and the post's author slot holds the author fragment. Inside the post, the title and the readers' comments are escaped, and the body, a template.HTML, is inserted as is.</title>
+<defs><marker id="tpl-post-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
+<rect class="d-frame" x="4" y="4" width="312" height="246" rx="8" />
+<text x="14" y="21">layout</text><text class="d-small" x="60" y="21">layouts/default.html</text>
+<rect class="d-slot d-slot-b" x="14" y="30" width="292" height="36" rx="5" />
+<text class="d-small" x="24" y="51">hoist "head"</text>
+<rect class="d-chip" x="104" y="39" width="60" height="18" rx="9" /><text class="d-small" x="134" y="51" text-anchor="middle">&lt;title&gt;</text>
+<rect class="d-chip" x="170" y="39" width="56" height="18" rx="9" /><text class="d-small" x="198" y="51" text-anchor="middle">&lt;meta&gt;</text>
+<rect class="d-chip-hit" x="232" y="39" width="74" height="18" rx="9" /><text class="d-hit-text d-small" x="269" y="51" text-anchor="middle">post.css</text>
+<rect class="d-slot d-slot-a" x="14" y="74" width="292" height="170" rx="5" />
+<text class="d-slot-text-a d-small" x="24" y="88">slot "content"</text>
+<rect class="d-frame d-frame-a" x="24" y="96" width="272" height="140" rx="6" />
+<line class="d-flow" x1="134" y1="96" x2="134" y2="61" marker-end="url(#tpl-post-arrow)" />
+<line class="d-flow" x1="198" y1="96" x2="198" y2="61" marker-end="url(#tpl-post-arrow)" />
+<line class="d-flow" x1="269" y1="101" x2="269" y2="61" marker-end="url(#tpl-post-arrow)" />
+<text class="d-slot-text-a" x="34" y="113">post</text><text class="d-small" x="70" y="113">pages/post.html</text>
+<rect class="d-chip-hit" x="206" y="101" width="84" height="18" rx="9" /><text class="d-hit-text d-small" x="248" y="113" text-anchor="middle">stylesheet</text>
+<text class="d-small" x="34" y="134">h1: escaped title</text>
+<rect class="d-slot d-slot-c" x="34" y="142" width="252" height="50" rx="4" />
+<text class="d-small" x="44" y="156">slot "author"</text>
+<rect class="d-c" x="44" y="162" width="100" height="22" rx="4" /><text class="d-on-c" x="94" y="177" text-anchor="middle">author</text>
+<text class="d-small" x="154" y="177">fragments/author.html</text>
+<text class="d-small" x="34" y="210">comments: escaped text</text>
+<text class="d-small" x="34" y="226">body: template.HTML, as is</text>
+</svg>
+<figcaption>The post fragment fills the layout's <code>content</code> slot, and the author fragment fills the post's <code>author</code> slot. The title and description the post's handler hoists, and the stylesheet its template declares, go up to the layout's <code>hoist "head"</code> marker, which is filled once the whole page has rendered. Inside the post, the title and the readers' comments are escaped; the body, a <code>template.HTML</code>, is inserted as is.</figcaption>
+</figure>
+
+### What the reader gets
+
+Take a post titled `Escaping <script> & friends`, and a comment whose text is
+`<script>alert(1)</script>`. A request for `/posts/escaping` answers 200, and the
+page reads, from `<head>` to `</body>` and with blank lines left out:
+
+```html
+<head>
+  <meta charset="utf-8">
+  <title>Escaping &lt;script&gt; &amp; friends</title><meta name="description" content="What html/template escapes for you"><link rel="stylesheet" href="/static/post.cba296a6afd593e0.css">
+</head>
+<body>
+<article>
+  <h1>Escaping &lt;script&gt; &amp; friends</h1>
+  <p class="meta">18 October 2026</p>
+<aside class="author">
+  <strong>Ada</strong>
+  <p>Writes about templates.</p>
+</aside>
+  <div class="body"><p>Hello <em>world</em></p></div>
+  <section class="comments">
+    <p><b>mallory</b> &lt;script&gt;alert(1)&lt;/script&gt;</p>
+  </section>
+</article>
+</body>
+```
+
+- **The title is escaped in both places it appears.** `rc.HoistTitle` escapes it
+  for `<title>`, and `{{.Title}}` escapes it for the `<h1>`.
+- **The comment is text.** `{{.Text}}` is a `string`, so the reader's script is
+  printed, not run.
+- **The body is markup.** Its type is `template.HTML`, so it is inserted as is: it
+  is the one value here whose safety is your code's job.
+- **The stylesheet is in the head**, linked by its content-addressed URL, though
+  the post's template declared it inside `<body>`.
+
+### What registration catches
+
+Write `{{.Titel}}` for the heading in `pages/post.html`, and `{{.Author}}` where
+the comment loop means `{{.Name}}`. `RegisterPage` refuses the page with
+`ErrTemplateType`, both findings at once, each with its file, line and column:
+
+```text
+collage: page "post": fragment "post" (pages/post.html:4:8): {{.Titel}}: type main.postView has no field or method Titel (did you mean Title?)
+collage: page "post": fragment "post" (pages/post.html:9:31): {{.Author}}: type main.comment has no field or method Author
+```
+
+Inside `{{range .Comments}}`, `.` is a `comment`, so the second finding names that
+type, not the post's.
+
+Bind the author card with a typo instead, `WithSlotFragment("autor", author)`, and
+`RegisterPage` fails with `ErrUnknownSlot`:
+
+```text
+collage: unknown slot: page "post" fragment "post" binds into slot "autor", but template "pages/post.html" never calls it; it calls [author]
+```
+
+Neither check judges escaping. `{{.Text | safeHTML}}` fits its types and passes
+both, and it would print the reader's script as markup: keep `safeHTML` for content
+you generated or sanitised.

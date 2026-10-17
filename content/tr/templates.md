@@ -117,7 +117,9 @@ app, err := collage.New(&collage.Config{
 `FS` verildiğinde `Root`, o filesystem içindeki bir dizini gösterir. `Root` yine her
 template adının başından çıkarılır ve gerekli olmasının sebebi de budur. `embed.FS`
 dosyaları source tree'deki yollarıyla adlandırır. `Root` olmasaydı her template'in
-adı `templates/pages/post.html` gibi olurdu. `FS` ile birlikte boş bir `Root`,
+adı `templates/pages/post.html` gibi olurdu.
+
+`FS` ile birlikte boş bir `Root`,
 filesystem'in kökü anlamına gelir. `all:` prefix'i, adı `.` ya da `_` ile başlayan
 dosyaların da embed edilmesini sağlar. Düz bir `//go:embed templates` bu dosyaları
 atlar.
@@ -132,10 +134,36 @@ Bu değişkeni `collage dev` set eder, scaffold edilen `main.go` da onu
 `Config.DevMode`'a çevirir.
 
 Embed edilmiş bir set bunu yapamaz. Byte'ları binary build edildiği anda sabitlenmiştir
-ve onları yeniden parse etmek hiçbir şeyi değiştirmez. Bu yüzden `Root`, çalışma
+ve onları yeniden parse etmek hiçbir şeyi değiştirmez.
+
+Bu yüzden `Root`, çalışma
 dizinine göre bir dizin olarak var olduğunda **development'ta diskteki dizin
 embed edilmiş kopyanın önüne geçer** ve uygulama bu seçimi log'lar. `collage dev`
 proje dizininizde çalıştığı için bu dizin orada her zaman vardır.
+
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 254" role="img" aria-labelledby="tpl-src-title">
+<title id="tpl-src-title">collage.New template'leri nereden okur. Template.FS verilmemişse Root dizinini diskten os.OpenRoot üzerinden okur. FS verilmiş ve DevMode kapalıysa embed edilmiş FS'i okur. FS verilmiş ve DevMode açıksa, Root çalışma dizinine göre bir dizinse diskteki Root'u okur ve bunu log'lar; değilse embed edilmiş FS'i okur ve değişiklikler görünmez. Development'ta her render, okunan set'i yeniden parse eder.</title>
+<defs><marker id="tpl-src-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
+<rect class="d-pill" x="55" y="8" width="120" height="24" rx="12" /><text x="115" y="24" text-anchor="middle">collage.New</text>
+<line class="d-flow" x1="115" y1="32" x2="115" y2="48" marker-end="url(#tpl-src-arrow)" />
+<rect class="d-frame" x="40" y="52" width="150" height="26" rx="6" /><text x="115" y="69" text-anchor="middle">Template.FS var mı?</text>
+<line class="d-flow" x1="190" y1="65" x2="221" y2="65" marker-end="url(#tpl-src-arrow)" /><text class="d-small" x="205" y="60" text-anchor="middle">hayır</text>
+<rect class="d-a" x="225" y="50" width="93" height="30" rx="5" /><text class="d-on-a d-small" x="271.5" y="62" text-anchor="middle">diskteki Root</text><text class="d-on-a d-small" x="271.5" y="74" text-anchor="middle">os.OpenRoot</text>
+<line class="d-flow" x1="115" y1="78" x2="115" y2="94" marker-end="url(#tpl-src-arrow)" /><text class="d-small" x="121" y="90">evet</text>
+<rect class="d-frame" x="40" y="98" width="150" height="26" rx="6" /><text x="115" y="115" text-anchor="middle">DevMode açık mı?</text>
+<line class="d-flow" x1="190" y1="111" x2="221" y2="111" marker-end="url(#tpl-src-arrow)" /><text class="d-small" x="205" y="106" text-anchor="middle">hayır</text>
+<rect class="d-b" x="225" y="96" width="93" height="30" rx="5" /><text class="d-on-b d-small" x="271.5" y="108" text-anchor="middle">embed FS</text><text class="d-on-b d-small" x="271.5" y="120" text-anchor="middle">build'de sabit</text>
+<line class="d-flow" x1="115" y1="124" x2="115" y2="140" marker-end="url(#tpl-src-arrow)" /><text class="d-small" x="121" y="136">evet</text>
+<rect class="d-frame" x="40" y="144" width="150" height="26" rx="6" /><text x="115" y="161" text-anchor="middle">Root diskte dizin mi?</text>
+<line class="d-flow" x1="190" y1="157" x2="221" y2="157" marker-end="url(#tpl-src-arrow)" /><text class="d-small" x="205" y="152" text-anchor="middle">hayır</text>
+<rect class="d-b" x="225" y="142" width="93" height="30" rx="5" /><text class="d-on-b d-small" x="271.5" y="154" text-anchor="middle">embed FS</text><text class="d-on-b d-small" x="271.5" y="166" text-anchor="middle">eski kalır</text>
+<line class="d-flow" x1="115" y1="170" x2="115" y2="186" marker-end="url(#tpl-src-arrow)" /><text class="d-small" x="121" y="182">evet</text>
+<rect class="d-a" x="40" y="190" width="150" height="34" rx="5" /><text class="d-on-a" x="115" y="205" text-anchor="middle">diskteki Root</text><text class="d-on-a d-small" x="115" y="218" text-anchor="middle">log'lanır · güncel</text>
+<text class="d-small" x="160" y="244" text-anchor="middle">Development'ta her render set'i yeniden parse eder.</text>
+</svg>
+<figcaption>Bir uygulamanın template'lerin hangi kopyasını render edeceği <code>collage.New</code>'da belirlenir. <code>Template.FS</code> yoksa bu, diskteki <code>Root</code> dizinidir. Bir <code>FS</code> varsa embed edilmiş kopyadır. Tek istisna development'tır: <code>Root</code> çalışma dizinine göre bir dizin olarak da varsa onun yerine o dizin okunur ve uygulama bunu log'lar. Development'ta her render, seçilen kopyayı yeniden parse eder. Böylece diskte yapılan bir değişiklik bir sonraki request'te görünür, okunmayan bir dizinde yapılan değişiklik ise ancak binary yeniden build edildiğinde görünür.</figcaption>
+</figure>
 
 Bir değişikliğin hemen görünmesini iki şey daha sağlar:
 
@@ -149,7 +177,9 @@ Bir değişikliğin hemen görünmesini iki şey daha sağlar:
 
 Bütün set yeniden parse edildiği için herhangi bir template'teki bir syntax hatası,
 düzeltilene kadar bütün render'ları başarısız kılar. Bu development'ta olur. Hatayı orada
-hemen, dosya ve satır numarasıyla birlikte görürsünüz. Register sırasında yapılan
+hemen, dosya ve satır numarasıyla birlikte görürsünüz.
+
+Register sırasında yapılan
 kontroller, verinin tipine göre yapılan kontrol de dahil, açılıştan sonra
 düzenlenen bir template için bir sonraki yeniden başlatmaya kadar yeniden
 yapılmaz. Böyle bir template'in hatası bunun yerine development error page'inde
@@ -274,8 +304,9 @@ app, err := collage.New(&collage.Config{
   edilmemiş bir adı çağıran template `New`'da hata verir. Amaç da tam olarak budur:
   yazım hatasını uygulama açılırken yakalarsınız.
 - **Built-in bir fonksiyonun adıyla eklenen bir entry, o built-in'in yerini alır.**
-  Render'a bağlı olan sekiz fonksiyon bunun dışındadır: `slot`, `hoist`, `asset`,
-  `stylesheet`, `csrfToken`, `pageURL`, `pageURLIn` ve `localeURL`. Render engine
+  Render'a bağlı olan on bir fonksiyon bunun dışındadır: `slot`, `hoist`, `asset`,
+  `stylesheet`, `csrfToken`, `pageURL`, `pageURLIn`, `localeURL`, `actionURL`,
+  `fragmentURL` ve `fragmentURLIn`. Render engine
   her render için bunların kendi versiyonlarını bağlar. Bu yüzden bunlardan birini
   override etmek kabul edilir, ama hiçbir etkisi olmaz.
 - **Bir fonksiyon request'i göremez.** Fonksiyon, bütün program için bir kez register
@@ -319,3 +350,221 @@ açığıdır.
 `pageURL` ve benzerleri, path'e yerleştirdikleri parametre değerlerini escape eder.
 Ayrıca `.` ya da `..` değerini reddeder, çünkü tarayıcı bunları path'te bir üst
 seviyeye çıkmak olarak yorumlar.
+
+## Örnek: bir blog yazısı
+
+Bir blogun yazı page'i, bu sayfadakilerin çoğunu bir arada kullanır. Her kısım page'e
+farklı bir yoldan ulaşır:
+
+| Kısım | Nerede tanımlanır | Page'e nereden girer |
+| --- | --- | --- |
+| Yazı | `pages/post.html` | layout'un `{{slot "content"}}` çağrısı |
+| Yazar kartı | `fragments/author.html` | yazının `{{slot "author"}}` çağrısı |
+| Yazının stylesheet'i | yazıdaki `{{stylesheet}}` | layout'un `{{hoist "head"}}` çağrısı |
+| `<title>` ve description | handler'daki `rc.HoistTitle`, `rc.HoistMeta` | layout'un `{{hoist "head"}}` çağrısı |
+| Okurların yorumları | yazının verisi | escape edilen `{{.Text}}` |
+
+Handler'lar yazının slug'ını path'ten okur. `blog` paketi, kendi veri katmanınızın
+yerini tutar:
+
+```go
+type comment struct {
+	Name string
+	Text string
+}
+
+type postView struct {
+	Title     string
+	Published time.Time
+	Body      template.HTML // rendered and sanitised by your own code
+	Comments  []comment
+}
+
+type authorView struct {
+	Name string
+	Bio  string
+}
+
+func loadPost(ctx context.Context, rc *collage.RenderContext) (postView, []string, error) {
+	slug := rc.Param("slug")
+	p, err := blog.GetPost(ctx, slug)
+	if err != nil {
+		return postView{}, nil, err
+	}
+	rc.HoistTitle(p.Title)
+	rc.HoistMeta("description", p.Summary)
+
+	view := postView{Title: p.Title, Published: p.Published, Body: p.Body}
+	for _, c := range p.Comments {
+		view.Comments = append(view.Comments, comment{Name: c.Name, Text: c.Text})
+	}
+	return view, []string{"post:" + slug}, nil
+}
+
+func loadAuthor(ctx context.Context, rc *collage.RenderContext) (authorView, error) {
+	a, err := blog.AuthorOf(ctx, rc.Param("slug"))
+	if err != nil {
+		return authorView{}, err
+	}
+	return authorView{Name: a.Name, Bio: a.Bio}, nil
+}
+```
+
+Yazar kartı kendi başına bir fragment'tir ve yazının `author` slot'una bağlanır:
+
+```go
+layout := collage.NewFragment("layout", "layouts/default.html").Build()
+
+author := collage.NewFragment("author", "fragments/author.html").
+	WithData(collage.Load(loadAuthor)).
+	Build()
+
+post := collage.NewFragment("post", "pages/post.html").
+	WithData(collage.LoadTagged(loadPost)).
+	WithSlotFragment("author", author).
+	Required().
+	Build()
+
+page := collage.NewPage("post").
+	WithLayouts(layout).
+	WithContent(post).
+	WithPath("en", "/posts/{slug}").
+	Build()
+
+if err := app.RegisterPage(page); err != nil {
+	return err
+}
+```
+
+Üç template:
+
+```html
+<!-- templates/layouts/default.html -->
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  {{hoist "head"}}
+</head>
+<body>{{slot "content"}}</body>
+</html>
+```
+
+```html
+<!-- templates/pages/post.html -->
+{{stylesheet "/static/post.css"}}
+<article>
+  <h1>{{.Title}}</h1>
+  <p class="meta">{{formatTime .Published "2 January 2006"}}</p>
+  {{slot "author"}}
+  <div class="body">{{.Body}}</div>
+  <section class="comments">
+    {{range .Comments}}<p><b>{{.Name}}</b> {{.Text}}</p>{{end}}
+  </section>
+</article>
+```
+
+```html
+<!-- templates/fragments/author.html -->
+<aside class="author">
+  <strong>{{.Name}}</strong>
+  <p>{{.Bio}}</p>
+</aside>
+```
+
+`/static/post.css` bir [mount](/docs/assets) içindeki bir dosya olmalıdır.
+`{{stylesheet}}` onun content-addressed URL'sine link verir. Hiçbir mount'un serve
+etmediği bir path render'ı başarısız kılar.
+
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 254" role="img" aria-labelledby="tpl-post-title">
+<title id="tpl-post-title">Render edilmiş blog yazısı page'i. Layout'un hoist head işareti, page'in tamamı render edildikten sonra doldurulur: yazının handler'ının hoist ettiği title ve description meta'sı ile yazının template'inin stylesheet ile tanımladığı post.css link'i oraya gider. Layout'un content slot'u post fragment'ini, yazının author slot'u da author fragment'ini tutar. Yazının içinde başlık ve okurların yorumları escape edilir; template.HTML tipindeki gövde olduğu gibi eklenir.</title>
+<defs><marker id="tpl-post-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
+<rect class="d-frame" x="4" y="4" width="312" height="246" rx="8" />
+<text x="14" y="21">layout</text><text class="d-small" x="60" y="21">layouts/default.html</text>
+<rect class="d-slot d-slot-b" x="14" y="30" width="292" height="36" rx="5" />
+<text class="d-small" x="24" y="51">hoist "head"</text>
+<rect class="d-chip" x="104" y="39" width="60" height="18" rx="9" /><text class="d-small" x="134" y="51" text-anchor="middle">&lt;title&gt;</text>
+<rect class="d-chip" x="170" y="39" width="56" height="18" rx="9" /><text class="d-small" x="198" y="51" text-anchor="middle">&lt;meta&gt;</text>
+<rect class="d-chip-hit" x="232" y="39" width="74" height="18" rx="9" /><text class="d-hit-text d-small" x="269" y="51" text-anchor="middle">post.css</text>
+<rect class="d-slot d-slot-a" x="14" y="74" width="292" height="170" rx="5" />
+<text class="d-slot-text-a d-small" x="24" y="88">slot "content"</text>
+<rect class="d-frame d-frame-a" x="24" y="96" width="272" height="140" rx="6" />
+<line class="d-flow" x1="134" y1="96" x2="134" y2="61" marker-end="url(#tpl-post-arrow)" />
+<line class="d-flow" x1="198" y1="96" x2="198" y2="61" marker-end="url(#tpl-post-arrow)" />
+<line class="d-flow" x1="269" y1="101" x2="269" y2="61" marker-end="url(#tpl-post-arrow)" />
+<text class="d-slot-text-a" x="34" y="113">post</text><text class="d-small" x="70" y="113">pages/post.html</text>
+<rect class="d-chip-hit" x="206" y="101" width="84" height="18" rx="9" /><text class="d-hit-text d-small" x="248" y="113" text-anchor="middle">stylesheet</text>
+<text class="d-small" x="34" y="134">h1: escape edilir</text>
+<rect class="d-slot d-slot-c" x="34" y="142" width="252" height="50" rx="4" />
+<text class="d-small" x="44" y="156">slot "author"</text>
+<rect class="d-c" x="44" y="162" width="100" height="22" rx="4" /><text class="d-on-c" x="94" y="177" text-anchor="middle">author</text>
+<text class="d-small" x="154" y="177">fragments/author.html</text>
+<text class="d-small" x="34" y="210">yorumlar: escape edilir</text>
+<text class="d-small" x="34" y="226">gövde: template.HTML, aynen</text>
+</svg>
+<figcaption>Post fragment'i layout'un <code>content</code> slot'unu, author fragment'i de yazının <code>author</code> slot'unu doldurur. Yazının handler'ının hoist ettiği title ve description ile template'inin tanımladığı stylesheet, layout'un <code>hoist "head"</code> işaretine çıkar. Bu işaret page'in tamamı render edildikten sonra doldurulur. Yazının içinde başlık ve okurların yorumları escape edilir; <code>template.HTML</code> tipindeki gövde olduğu gibi eklenir.</figcaption>
+</figure>
+
+### Okura ulaşan
+
+Başlığı `Escaping <script> & friends` olan bir yazı ve metni
+`<script>alert(1)</script>` olan bir yorum düşünün. `/posts/escaping` için gelen
+bir request 200 ile cevaplanır. Page, `<head>`'den `</body>`'ye kadar ve boş satırlar
+çıkarılmış hâliyle şöyledir:
+
+```html
+<head>
+  <meta charset="utf-8">
+  <title>Escaping &lt;script&gt; &amp; friends</title><meta name="description" content="What html/template escapes for you"><link rel="stylesheet" href="/static/post.cba296a6afd593e0.css">
+</head>
+<body>
+<article>
+  <h1>Escaping &lt;script&gt; &amp; friends</h1>
+  <p class="meta">18 October 2026</p>
+<aside class="author">
+  <strong>Ada</strong>
+  <p>Writes about templates.</p>
+</aside>
+  <div class="body"><p>Hello <em>world</em></p></div>
+  <section class="comments">
+    <p><b>mallory</b> &lt;script&gt;alert(1)&lt;/script&gt;</p>
+  </section>
+</article>
+</body>
+```
+
+- **Başlık, göründüğü iki yerde de escape edilir.** `rc.HoistTitle` onu `<title>`
+  için, `{{.Title}}` ise `<h1>` için escape eder.
+- **Yorum düz metindir.** `{{.Text}}` bir `string`'dir. Bu yüzden okurun script'i
+  çalışmaz, metin olarak basılır.
+- **Gövde markup'tır.** Tipi `template.HTML` olduğu için olduğu gibi eklenir.
+  Güvenliği sizin kodunuza kalan tek değer budur.
+- **Stylesheet `<head>`'dedir.** Yazının template'i onu `<body>` içinde tanımlasa
+  da content-addressed URL'siyle head'e link'lenir.
+
+### Register'ın yakaladıkları
+
+`pages/post.html`'de başlık için `{{.Titel}}`, yorum döngüsünde de `{{.Name}}`
+yerine `{{.Author}}` yazın. `RegisterPage`, page'i `ErrTemplateType` ile reddeder.
+İki bulguyu birden, her birini dosyası, satırı ve sütunuyla verir:
+
+```text
+collage: page "post": fragment "post" (pages/post.html:4:8): {{.Titel}}: type main.postView has no field or method Titel (did you mean Title?)
+collage: page "post": fragment "post" (pages/post.html:9:31): {{.Author}}: type main.comment has no field or method Author
+```
+
+`{{range .Comments}}` içinde `.` bir `comment`'tir. Bu yüzden ikinci bulgu yazının
+değil, o tipin adını verir.
+
+Bunun yerine yazar kartını bir yazım hatasıyla bağlayın:
+`WithSlotFragment("autor", author)`. Bu durumda `RegisterPage`, `ErrUnknownSlot`
+ile başarısız olur:
+
+```text
+collage: unknown slot: page "post" fragment "post" binds into slot "autor", but template "pages/post.html" never calls it; it calls [author]
+```
+
+Bu kontrollerin ikisi de escaping'e bakmaz. `{{.Text | safeHTML}}` tiplere uyar ve
+iki kontrolden de geçer, ama okurun script'ini markup olarak basar. `safeHTML`'i
+yalnızca kendi ürettiğiniz ya da sanitize ettiğiniz içerik için kullanın.
