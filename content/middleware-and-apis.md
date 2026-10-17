@@ -181,7 +181,9 @@ func languageData(ctx context.Context, rc *collage.RenderContext) (string, []str
 - **The value you resolved goes into the key, not the raw header.** Browsers spell
   their preferences a hundred ways — `tr-TR,tr;q=0.9`, `tr`, `tr-TR` — and all of them
   are one page. Reduce the header to the handful of values your pages actually
-  differ by, and the cache holds that many entries.
+  differ by, and the cache holds that many entries. Never vary on `Cookie` or
+  `Authorization` themselves: since v0.64.0 the value is kept in memory and sent
+  again with every [warm render](/docs/caching#warming-after-an-invalidation).
 - **Read it with `collage.Varied`, not from the context.** On a cacheable page one
   render is served to many readers, so a value your middleware puts in the request
   context with `context.WithValue` is stripped from that render — it would

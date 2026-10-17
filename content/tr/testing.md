@@ -134,6 +134,30 @@ site mutlak `https://example.com/...` hedefleri kullanır. Bu request'ler TLS
 Redirect'ler takip edilmez: bir test genellikle `303`'ü ve nereyi gösterdiğini görmek
 ister. Test, arkasındaki page ile ilgiliyse redirect'i `Follow` takip eder.
 
+## Invalidation ve warming
+
+v0.64.0'dan beri uygulama, bir `InvalidateTags` ya da `PurgeTags` çağrısından sonra
+ulaştığı page'leri arka planda yeniden render eder (bkz.
+[Caching](/docs/caching#warming-after-an-invalidation)). Bir invalidation'ın hemen
+ardından `X-Collage-Cache: STALE` (ya da `MISS`) geldiğini doğrulayan bir test bu
+warmer ile yarışır. Böyle bir test için `CacheConfig`'te `WarmLimit: -1` ayarlayın.
+Development'ta warming zaten kapalıdır.
+
+Tersini, yani warmer page'i yeniden render ettikten sonra `HIT` geldiğini
+doğrulayan bir test, önce bir
+[`collagetest.Site`](#test-a-plugin-with-a-site-of-its-own) üzerinde
+`site.WaitWarmed()` ile warmer'ı bekler. Bu çağrı, kuyrukta ya da render edilmekte olan
+bir şey kalmadığında döner. Warming kapalıysa hemen döner:
+
+```go
+if err := site.App.InvalidateTags(ctx, "posts"); err != nil {
+	t.Fatal(err)
+}
+site.WaitWarmed()
+res := site.Get("/posts").WantStatus(http.StatusOK)
+// res.Header.Get(collage.CacheStatusHeader) == "HIT"
+```
+
 ## Disk cache'ini izole edin
 
 Scaffold'daki cache dizini bir package değişkenidir. `client`, uygulamayı kurmadan

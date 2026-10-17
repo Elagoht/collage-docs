@@ -1,6 +1,6 @@
 ---
 description: How collage caches rendered pages and the data they are made from, and how it knows what to throw away.
-reference: CacheConfig, Cached, App.PurgeTags, CacheStale, Once, Key, TaggedCache, StaleCache, CacheStatusHeader, SkipCache, Vary, PageBuilder.Static, PageBuilder.Incremental, PageBuilder.Dynamic, FragmentBuilder.Static, FragmentBuilder.Shared, StrategyAuto, PathTag
+reference: CacheConfig, Cached, App.PurgeTags, CacheStale, CacheWarm, Once, Key, TaggedCache, StaleCache, CacheStatusHeader, SkipCache, Vary, PageBuilder.Static, PageBuilder.Incremental, PageBuilder.Dynamic, FragmentBuilder.Static, FragmentBuilder.Shared, StrategyAuto, PathTag
 ---
 
 # Caching
@@ -24,6 +24,7 @@ app, err := collage.New(&collage.Config{
 		DefaultTTL: 5 * time.Minute,
 		MaxEntries: 10000,
 		MaxBytes:   256 << 20, // 0 means the type's default; negative, no limit
+		WarmLimit:  0,         // pages re-rendered after an invalidation; 0 means 1000, negative, off
 	},
 })
 ```
@@ -270,9 +271,10 @@ if err := app.InvalidateTags(ctx, "post:"+slug, "blog:posts"); err != nil {
 ```
 
 Every cached page carrying any of those tags is marked stale (since v0.63.0; before,
-it was dropped). It is no longer served as fresh: the next request for each one
-renders it again, and a good render is stored in its place. But the old page is
-kept, to answer with when that render fails or comes out degraded — see
+it was dropped). It is no longer served as fresh: it is rendered again in the
+background right away (since v0.64.0; see [below](#warming-after-an-invalidation)),
+or by the next request if that has not happened yet, and a good render is stored
+in its place. But the old page is kept, to answer with when that render fails or comes out degraded — see
 [Stale pages](#stale-pages-and-x-collage-cache).
 Every value `collage.Cached` stored under the tags is marked stale too: kept, and
 served once more while a fetch in the background replaces it (see
@@ -317,10 +319,14 @@ The usual place to call it is wherever your content changes: a CMS webhook, an
 admin form. An action can do it declaratively, with
 [`InvalidateTags` on its result](/docs/forms-and-actions#invalidating-what-an-action-changed),
 which runs before the response is written — so a reader redirected to the page
-they just changed is not served the old page as though it were fresh: it renders
-again. A page that reads `collage.Cached` data still lands on the old page for
-that one load, served stale while its data refreshes: see
+they just changed is not served the old page as though it were fresh: since
+v0.64.0 the redirect's own page is rendered again before the redirect is written
+(see [Warming](#warming-after-an-invalidation)), and the old one is served only if
+that render fails or is slow: see
 [the note there](/docs/forms-and-actions#invalidating-what-an-action-changed).
+Call `app.InvalidateTags` yourself from the handler and the invalidation's pages
+are warmed in the background only: the redirect's page is not rendered before the
+redirect is written.
 
 ### Invalidating by path
 
@@ -375,10 +381,106 @@ of a large site, flooded with invented queries, while the cache itself held
 oldest written go first; a negative `MaxEntries` leaves this off. A store of your
 own keeps the per-tag cap only, since collage cannot know its size.
 
+## Warming after an invalidation
+
+An invalidated page is stale until something renders it again, and the first
+visitor would pay for that render. So since v0.64.0, after every `InvalidateTags`
+and `PurgeTags` — yours, a plugin's, an action's — the pages and documents the
+invalidation reached are rendered again in the background, with fresh data, and
+stored: the next visitor is handed a fresh `HIT`. Four workers do it, and the
+first key alone goes first, as a probe; the workers start only after the first
+successful warm, so skips keep the run one key at a time until one succeeds.
+
+- **Only what was served is warmed.** An entry written to the cache records how
+  to ask for it again — its path, query, locale and `Vary` header values. Every
+  variant a visitor was actually served is warmed; one nobody asked for is not.
+  The recipes live in memory only: after a restart there are none until pages
+  are written again, and the first invalidation then warms nothing.
+- **Only what is still read is warmed again.** A page is warmed when a visitor
+  has had it since its last warm: served it fresh or stale, or rendered it. One
+  warmed and then not read is passed over by the next invalidation, and renders
+  on its next request as it would without warming; that visitor makes it worth
+  warming again. A variant somebody asked for once is not kept warm for good.
+- **What the cache let go of stays gone.** A page an `InvalidateTags` reached
+  whose entry the cache no longer holds, not even stale — evicted at
+  `MaxEntries` or `MaxBytes`, or dropped — is not brought back. `PurgeTags`
+  removes its entries itself, and warms them all the same. (A store of your own
+  that is not a `StaleCache` drops every entry it invalidates, so this check does
+  not apply to it.)
+- **`Cache.WarmLimit` caps one invalidation.** Zero means 1000, the most
+  recently written pages first; a negative value turns warming off. Pages past
+  the cap render on their first request, as before.
+- **A run stops at the first real render failure**, with one warning
+  (`collage: warming stopped, a page failed to render`), so a down upstream is
+  not asked again for every remaining page; those are left stale, and
+  [stale serving](#stale-pages-and-x-collage-cache) applies to them as usual.
+  Skips do not stop it: a page that answers 404 (its recipe is dropped), a
+  guarded page (its recipe is dropped, and its first reader renders it), one
+  already fresh, and the two above.
+- **A warm another invalidation overlapped is warmed again.** A render that any
+  other `InvalidateTags` or `PurgeTags` overlapped is not stored, as no render is.
+  The warmer queues that page again once no invalidation is under way, at most
+  once for each invalidation that overlapped it, so a storm of invalidations
+  cannot keep one page rendering.
+- **A warm render is not a request.** It skips `App.Use` and plugin middleware,
+  request hooks, personalisation, error hooks and per-request logs.
+  `BeforeRender`, `AfterRender` and `DocumentRendered` still run, since they
+  shape the stored body. It runs in its own flight, so no visitor ever waits on a
+  warm render, and a page may render twice while it is being warmed.
+- **Off** in development, in a static build and with the cache off. `Shutdown`
+  stops warming; renders already under way finish under the shutdown context.
+
+What follows from those rules:
+
+- **Never declare a credential header as a `Vary` header.** A warm request
+  carries no visitor's `Cookie` or `Authorization`; it carries the values of the
+  headers the cache key varies on. Declare `Cookie` or `Authorization` there and
+  its value is kept in the recipe, in memory, and sent again with every warm
+  render of that page. Vary on what a middleware resolved from it (a plan, a
+  role) instead, or make the page `Dynamic`.
+- **Middleware does not gate a warm render.** A middleware that refuses a
+  request — a tenant plugin answering 404 for a host whose tenant was deleted, an
+  auth check — never sees a warm. After a purge, warming can therefore write an
+  entry no visitor reaches any more. It is harmless, as nobody is served it, and
+  it is evicted like any other; purge such a host's pages after the middleware
+  stops answering for it, or let them age out.
+- **A page left out of a run is untracked until written again.** An invalidation
+  forgets the keys it reached. A key a run did not warm — over `WarmLimit`, left
+  by a run that stopped on a failure or at `Shutdown`, or passed over — is
+  reached by no later invalidation until a visitor's request renders and stores
+  it again. Its stale entry is served (or rendered again) as usual meanwhile.
+- **Junk query variants are kept out by `WithCacheParams`.** On a page that
+  declares none, every distinct query is a key, and every key a visitor was
+  served is warmed while it is still read. A page whose query can carry anything
+  (tracking parameters, cache-busters) should
+  [name the parameters it reads](#query-parameters-in-the-key), so a junk query is
+  the same key as the clean URL.
+
+The warmed keys are tracked again, so a later invalidation's `OnCacheInvalidate`
+names them again. A run logs one line at info (`collage: warmed pages`, with the
+counts warmed, skipped and failed), and each warmed key is a `CacheWarm` metrics
+event. A warm request still counts in `CacheHit`, `CacheMiss` and `CacheSet`,
+and its render in `RenderDuration` and the fragment metrics, so expect a burst
+of misses, sets and renders after an invalidation. It also costs CPU right after
+one: a site invalidating thousands of pages at once re-renders them, four at a
+time. Lower `WarmLimit` if that matters.
+
+A test that asserts `STALE` right after an invalidation races the warmer. Set
+`WarmLimit: -1` in such a test. One that asserts the `HIT` after it waits for
+the warmer first, with `collagetest`'s `site.WaitWarmed()` (see
+[Testing](/docs/testing#invalidation-and-warming)).
+
+An action that invalidates and redirects warms the redirect's page first, held
+to 5 seconds and to its response's write deadline — see
+[Forms and actions](/docs/forms-and-actions#invalidating-what-an-action-changed).
+
 ## Stale pages and `X-Collage-Cache`
 
 Since v0.63.0 a page or document that is stale — marked so by `InvalidateTags`, or
-past its TTL — is not thrown away by the built-in stores. A request for it renders
+past its TTL — is not thrown away by the built-in stores. (After an invalidation
+it is normally [warmed](#warming-after-an-invalidation) before anyone asks, so
+what follows is what a visitor meets when the warm render failed, was skipped or
+has not run yet.) A request for it renders
 again, through the same shared render as any miss
 ([below](#concurrent-misses-render-once)), and what happens next depends on that
 render:
@@ -388,9 +490,9 @@ render:
 - **A render that fails, or comes out degraded**, is not stored, and the stale
   page is served instead, with `Cache-Control: no-store` so that no browser or
   CDN keeps it, and `X-Collage-Cache: STALE`. The reader sees the old page, not a
-  500. Reading a stale `collage.Cached` value makes a render degraded, and that is
-  the usual cause right after an invalidation: the page's data is stale until the
-  background fetch replaces it.
+  500. Reading a stale `collage.Cached` value makes a render degraded, and,
+  without warming, that is the usual cause right after an invalidation: the
+  page's data is stale until the background fetch replaces it.
 - **A render that answers 404** drops the entry: the content is gone.
 
 Before v0.63.0 an invalidated page was gone, so an invalidation followed by a
@@ -635,7 +737,8 @@ type StaleCache interface {
   expiry, with `stale` true. `found` is false only when the key has no entry at
   all.
 - `Get` still reports neither a stale entry nor an expired one: they are misses,
-  as before.
+  as before. The framework looks a page up in a `StaleCache` with `GetStale`
+  alone, so one lookup is one hit or one miss in your counters.
 - `MarkStaleKey` keeps the entry, with its content, ETag, expiry and tags, and
   marks it. Marking a key with no entry is not an error. A later `Set` or
   `SetTagged` for the key stores a fresh entry, which clears the mark.
@@ -703,7 +806,7 @@ With `Config.DevMode` on — which a scaffolded project
 turns on under `collage dev` — cached pages are never served. Templates reload from disk on every request
 in development, and a cached page would hide the edit you just made for as long as
 its TTL. Pages are still written and tags still tracked, so hooks and metrics
-behave as they will in production; what is gone is serving a page rendered before
+behave as they will in production, warming aside; what is gone is serving a page rendered before
 the edit.
 
 A disk cache is replaced by a memory one in development, and collage logs that it
@@ -785,12 +888,14 @@ the old author they were meant to replace.
 - **Invalidation keeps the old value, to serve until a new one arrives.**
   `InvalidateTags`, and a value's `ttl` running out, mark it stale rather than
   removing it.
-  The next render is served the stale value at once, and one fetch in the
-  background replaces it, with a fixed 30-second timeout and detached from the
+  When no warm render reached the page (warming off, over `WarmLimit`, the run
+  stopped on a failure, or a visitor arrived before the warmer got there; see
+  [Warming](#warming-after-an-invalidation)), the next render is served the stale
+  value at once, and one fetch in the background replaces it, with a fixed 30-second timeout and detached from the
   request. A request after that fetch has finished sees the change. A fetch that
   was still running when its tags were invalidated hands its result to whoever
   was waiting and is kept, but as stale; one overtaken by `PurgeTags` is not kept
-  at all.
+  at all. A warm render instead waits for fresh data and stores a fresh page.
 - **A failed refresh keeps serving stale.** If the background fetch fails, the
   stale value stays and keeps being served, however long the upstream is down.
   The key cools down: no new fetch starts for it for a second, then two, four,

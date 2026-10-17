@@ -181,8 +181,10 @@ Minifier buna bir örnektir. Page render hook'ları (`OnBeforeRender`, `OnAfterR
 çalışmaz, çünkü render edilen bir şey yoktur. Bkz.
 [Plugin yazmak](/docs/writing-plugins).
 
-Invalidate edilen bir document bir sonraki request'te yeniden render edilir.
-v0.63.0'dan beri o zamana kadar stale olarak tutulur. Bu render başarısız olursa
+Invalidate edilen bir document hemen arka planda yeniden render edilir (v0.64.0'dan
+beri; bkz. [Caching](/docs/caching#warming-after-an-invalidation)). Bu henüz
+olmadıysa bir sonraki request'te render edilir. v0.63.0'dan beri o zamana kadar
+stale olarak tutulur. Bu render başarısız olursa
 stale bir page gibi sunulur: `Cache-Control: no-store` ve `X-Collage-Cache: STALE`
 ile. 404 dönen bir render onu düşürür. Bkz.
 [Caching](/docs/caching#stale-pages-and-x-collage-cache).

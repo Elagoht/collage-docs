@@ -634,17 +634,41 @@ Tag'ler tam olarak [Caching](/docs/caching#dependency-tags) sayfasında anlatıl
 gibi çalışır ve `collage.Cached` ile saklanan değerlere de ulaşır.
 
 Page'ler de, onları oluşturan `collage.Cached` değerleri de stale olarak
-işaretlenir. İkisi de tutulur (page'ler v0.63.0'dan beri). `Cached` verisi okuyan bir page,
-invalidation'ın hemen ardından degraded olur, çünkü stale bir değer okumuştur.
-Degraded bir render da stale page'in yerini almaz. Bu yüzden redirect *eski*
-page'e varır. Bu page, değerin yerini alacak çekme işlemi arka planda çalışırken
-stale olarak sunulur (`X-Collage-Cache: STALE`, `Cache-Control: no-store`). O
-çekme işlemi bittikten sonraki ilk request yeni page'i render eder ve saklar.
-Upstream'i kapalıyken de cevap vermeyi
-sürdüren bir site'ın bedeli budur. Bir action kendi değişikliğini hemen
-göstermek zorundaysa, bunun yerine handler'dan o tag'ler için `app.PurgeTags`
-çağırın. Bu durumda hiçbir şey tutulmaz. Böylece redirect değişikliği hemen
-gösterir, ama başarısız bir çekme işlemi page'i de başarısız kılar.
+işaretlenir. İkisi de tutulur (page'ler v0.63.0'dan beri). v0.64.0'dan beri
+invalidate edilen page'ler ardından [warm edilir](/docs/caching#warming-after-an-invalidation)
+ve önce redirect'in kendi page'i gelir. `Location` aynı origin'deyse onun varyantı,
+redirect yazılmadan önce taze veriyle yeniden render edilir. Burada varyant,
+query'sinin cache key'deki hâli ve page'in her `Vary` header varyantı demektir. Böylece redirect yeni page'e, taze bir `HIT`'e varır. Form'u gönderenin
+varacağı varyant, yani `Vary` değerlerini onun request'inin bildirdiği varyant, önce
+gelir ve son warm'ından beri kimse okumamış olsa bile warm edilir. Bunu yalnızca bu
+action'ın response'u bekler. Bekleme şu üçünden en kısası kadar sürer: 5 saniye,
+request'in deadline'ı ve response'un write deadline'ından kalan süre eksi
+redirect'i yazmak için yarım saniye. Write deadline, action kendi
+`WithBodyTimeout`'unu ayarlıyorsa odur, ayarlamıyorsa request'in geldiği andan
+itibaren `Server.WriteTimeout`'tur. Hiç süre kalmadıysa response hiç beklemez. O
+ana kadar warm edilmeyen key'ler arka plandaki turda kalır.
+
+Bunu yalnızca `ActionResult.InvalidateTags` yapar. `app.InvalidateTags`'i (ya da
+`PurgeTags`'i) handler'ının içinde kendisi çağıran bir action'ın page'leri de, her
+invalidation'ınki gibi arka planda warm edilir. Ama redirect'i, page'i beklenmeden
+yazılır. Bu yüzden form'u gönderen kişi page'e `STALE` olarak varabilir ya da
+page'in render'ının bedelini o öder.
+
+Page yalnızca render zamanında bitemediğinde stale olarak sunulur
+(`X-Collage-Cache: STALE`, `Cache-Control: no-store`): upstream yavaş ya da
+kapalıdır, bekleme süresi dolmuştur ya da render başarısız olmuştur. Redirect o
+zaman da gönderilir ve bir `Cached` değerinin yerini alacak çekme işlemi arka
+planda çalışır. Upstream'i kapalıyken de cevap vermeyi sürdüren bir site'ın bedeli
+budur. Bir action ne olursa olsun kendi değişikliğini hemen göstermek zorundaysa,
+bunun yerine handler'dan o tag'ler için `app.PurgeTags` çağırın. Bu durumda hiçbir
+şey tutulmaz, bu yüzden başarısız bir çekme işlemi page'i de başarısız kılar.
+
+Temiz bir URL'ye ya da query'sinde yalnızca page'in `WithCacheParams` ile adını
+verdiği parametreler olan bir URL'ye redirect edin. Bunları tanımlayan bir page,
+key'inden diğer her query parametresini çıkarır. Bu yüzden `/posts?saved=1`,
+`/posts` olarak warm edilir. Hiçbirini tanımlamayan bir page ise ham query'ye göre
+key oluşturur: `/posts?saved=1` hiçbir tarifin tutmadığı ayrı bir key'dir ve onun
+için hiçbir şey warm edilmez.
 
 ## Kendi URL'sinde bir fragment
 

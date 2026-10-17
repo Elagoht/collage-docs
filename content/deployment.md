@@ -401,6 +401,10 @@ cache. What a new build finds depends on what changed:
   see [below](#a-memory-cache-and-the-containers-limit).
 - **An invalidated page is kept** to be served, marked `STALE`, if its re-render
   fails or is degraded — see [Caching](/docs/caching#stale-pages-and-x-collage-cache).
+  Since v0.64.0 it is also re-rendered in the background right after the
+  invalidation, which costs CPU for a moment; see
+  [warming](/docs/caching#warming-after-an-invalidation). Keep `Server.WriteTimeout`
+  above 5 seconds, so an action's redirect can wait for its page to warm.
 
 A CDN in front keeps copies of its own:
 [elagoht/cdnpurge](/docs/plugins#elagohtcdnpurge) purges them when collage

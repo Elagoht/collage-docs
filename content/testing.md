@@ -130,6 +130,29 @@ cookies back.
 Redirects are not followed: a test usually wants to see the `303` and where it
 points. `Follow` takes it when the page behind it is what the test is about.
 
+## Invalidation and warming
+
+Since v0.64.0, after an `InvalidateTags` or `PurgeTags` the application
+re-renders the pages it reached in the background (see
+[Caching](/docs/caching#warming-after-an-invalidation)). A test that asserts
+`X-Collage-Cache: STALE` (or a `MISS`) right after an invalidation races that
+warmer; set `WarmLimit: -1` in `CacheConfig` for such a test. Warming is already
+off in development.
+
+A test that asserts the opposite, a `HIT` once the warmer has re-rendered the
+page, waits for it with `site.WaitWarmed()` on a
+[`collagetest.Site`](#test-a-plugin-with-a-site-of-its-own), which returns once
+nothing is queued or rendering, and at once when warming is off:
+
+```go
+if err := site.App.InvalidateTags(ctx, "posts"); err != nil {
+	t.Fatal(err)
+}
+site.WaitWarmed()
+res := site.Get("/posts").WantStatus(http.StatusOK)
+// res.Header.Get(collage.CacheStatusHeader) == "HIT"
+```
+
 ## Isolate the disk cache
 
 The scaffold's cache directory is a package variable, and `client` points it at a
