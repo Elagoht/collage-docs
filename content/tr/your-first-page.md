@@ -32,7 +32,7 @@ yeniden kullanacaksınız.
 <rect class="d-b" x="44" y="134" width="232" height="30" rx="4" /><text class="d-on-b" x="160" y="153" text-anchor="middle">more: Flatbread, Omelette</text>
 <text class="d-small" x="44" y="182">loadMore · tag recipes · hata: atlanır</text>
 </svg>
-<figcaption>Bu rehberde kurulan page, <code>/recipes/pancakes</code> adresinde. Sitenin layout'u, page'in content fragment'i olan <code>recipe</code>'yi kendi <code>content</code> slot'una yerleştirir. <code>recipe</code> zorunludur: handler'ı <code>loadRecipe</code> tarifi yükler ve <code>recipe:pancakes</code> tag'ini bildirir; fragment başarısız olursa page de başarısız olur. Bu fragment'in kendi template'i <code>more</code> adında bir slot çağırır. Bu slot'ta, <code>loadMore</code>'un <code>recipes</code> tag'iyle yüklediği diğer tariflerin listesi durur. Bu fragment'in bir başarısızlık politikası yoktur; başarısız olursa page onsuz sunulur.</figcaption>
+<figcaption>Bu rehberde kurulan page, <code>/recipes/pancakes</code> adresinde. Sitenin layout'u, page'in content fragment'i olan <code>recipe</code>'yi kendi <code>content</code> slot'una yerleştirir. <code>recipe</code> zorunludur: handler'ı <code>loadRecipe</code> tarifi yükler ve <code>recipe:pancakes</code> tag'ini bildirir; fragment başarısız olursa page de başarısız olur. Bu fragment'in kendi template'i <code>more</code> adında bir slot çağırır. Bu slot'ta, <code>loadMore</code>'un <code>recipes</code> tag'iyle yüklediği diğer tariflerin listesi durur. <code>more</code> fragment'inin bir failure policy'si yoktur; başarısız olursa page onsuz sunulur.</figcaption>
 </figure>
 
 Go ve `collage` CLI kurulu olmalı; bkz. [Kurulum](/docs/installation).
@@ -47,10 +47,10 @@ collage dev
 ```
 
 `collage new` minimal projeyi yazar: tek bir page'i saran tek bir layout. Projenin
-`go.mod` dosyası modülü `cookbook` olarak adlandırır; projenin kendi package'larının
+`go.mod` dosyası modülü `cookbook` olarak adlandırır. Projenin kendi package'larının
 `cookbook/data/recipes`, `cookbook/fragments/pages` gibi import edilmesi bu
-yüzdendir. Dosya henüz hiçbir şey require etmez;
-collage'ın kendisini `go mod tidy` ekler.
+yüzdendir. `go.mod` henüz hiçbir şeyi require etmez; collage'ın kendisini
+`go mod tidy` ekler.
 
 [http://localhost:6060](http://localhost:6060) adresini açın ve `collage dev`'i
 çalışır hâlde bırakın. Bundan sonra kaydettiğiniz her Go dosyası yeniden build
@@ -217,7 +217,7 @@ func List(ctx context.Context) ([]Recipe, error) {
 ```
 
 İki fragment de, sondaki export da tarifleri bu iki fonksiyon üzerinden okur. Bu
-sayede tariflerin nereden geldiği, hiçbir page'e dokunmadan değişebilir.
+sayede tariflerin nereden geldiği hiçbir page'e dokunmadan değişebilir.
 
 Buradaki iki ayrıntı ileride önem kazanacak. Birincisi, eksik bir tarif
 `collage.ErrNotFound`'un `%w` ile sarılmasıyla bildirilir. Framework "bu yok" (404)
@@ -407,9 +407,9 @@ bir `collage.ErrTemplateType` döner. Bkz.
 
 ## Bir slot'a ikinci bir fragment ekleyin
 
-Bir page nadiren tek bir kısımdan oluşur. Diğer tariflerin listesini, kendi verisi olan
-ayrı bir fragment olarak ekleyin. `collage add fragment`, kendi page'i olmayan bir
-fragment'i page'in içeriğinin yanına yazar:
+Bir page nadiren tek bir kısımdan oluşur. Diğer tariflerin listesini, kendi verisi
+olan ayrı bir fragment olarak ekleyin. `collage add fragment`, kendi page'i
+olmayan bir fragment'i page'in içeriğinin yanına yazar:
 
 ```sh
 collage add fragment recipes/more --file
@@ -501,7 +501,7 @@ karşılaştırır. Bu yüzden iki taraftan birindeki bir yazım hatası
 slot'u ve template'in gerçekten çağırdığı slot'ları söyler.
 
 Dosyaları kaydedin. Tarif page'inde artık diğer iki tarifin listesi var ve her biri
-kendi page'ine link veriyor: en baştaki şemada gördüğünüz page.
+kendi page'ine link veriyor. Bu, en baştaki diyagramda gördüğünüz page'dir.
 
 Bu page hakkında, hiçbir yerde açıkça yazılmamış üç şey geçerlidir.
 
@@ -633,8 +633,8 @@ cookie'ler saklanır, form'lar gizli alanlarıyla gönderilir, redirect'ler taki
 edilmeye hazırdır.
 
 Siz bakmayı bıraktıktan sonra page'i çalışır tutan şey bir test'tir.
-`main_test.go` dosyasını oluşturun. İçine, uygulamayı `main`'in
-kullandığı `newApp` fonksiyonuyla kuran bir yardımcı fonksiyon ve bir test yazın:
+`main_test.go` dosyasını oluşturun. İçine, uygulamayı `main`'in kullandığı
+`newApp` fonksiyonuyla kuran bir yardımcı fonksiyon ve bir test yazın:
 
 ```go
 package main

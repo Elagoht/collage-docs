@@ -45,7 +45,7 @@ Path'ler buradaki gibi farklı olabilir ya da her locale'de aynı pattern olabil
 Yalnızca tek bir locale'de path'i olan bir page yalnızca o locale'de vardır.
 
 `WithPath`'teki locale bir etiket değildir. Path'in hangi locale'in route'larına
-ekleneceğini seçer ve bir istek yalnızca `Default` olan ya da `Supported`'da yer
+ekleneceğini seçer ve bir request yalnızca `Default` olan ya da `Supported`'da yer
 alan bir locale'e ulaşabilir. `Default` siz ayarlamadıkça `"en"`'dir; bu yüzden
 yalnızca Türkçe olan bir site onu ayarlar:
 
@@ -60,8 +60,8 @@ v0.35.0'dan beri hiçbir URL'nin ulaşamadığı bir locale'deki path, kayıt s�
 ayarını söyler. Önceden site hiçbir uyarı vermeden açılıyor, sonra her URL'de 404
 dönüyordu. Aynı kural action'lar ve document'lar için de geçerlidir.
 
-v0.60.0'dan beri `WithPath` iki hatayı daha reddeder; page, document ve action
-için aynı şekilde:
+v0.60.0'dan beri `WithPath`, page, document ve action için aynı şekilde iki hatayı
+daha reddeder:
 
 - iki kez verilen bir locale: `collage.ErrDuplicateLocalePath`, ilk path korunur;
 - boş bir locale: `collage.ErrInvalidLocale`.
@@ -83,7 +83,7 @@ prefix çıkarılır:
 
 <figure class="diagram-figure" data-search-ignore>
 <svg class="diagram" viewBox="0 0 320 260" role="img" aria-labelledby="ll-url-title">
-<title id="ll-url-title">Default en, Supported en ile tr iken ve PrefixDefault yokken önce request path'inin ilk segment'ine bakılır. Desteklenen bir locale'in adı değilse, /about ya da /fr/about gibi, locale en olur ve path geldiği gibi eşleştirilir. Yazıldığı gibi tr ise, /tr/hakkinda gibi, locale tr olur ve prefix çıkarılır. Varsayılan locale'in kendi prefix'i ya da başka bir büyük/küçük harf yazılışıysa, /en/about ya da /TR/hakkinda gibi, istek herhangi bir page aranmadan tek yazılışa 301 ya da 308 ile redirect edilir. Kalan path yalnızca o locale'in path'leri içinde eşleştirilir; bu yüzden /tr/about 404 döner.</title>
+<title id="ll-url-title">Default en, Supported en ile tr iken ve PrefixDefault yokken önce request path'inin ilk segment'ine bakılır. Desteklenen bir locale'in adı değilse, /about ya da /fr/about gibi, locale en olur ve path geldiği gibi eşleştirilir. Yazıldığı gibi tr ise, /tr/hakkinda gibi, locale tr olur ve prefix çıkarılır. Varsayılan locale'in kendi prefix'i ya da başka bir büyük/küçük harf yazılışıysa, /en/about ya da /TR/hakkinda gibi, request herhangi bir page aranmadan tek yazılışa 301 ya da 308 ile redirect edilir. Kalan path yalnızca o locale'in path'leri içinde eşleştirilir; bu yüzden /tr/about 404 döner.</title>
 <defs><marker id="ll-url-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
 <rect class="d-pill" x="100" y="8" width="120" height="24" rx="12" /><text x="160" y="24" text-anchor="middle">request path</text>
 <line class="d-flow" x1="160" y1="32" x2="160" y2="46" marker-end="url(#ll-url-arrow)" />
@@ -115,10 +115,11 @@ yazılışları kalıcı olarak o URL'ye redirect edilir. Bu yazılışlar iki t
   taşımaz);
 - desteklenen bir locale'in farklı büyük/küçük harfle yazılışı.
 
-Redirect, `GET` ve `HEAD` için `301`, diğer bütün method'lar için `308`'dir. Böylece yanlış yazılışa
-post edilen bir form `GET`'e dönüşmez, yeniden post edilir. Query string de redirect
-ile birlikte taşınır. Bu redirect olmasaydı `/en/about`, arama motoru için
-`/about`'un ikinci bir kopyası, cache'te de ikinci bir kayıt olurdu.
+Redirect, `GET` ve `HEAD` için `301`, diğer bütün method'lar için `308`'dir.
+Böylece yanlış yazılışa post edilen bir form `GET`'e dönüşmez, yeniden post edilir.
+Query string de redirect ile birlikte taşınır. Bu redirect olmasaydı `/en/about`,
+arama motoru için `/about`'un ikinci bir kopyası, cache'te de ikinci bir kayıt
+olurdu.
 
 Varsayılan locale dahil bütün dilleri bir prefix altında sunmak isteyen bir site
 `PrefixDefault: true` ayarını kullanır (v0.14.0'dan beri). Bu durumda `/en/about`,
@@ -141,7 +142,7 @@ değildir:
 <svg class="diagram" viewBox="0 0 320 258" role="img" aria-labelledby="ll-prefix-title">
 <title id="ll-prefix-title">PrefixDefault true iken /en/about, about page'ini en'de, /tr/hakkinda ise tr'de sunar. Varsayılan locale'deki bir page'i prefix'siz isteyen /about, 301 ile /en/about'a, kök de /en'e redirect edilir. Static export en page'lerini en/ altına, tr page'lerini tr/ altına yazar; köke de canonical adresi /en/ olan bir en home page kopyası koyar.</title>
 <defs><marker id="ll-prefix-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
-<text class="d-small" x="6" y="14">bir istek, PrefixDefault: true</text>
+<text class="d-small" x="6" y="14">bir request, PrefixDefault: true</text>
 <rect class="d-chip" x="6" y="22" width="104" height="26" rx="13" /><text x="58" y="39" text-anchor="middle">/en/about</text>
 <line class="d-flow" x1="110" y1="35" x2="150" y2="35" marker-end="url(#ll-prefix-arrow)" />
 <rect class="d-a" x="154" y="22" width="160" height="26" rx="5" /><text class="d-on-a" x="234" y="39" text-anchor="middle">about, en'de</text>
@@ -319,8 +320,8 @@ func (rc *RenderContext) ActionURL(name string, params map[string]string) (strin
 Doğrudan request'ten gelen bir değer bile tek bir escape edilmiş path
 segment'idir. `/` içeren ya da `.` veya `..` olan bir değer
 `collage.ErrRouteParams` döner. Böylece bir değer path'i başka bir sitenin
-URL'sine çeviremez. Collage'ın oluşturmadığı bir `RenderContext`'te (örneğin bir testin
-elle kurduğu) ikisi de `collage.ErrUnknownRoute` döner.
+URL'sine çeviremez. collage'ın oluşturmadığı bir `RenderContext`'te (örneğin bir
+testin elle kurduğu) ikisi de `collage.ErrUnknownRoute` döner.
 
 Render'ın kendi locale'i dışında bir locale için ya da render dışında (bütün
 page'leri listeleyen bir sitemap, bir page'in head'indeki alternate link'ler)
@@ -334,7 +335,8 @@ target, err := app.URL("blog-post", "tr", map[string]string{"slug": post.Slug})
 func (a *App) URL(name, locale string, params map[string]string) (string, error)
 ```
 
-Boş bir locale, varsayılan locale anlamına gelir. `app.URL`, `pageURLIn` kadar katıdır:
+Boş bir locale, varsayılan locale anlamına gelir. `app.URL`, `pageURLIn` kadar
+katıdır:
 
 | Sorun | Hata |
 | --- | --- |
@@ -382,10 +384,10 @@ Okuyucunun tarayıcısına göre dil seçmek, siteniz hakkında bir karardır. B
 kararı siz verirsiniz ve bunu [middleware](/docs/middleware-and-apis) içinde
 yaparsınız. Bunun iki dürüst yolu vardır.
 
-**Redirect edin.** Varsayılan locale'in ana sayfasına Türkçe bir tarayıcıyla ya da kendi
-tanımladığınız bir dil cookie'siyle gelen okuyucuyu `/tr`'ye gönderin. Her URL yine
-tek bir anlama gelir. Yalnızca yeni bir okuyucunun nereden başlayacağını seçmiş
-olursunuz.
+**Redirect edin.** Varsayılan locale'in home page'ine Türkçe bir tarayıcıyla ya da
+kendi tanımladığınız bir dil cookie'siyle gelen okuyucuyu `/tr`'ye gönderin. Her
+URL yine tek bir anlama gelir. Yalnızca yeni bir okuyucunun nereden başlayacağını
+seçmiş olursunuz.
 
 ```go
 app.Use(func(next http.Handler) http.Handler {
@@ -429,20 +431,19 @@ func pageData(ctx context.Context, rc *collage.RenderContext) (pageView, []strin
 gönderdiği header'ın tamamı değil, `"tr"`'dir. Header'ın adını da response'un `Vary`
 header'ına yazar. Böylece bir CDN de sürümleri birbirinden ayrı tutar.
 
-`Vary` middleware'den çağrılmalıdır. v0.11.0'dan beri `Vary`, routing başladığında kapanır
-ve bu, cache'lenen ya da cache'lenmeyen her route için geçerlidir. Bu yüzden bir data
-handler'dan ya da routing'den sonraki herhangi bir yerden yapılan çağrı hiçbir şeyi
-değiştirmez ve `collage.ErrVaryTooLate` döner.
+`Vary` middleware'den çağrılmalıdır. v0.11.0'dan beri `Vary`, routing
+başladığında kapanır ve bu, cache'lenen ya da cache'lenmeyen her route için
+geçerlidir. Bu yüzden bir data handler'dan ya da routing'den sonraki herhangi bir
+yerden yapılan çağrı hiçbir şeyi değiştirmez ve `collage.ErrVaryTooLate` döner.
 
-Bu yol,
-[tek URL, tek içerik](#why-only-the-url) yaklaşımının faydalarından vazgeçer. O
-yüzden onu bilerek seçin; genellikle bütün page'lerinin path'i `Default`'ta olan,
-yani hiçbir URL'nin bir locale adlandırmadığı bir sitede kullanılır.
+Bu yol, [tek URL, tek içerik](#why-only-the-url) yaklaşımının faydalarından
+vazgeçer. O yüzden onu bilerek seçin; genellikle bütün page'lerinin path'i
+`Default`'ta olan, yani hiçbir URL'nin bir locale adlandırmadığı bir sitede
+kullanılır.
 
 [Static export](/docs/static-export) request olmadan render eder, bu yüzden yazdığı
 dosyalar için hiçbir middleware çalışmaz. Export edilen bir sitede locale'ler
 yalnızca URL'lerde yer alabilir.
-
 
 ## Örnek: iki dilli bir ürün kataloğu
 
@@ -524,7 +525,7 @@ if err := app.Register(catalogue, product); err != nil {
 ```
 
 Template'ler path değil, page adı yazar. Dil seçici layout'tadır. Katalog her
-ürüne adıyla ve `id`'siyle link verir. Ürün page'i de stok kutusunun URL'sini
+ürüne page adı ve `id`'siyle link verir. Ürün page'i de stok kutusunun URL'sini
 adıyla belirtir:
 
 ```html

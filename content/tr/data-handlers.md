@@ -10,8 +10,8 @@ Data handler, bir fragment'in template'inde render edeceği veriyi almak için
 kendi Go tipindeki veriyi, bu verinin geldiği dependency tag'leri ve bir hata
 döner.
 
-Bir page'in dış dünyayla konuştuğu her şey (bir veritabanı, bir CMS, bir
-API) data handler'larda olur, başka hiçbir yerde olmaz.
+Bir page'in dış dünyayla konuştuğu her şey (bir veritabanı, bir CMS, bir API) data
+handler'larda olur, başka hiçbir yerde olmaz.
 
 ```go
 content := collage.NewFragment("post", "pages/post.html").
@@ -62,8 +62,8 @@ handler ile template'in kendi verisine dair varsayımı birbirinden ayrışamaz.
 
 Bu şekilde yazılan bir loader'ı bir test'ten ya da bir sitemap handler'ından
 çağırmak da kolaydır: bunlar assert edilmesi gereken bir değer yerine bir `*Post`
-alır. Constructor'ların `WithData`'nın bir biçimi değil de ayrı fonksiyonlar olmasının
-nedeni, Go method'larının type parameter alamamasıdır.
+alır. Constructor'ların `WithData`'nın bir biçimi değil de ayrı fonksiyonlar
+olmasının nedeni, Go method'larının type parameter alamamasıdır.
 
 v0.49.0'dan önce bir handler `WithDataHandler` ile verilir ve
 `(any, []string, error)` dönerdi. Sabit veri ise `WithData(v)` ile verilirdi. İkisi
@@ -78,7 +78,7 @@ Bir `LoadTagged`'ın üç dönüş değerinin her birinin ayrı bir görevi vard
   daha anlaşılırdır. Her fragment kendi verisini alır. Bir child, parent'ının
   verisini görmez. Hata durumunda veri atılır. Böylece bir hatanın yanında dönen
   nil bir `*Post`, template'e mevcutmuş gibi görünen bir değer olarak hiç ulaşmaz.
-- **Tag'ler:** Bu verinin oluşturulduğu içerik kısımlarıdır, örneğin
+- **Tag'ler:** Bu verinin oluşturulduğu içerik öğeleridir, örneğin
   `"post:hello-world"` ya da `"author:ada"`. Page'deki her fragment'ten, page'in
   kendi `WithDependencyTags` tag'leriyle birlikte toplanır ve cache'lenen page ile
   birlikte saklanır. Böylece bir tag'i invalidate ettiğinizde, o tag'i gösteren her
@@ -156,8 +156,8 @@ mesajı fragment'in adını verir: `fragment "home-content" has its data set twi
 Kastettiğiniz çağrıyı tutun, diğerini silin. v0.49.0'dan önce ikinci çağrı sessizce
 kazanırdı.
 
-nil bir `Data` (`WithData(nil)` ya da nil bir fonksiyon verilmiş bir
-constructor) veri yok demektir ve hiçbir şeyle çakışmaz.
+nil bir `Data` (`WithData(nil)` ya da nil bir fonksiyon verilmiş bir constructor)
+veri yok demektir ve hiçbir şeyle çakışmaz.
 
 ### Tag'siz handler'lar
 
@@ -441,8 +441,8 @@ veri kendisine uyan yolla çekilir:
 | Marka: ad ve ülke | Katalog; birçok ürünün paylaştığı yavaş bir sorgu | `collage.Cached`, bir gün için, `brand:<id>` tag'iyle |
 | Yorumlar | Bir yorum servisi | `collage.Once`, iki sibling fragment'ten: yorum kutusu ve page'in description'ı |
 
-catalog, pricing ve reviews package'ları sizin kendi client'larınızın yerine
-geçer. Ürünün handler'ı:
+Buradaki catalog, pricing ve reviews package'ları sizin kendi client'larınızı
+temsil eder. Ürünün handler'ı:
 
 ```go
 var (
@@ -517,8 +517,8 @@ func productSEO(ctx context.Context, rc *collage.RenderContext) error {
 ```
 
 İki fragment sibling'dir, bu yüzden handler'ları aynı anda başlar. `reviewsOf`'a
-ilk ulaşan yorum servisini çağırır, diğeri onun sonucunu bekler. `Get`, bulunamazsa
-çekme ve `Set` yaklaşımı servisi iki kez çağırabilirdi.
+ilk ulaşan yorum servisini çağırır, diğeri onun sonucunu bekler. Bir `Get`,
+bulunamazsa çekme ve ardından bir `Set` ise servisi iki kez çağırabilirdi.
 
 Ürün ikisini de kendi slot'larına bağlar:
 
@@ -595,15 +595,16 @@ Description, layout'taki `{{hoist "head"}}` marker'ının olduğu yere yerleşir
 Her hatanın bu page'e etkisi:
 
 - **Ürün 7 yoktur.** Required fragment'in hatası `collage.ErrNotFound`'u wrap
-  eder: not-found page'i, 404 ile.
+  eder. Sonuç, 404 ile not-found page'idir.
 - **Katalog ya da fiyat servisi başarısız olur.** Ürün required olduğu için
   page'in error page'i 500 ile sunulur.
 - **Marka sorgusu başarısız olur.** Henüz saklanmış bir marka yoksa bu da 500'dür.
   Saklanmış bir marka varsa `Cached` onu stale olarak sunar ve stale veriden
   oluşturulan page cache'lenmez.
-- **Yorum servisi çökmüştür ya da 500 milisaniyeden yavaştır.** Tek çağrısı
-  başarısız olur ve iki fragment de aynı hatayı alır: yorum kutusu hiçbir şey
-  render etmez, description tanımlanmaz ve page onlarsız 200 ile cevap verir.
+- **Yorum servisi çökmüştür ya da 500 milisaniyeden yavaştır.** Servise yapılan
+  tek çağrı başarısız olur ve iki fragment de aynı hatayı alır: yorum kutusu
+  hiçbir şey render etmez, description tanımlanmaz ve page onlarsız 200 ile cevap
+  verir.
   Başarısız bir fragment'le sunulan page degraded'dır ve hiç cache'lenmez. Bu
   yüzden sonraki request yorum servisine yeniden sorar.
 
@@ -621,11 +622,11 @@ Her data handler bir deadline altında çalışır. Bu deadline fragment'in
 Deadline, handler'ın aldığı `ctx` üzerindedir. **Handler'ı değil, context'i
 sınırlar.**
 
-Framework bir handler'ı deadline'ı geldiğinde bırakmaz, dönmesini
-bekler. Çünkü bir goroutine dışarıdan durdurulamaz. Hiç dönmeyen handler'ları
-bırakmak, her request için bir goroutine'in sonsuza kadar sızması anlamına gelirdi.
-Bu yüzden context'ini yok sayan bir handler deadline'ını aşarak çalışabilir ve page
-onu bekler.
+Framework bir handler'ı deadline'ı geldiğinde bırakmaz, dönmesini bekler. Çünkü
+bir goroutine dışarıdan durdurulamaz. Hiç dönmeyen handler'ları bırakmak, her
+request için bir goroutine'in sonsuza kadar sızması anlamına gelirdi. Bu yüzden
+context'ini yok sayan bir handler deadline'ını aşarak çalışabilir ve page onu
+bekler.
 
 Deadline'a uymak tek bir alışkanlığa bağlıdır: bekleyebilecek her şeye `ctx`'i
 geçirin.
@@ -656,9 +657,9 @@ eşleşir. Deadline ancak handler onu hata olarak dönerse bir hatadır. `ctx`'i
 sayıp geç de olsa `nil` dönen bir handler başarılı olmuştur ve verisi render
 edilir.
 
-Olmasa da olur türündeki her şey için kısa bir timeout'u bir fallback ile
-birlikte kullanın. Böylece page, yavaş bir servisi sizin seçtiğiniz noktada
-beklemeyi bırakır.
+Olmasa da olur türündeki her şey için kısa bir timeout'u bir fallback ile birlikte
+kullanın. Böylece page, yavaş bir servisi sizin seçtiğiniz noktada beklemeyi
+bırakır.
 
 Hata, hangi deadline'ın dolduğunu söyler. Yalnızca fragment'in kendi timeout'u
 timeout olarak bildirilir: `collage: execution exceeded 5s`. Daha yukarıda biten
@@ -681,9 +682,9 @@ Bir template verisini isimle okur: `{{.Title}}`, `{{.Author.Name}}`.
 page'inin her render'ını başarısız kılar. Kimsenin ziyaret etmediği bir page'de
 ise hiç ortaya çıkmaz.
 
-v0.49.0'dan beri her fragment'in verisi tipli bir
-constructor'dan gelir. Bu yüzden register işlemi her template'in hangi Go tipiyle
-çalışacağını bilir ve template'i bu tipe göre dolaşır. `RegisterPage`,
+v0.49.0'dan beri her fragment'in verisi tipli bir constructor'dan gelir. Bu
+yüzden register işlemi her template'in hangi Go tipiyle çalışacağını bilir ve
+template'i bu tipe göre dolaşır. `RegisterPage`,
 template'leri verilerine uymayan bir page'i reddeder. Hata mesajında page'in,
 fragment'in ve dosyanın adı, satır ve sütun yer alır:
 

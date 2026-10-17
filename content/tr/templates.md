@@ -119,27 +119,27 @@ template adının başından çıkarılır ve gerekli olmasının sebebi de budu
 dosyaları source tree'deki yollarıyla adlandırır. `Root` olmasaydı her template'in
 adı `templates/pages/post.html` gibi olurdu.
 
-`FS` ile birlikte boş bir `Root`,
-filesystem'in kökü anlamına gelir. `all:` prefix'i, adı `.` ya da `_` ile başlayan
-dosyaların da embed edilmesini sağlar. Düz bir `//go:embed templates` bu dosyaları
-atlar.
+`FS` ile birlikte boş bir `Root`, filesystem'in kökü anlamına gelir. `all:`
+prefix'i, adı `.` ya da `_` ile başlayan dosyaların da embed edilmesini sağlar. Düz
+bir `//go:embed templates` bu dosyaları atlar.
 
 `collage new` da projeyi bu şekilde oluşturur.
 
 ## Development'ta yeniden yükleme
 
-Development'ta, yani `Config.DevMode` açıkken, her render'dan önce bütün template'ler yeniden parse edilir. Bir template'i
-kaydettiğinizde bir sonraki request onu kullanır. Framework `COLLAGE_DEV`'i okumaz.
+Development'ta, yani `Config.DevMode` açıkken, her render'dan önce bütün
+template'ler yeniden parse edilir. Bir template'i kaydettiğinizde bir sonraki
+request onu kullanır. Framework `COLLAGE_DEV`'i okumaz.
 Bu değişkeni `collage dev` set eder, scaffold edilen `main.go` da onu
 `Config.DevMode`'a çevirir.
 
-Embed edilmiş bir set bunu yapamaz. Byte'ları binary build edildiği anda sabitlenmiştir
-ve onları yeniden parse etmek hiçbir şeyi değiştirmez.
+Embed edilmiş bir set bunu yapamaz. Byte'ları binary build edildiği anda
+sabitlenmiştir ve onları yeniden parse etmek hiçbir şeyi değiştirmez.
 
-Bu yüzden `Root`, çalışma
-dizinine göre bir dizin olarak var olduğunda **development'ta diskteki dizin
-embed edilmiş kopyanın önüne geçer** ve uygulama bu seçimi log'lar. `collage dev`
-proje dizininizde çalıştığı için bu dizin orada her zaman vardır.
+Bu yüzden `Root`, çalışma dizinine göre bir dizin olarak var olduğunda
+**development'ta diskteki dizin embed edilmiş kopyanın önüne geçer** ve uygulama
+bu seçimi log'lar. `collage dev` proje dizininizde çalıştığı için bu dizin orada
+her zaman vardır.
 
 <figure class="diagram-figure" data-search-ignore>
 <svg class="diagram" viewBox="0 0 320 254" role="img" aria-labelledby="tpl-src-title">
@@ -176,14 +176,13 @@ Bir değişikliğin hemen görünmesini iki şey daha sağlar:
   içerikler içindir.
 
 Bütün set yeniden parse edildiği için herhangi bir template'teki bir syntax hatası,
-düzeltilene kadar bütün render'ları başarısız kılar. Bu development'ta olur. Hatayı orada
-hemen, dosya ve satır numarasıyla birlikte görürsünüz.
+düzeltilene kadar bütün render'ları başarısız kılar. Bu development'ta olur.
+Hatayı orada hemen, dosya ve satır numarasıyla birlikte görürsünüz.
 
-Register sırasında yapılan
-kontroller, verinin tipine göre yapılan kontrol de dahil, açılıştan sonra
-düzenlenen bir template için bir sonraki yeniden başlatmaya kadar yeniden
-yapılmaz. Böyle bir template'in hatası bunun yerine development error page'inde
-görünür; önce template, satır ve neden gelir.
+Register sırasında yapılan kontroller, verinin tipine göre yapılan kontrol de
+dahil, açılıştan sonra düzenlenen bir template için bir sonraki yeniden başlatmaya
+kadar yeniden yapılmaz. Böyle bir template'in hatası bunun yerine development
+error page'inde görünür; önce template, satır ve neden gelir.
 
 ## Bir template ne alır
 
@@ -306,9 +305,9 @@ app, err := collage.New(&collage.Config{
 - **Built-in bir fonksiyonun adıyla eklenen bir entry, o built-in'in yerini alır.**
   Render'a bağlı olan on bir fonksiyon bunun dışındadır: `slot`, `hoist`, `asset`,
   `stylesheet`, `csrfToken`, `pageURL`, `pageURLIn`, `localeURL`, `actionURL`,
-  `fragmentURL` ve `fragmentURLIn`. Render engine
-  her render için bunların kendi versiyonlarını bağlar. Bu yüzden bunlardan birini
-  override etmek kabul edilir, ama hiçbir etkisi olmaz.
+  `fragmentURL` ve `fragmentURLIn`. Render engine her render için bunların kendi
+  versiyonlarını bağlar. Bu yüzden bunlardan birini override etmek kabul edilir,
+  ama hiçbir etkisi olmaz.
 - **Bir fonksiyon request'i göremez.** Fonksiyon, bütün program için bir kez register
   edilir. Request'e, locale'e ya da kullanıcıya bağlı olan her şey data handler'da
   olmalıdır. Veri zaten oradan gelir.
@@ -506,7 +505,7 @@ etmediği bir path render'ı başarısız kılar.
 <figcaption>Post fragment'i layout'un <code>content</code> slot'unu, author fragment'i de yazının <code>author</code> slot'unu doldurur. Yazının handler'ının hoist ettiği title ve description ile template'inin tanımladığı stylesheet, layout'un <code>hoist "head"</code> işaretine çıkar. Bu işaret page'in tamamı render edildikten sonra doldurulur. Yazının içinde başlık ve okurların yorumları escape edilir; <code>template.HTML</code> tipindeki gövde olduğu gibi eklenir.</figcaption>
 </figure>
 
-### Okura ulaşan
+### Okurun gördüğü
 
 Başlığı `Escaping <script> & friends` olan bir yazı ve metni
 `<script>alert(1)</script>` olan bir yorum düşünün. `/posts/escaping` için gelen

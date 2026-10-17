@@ -160,7 +160,7 @@ page := collage.NewPage("login").
 <rect class="d-c" x="126" y="84" width="152" height="30" rx="4" />
 <text class="d-on-c" x="202" y="103" text-anchor="middle">login · content</text>
 </svg>
-<figcaption><code>WithLayouts(layouts.Master(), layouts.Auth())</code> zinciri en dıştakinden başlayarak sıralar. İç içe yerleştirmeyi register işlemi yapar: login içeriği en içteki layout olan <code>Auth()</code>'un content slot'una, <code>Auth()</code> da <code>Master()</code>'ın content slot'una girer. Her biri, layout'un slot tablosunun page'e ait kopyası üzerinde yapılır.</figcaption>
+<figcaption><code>WithLayouts(layouts.Master(), layouts.Auth())</code> zinciri en dıştakinden başlayarak sıralar. İç içe yerleştirmeyi register işlemi yapar: login içeriği en içteki layout olan <code>Auth()</code>'un content slot'una, <code>Auth()</code> da <code>Master()</code>'ın content slot'una girer. Bu yerleştirmelerin her biri, layout'un slot tablosunun page'e ait kopyası üzerinde yapılır.</figcaption>
 </figure>
 
 Tek bir layout içeriği nasıl render ediyorsa, zincirdeki her layout da
@@ -253,7 +253,7 @@ onu oluşturan fragment'lerin değil, page'in kendi özelliğidir.
 <rect class="d-c" x="20" y="256" width="180" height="24" rx="6" /><text class="d-on-c" x="110" y="272" text-anchor="middle">page render edilir</text>
 <text class="d-small" x="160" y="298" text-anchor="middle">en dıştaki önce · ilk cevap karar verir</text>
 </svg>
-<figcaption><a href="#example-a-blog-with-a-private-area">Örnek: private bir bölümü olan bir blog</a> bölümündeki admin page'inin omurgası. Bir request önce layout'larının guard'larından, en dıştakinden başlayarak geçer, sonra content fragment'inkinden. Cevap veren ilk guard'ın cevabı gönderilir ve sonrasında hiçbir şey çalışmaz: giriş yapmamış bir okuyucu account layout'undan login page'ine bir redirect alır, giriş yapmış ama admin olmayan bir okuyucu da admin layout'undan body'siz bir 403 alır. Render'a ve cache'lenen bir page'de cache'e yalnızca hiçbir guard'ın cevap vermediği bir request ulaşır; cache guard'lardan sonra okunur. Admin menüsü gibi bir slot'a bağlanan bir fragment'teki guard sorulmaz.</figcaption>
+<figcaption><a href="#example-a-blog-with-a-private-area">Örnek: private bir bölümü olan bir blog</a> bölümündeki admin page'inin omurgası. Bir request önce layout'larının guard'larından, en dıştakinden başlayarak geçer, sonra content fragment'inkinden. Cevap veren ilk guard'ın cevabı gönderilir ve sonrasında hiçbir şey çalışmaz: giriş yapmamış bir okuyucu account layout'undan login page'ine bir redirect alır, giriş yapmış ama admin olmayan bir okuyucu da admin layout'undan body'siz bir 403 alır. Render'a ve cache'lenen bir page'de cache'e yalnızca hiçbir guard'ın cevap vermediği bir request ulaşır; cache ancak guard'lardan sonra okunur. Admin menüsü gibi bir slot'a bağlanan bir fragment'teki guard sorulmaz.</figcaption>
 </figure>
 
 Guard üç şekilde cevap verir:
@@ -339,12 +339,12 @@ v0.34.0'dan beri encode edilmiş bir slash (`%2F`) içeren bir segment 404 döne
 URL standardına göre `%2F` bir ayırıcı değildir: `/public%2Fsecret`, değeri
 `public/secret` olan tek bir segment'tir.
 
-Ama Go, path'i hiçbir middleware okumadan önce decode edip `r.URL.Path`'e yazar. Orada `/public%2Fsecret` artık
-`/public/secret` olmuştur ve encode edilmiş slash gerçek bir slash'ten ayırt
-edilemez. Yani router'ın tek segment gördüğü yerde middleware iki segment görür.
-Tek segment'i eşleyen bir router (collage'ın eskiden yaptığı gibi), middleware'in
-başka bir şey olarak değerlendirdiği bir request'i sunmuş olurdu. Bu yüzden collage
-iki okumadan hiçbirini sunmaz.
+Ama Go, path'i hiçbir middleware okumadan önce decode edip `r.URL.Path`'e yazar.
+Orada `/public%2Fsecret` artık `/public/secret` olmuştur ve encode edilmiş slash
+gerçek bir slash'ten ayırt edilemez. Yani router'ın tek segment gördüğü yerde
+middleware iki segment görür. Tek segment'i eşleyen bir router (collage'ın eskiden
+yaptığı gibi), middleware'in başka bir şey olarak değerlendirdiği bir request'i
+sunmuş olurdu. Bu yüzden collage iki okumadan hiçbirini sunmaz.
 
 Kendisi bir path olan bir değer, örneğin `guide/intro`, bir catch-all'da yer
 almalıdır: `{rest...}`. `{{pageURL}}` ve `BuildPath`, tek bir segment'in
@@ -828,7 +828,7 @@ func register(app *collage.App) error {
 }
 ```
 
-Her okuyucunun aldığı:
+Her okuyucunun aldığı cevap:
 
 | Request | Okuyucu | Cevap |
 | --- | --- | --- |
@@ -849,7 +849,7 @@ Yukarıdaki kurallardan birkaç sonuç çıkar:
   değildir. Bölümü korumak admin layout'unun işidir.
 - **Private page'ler ortak cache'lere girmez.** Account ve admin page'leri
   `Cache-Control: private, no-cache` ile, `303` ve `403` ise `no-store` ile
-  gönderilir. Static export da iki page'i yazmaz.
+  gönderilir. Static export da iki page'i de yazmaz.
 - **Error page'ler herkes için render edilir.** Yalnızca `Master()`'ı sararlar ve
   başarısız olan page'in guard'ları onlar için sorulmaz. Böylece hatayla karşılaşan
   bir okuyucu, hatayı görmek yerine giriş yapmaya yönlendirilmez.
