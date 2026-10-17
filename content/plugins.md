@@ -30,19 +30,61 @@ handed at startup. Between them, a plugin can:
 - **serve a handler** of its own — an event stream, a WebSocket — and render a
   page's [fragment paths](/docs/forms-and-actions#a-fragment-at-its-own-url) to push
   over it (since v0.18.0).
-- **adjust a cache write** — change its lifetime or tags, or skip it — and hear
-  about invalidations.
+- **hear about invalidations** — the tags whose cached pages were just
+  invalidated, to purge a CDN's copies or push a fresh fragment.
 - **observe failures**, with the stage of the pipeline they happened in.
-- **wrap every request** with middleware of its own, after the application's
-  (since v0.21.0).
+- **wrap every request** with middleware of its own (since v0.21.0). A plugin in
+  `Config.Plugins` is outside everything `app.Use` adds, in list order, so your
+  middleware reads what it put in the request's context; one registered with
+  `RegisterPlugin` is inside the middleware added before it. See
+  [Middleware and your own API](/docs/middleware-and-apis#plugins-middleware-and-yours).
 - **check the output** and report findings — shown over the page in development,
   listed in a static build's report, failing the build at error level (since
   v0.21.0).
 - **add commands** that your program runs — `go run . <command>` in a scaffolded
   project; see [The collage CLI](/docs/cli#plugin-commands).
 
+Here is where those hooks sit on the way a page request travels, and the two that
+fire outside a request:
+
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 558" role="img" aria-labelledby="plugin-hooks-title">
+<title id="plugin-hooks-title">A request passes plugin middleware, then app.Use, then the router. A page the cache holds goes straight to OnPersonalise. Otherwise OnBeforeRender runs, the page renders, OnAfterRender may replace its HTML, the result is cached by tag, and OnPersonalise rewrites it for each reader. Outside a request, InvalidateTags fires OnCacheInvalidate, and a finished static build fires OnBuildFinished.</title>
+<defs><marker id="plugin-hooks-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker><marker id="plugin-hooks-hit" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head-hit" d="M0 0 8 4 0 8z" /></marker></defs>
+<rect class="d-pill" x="110" y="8" width="100" height="26" rx="13" /><text x="160" y="25" text-anchor="middle">request</text>
+<line class="d-flow" x1="160" y1="34" x2="160" y2="50" marker-end="url(#plugin-hooks-arrow)" />
+<rect class="d-frame" x="50" y="54" width="220" height="28" rx="6" /><text x="160" y="72" text-anchor="middle">plugin middleware</text>
+<rect class="d-frame" x="50" y="88" width="220" height="28" rx="6" /><text x="160" y="106" text-anchor="middle">app.Use</text>
+<line class="d-flow" x1="160" y1="116" x2="160" y2="132" marker-end="url(#plugin-hooks-arrow)" />
+<rect class="d-cmd" x="110" y="136" width="100" height="26" rx="13" /><text class="d-cmd-text" x="160" y="153" text-anchor="middle">router</text>
+<line class="d-flow" x1="160" y1="162" x2="160" y2="178" marker-end="url(#plugin-hooks-arrow)" />
+<rect class="d-chip-hit" x="100" y="182" width="120" height="24" rx="12" /><text class="d-hit-text d-small" x="160" y="198" text-anchor="middle">page cache lookup</text>
+<path class="d-hitline" d="M220 194H296V410H274" marker-end="url(#plugin-hooks-hit)" />
+<text class="d-hit-text d-small" x="258" y="189" text-anchor="middle">hit</text>
+<line class="d-flow" x1="160" y1="206" x2="160" y2="222" marker-end="url(#plugin-hooks-arrow)" />
+<text class="d-small" x="166" y="218">miss</text>
+<rect class="d-a" x="50" y="226" width="220" height="28" rx="5" /><text class="d-on-a" x="160" y="244" text-anchor="middle">OnBeforeRender</text>
+<line class="d-flow" x1="160" y1="254" x2="160" y2="264" marker-end="url(#plugin-hooks-arrow)" />
+<rect class="d-soft-a" x="50" y="268" width="220" height="28" rx="6" /><text x="160" y="286" text-anchor="middle">render: fragments fetch</text>
+<line class="d-flow" x1="160" y1="296" x2="160" y2="306" marker-end="url(#plugin-hooks-arrow)" />
+<rect class="d-a" x="50" y="310" width="220" height="28" rx="5" /><text class="d-on-a" x="160" y="328" text-anchor="middle">OnAfterRender · ev.HTML</text>
+<line class="d-flow" x1="160" y1="338" x2="160" y2="348" marker-end="url(#plugin-hooks-arrow)" />
+<rect class="d-chip-hit" x="90" y="352" width="140" height="24" rx="12" /><text class="d-hit-text d-small" x="160" y="368" text-anchor="middle">cache write · tags</text>
+<line class="d-flow" x1="160" y1="376" x2="160" y2="392" marker-end="url(#plugin-hooks-arrow)" />
+<rect class="d-b" x="50" y="396" width="220" height="28" rx="5" /><text class="d-on-b" x="160" y="414" text-anchor="middle">OnPersonalise · each reader</text>
+<line class="d-flow" x1="160" y1="424" x2="160" y2="440" marker-end="url(#plugin-hooks-arrow)" />
+<rect class="d-pill" x="110" y="444" width="100" height="26" rx="13" /><text x="160" y="461" text-anchor="middle">response</text>
+<line class="d-rule" x1="6" y1="484" x2="314" y2="484" />
+<text class="d-small" x="160" y="500" text-anchor="middle">outside a request</text>
+<rect class="d-c" x="6" y="510" width="150" height="40" rx="5" /><text class="d-on-c d-small" x="81" y="526" text-anchor="middle">InvalidateTags</text><text class="d-on-c d-small" x="81" y="540" text-anchor="middle">→ OnCacheInvalidate</text>
+<rect class="d-frame" x="164" y="510" width="150" height="40" rx="5" /><text class="d-small" x="239" y="526" text-anchor="middle">static build written</text><text class="d-small" x="239" y="540" text-anchor="middle">→ OnBuildFinished</text>
+</svg>
+<figcaption>Middleware from the plugins in Config.Plugins wraps the request outside the application's own. A page the cache holds skips the render hooks and goes straight to OnPersonalise, so what OnAfterRender changed is what was cached. A fresh render runs OnBeforeRender, then OnAfterRender, which may replace the HTML before it is cached by tag. A page that is never cached, or a request other than GET or HEAD, has no lookup and no write: it goes from the router to OnBeforeRender. Invalidating tags and finishing a static build fire hooks of their own, outside any request.</figcaption>
+</figure>
+
 What each of these looks like from the plugin's side is in
-[Writing a plugin](/docs/writing-plugins). Writing one that `collage plugin add` can install is on [the repository contract](/docs/plugin-authors).
+[Writing a plugin](/docs/writing-plugins). Writing one that `collage plugin add`
+can install is on [the repository contract](/docs/plugin-authors).
 
 ## Registering a plugin
 
@@ -55,8 +97,9 @@ collage plugin add elagoht/minimizer
 `elagoht/minimizer` means `github.com/Elagoht/collage-minimizer`. The command
 fetches the module, adds the import and the constructor call to `plugins.go`, in
 the place the plugin asks for, and adds an empty section `"elagoht/minimizer": {}`
-to `plugins-config.json`: the defaults. It adds first any plugin this one needs. A
-failure leaves every file as it was. Taking one out is the same in reverse, and
+to `plugins-config.json`: the defaults. It adds first any plugin this one needs.
+
+A failure leaves every file as it was. Taking one out is the same in reverse, and
 the settings its section held are printed so they are not lost:
 
 ```sh
@@ -97,8 +140,9 @@ app, err := collage.New(&collage.Config{
 The file is yours to edit: reorder it, or give a plugin its options in Go
 (`sitemap.New(sitemap.Options{...})`); `add` and `del` only insert and remove
 whole entries. An older project gets the file from its first `add`, and the
-command prints the `Plugins: plugins(),` line to put in `main.go`. A plugin by
-anyone else is added the same way, by its module path:
+command prints the `Plugins: plugins(),` line to put in `main.go`.
+
+A plugin by anyone else is added the same way, by its module path:
 `collage plugin add gitlab.com/you/stamp`. What a repository must hold to be
 added is on [the plugin authors' page](/docs/plugin-authors), and the command is
 in [the CLI reference](/docs/cli#collage-plugin).
@@ -137,7 +181,9 @@ being built — to add a template function, or to wrap the mounted filesystems �
 and `New` is where that happens. Such a plugin implements an optional `Configure`
 phase, and `RegisterPlugin` refuses it by name with
 `collage.ErrConfigurerRegisteredLate` rather than accepting it and silently
-skipping the part that mattered. `Config.Plugins` works for every plugin, so it is
+skipping the part that mattered.
+
+`Config.Plugins` works for every plugin, so it is
 the one to reach for.
 
 `RegisterPlugin` also refuses:
@@ -157,6 +203,7 @@ Plugins run in the order they were registered: `Config.Plugins` in slice order,
 then any `RegisterPlugin` calls in call order. For hooks that change output, each
 plugin sees what the one before it produced. A plugin that adds to the page
 should usually come before one that compacts it, so the addition is compacted too.
+
 Four published plugins say where they go:
 [elagoht/compress](#elagohtcompress) before any plugin that rewrites response
 bodies, [elagoht/health](#elagohthealth) before any plugin that can refuse or answer
@@ -252,6 +299,18 @@ reference; what follows is enough to set one up.
 | [Operations and development](#operations-and-development) | htmlcheck, devtoolbar, accesslog, prometheus, otel, analytics, tenant, errortrack, health, jobs |
 
 [Libraries that are not plugins](#libraries-that-are-not-plugins) are listed after the groups.
+
+Most sites start from what they are, not from a group. Three common starting
+points, each plugin linked to its section below:
+
+| You are building | Start with | What they do for it |
+| --- | --- | --- |
+| A blog | [markdown](#elagohtmarkdown), [highlight](#elagohthighlight), [toc](#elagohttoc), [feed](#elagohtfeed), [sitemap](#elagohtsitemap), [robots](#elagohtrobots), [meta](#elagohtmeta), [jsonld](#elagohtjsonld), [ogimage](#elagohtogimage), [search](#elagohtsearch) | Posts written in Markdown with highlighted code and a table of contents, a feed for readers, what search engines and link previews read, and search on a statically built site. `@blog` adds all of them but search in one command. |
+| A product catalogue | [jsonld](#elagohtjsonld), [meta](#elagohtmeta), [sitemap](#elagohtsitemap), [opti-image](#elagohtopti-image), [i18n](#elagohti18n), [cdnpurge](#elagohtcdnpurge), [compress](#elagohtcompress), [minimizer](#elagohtminimizer) | `Product` structured data, resized product images served from the plugin's own mount, translations per locale, and a CDN's copies purged when a product's tags are invalidated. |
+| A multi-user web app with roles | [session](#elagohtsession), [oauth](#elagohtoauth), [validate](#elagohtvalidate), [flash](#elagohtflash), [honeypot](#elagohthoneypot), [uploads](#elagohtuploads), [secure](#elagohtsecure), [ratelimit](#elagohtratelimit), [fail2ban](#elagohtfail2ban), [live](#elagohtlive) | Sign-in through an OpenID Connect provider, the signed-in user kept in a session, forms checked and answered, uploads checked by their content, abuse limited or banned, and parts of a page kept current. The roles are yours: a middleware added with `app.Use` reads the session the plugin put in the request's context, as [Plugins' middleware and yours](/docs/middleware-and-apis#plugins-middleware-and-yours) shows. |
+
+`@prod` adds what any of them wants in production; the bundles are in
+[the CLI reference](/docs/cli#bundles).
 
 ### SEO and discovery
 
@@ -2762,7 +2821,9 @@ titles and stylesheets. Hoisted content lands where the layout calls
 **Without that marker, nothing appears.** The plugin registers, runs, declares its
 block, and the block has nowhere to go. That is deliberate: a plugin that searched
 the HTML for `</head>` and spliced itself in would be deciding a layout question
-on your layout's behalf. A layout from `collage new` already has the marker; a
+on your layout's behalf.
+
+A layout from `collage new` already has the marker; a
 layout you wrote by hand may not. See [Head and SEO](/docs/head-and-seo) for
 hoisting in general. Among the published plugins, jsonld, meta, ogimage, feed,
 favicon and analytics write to the head this way.
