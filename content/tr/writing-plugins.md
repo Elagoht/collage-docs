@@ -12,7 +12,47 @@ type assertion ile bulur.
 
 Bu sayfa, bu yüzeyin referansıdır. [Plugin kullanmak](/docs/plugins) ise işin öbür
 tarafını anlatır: bir uygulama, sizin yazdığınız plugin'i nasıl register eder ve
-nasıl yapılandırır.
+nasıl yapılandırır. `collage plugin add`'in plugin'inizi kurabilmesi için
+[repository sözleşmesine](/docs/plugin-authors) uyun.
+
+Bir plugin'in hayatı, uygulamanın kurduğu değerden `Shutdown`'ına kadar sürer.
+Aşağıdaki her aşamanın kendi bölümü vardır; [Yaşam döngüsü](#lifecycle) onları
+sırasıyla listeler.
+
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 506" role="img" aria-labelledby="wp-life-title">
+<title id="wp-life-title">Uygulama plugin'i New(Options) ile kurar ve Config.Plugins'e koyar. collage.New, Configure'ı bir ConfigHost ile register sırasıyla çalıştırır: config, logger, template fonksiyonları, mount wrapper'ları. Uygulama page'lerini register eder, ardından ilk Handler, Start ya da build Init'i bir Host ile register sırasıyla çalıştırır: config'i ve page'leri okur; document, mount, handler, middleware ve komut ekler. Hizmet verirken ListenAndServe OnServe'ü çağırır, her request plugin'in middleware'inden ve hook'larından geçer, invalidation ve static build ise OnCacheInvalidate ile OnBuildFinished'i tetikler. Dururken, yalnızca Init'i başarılı olmuş plugin'ler için önce OnDrain, sonra CloseStreams, ardından ters sırayla Shutdown çağrılır.</title>
+<defs><marker id="wp-life-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
+<rect class="d-pill" x="95" y="8" width="130" height="26" rx="13" /><text x="160" y="25" text-anchor="middle">New(Options{})</text>
+<line class="d-flow" x1="160" y1="34" x2="160" y2="50" marker-end="url(#wp-life-arrow)" />
+<text class="d-small" x="168" y="46">Config.Plugins</text>
+<rect class="d-slot d-slot-a" x="6" y="54" width="308" height="74" rx="8" />
+<text class="d-slot-text-a d-small" x="18" y="70">collage.New içinde</text><text class="d-small" x="302" y="70" text-anchor="end">register sırasıyla</text>
+<rect class="d-a" x="18" y="78" width="284" height="40" rx="5" /><text class="d-on-a" x="160" y="94" text-anchor="middle">Configure(ctx, ConfigHost)</text><text class="d-on-a d-small" x="160" y="109" text-anchor="middle">config · logger · template func'ları · WrapMount</text>
+<line class="d-flow" x1="160" y1="128" x2="160" y2="144" marker-end="url(#wp-life-arrow)" />
+<text class="d-small" x="166" y="140">page'ler register edilir</text>
+<rect class="d-slot d-slot-b" x="6" y="148" width="308" height="88" rx="8" />
+<text class="d-slot-text-a d-small" x="18" y="164">ilk Handler, Start, build</text><text class="d-small" x="302" y="164" text-anchor="end">register sırasıyla</text>
+<rect class="d-a" x="18" y="172" width="284" height="54" rx="5" /><text class="d-on-a" x="160" y="189" text-anchor="middle">Init(ctx, Host)</text><text class="d-on-a d-small" x="160" y="204" text-anchor="middle">config · logger · page ve URL'leri okur</text><text class="d-on-a d-small" x="160" y="217" text-anchor="middle">document · mount · Handle · Use · komut ekler</text>
+<line class="d-flow" x1="160" y1="236" x2="160" y2="252" marker-end="url(#wp-life-arrow)" />
+<rect class="d-slot d-slot-c" x="6" y="256" width="308" height="130" rx="8" />
+<text class="d-slot-text-a d-small" x="18" y="272">hizmet verirken</text><text class="d-small" x="302" y="272" text-anchor="end">hook'lar register sırasıyla</text>
+<rect class="d-frame" x="18" y="280" width="284" height="24" rx="5" /><text x="160" y="296" text-anchor="middle">OnServe · yalnızca ListenAndServe</text>
+<rect class="d-b" x="18" y="312" width="138" height="64" rx="5" /><text class="d-on-b" x="87" y="329" text-anchor="middle">her request</text><text class="d-on-b d-small" x="87" y="344" text-anchor="middle">OnRequest · middleware</text><text class="d-on-b d-small" x="87" y="357" text-anchor="middle">render/action hook'ları</text><text class="d-on-b d-small" x="87" y="370" text-anchor="middle">OnPersonalise · OnError</text>
+<rect class="d-c" x="164" y="312" width="138" height="64" rx="5" /><text class="d-on-c" x="233" y="329" text-anchor="middle">request dışında</text><text class="d-on-c d-small" x="233" y="348" text-anchor="middle">OnCacheInvalidate</text><text class="d-on-c d-small" x="233" y="364" text-anchor="middle">OnBuildFinished</text>
+<line class="d-flow" x1="160" y1="386" x2="160" y2="402" marker-end="url(#wp-life-arrow)" />
+<rect class="d-slot d-slot-a" x="6" y="406" width="308" height="92" rx="8" />
+<text class="d-slot-text-a d-small" x="18" y="422">dururken</text><text class="d-small" x="302" y="422" text-anchor="end">App.Shutdown</text>
+<rect class="d-frame" x="17" y="432" width="86" height="28" rx="5" /><text x="60" y="450" text-anchor="middle">OnDrain</text>
+<line class="d-flow" x1="103" y1="446" x2="115" y2="446" marker-end="url(#wp-life-arrow)" />
+<rect class="d-frame" x="117" y="432" width="86" height="28" rx="5" /><text x="160" y="450" text-anchor="middle">CloseStreams</text>
+<line class="d-flow" x1="203" y1="446" x2="215" y2="446" marker-end="url(#wp-life-arrow)" />
+<rect class="d-a" x="217" y="432" width="86" height="28" rx="5" /><text class="d-on-a" x="260" y="450" text-anchor="middle">Shutdown</text>
+<text class="d-small" x="160" y="476" text-anchor="middle">yalnızca Init'i başarılı plugin'ler;</text>
+<text class="d-small" x="160" y="489" text-anchor="middle">Shutdown sunucu durunca, ters sırayla</text>
+</svg>
+<figcaption>Plugin'i kodunuz New(Options) ile kurar ve Config.Plugins'e verir. collage.New, template'ler parse edilmeden önce onun Configure'ını çalıştırır; bir template fonksiyonunun eklenebileceği tek an budur. Ardından uygulama page'lerini register eder ve onu başlatan ilk çağrı (Handler, ListenAndServe, Start, RenderPath, static bir build) Init'i çalıştırır. Init config'i ve page'leri okur; document, mount, handler, middleware ve komut ekler. Başarısız olan bir Init uygulamanın başlamasını durdurur ve ondan önce initialize edilmiş plugin'ler ters sırayla shutdown edilir. Hizmet verirken ListenAndServe OnServe'ü bir kez çağırır, her request plugin'in middleware'inden ve hook'larından geçer; tag'leri invalidate etmek ya da static bir build'i bitirmek kendi hook'unu tetikler. Dururken önce OnDrain, sonra CloseStreams çağrılır, sunucunun request'leri beklenir ve Shutdown ters register sırasıyla çağrılır. Bunların her biri yalnızca Init'i başarılı olmuş plugin'ler için çağrılır.</figcaption>
+</figure>
 
 ## Sözleşme
 
@@ -68,7 +108,7 @@ hiçbir kaynak edinilmediği için geri alınacak bir şey de yoktur.
 `Start`, `RenderPath`, `RenderDocumentPath` ya da `DispatchCommands` ilk kez
 çağrıldığında başlar. Static build de buna dahildir, çünkü builder `RenderPath`
 üzerinden render eder. Bu noktada uygulama page'lerini register etmiş olur. Böylece
-bir plugin onları okuyabilir ya da kendi page'lerini ekleyebilir.
+bir plugin onları okuyabilir, kendi document ve mount'larını da ekleyebilir.
 
 İkisine de ihtiyaç duyan bir plugin ikisini de implement eder. **`Configurer`'ı
 implement eden bir plugin, `Config.Plugins` içinde verilmelidir.** `RegisterPlugin`,
@@ -117,7 +157,7 @@ ulaşabileceği bir cache olmazdı.
 | `RegisterDocument(doc) error` | Plugin'in eklediği bir document'ı register eder. |
 | `Mount(prefix, fsys, opts...) error` | Bir dosya sistemini bir URL prefix'i altında sunar. |
 | `Handle(prefix, handler) error` | `App.Handle` gibi, bir `http.Handler`'ı `/` ile biten bir URL prefix'i altında ya da sonunda `/` olmayan tek bir tam path'te (`/metrics`, v0.24.0'dan beri) sunar. Örneğin bir event stream ya da bir WebSocket (v0.18.0'dan beri). |
-| `RenderFragment(r, req) (*collage.FragmentRender, error)` | Bir page'in `WithFragmentPath` ile açtığı bir fragment'i parçalar hâlinde render eder. Bkz. [Fragment göndermek](#pushing-fragments) (v0.18.0'dan beri). |
+| `RenderFragment(r, req) (*collage.FragmentRender, error)` | Bir page'in `WithFragmentPath` ile açtığı bir fragment'i kısımlar hâlinde render eder. Bkz. [Fragment göndermek](#pushing-fragments) (v0.18.0'dan beri). |
 | `RegisterCommand(cmd) error` | Bir komut ekler. Bkz. [Komutlar](#commands). |
 | `Use(middleware) error` | Her request'i sarmalar (v0.21.0'dan beri), plugin'in register edildiği yerde: `Config.Plugins` içindeki bir plugin için uygulamanın kendi middleware'inin dışında (v0.38.0'dan beri; önceden içindeydi). |
 | `URL(name, locale, params) (string, error)` | Bir page'in ya da document'ın path'ini `App.URL`'in oluşturduğu gibi döner (v0.21.0'dan beri). |
@@ -136,13 +176,17 @@ dönüştü.
 
 `Init`'e gelen değer `*App` değildir. Yalnızca bu metotları ileten dar bir değerdir.
 Bu yüzden bir plugin, type assertion ile `ListenAndServe`'e, `Shutdown`'a,
-router'a, cache'e ya da template kümesine ulaşamaz. `Handle` ve `RenderFragment`
+router'a, cache'e ya da template kümesine ulaşamaz.
+
+`Handle` ve `RenderFragment`
 v0.18.0'da eklendi. `Use`, `URL`, `Locales` ve `PageURLs` ise
 v0.21.0'da, `ConfigHost`'taki `AddRenderFunc` ile birlikte eklendi. `BuildID` ve
 `ServeStatus` ise v0.24.0'da geldi. **Bunların her biri bir test double'ı için
 breaking change'dir:** `Host`'u ya da `ConfigHost`'u implement eden bir test
 double'ının da yeni metotlara ihtiyacı vardır. v0.24.0'dan beri bunlar `BuildID` ve
-`ServeStatus`'tur. v0.50.0'dan beri ikisi de `collage.ConfigReader`'ı içerir. Onun
+`ServeStatus`'tur.
+
+v0.50.0'dan beri ikisi de `collage.ConfigReader`'ı içerir. Onun
 tek metodu export edilmemiştir; bu yüzden onu yalnızca collage'ın kendi host'ları
 karşılar. Plugin'i bunun yerine gerçek bir uygulama üzerinden test edin. Bkz.
 [Bir plugin'i test etmek](#testing-a-plugin).
@@ -153,7 +197,9 @@ sınırlamaz.** `Pages` ve `Page`, page struct'ının bir kopyasını döner. `P
 bunları düzenlemek uygulamanın kendi page'ine dokunmaz. Ancak kopyanın içindeki
 fragment pointer'ları hâlâ paylaşılır. Aşağıdaki event'ler de kopyayı değil, *canlı*
 page'i taşır, çünkü her request'te bir page'i ve fragment ağacını kopyalamak hot
-path'e pahalıya mal olurdu. Bir event'in `Page`'i üzerinden yazarsanız, eşzamanlı
+path'e pahalıya mal olurdu.
+
+Bir event'in `Page`'i üzerinden yazarsanız, eşzamanlı
 bütün request'lerin okuduğu page'i değiştirmiş olursunuz. Bu bir data race'tir ve
 `go test -race` bunu raporlar. Page'leri salt okunur kabul edin. Plugin'ler güvenilen
 koddur; bir sandbox içinde çalışmazlar.
@@ -168,7 +214,7 @@ kaydın kazanacağı register sırasına bırakılmaz.
 onları kendi sahip olduğu bir bağlantı üzerinden gönderen plugin'ler içindir. Bu
 bağlantı bir event stream ya da bir WebSocket olabilir. Metot, fragment'in path'ine
 gelen bir request'in render edeceği şeyin tam olarak aynısını render eder. Bir
-response yerine parçaları döner. Bir fark vardır: `collage.Cached` ile okunan değerler
+response yerine kısımları döner. Bir fark vardır: `collage.Cached` ile okunan değerler
 tazedir. Bir request'e, değer yenilenirken stale hali sunulabilir. Ama push edilen
 bir fragment bir daha istenmez. Bu yüzden `RenderFragment` upstream'i bekler ve upstream
 başarısız olursa hata döner:
@@ -199,8 +245,8 @@ beri): guard'a, fragment'in URL'sine gelen bir request'te olduğu gibi `r` hakk�
 sorulur. Reddettiği bir okuyucu render yerine `collage.ErrGuardRefused` alır; o
 bağlantıya hiçbir şey göndermeyin. `Shared` olmayan bir render tek bir okuyucunun
 verisini taşıyabilir. Bu yüzden herkes için bir kez değil, her bağlantı için o
-bağlantının request'iyle render edilmelidir. Handler'ı belli bir anda herkes için aynı şeyi
-döndüren bir fragment (bir ölçüm gibi)
+bağlantının request'iyle render edilmelidir. Handler'ı belli bir anda herkes için
+aynı şeyi döndüren bir fragment (bir ölçüm gibi)
 [`Shared()`](/docs/caching#a-page-that-declares-none) olarak işaretlenir. Böylece
 render'ı, page'i static yapmadan `Shared` sayılır. `App.RenderFragment` aynı
 metottur ve uygulamanın kendi kodu içindir.
@@ -240,7 +286,9 @@ ve `CloseStreams`'ten önce. `DrainDelay` 0 olduğunda bile çağrılır. Blokla
 drain sürdüğü sürece sunucu hizmet vermeye devam eder ve yavaş bir hook kendinden
 sonraki her adımı geciktirir. İçindeki bir panic yakalanır ve plugin'in adıyla Warn
 seviyesinde loglanır. `Shutdown` ve `CloseStreams` gibi yalnızca `Init`'i
-başarılı olmuş plugin'lere ulaşır (v0.61.4'ten beri). `Start`'tan önce ya da
+başarılı olmuş plugin'lere ulaşır (v0.61.4'ten beri).
+
+`Start`'tan önce ya da
 başarısız bir `Start`'tan sonra yapılan bir `Shutdown` hiçbirine haber vermez.
 v0.61.4'ten önce hiç çalışmamış plugin'lerde de `OnDrain` ve `CloseStreams`
 çağrılırdı. Bu yüzden ikinci bir başlatma için yeniden kullanılan bir plugin
@@ -257,7 +305,7 @@ func (p *Plugin) OnServe(ctx context.Context) { go p.run(ctx) }
 ```
 
 `OnServe`'ü register sırasına göre, bir kez `ListenAndServe` çağırır: port
-bağlandıktan sonra, yani `collage: listening` loglandığında, ve hizmet vermeye
+bağlandıktan sonra, yani `collage: listening` loglandığında ve hizmet vermeye
 başlamadan önce. `Start()` ya da `Handler()` onu çağırmaz. Bu yüzden static bir
 build'de, bir plugin komutunda, `app.Handler()` üzerinde kendi `http.Server`'ını
 çalıştıran bir uygulamada ve `Shutdown`, `ListenAndServe`'den önce çalıştığında
@@ -266,11 +314,15 @@ development'ta da, her restart'ta yeniden çağrılır.
 
 `ctx`, `context.Background()`'dan türer ve drain başladığında, `OnDrain`'in
 çalıştığı anda iptal edilir. Durdurmanın bir sinyalden mi yoksa
-`App.Shutdown(ctx)`'ten mi geldiği fark etmez. Anlamı "yeni iş başlatma"dır. Zaten
+`App.Shutdown(ctx)`'ten mi geldiği fark etmez.
+
+Bu iptalin anlamı "yeni iş başlatma"dır. Zaten
 çalışan işi bitirmek plugin'in `Shutdown`'ının işidir. `Shutdown` sunucu durduktan
 sonra çalışır ve shutdown ctx'iyle sınırlıdır. `OnServe` çağrıldığında ctx zaten
 bitmiş olabilir (bir an önce başlamış bir drain). Bu yüzden iş başlatmadan önce onu
-kontrol edin. `OnServe` bloklamamalıdır: goroutine'leri başlatın ve dönün. İçindeki
+kontrol edin.
+
+`OnServe` bloklamamalıdır: goroutine'leri başlatın ve dönün. İçindeki
 bir panic yakalanır ve plugin'in adıyla Warn seviyesinde loglanır. Sunucu yine de
 hizmet verir.
 
@@ -288,6 +340,56 @@ hizmet verir.
 | `OriginResolver` | `Origin` | string olarak host | `collage.BaseURL` ya da `Host.OriginFor` bir host'un origin'ini sorduğunda (v0.42.0'dan beri) | dönen origin |
 | `ErrorHook` | `OnError` | `ErrorEvent` | Bir request sunulurken bir hata oluştuğunda | hiçbir şeyi |
 | `BuildFinishedHook` | `OnBuildFinished` | `BuildFinishedEvent` | Bir static build her dosyayı yazıp header'larını yakaladığında, bir kez (v0.21.0'dan beri) | `ev.Warn` ve `ev.Error` ile raporlar |
+
+Bir request'te hook'lar bu sırayla çalışır:
+
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 552" role="img" aria-labelledby="wp-req-title">
+<title id="wp-req-title">Bir request önce OnRequest'ten, sonra plugin'lerin middleware'inden, sonra app.Use'dan, sonra router'dan geçer. Bir page cache'e bakar: hit doğrudan OnPersonalise'a gider; miss OnBeforeRender'ı, render'ı ve OnAfterRender'ı çalıştırır, bir GET OnPersonalise'dan önce cache'e yazılır. Bir action guard'larından ve forgery kontrolünden geçer, OnBeforeAction'ı ve handler'ını çalıştırır; page ile verilen bir cevap render hook'larını cache'e uğramadan çalıştırır ve OnPersonalise'dan geçer. Bir hata OnError'a ulaşır, bir document OnDocumentRendered'ı çalıştırır.</title>
+<defs><marker id="wp-req-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker><marker id="wp-req-hit" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head-hit" d="M0 0 8 4 0 8z" /></marker></defs>
+<rect class="d-pill" x="110" y="8" width="100" height="24" rx="12" /><text x="160" y="24" text-anchor="middle">request</text>
+<line class="d-flow" x1="160" y1="32" x2="160" y2="46" marker-end="url(#wp-req-arrow)" />
+<rect class="d-a" x="50" y="50" width="220" height="26" rx="5" /><text class="d-on-a" x="160" y="67" text-anchor="middle">OnRequest</text>
+<line class="d-flow" x1="160" y1="76" x2="160" y2="88" marker-end="url(#wp-req-arrow)" />
+<rect class="d-frame" x="50" y="92" width="220" height="26" rx="6" /><text x="160" y="109" text-anchor="middle">plugin middleware'i</text>
+<rect class="d-frame" x="50" y="122" width="220" height="26" rx="6" /><text x="160" y="139" text-anchor="middle">app.Use</text>
+<line class="d-flow" x1="160" y1="148" x2="160" y2="162" marker-end="url(#wp-req-arrow)" />
+<rect class="d-cmd" x="110" y="166" width="100" height="24" rx="12" /><text class="d-cmd-text" x="160" y="182" text-anchor="middle">router</text>
+<path class="d-flow" d="M135 190C135 206 84 206 84 222" marker-end="url(#wp-req-arrow)" />
+<path class="d-flow" d="M185 190C185 206 238 206 238 222" marker-end="url(#wp-req-arrow)" />
+<text class="d-small" x="88" y="204" text-anchor="end">page</text>
+<text class="d-small" x="232" y="204">action</text>
+<rect class="d-chip-hit" x="34" y="226" width="100" height="22" rx="11" /><text class="d-hit-text d-small" x="84" y="241" text-anchor="middle">cache'e bakış</text>
+<path class="d-hitline" d="M34 237H12V445H22" marker-end="url(#wp-req-hit)" />
+<text class="d-hit-text d-small" x="14" y="231">hit</text>
+<line class="d-flow" x1="84" y1="248" x2="84" y2="262" marker-end="url(#wp-req-arrow)" />
+<text class="d-small" x="90" y="259">miss</text>
+<rect class="d-a" x="24" y="266" width="120" height="26" rx="5" /><text class="d-on-a" x="84" y="283" text-anchor="middle">OnBeforeRender</text>
+<line class="d-flow" x1="84" y1="292" x2="84" y2="304" marker-end="url(#wp-req-arrow)" />
+<rect class="d-soft-a" x="24" y="308" width="120" height="26" rx="6" /><text x="84" y="325" text-anchor="middle">render</text>
+<line class="d-flow" x1="84" y1="334" x2="84" y2="346" marker-end="url(#wp-req-arrow)" />
+<rect class="d-a" x="24" y="350" width="120" height="26" rx="5" /><text class="d-on-a" x="84" y="367" text-anchor="middle">OnAfterRender</text>
+<line class="d-flow" x1="84" y1="376" x2="84" y2="388" marker-end="url(#wp-req-arrow)" />
+<rect class="d-chip-hit" x="29" y="392" width="110" height="22" rx="11" /><text class="d-hit-text d-small" x="84" y="407" text-anchor="middle">cache'e yaz · GET</text>
+<line class="d-flow" x1="84" y1="414" x2="84" y2="428" marker-end="url(#wp-req-arrow)" />
+<rect class="d-b" x="24" y="432" width="120" height="26" rx="5" /><text class="d-on-b" x="84" y="449" text-anchor="middle">OnPersonalise</text>
+<rect class="d-frame" x="170" y="226" width="136" height="22" rx="5" /><text class="d-small" x="238" y="241" text-anchor="middle">guard'lar · forgery</text>
+<line class="d-flow" x1="238" y1="248" x2="238" y2="262" marker-end="url(#wp-req-arrow)" />
+<rect class="d-a" x="170" y="266" width="136" height="26" rx="5" /><text class="d-on-a" x="238" y="283" text-anchor="middle">OnBeforeAction</text>
+<line class="d-flow" x1="238" y1="292" x2="238" y2="304" marker-end="url(#wp-req-arrow)" />
+<rect class="d-soft-a" x="170" y="308" width="136" height="26" rx="6" /><text x="238" y="325" text-anchor="middle">action handler'ı</text>
+<line class="d-flow" x1="238" y1="334" x2="238" y2="346" marker-end="url(#wp-req-arrow)" />
+<rect class="d-frame" x="170" y="350" width="136" height="46" rx="5" /><text class="d-small" x="238" y="364" text-anchor="middle">page ile cevaplarsa:</text><text class="d-small" x="238" y="376" text-anchor="middle">render hook'ları</text><text class="d-small" x="238" y="388" text-anchor="middle">cache'e uğramadan</text>
+<line class="d-flow" x1="238" y1="396" x2="238" y2="428" marker-end="url(#wp-req-arrow)" />
+<rect class="d-b" x="170" y="432" width="136" height="26" rx="5" /><text class="d-on-b" x="238" y="449" text-anchor="middle">OnPersonalise</text>
+<path class="d-flow" d="M84 458C84 476 140 474 140 486" marker-end="url(#wp-req-arrow)" />
+<path class="d-flow" d="M238 458C238 476 180 474 180 486" marker-end="url(#wp-req-arrow)" />
+<rect class="d-pill" x="110" y="490" width="100" height="24" rx="12" /><text x="160" y="506" text-anchor="middle">response</text>
+<line class="d-rule" x1="6" y1="524" x2="314" y2="524" />
+<text class="d-small" x="160" y="542" text-anchor="middle">hata: OnError · document: OnDocumentRendered</text>
+</svg>
+<figcaption>İlk olarak, collage'ın request span'inden önce OnRequest çalışır. Sonra Config.Plugins'teki plugin'lerin middleware'i, uygulamanın app.Use'unun dışında çalışır. GET ya da HEAD için cache'in tuttuğu bir page render hook'larını atlar ve doğrudan OnPersonalise'a gider. Yeni bir render OnBeforeRender'ı ve OnAfterRender'ı çalıştırır ve yalnızca render'ı degraded olmayan bir GET için tag'iyle cache'e yazılır; hiç cache'lenmeyen bir page'de ne bakış ne yazma vardır. Bir action, guard'larından, body sınırından ve forgery kontrolünden sonra OnBeforeAction'ı çalıştırır; ev.Result'ı ayarlayan bir plugin handler'ın yerine cevap verir. Page'iyle cevap veren bir action render hook'larını cache'e uğramadan çalıştırır ve her HTML cevabı OnPersonalise'dan geçer; redirect ile cevap veren bir action ikisine de ulaşmaz. Bir document render hook'ları yerine OnDocumentRendered'ı çalıştırır; sunulurken oluşan bir hata OnError'a ulaşır.</figcaption>
+</figure>
 
 `OnRequest` dışında her hook metodunun imzası
 `func(ctx context.Context, ev *Event) error` biçimindedir. v0.60.0, hiçbir şeyin
@@ -337,7 +439,9 @@ küme büyüyebilir) ve register edildiği adı ya da prefix'i olan `Name`'i. Bu
 document'ın ya da action'ın adıdır; mount'ta ve handler'da ise prefix'tir. Request
 henüz resolve edilmemişken ve 404 gibi hiçbir şeye resolve edilmeyen bir request'te
 sıfır `Route`'tur. (v0.60.0'dan önce `collage.RouteOf(ctx)` yalnızca türü ve adı
-dönüyordu.) collage'ın request'i sunduğu
+dönüyordu.)
+
+`collage.RouteInfo`, collage'ın request'i sunduğu
 context'i okur. Finish fonksiyonunun context'i de bu context'i paylaşır,
 `Metrics.HTTPResponse` da bu context'i alır. Böylece bir span ya da metric, ham
 path yerine route ile etiketlenebilir. Bu, URL başına bir değer değil, sınırlı bir
@@ -356,9 +460,12 @@ düşen bir hook atlanır ve request ondan önceki context ile sunulur.
 v0.47.0'dan beri hook'lar, collage'ın routing'den önce yanıtladığı request'leri de
 görür: encoded slash içeren bir path (`/a%2f..%2fb`) 404 ile, kirli bir path
 (`/a/../b`) ise 301 ile yanıtlanır (`GET` ve `HEAD` dışındaki bir metotta 308).
-Bunlar çoğu zaman bir tarayıcı botunun yoklamalarıdır. Böyle bir request için finish
+Bunlar çoğu zaman bir tarayıcı botunun yoklamalarıdır.
+
+Böyle bir request için finish
 fonksiyonu yazılan status ile çağrılır (request sunulurken bir panic olmadıkça bir
-kez), `collage.RouteInfo` sıfır `Route`'tur ve `r.URL` ham path'tir. `collage.ClientIP(r)` `OnRequest` içinde çalışır; bu yüzden istemcileri
+kez), `collage.RouteInfo` sıfır `Route`'tur ve `r.URL` ham path'tir.
+`collage.ClientIP(r)` `OnRequest` içinde çalışır; bu yüzden istemcileri
 sayan ya da banlayan bir plugin bu request'leri görebilir. `Metrics.HTTPResponse` ve
 collage'ın kendi request span'i bu request'leri hâlâ atlar.
 
@@ -400,9 +507,9 @@ type BeforeRenderEvent struct {
 
 Yeni bir render'dan hemen önce çalışır; cache hit'te **çalışmaz**. Page'in
 [guard](/docs/pages-and-layouts#private-pages-guards)'larından sonra çalışır;
-onlardan birinin engellediği bir request için hiç çalışmaz. Page'ler, error page'ler ve bir action'ın `RenderPage` ile cevap
-olarak döndüğü page için çalışır. Static build'in render ettiği her page için de
-çalışır.
+onlardan birinin engellediği bir request için hiç çalışmaz. Page'ler, error
+page'ler ve bir action'ın `RenderPage` ile cevap olarak döndüğü page için çalışır.
+Static build'in render ettiği her page için de çalışır.
 
 Render context'ini alan tek hook budur ve sebebi hoisting'dir. Page'e bir şey
 ekleyen plugin, bunu ağaç render edilmeden önce tanımlar. Böylece bir fragment onu
@@ -439,12 +546,12 @@ type BeforeActionEvent struct {
 func (ev *BeforeActionEvent) Form() (url.Values, error)
 ```
 
-Her action request'inde bir kez, handler'dan hemen önce çalışır. Page'in guard'larından,
-action'ın body sınırı konduktan ve forgery kontrolünden sonra gelir (v0.31.0'dan
-beri). Bir plugin'in gönderimi kontrol ettiği yer burasıdır. Spam filtresi ya da
-kota bunun örnekleridir. Buradaki body action'ın kendi sınırıyla sınırlıdır.
-Body'yi daha önce, middleware'de okuyan bir plugin'in ise kendi sınırına ihtiyacı
-olurdu.
+Her action request'inde bir kez, handler'dan hemen önce çalışır. Page'in
+guard'larından, action'ın body sınırı konduktan ve forgery kontrolünden sonra
+gelir (v0.31.0'dan beri). Bir plugin'in gönderimi kontrol ettiği yer, örneğin bir
+spam filtresi ya da bir kota için, burasıdır, çünkü buradaki body action'ın kendi
+sınırıyla sınırlıdır; body'yi daha önce, middleware'de okuyan bir plugin'in ise
+kendi sınırına ihtiyacı olurdu.
 
 `ev.Form()` form'u parse eder, URL-encoded ya da multipart fark etmez, ve alanlarını
 döndürür. Parse ettiği parse edilmiş kalır. Böylece handler aynı form'u okur ve body
@@ -500,9 +607,9 @@ type AfterRenderEvent struct {
 
 Bir page render'ı başarıyla bittikten sonra çalışır. Page'ler, error page'ler, bir
 action'ın `RenderPage` ile cevap olarak döndüğü page ve static build'ler için
-çalışır. Çıktıyı post-process etmek için `ev.HTML`'i değiştirin. Orada bıraktığınız içerik sunulan
-içeriktir. Cache'e yazılan içerik de
-odur. Sonraki plugin'ler, öncekilerin ürettiği içeriği görür.
+çalışır. Çıktıyı post-process etmek için `ev.HTML`'i değiştirin. Orada
+bıraktığınız içerik sunulan içeriktir; cache'e yazılan içerik de odur. Sonraki
+plugin'ler, öncekilerin ürettiği içeriği görür.
 
 `ev.Values` (bir `*collage.RenderValues`), page'in fragment'lerinin key'ler
 üzerinden paylaştığı değerlerdir. Yani page'in *neyden* oluşturulduğunu gösterir.
@@ -661,27 +768,30 @@ Event şunları taşır:
   olabilir ve eşzamanlı okuyucularla paylaşılıyor olabilir.
 - `ev.Personal`: body bu okuyucuya özel hale geldiğinde ayarlayın.
 
-Forgery token paylaşılan body'ye girdikten sonra, her middleware'in içinde, yani
-sıkıştırmadan önce ve dev reload script'inden önce çalışır. Bir page'de dev
-overlay'inden önce çalışır; bir hata sayfasında ya da bir action'ın cevap olarak
+Hook, forgery token paylaşılan body'ye girdikten sonra, her middleware'in içinde,
+yani sıkıştırmadan önce ve dev reload script'inden önce çalışır. Bir page'de dev
+overlay'inden önce çalışır; bir error page'de ya da bir action'ın cevap olarak
 verdiği bir page'de ise overlay body'de zaten vardır.
 Plugin'ler register sırasına göre çalışır ve her biri öncekinin body'sini görür. Bir
 page'i (cache'ten ya da yeni), bir fragment path'ini ya da fragment read'ini, bir
-action'ın HTML cevabını ve bir hata sayfasını kapsar; document'ı asla.
+action'ın HTML cevabını ve bir error page'i kapsar; document'ı asla.
 
 `Personal`, response'u bir forgery token'ın yaptığı gibi ele alır: ETag'i gönderilen
 body'den yeniden hesaplanır, page `private, no-store` cevabı verir; ne cache'ten
-gelen bir page ne de bir fragment read, `If-None-Match: *`'a bile, `304` alır. Fragment read yeniden
+gelen bir page ne de bir fragment read, `If-None-Match: *`'a bile, `304` alır.
+
+Fragment read yeniden
 hesaplanan ETag ile `private, no-cache`, action'ın HTML'i ise `private, no-store`
 cevabı verir; handler'ın kendi ayarladığı `Cache-Control` da geçersiz kalır.
 elagoht/compress gibi sıkıştırılmış body'leri ETag başına saklayan bir middleware
 kişisel bir response'tan bir şey kazanmaz: ETag'i her seferinde yenidir.
 elagoht/compress onu her okuyucu için sıkıştırır ve hiçbir şey saklamaz (v0.1.3'ten
-beri). `Personal` olmadan değişen bir
-body da gönderilen byte'ları adlandıran bir ETag alır. Hata dönen ya da panic eden
-bir hook log'lanır; page, fragment ya da action 500 cevabı verir, hata sayfasında ise
-o status'un yerleşik sayfası gönderilir. Böyle bir plugin'i olmayan bir site eskisiyle
-aynı response'ları gönderir.
+beri).
+
+`Personal` olmadan değişen bir body da gönderilen byte'ları adlandıran bir ETag
+alır. Hata dönen ya da panic eden bir hook log'lanır; page, fragment ya da action
+500 cevabı verir, error page'de ise yerine o status'un built-in page'i gönderilir.
+Böyle bir plugin'i olmayan bir site eskisiyle aynı response'ları gönderir.
 
 ### DocumentRenderedHook
 
@@ -704,7 +814,7 @@ bakın. Dispatch'ten sonra body boşsa ya da bir hata dönerse, request 500 ile
 başarısız olur.
 
 Bir document, `OnBeforeRender` ya da `OnAfterRender` dispatch
-etmez. Çünkü page'i yoktur ve template render etmez.
+etmez, çünkü page'i yoktur ve template render etmez.
 
 ### CacheInvalidateHook
 
@@ -721,20 +831,22 @@ type InvalidatedEntry struct {
 ```
 
 `InvalidateTags` ya da `PurgeTags` bazı tag'lerin entry'lerine ulaştıktan sonra
-çalışır. Onu uygulamanın,
-bir action'ın ya da bir plugin'in çağırması fark etmez. Hook bir request'ten değil,
+çalışır. Onu uygulamanın, bir action'ın ya da bir plugin'in çağırması fark
+etmez. Hook bir request'ten değil,
 o çağrının içinden dispatch edilir. Dönen bir hata, `InvalidateTags`'in döndüğü
 hatayla join edilir. Invalidation'ı kendiniz tetiklemek için `Host.InvalidateTags`'i
 çağırın.
 
-`Entries`, invalidation'ın ulaştığı cache'lenmiş page ve document'ları listeler. Bir
-CDN'in purge etmesi ve bir arama motoruna değiştiği bildirilmesi gereken budur.
-Built-in store'larda `InvalidateTags`'in ulaştığı bir entry silinmez, stale olarak
-işaretlenir (v0.63.0'dan beri). Artık taze diye sunulmaz. Yalnızca yeniden
-render'ı başarısız ya da degraded olursa `STALE` olarak yeniden sunulur. Cache'lenmemiş bir page
-burada asla yer almaz, çünkü onun için ulaşılacak bir entry yoktur. Daha önceki bir
-invalidation'ın stale olarak işaretlediği bir page de yeniden render edilip
-saklanana kadar burada yer almaz. Cache'lenen her entry ayrıca
+`Entries`, invalidation'ın ulaştığı cache'lenmiş page ve document'ları listeler.
+Bir CDN'in purge etmesi ve bir arama motoruna değiştiği bildirilmesi gereken
+budur. Built-in store'larda `InvalidateTags`'in ulaştığı bir entry silinmez, stale
+olarak işaretlenir (v0.63.0'dan beri). Artık taze diye sunulmaz. Yalnızca yeniden
+render'ı başarısız ya da degraded olursa `STALE` olarak yeniden sunulur.
+Cache'lenmemiş bir page burada asla yer almaz, çünkü onun için ulaşılacak bir
+entry yoktur. Daha önceki bir invalidation'ın stale olarak işaretlediği bir page
+de yeniden render edilip saklanana kadar burada yer almaz.
+
+Cache'lenen her entry ayrıca
 `collage.PathTag(path)` tag'ine de bağlıdır. Bu yüzden tag'i değil path'i bilen bir
 plugin, oradaki cache'i `host.InvalidateTags(ctx, collage.PathTag("/blog"))` ile
 invalidate eder. Bkz. [Caching](/docs/caching#invalidating-by-path).
@@ -766,7 +878,9 @@ parantezsiz (`::1`) gelir. Register sırasında `ok` dönen ilk plugin kazanır.
 origin, şeması `http` ya da `https` olan yalın bir `scheme://host[:port]` olmalıdır;
 bunu `collage.ParseOrigin` denetler ve normalize eder. Origin bir host da
 adlandırmalıdır (`https://:8080` adlandırmaz). Geçersiz bir origin bilinmiyor sayılır
-ve development modu bunu plugin ve origin başına bir kez log'lar. Hiçbir plugin'in
+ve development modu bunu plugin ve origin başına bir kez log'lar.
+
+Hiçbir plugin'in
 tanımadığı host `Config.BaseURL`'ü alır; panic eden bir resolver log'lanır ve
 atlanır. Uygulama kodu sonucu `collage.BaseURL(rc)` ile okur. Host cache key'in
 içinde olduğu için bu, cache'lenmiş bir render'da güvenlidir; request'i olmayan bir
@@ -808,16 +922,28 @@ handler'da olabilir. `Stage`, hatanın nerede olduğunu söyler.
 Hiçbir page resolve edilmediğinde `nil`'dir. Document, action, mount ve
 `App.Handle` handler'ı için de `nil`'dir; action'ın `RenderPage` ile cevap olarak
 döndüğü page de buna dahildir. Bunları birbirinden ayırmak için `Path`'e bakın ve
-`Page`'i her kullanışınızda önce kontrol edin. Framework'ün kullandığı stage'ler
-şunlardır: `"route"`, `"not_found"`, `"guard"` (v0.28.0'dan beri: bir page'in
-guard'ı başarısız olmuş ya da yazılamayacak bir kararla cevap vermiştir),
-`"before_render"`, `"before_action"`,
-`"render"`, `"after_render"`, `"cache_write"`, `"error_page"`, `"asset"`,
-`"plugin"`, `"handler"` ve `"panic"`. Her birinin bir sabiti vardır (v0.61.0'dan
-beri): `collage.StageRoute`, `StageNotFound`, `StageGuard`, `StageBeforeRender`,
-`StageBeforeAction`, `StageRender`, `StageAfterRender`, `StageCacheWrite`,
-`StageErrorPage`, `StageAsset`, `StagePlugin`, `StageHandler`, `StagePanic`.
-Literal string yerine bunlarla karşılaştırın. Bu küme kapalı bir enum değildir ve
+`Page`'i her kullanışınızda önce kontrol edin.
+
+Framework'ün kullandığı stage'lerin her birinin bir sabiti vardır (v0.61.0'dan
+beri). Literal string yerine bunlarla karşılaştırın:
+
+| Stage | Sabit |
+| --- | --- |
+| `"route"` | `collage.StageRoute` |
+| `"not_found"` | `collage.StageNotFound` |
+| `"guard"` (v0.28.0'dan beri: bir page'in guard'ı başarısız olmuş ya da yazılamayacak bir kararla cevap vermiştir) | `collage.StageGuard` |
+| `"before_render"` | `collage.StageBeforeRender` |
+| `"before_action"` | `collage.StageBeforeAction` |
+| `"render"` | `collage.StageRender` |
+| `"after_render"` | `collage.StageAfterRender` |
+| `"cache_write"` | `collage.StageCacheWrite` |
+| `"error_page"` | `collage.StageErrorPage` |
+| `"asset"` | `collage.StageAsset` |
+| `"plugin"` | `collage.StagePlugin` |
+| `"handler"` | `collage.StageHandler` |
+| `"panic"` | `collage.StagePanic` |
+
+Bu küme kapalı bir enum değildir ve
 büyüyebilir; bu yüzden hepsini gördüğünüzü varsaymak yerine ele aldığınız
 stage'leri adlarıyla seçin.
 
@@ -834,8 +960,8 @@ Geri kalanlar [Hatalar](/docs/errors#reported-to-error-hooks) sayfasında listel
 
 Bir request sunulurken recover edilen panic (stage `"panic"`) v0.45.0'dan beri bir
 `*collage.PanicError`'dır. `errors.Is(err, collage.ErrPanic)` yine eşleşir;
-`errors.As` panic değerine ve panic'in oluştuğu stack'e ulaşır, kod bir error ile
-panic ettiyse `errors.Is` değerin kendisine ulaşır. Stack artık error'ın mesajında
+`errors.As` panic değerine ve panic'in oluştuğu stack'e ulaşır, kod bir hata ile
+panic ettiyse `errors.Is` değerin kendisine ulaşır. Stack artık hatanın mesajında
 değildir; yalnızca framework'ün `collage: request failed` log satırındaki ayrı bir
 `stack` attribute'unda bulunur. Stack'i mesajda arayan kod bunun yerine
 `PanicError.Stack`'i okumalıdır.
@@ -847,7 +973,9 @@ yerine stale bir page sunulan başarısız bir render gibi (v0.63.0'dan beri). B
 sonuncusu başarısız olduğu stage'i korur, örneğin `"render"`. Onu kaç okuyucu
 beklemiş ve stale page'i almış olursa olsun, `OnError`'a başarısız her render için
 bir kez ulaşır. Bkz. [Caching](/docs/caching#stale-pages-and-x-collage-cache).
-`"error_page"` event'i her zaman 500 der. `Request`, okuyucunun canlı request'idir ve
+`"error_page"` event'i her zaman 500 der.
+
+`Request`, okuyucunun canlı request'idir ve
 yalnızca okumak içindir: URL'si, method'u ve header'ları; body'si daha önce okunmuş
 olabilir. Hata bir request'ten gelmediyse `nil`'dir. İhtiyacınız olanı `OnError`
 sırasında okuyun; saklamayın ve başka bir goroutine'e vermeyin. İkisi birlikte, bir
@@ -897,7 +1025,9 @@ Bir static build her page'i, document'ı ve asset'i yazdığında bir kez çalı
 (v0.21.0'dan beri). Page'ler arası denetimler içindir. Bir dosyanın içeriği
 gerektiğinde onu `os.ReadFile` ile okuyun. `ev.Warn(path, rule, message)` ve
 `ev.Error`, `path`'teki page hakkında bir finding raporlar; `path` boşsa finding
-build'in bütünü hakkındadır. Hook'tan dönen bir hata da build'i başarısız kılar;
+build'in bütünü hakkındadır.
+
+Hook'tan dönen bir hata da build'i başarısız kılar;
 zaten yazılmış dosyalar yerinde kalır. Bir sunucuda hiçbir zaman çalışmaz.
 Context'i sona ermiş bir build de ona verilmez.
 
@@ -906,17 +1036,20 @@ uygulamanın handler'ına iki kez sorar ve cevabı dosyaya koyar: `Status` ve
 `Headers`. Tek bir response'a ait header'lar (`Date`, `ETag`, `Set-Cookie`, …) ve
 iki cevap arasında değişenler, örneğin bir CSP nonce'ı, bunlara girmez. `Captured`,
 build'in sorduğu her dosya için true'dur; yakalaması başarısız olan dosya da
-(`Status` 0) buna dahildir. Build'in kendisinin ürettiği `404.html` page'leri ve
-kök redirect için ise false'tur. Yakalama yalnızca `BuildFinishedHook` implement
+(`Status` 0) buna dahildir. Build'in kendisinin ürettiği `404.html` page'leri için
+ise false'tur. `PrefixDefault` açıkken home page'in kökteki kopyası, home page'in
+yakalama sonucunu taşır.
+
+Yakalama yalnızca `BuildFinishedHook` implement
 eden bir plugin register edilmişse çalışır. Bulduğu şeyler uyarı olarak raporlanır;
 bkz. [Static export](/docs/static-export#headers-and-redirects).
 
 **Redirect'ler.** `ev.Redirects`, sitenin tanımladığı her redirect'i taşır: önce
 register sırasıyla her page'inkiler (`Source` `"page:<name>"`), sonra her
 document'ınkiler (`"document:<name>"`), en son da her plugin'inkiler. `Status`,
-redirect'in status'udur; status vermemiş bir redirect için `302`'dir. Yalnızca `RegisterNotFoundPage` ya da
-`RegisterErrorPage` ile register edilen bir page hiçbir zaman eşleşmez, bu yüzden
-onun redirect'leri listede yer almaz.
+redirect'in status'udur; status vermemiş bir redirect için `302`'dir. Yalnızca
+`RegisterNotFoundPage` ya da `RegisterErrorPage` ile register edilen bir page
+hiçbir zaman eşleşmez, bu yüzden onun redirect'leri listede yer almaz.
 
 Bir deploy adapter'ı tam olarak bu ikisine ihtiyaç duyar:
 [elagoht/deploy](/docs/plugins#elagohtdeploy) onları bir host'un `_headers`,
@@ -925,8 +1058,8 @@ Bir deploy adapter'ı tam olarak bu ikisine ihtiyaç duyar:
 **Yakalama bir request'tir.** Middleware ve request hook'ları onu görür, page de
 `OnBeforeRender`, `OnAfterRender` ve `OnDocumentRendered` ile yeniden render edilir.
 Trafiği sayan ya da sınırlayan bir plugin de, bir render hook'undan dosya yazan ya
-da sayım tutan bir plugin de `collage.IsCapture(ctx)`'e bakar ve onu atlar. Bir yakalama
-request'i response cache'ine hiçbir zaman yazmaz.
+da sayım tutan bir plugin de `collage.IsCapture(ctx)`'e bakar ve onu atlar. Bir
+yakalama request'i response cache'ine hiçbir zaman yazmaz.
 
 ### RedirectSource
 
@@ -944,7 +1077,9 @@ kural, register edilmiş bir redirect gibi kontrol edilir: `From` tek bir `/` il
 başlamalı ve bir route pattern'i olarak parse edilebilmeli, `To`'daki her
 placeholder da onun tarafından yakalanmalıdır. Bir page'in redirect'inden farklı
 olarak `To` mutlak bir `http` ya da `https` URL'i olabilir. `410`'un (artık olmayan
-bir path) ise `To`'su yoktur; 301, 302, 307 ve 308 birine ihtiyaç duyar. Başka
+bir path) ise `To`'su yoktur; 301, 302, 307 ve 308 birine ihtiyaç duyar.
+
+Başka
 herhangi bir `Status` build'i `collage.ErrInvalidRedirectStatus` ile, bozuk ya da
 control karakteri içeren bir kural ise `collage.ErrInvalidRedirect` ile başarısız
 kılar. Hata, kuralı ve plugin'i adıyla söyler. Başka bir redirect ile aynı path'ten
@@ -960,7 +1095,7 @@ gibi başarısız kılar ([Neler başarısız olur](/docs/static-export#what-fai
 - `OnBeforeRender`, `OnAfterRender` ve `OnDocumentRendered` için
   **ilk hata dispatch'i durdurur** ve request'i başarısız kılar.
 - `OnPersonalise` için ilk hata dispatch'i durdurur; page, fragment ya da action 500
-  cevabı verir, hata sayfası ise o status'un yerleşik sayfasına döner.
+  cevabı verir, error page ise o status'un built-in page'ine döner.
 - `OnBeforeAction` için ilk hata dispatch'i durdurur ve request'i başarısız kılar.
   `ev.Result`'ı ilk ayarlayan plugin de dispatch'i durdurur ve request'i cevaplar.
 - `OnCacheInvalidate` için ilk hata dispatch'i durdurur ve `InvalidateTags`'ten
@@ -994,14 +1129,17 @@ Bundan sonra her template `{{readingTime .Words}}` çağırabilir. Fonksiyon,
   döner. `Configure`'ınız bu hatayı dönerse `New` başarısız olur; hatayı yukarı
   iletirseniz olan da budur. Uygulama bunu `Template.Funcs` ile çözemez. Çakışma
   plugin'ler arasındadır ve birinin geri adım atması gerekir.
-- Bunun dışında **uygulama kazanır**. `Config.Template.Funcs` içinde bir plugin'in
-  eklediği adla bir kayıt varsa, plugin'in fonksiyonunun yerini alır. Uygulama
-  ikisini de görebilir ve kararı o verir.
-- Built-in bir adla eklenen plugin fonksiyonu, built-in fonksiyonun yerini alır. Her
-  render'da bağlanan fonksiyonlar bunun istisnasıdır (`slot`, `hoist`, `asset`,
-  `stylesheet`, `csrfToken`, `pageURL`, `pageURLIn`, `localeURL`). Render engine
-  bunları her seferinde yeniden bağlar. Bkz.
-  [Template fonksiyonları](/docs/template-functions).
+- `AddTemplateFunc` ile eklenen bir fonksiyonda bunun dışında **uygulama
+  kazanır**. `Config.Template.Funcs` içinde bir plugin'in eklediği adla bir kayıt
+  varsa, plugin'in fonksiyonunun yerini alır: uygulama ikisini de görebilir ve
+  kararı o verir. `AddRenderFunc` ile eklenen bir fonksiyon bunun istisnasıdır. O
+  her render'da, uygulamanın fonksiyonlarından sonra yeniden bağlanır; bu yüzden
+  çalışan odur.
+- Built-in bir adla eklenen plugin fonksiyonu, built-in fonksiyonun yerini alır.
+  Her render'da bağlanan on bir fonksiyon bunun istisnasıdır (`slot`, `hoist`,
+  `asset`, `stylesheet`, `csrfToken`, `pageURL`, `pageURLIn`, `localeURL`,
+  `actionURL`, `fragmentURL`, `fragmentURLIn`). Render engine bunları her seferinde
+  yeniden bağlar. Bkz. [Template fonksiyonları](/docs/template-functions).
 - `AddTemplateFunc`, `Configure` içinden çağrılmalıdır. Sonradan eklemenin bir yolu
   yoktur, çünkü parse işleminden sonra eklenen bir fonksiyonu hiçbir template
   çağıramaz.
@@ -1022,7 +1160,10 @@ host.AddRenderFunc("nonce", func(rc *collage.RenderContext) any {
 ```
 
 `AddTemplateFunc`'ın kurallarına uyar: `Configure` içinden çağrılır ve başka bir
-plugin'in eklediği bir ad `ErrDuplicateTemplateFunc` hatasıdır.
+plugin'in eklediği bir ad `ErrDuplicateTemplateFunc` hatasıdır. Ayrıca
+[Template fonksiyonları](/docs/template-functions) sayfasında listelenen yirmi
+built-in adın hepsini aynı hatayla reddeder: bir render fonksiyonu, framework'ün
+kendi fonksiyonlarından birinin yerini alamaz.
 
 ## Mount'ları wrap etmek
 
@@ -1042,7 +1183,7 @@ Response'u değil de dosya sistemini wrap etmesinin sebebi şudur: mount'lar
 `http.ServeContent` üzerinden sunulur ve bu fonksiyon `Range`, `If-Range` ve partial
 response'ları destekler. Byte'ları her response'ta değiştirmek bütün offset'leri
 kaydırır. Bu durumda bir range request'i, ilan edilen uzunluğu artık tutmayan bir
-dosyanın yanlış parçasını döner. Dosyaları *zaten* dönüştürülmüş hâlde sunan bir
+dosyanın yanlış kısmını döner. Dosyaları *zaten* dönüştürülmüş hâlde sunan bir
 wrapper ise bu hesabı doğru tutar. Wrapper'lar register edildikleri sırayla çalışır;
 `nil` bir wrapper yok sayılır.
 
@@ -1055,7 +1196,9 @@ etmez: `Host.RegisterPage` kaldırıldı, page'ler uygulamanındır. `Host.Handl
 page olmayan şeyler için, örneğin bir event stream ya da bir WebSocket için, bir
 prefix altında düz bir `http.Handler` sunar. `/` ile biten bir prefix, altındaki her
 path'i üstlenir. v0.24.0'dan beri sonunda `/` olmayan bir prefix, örneğin
-`/metrics`, tek bir tam path'tir. `Host.Use` (v0.21.0'dan beri),
+`/metrics`, tek bir tam path'tir.
+
+`Host.Use` (v0.21.0'dan beri),
 `App.Use` gibi her request'i, plugin'in register edildiği yerde sarmalar.
 v0.38.0'dan beri `Config.Plugins` içindeki bir plugin, uygulamanın kendi
 middleware'inin dışındadır. Böylece request context'ine koyduğu şey, örneğin bir
@@ -1065,7 +1208,8 @@ register edilen bir plugin ise uygulamanın middleware'leri arasında, çağrın
 yapıldığı yerde durur.
 
 Page'lere link veren bir plugin, onların nerede olduğunu tahmin etmez, sorar.
-`Host.URL`, bir path'i `App.URL` gibi oluşturur. `Host.Locales` varsayılan locale'i ve desteklenen her locale'i döner.
+`Host.URL`, bir path'i `App.URL` gibi oluşturur. `Host.Locales` varsayılan
+locale'i ve desteklenen her locale'i döner.
 `Host.PageURLs(ctx, name)` ise bir page'in cevap verdiği her URL'yi listeler: her
 locale için ve bir pattern'in `WithStaticParams`'ının listelediği her parametre
 kümesi için bir `collage.PageURL` (`Locale`, `Path`, `Params`).
@@ -1085,6 +1229,7 @@ Bir request'e kendisi cevap veren bir plugin, örneğin artık olmayan bir page 
 da reddettiği bir request için, tek satırlık bir metin yerine sitenin kendi page'iyle
 cevap verebilir. `host.ServeStatus(w, r, http.StatusGone)`, 404 ve 410 için
 not-found page'ini, diğer her status için error page'ini sunar (v0.24.0'dan beri).
+
 Tarayıcının deploy'lar boyunca sakladıklarını sürümleyen bir plugin, örneğin bir
 service worker'ın cache'lerini ya da bir asset'in query string'ini, `host.BuildID()`
 okur. Bu, ayarlanmışsa `Config.Cache.Version`, değilse executable'ın bir parmak
@@ -1135,10 +1280,15 @@ log.Fatal(app.ListenAndServe())
 ```
 
 `DispatchCommands` önce uygulamayı başlatır, çünkü komutları register eden
-`Init`'tir. Exit code'lar şöyledir: başarı için `0`; startup hatası, çalışıp
-başarısız olan bir komut ya da `Run`'ı olmayan bir komut için `1`; nil bir app,
-argüman verilmemesi ya da hiçbir komutun sahiplenmediği bir ad (`ErrUnknownCommand`)
-için `2`. Plugin'inizin README'sinde, komutlarının uygulama üzerinden çalıştığını
+`Init`'tir. Exit code'lar şöyledir:
+
+- başarı için `0`;
+- startup hatası, çalışıp başarısız olan bir komut ya da `Run`'ı olmayan bir komut
+  için `1`;
+- nil bir app, argüman verilmemesi ya da hiçbir komutun sahiplenmediği bir ad
+  (`ErrUnknownCommand`) için `2`.
+
+Plugin'inizin README'sinde, komutlarının uygulama üzerinden çalıştığını
 belirtin. v0.10.0'dan önce scaffold edilmiş bir projenin bu bloğu kendisinin
 eklemesi gerekir. Bkz. [collage CLI](/docs/cli#plugin-commands).
 
@@ -1173,7 +1323,7 @@ func (p *Plugin) Configure(_ context.Context, host collage.ConfigHost) error {
   gizlerdi. Bölüm bir kopyaya decode edildiği için başarısız bir decode varsayılan
   değerlere dokunmaz.
 - **Options'ınızda olmayan bir key de hatadır** (v0.61.0'dan beri). Bu, hangi
-  derinlikte olursa olsun geçerlidir; `json:"-"` etiketli bir field'ın adını taşıyan
+  derinlikte olursa olsun geçerlidir; `json:"-"` tag'li bir field'ın adını taşıyan
   bir key de hatadır: `collage: acme/stamp: unknown key "generater" in
   plugins-config.json; remove it, or rename it to a key the plugin documents`.
   Uygulama `Configure` ya da `Init` aşamasında durur. Key'ler field'larla,
@@ -1209,11 +1359,15 @@ Go'da tek bir constructor ile, `func New(opts Options) *Plugin` ile alın ve bö
 onların üzerine decode edin: böylece bir uygulama sizi Go'da, JSON'da ya da ikisiyle
 birden yapılandırabilir. `collage plugin add` `New(Options{})` yazar; bu yüzden sıfır
 `Options` çalışan bir plugin olmalıdır (ya da `Init`'te neyin eksik olduğunu söyleyen
-bir mesajla başarısız olmalıdır). Tipin adını `Config` değil `Options` koyun;
+bir mesajla başarısız olmalıdır).
+
+Tipin adını `Config` değil `Options` koyun;
 `Config`, çağrıldığı yerde `collage.Config` gibi okunur. Boolean'ların varsayılanı
 zero value'larıdır: bir şeyi kapatan ayar, varsayılanı true olan bir key değil, bir
-`noX` key'idir. Bir secret asla `plugins-config.json`'a girmez: bir `<x>Env` key'i
-değeri tutan environment variable'ın adını verir, `json:"-"` etiketli bir field da
+`noX` key'idir.
+
+Bir secret asla `plugins-config.json`'a girmez: bir `<x>Env` key'i
+değeri tutan environment variable'ın adını verir, `json:"-"` tag'li bir field da
 değeri Go'dan alır.
 
 ## Editör desteği: collage.json
@@ -1392,31 +1546,40 @@ app, err := collage.New(&collage.Config{
    edilir. Bkz. [Stream'ler ve shutdown](#streams-and-shutdown).
 5. **Shutdown**, `App.Shutdown` ile ters register sırasına göre çalışır.
    `ListenAndServe`, `App.Shutdown`'ı `SIGINT` ya da `SIGTERM` geldiğinde çağırır.
-   v0.61.0'dan beri `App.Shutdown`, `Shutdown`'ı **yalnızca `Init`'i başarılı olmuş
-   plugin'ler için ve bir kez** çağırır: `Init`'i hiç çalışmamış ya da başarısız
-   olmuş bir plugin çağrılmaz, zaten shutdown edilmiş bir plugin de tekrar
-   çağrılmaz. Her `Init` başarılı olduktan *sonra* başarısız olan bir başlatma —
-   bir page'i yutan bir mount, hiç register edilmemiş bir error page — plugin'leri
-   orada hemen shutdown eder; başarısız bir `Init`'in kendinden öncekileri geri
-   alması gibi. `Start`'tan önce gelen bir `Shutdown` hiçbir plugin'i initialize
-   etmez (v0.61.1'den beri): `Start` başarısız olur, `ListenAndServe` de nil döner.
-   `Shutdown`'dan sonra gelen bir `Start`, plugin register edilmiş olsa da olmasa da
-   başarısız olur (v0.61.3'ten beri).
-   Biri başarısız olsa bile her plugin sırasını
-   alır ve hatalar join edilir. `StreamCloser`'ı implement eden bir plugin'in
-   `CloseStreams`'i daha önce, shutdown başlarken çağrılır. `DrainHook`'u
-   implement eden bir plugin'in `OnDrain`'i ise ondan da önce, drain başlarken
-   çağrılır; ikisi de yalnızca `Init`'i başarılı olmuş plugin'ler için (v0.61.4'ten
-   beri), `Start`'tan önceki bir `Shutdown` hiçbirine haber vermez. Bkz. [Stream'ler ve shutdown](#streams-and-shutdown).
+
+   - v0.61.0'dan beri `App.Shutdown`, `Shutdown`'ı **yalnızca `Init`'i başarılı olmuş
+     plugin'ler için ve bir kez** çağırır: `Init`'i hiç çalışmamış ya da başarısız
+     olmuş bir plugin çağrılmaz, zaten shutdown edilmiş bir plugin de tekrar
+     çağrılmaz.
+   - Her `Init` başarılı olduktan *sonra* başarısız olan bir başlatma —
+     bir page'i yutan bir mount, hiç register edilmemiş bir error page — plugin'leri
+     orada hemen shutdown eder; başarısız bir `Init`'in kendinden öncekileri geri
+     alması gibi.
+   - `Start`'tan önce gelen bir `Shutdown` hiçbir plugin'i initialize
+     etmez (v0.61.1'den beri): `Start` başarısız olur, `ListenAndServe` de nil döner.
+     `Shutdown`'dan sonra gelen bir `Start`, plugin register edilmiş olsa da olmasa da
+     başarısız olur (v0.61.3'ten beri).
+   - Biri başarısız olsa bile her plugin sırasını
+     alır ve hatalar join edilir.
+   - `StreamCloser`'ı implement eden bir plugin'in
+     `CloseStreams`'i daha önce, shutdown başlarken çağrılır. `DrainHook`'u
+     implement eden bir plugin'in `OnDrain`'i ise ondan da önce, drain başlarken
+     çağrılır. İkisi de yalnızca `Init`'i başarılı olmuş plugin'ler için çağrılır
+     (v0.61.4'ten beri); `Start`'tan önceki bir `Shutdown` hiçbirine haber vermez.
+     Bkz. [Stream'ler ve shutdown](#streams-and-shutdown).
 
    `ListenAndServe` kullanıyorsanız, plugin'ler drain'in `Server.DrainDelay`'inden
-   ve sunucu request'lerini bitirdikten sonra shutdown edilir. Sunucu bunu bitiremezse, `Server.ShutdownTimeout`
-   dolduğunda shutdown edilirler. Bu süre dolduktan sonra hâlâ çalışan bir request
-   olabilir. Sunucuyu kendiniz yönetiyorsanız, `App`'in bu sunucudan haberi yoktur.
+   ve sunucu request'lerini bitirdikten sonra shutdown edilir. Sunucu bunu
+   bitiremezse, `Server.ShutdownTimeout` dolduğunda shutdown edilirler. Bu süre
+   dolduktan sonra hâlâ çalışan bir request olabilir.
+
+   Sunucuyu kendiniz yönetiyorsanız, `App`'in bu sunucudan haberi yoktur.
    `ServeHook` plugin'lerini kendiniz başlatın, önce sunucunuzu durdurun, sonra
    `App.Shutdown`'ı çağırın. Aksi hâlde bir plugin, hâlâ devam eden bir request'in
    altından çekilip alınabilir (bkz.
-   [Deployment](/docs/deployment#serving-with-your-own-server)). Static bir build ya
+   [Deployment](/docs/deployment#serving-with-your-own-server)).
+
+   Static bir build ya
    da bir plugin komutu hizmet vermez. Bu yüzden onlar için de `App.Shutdown`'ı
    çağıran bir şey yoktur. Scaffold edilmiş bir `main.go`, build ya da komut
    bittiğinde onu çağırır (v0.55.0'dan beri).
@@ -1426,10 +1589,12 @@ app, err := collage.New(&collage.Config{
 Bir plugin'i, bir uygulamanın onu kullanacağı şekilde test edin: gerçek bir
 uygulamanın içinde, onun handler'ı üzerinden. `collagetest.NewSite`
 (v0.61.0'dan beri) bir testin ihtiyaç duyduğu en az yapılandırmayla böyle bir
-uygulama kurar — `{{hoist "head"}}` ve `{{slot "content"}}` içeren bir layout, `/`
-adresinde bir `home` page ve kayıtlarını saklayan debug seviyesinde bir logger —,
+uygulama kurar (`{{hoist "head"}}` ve `{{slot "content"}}` içeren bir layout, `/`
+adresinde bir `home` page ve kayıtlarını saklayan debug seviyesinde bir logger),
 plugin'inizi içine koyar ve başlatır. Böylece `Configure` ile `Init` hemen çalışır
-ve hataları testi başarısız kılar. Test bitince uygulama kapatılır. Hiçbir sunucu
+ve hataları testi başarısız kılar.
+
+Test bitince uygulama kapatılır. Hiçbir sunucu
 dinlemez ve hiçbir port seçilmez.
 
 ```go
@@ -1507,11 +1672,13 @@ func TestStamp_RefusesLateRegistration(t *testing.T) {
 }
 ```
 
-Bir `Site`, başlatılmış `App`'tir; onun handler'ı üzerinde bir `collagetest.Client`'tır
-— yani `Get`, `Submit`, `Follow` ve diğer bütün [client](/docs/testing#the-client)
-metotları onun üzerinde çalışır — ve uygulamanın debug seviyesinde ve üstünde
-yazdığı her kaydı tutan `Logs`'tur. `Logs.Has(level, parts...)`, o seviyede ya da
-üstünde, verilen her parçayı içeren bir kayıt olup olmadığını söyler ve uygulama
+Bir `Site` üç şeyi bir arada sunar: başlatılmış `App`; onun handler'ı üzerinde
+çalışan bir `collagetest.Client` (yani `Get`, `Submit`, `Follow` ve diğer bütün
+[client](/docs/testing#the-client) metotları onun üzerinde çalışır); ve uygulamanın
+debug seviyesinde ve üstünde yazdığı her kaydı tutan `Logs`.
+
+`Logs.Has(level, parts...)`, o seviyede ya da
+üstünde, verilen her kısmı içeren bir kayıt olup olmadığını söyler ve uygulama
 başka goroutine'lerden request'lere cevap verirken çağrılması güvenlidir. Bir test,
 plugin'inin ihtiyaç duyduğunu ekler:
 
@@ -1530,7 +1697,9 @@ plugin'inin ihtiyaç duyduğunu ekler:
 `NewSite`'tır: testi başarısız kılmak yerine hatayı döner. Site kurulurken bir
 `WithRegister` öğesi, bir `WithSetup` ya da `Start` başarısız olursa önce uygulamayı
 kapatır (v0.61.3'ten beri); böylece aynı plugin değeri bir sonraki site için yeniden
-kullanılabilir. Bir `collagetest.Site` kopyalanabilir (`s := *site`); `go vet`'in
+kullanılabilir.
+
+Bir `collagetest.Site` kopyalanabilir (`s := *site`); `go vet`'in
 copylocks denetimi artık itiraz etmez.
 
 Uygulamayı kendisi kapatan bir test — sizin `Shutdown`'ınızın ne döndüğünü kontrol
@@ -1553,3 +1722,287 @@ Test etmeye değer ve kolayca unutulan birkaç şey:
   `collage.Build(ctx, app, ...)` ile export alın. Bu, export edilen sitede sunulan
   sitedeki her şeyin olup olmadığını gösterir. Bkz. [Test yazmak](/docs/testing) ve
   [Static export](/docs/static-export).
+
+## Örnek: bir kataloğun referrer policy'si, sıfırdan
+
+Bir ürün kataloğu tedarikçilerine, bir ödeme sağlayıcısına ve yorum sitelerine link
+verir. URL'leri bir müşterinin neye baktığını ele verir
+(`/products/{slug}?colour=red&campaign=autumn`). Ekip, her page'in bir
+`Referrer-Policy` header'ıyla tarayıcıya bunun ne kadarını aktarabileceğini
+söylemesini istiyor. Policy sunucuda da sitenin export edilmiş kopyasında da aynı
+olmalıdır. Footer da bir güvenlik açığının bildirileceği adresi gösterir.
+
+`acme/policy` bunun için yazılmış küçük ama eksiksiz bir plugin'dir:
+
+- **Options**, Go'da ya da `plugins-config.json`'da ayarlanır: policy ve iletişim
+  adresi.
+- **Middleware**, `Init` içinde `Host.Use` ile eklenir ve header'ı her response'a
+  koyar.
+- **Bir template fonksiyonu**, `{{securityContact}}`, `Configure` içinde eklenir.
+- **Bir build finding'i**, `OnBuildFinished`'ten gelir: static build'in, ayarlanan
+  header olmadan yakaladığı bir page.
+
+Güvenlik header'larının tamamını isteyen bir site
+[elagoht/secure](/docs/plugins#elagohtsecure) kullanır; `Referrer-Policy` de onun
+gönderdikleri arasındadır. Bu plugin, bir plugin'in her kısmı görünsün diye küçük
+tutulmuştur.
+
+### Plugin
+
+```go
+// Package policy sends a Referrer-Policy header on every response, offers the
+// site's security contact to templates, and checks a static build for pages
+// that went out without the header.
+package policy
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"slices"
+
+	"github.com/Elagoht/collage/pkg/collage"
+)
+
+// Name is the plugin's name, and the key of its section in plugins-config.json.
+const Name = "acme/policy"
+
+// DefaultReferrerPolicy is what is sent when Options.ReferrerPolicy is empty.
+const DefaultReferrerPolicy = "strict-origin-when-cross-origin"
+
+// policies are the values a Referrer-Policy header may hold.
+var policies = []string{
+	"no-referrer", "no-referrer-when-downgrade", "origin", "origin-when-cross-origin",
+	"same-origin", "strict-origin", "strict-origin-when-cross-origin", "unsafe-url",
+}
+
+// Options is the plugin's configuration. The zero value is a working plugin.
+type Options struct {
+	// ReferrerPolicy is the header's value; DefaultReferrerPolicy when empty.
+	ReferrerPolicy string `json:"referrerPolicy"`
+	// Contact is where to report a vulnerability, offered as {{securityContact}}.
+	Contact string `json:"contact"`
+}
+
+// Plugin is the policy plugin. Construct it with New.
+type Plugin struct {
+	opts Options
+}
+
+// New returns the plugin. The application's plugins-config.json section is
+// decoded over opts.
+func New(opts Options) *Plugin { return &Plugin{opts: opts} }
+
+var (
+	_ collage.Plugin            = (*Plugin)(nil)
+	_ collage.Configurer        = (*Plugin)(nil)
+	_ collage.BuildFinishedHook = (*Plugin)(nil)
+)
+
+func (p *Plugin) Name() string    { return Name }
+func (p *Plugin) Version() string { return "0.1.0" }
+
+// Configure reads the options and adds the template function: it runs inside
+// collage.New, before the templates are parsed.
+func (p *Plugin) Configure(_ context.Context, host collage.ConfigHost) error {
+	opts, err := collage.PluginConfig(host, p.opts)
+	if err != nil {
+		return err
+	}
+	if opts.ReferrerPolicy == "" {
+		opts.ReferrerPolicy = DefaultReferrerPolicy
+	}
+	if !slices.Contains(policies, opts.ReferrerPolicy) {
+		return fmt.Errorf("%s: %q is not a referrer policy", Name, opts.ReferrerPolicy)
+	}
+	p.opts = opts
+	return host.AddTemplateFunc("securityContact", func() string { return p.opts.Contact })
+}
+
+// Init adds the middleware. A plugin in Config.Plugins wraps the application's
+// own middleware, so a header the application sets wins over this one.
+func (p *Plugin) Init(_ context.Context, host collage.Host) error {
+	return host.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Referrer-Policy", p.opts.ReferrerPolicy)
+			next.ServeHTTP(w, r)
+		})
+	})
+}
+
+func (p *Plugin) Shutdown(context.Context) error { return nil }
+
+// OnBuildFinished checks what a static host will be told to send: the build
+// asked the application for every file it wrote, and kept the headers.
+func (p *Plugin) OnBuildFinished(_ context.Context, ev *collage.BuildFinishedEvent) error {
+	if p.opts.Contact == "" {
+		ev.Warn("", "no-contact", "no security contact is configured; set contact in plugins-config.json")
+	}
+	for _, f := range ev.Files {
+		if f.Kind != collage.BuiltPage || f.Status < 200 || f.Status > 299 {
+			continue // not a page, or not captured with a 2xx
+		}
+		if got := f.Headers.Get("Referrer-Policy"); got != p.opts.ReferrerPolicy {
+			ev.Error(f.Path, "referrer-policy", fmt.Sprintf("Referrer-Policy is %q, want %q", got, p.opts.ReferrerPolicy))
+		}
+	}
+	return nil
+}
+```
+
+Her kısmın nerede durduğu yukarıdaki bölümlerden çıkar:
+
+- **Options `Configure` içinde kontrol edilir.** Header'ın taşıyamayacağı bir
+  policy, her response'ta gönderilmek yerine bilinmeyen bir key gibi
+  `collage.New`'u başarısız kılar.
+- **Middleware header'ı `next`'i çağırmadan önce koyar.** `Config.Plugins` içindeki
+  bir plugin uygulamanın kendi middleware'ini sarar. Bu yüzden uygulamanın
+  middleware'inin ya da bir handler'ın sonradan koyduğu header bunun yerini alır:
+  son sözü uygulama söyler.
+- **Kontrol `f.Headers`'ı okur.** Build bunu yalnızca `BuildFinishedHook` implement
+  eden bir plugin register edildiği için doldurur; bu yüzden sunucuya hiçbir
+  maliyeti yoktur. Build'in yakalamadığı ya da 2xx ile cevaplanmamış bir dosya
+  atlanır.
+- **Eksik iletişim adresi bir uyarı, yanlış header bir hatadır.** Uyarı raporda
+  listelenir; hata build'i `collage.ErrBuildFindings` ile başarısız kılar ve
+  page'ler her durumda yazılır.
+
+### Uygulamada register edilmesi
+
+Kataloğun `plugins-config.json`'ı:
+
+```json
+{
+  "acme/policy": {
+    "referrerPolicy": "same-origin",
+    "contact": "security@catalogue.example"
+  }
+}
+```
+
+```go
+pluginConfig, err := collage.LoadPluginConfig("plugins-config.json")
+if err != nil {
+	log.Fatal(err)
+}
+app, err := collage.New(&collage.Config{
+	Template:     collage.TemplateConfig{Root: "templates"},
+	Plugins:      []collage.Plugin{policy.New(policy.Options{})},
+	PluginConfig: pluginConfig,
+})
+if err != nil {
+	log.Fatal(err)
+}
+```
+
+Ardından footer template'i iletişim adresini gösterir:
+
+```html
+<footer>Found a vulnerability? Write to {{securityContact}}.</footer>
+```
+
+### Testleri
+
+```go
+package policy_test
+
+import (
+	"context"
+	"errors"
+	"net/http"
+	"strings"
+	"testing"
+
+	"github.com/Elagoht/collage/pkg/collage"
+	"github.com/Elagoht/collage/pkg/collagetest"
+
+	"example.com/policy"
+)
+
+// newSite builds a one-page application with the plugin in it.
+func newSite(t *testing.T, options ...collagetest.SiteOption) *collagetest.Site {
+	t.Helper()
+	return collagetest.NewSite(t, append([]collagetest.SiteOption{
+		collagetest.WithPlugins(policy.New(policy.Options{})),
+		collagetest.WithTemplates(map[string]string{"home.html": `<footer>{{securityContact}}</footer>`}),
+	}, options...)...)
+}
+
+func TestPolicy_SendsTheDefault(t *testing.T) {
+	res := newSite(t).Get("/").WantStatus(http.StatusOK)
+	if got := res.Header.Get("Referrer-Policy"); got != policy.DefaultReferrerPolicy {
+		t.Errorf("Referrer-Policy = %q, want %q", got, policy.DefaultReferrerPolicy)
+	}
+}
+
+func TestPolicy_ReadsItsConfiguration(t *testing.T) {
+	site := newSite(t, collagetest.WithPluginConfig(policy.Name,
+		`{"referrerPolicy": "no-referrer", "contact": "security@example.com"}`))
+	res := site.Get("/").WantStatus(http.StatusOK)
+	if got := res.Header.Get("Referrer-Policy"); got != "no-referrer" {
+		t.Errorf("Referrer-Policy = %q, want no-referrer", got)
+	}
+	if !strings.Contains(res.Body, "<footer>security@example.com</footer>") {
+		t.Errorf("no contact in %s", res.Body)
+	}
+}
+
+func TestPolicy_RefusesAnUnknownPolicy(t *testing.T) {
+	_, err := collagetest.TrySite(t,
+		collagetest.WithPlugins(policy.New(policy.Options{})),
+		collagetest.WithPluginConfig(policy.Name, `{"referrerPolicy": "never"}`),
+	)
+	if err == nil || !strings.Contains(err.Error(), "not a referrer policy") {
+		t.Errorf("err = %v, want the policy refused", err)
+	}
+}
+
+func TestPolicy_BuildFindsAnOverriddenHeader(t *testing.T) {
+	site := newSite(t,
+		collagetest.WithPluginConfig(policy.Name, `{"contact": "security@example.com"}`),
+		// The application's own middleware runs inside the plugin's, so its
+		// header replaces the plugin's.
+		collagetest.WithSetup(func(app *collage.App) error {
+			return app.Use(func(next http.Handler) http.Handler {
+				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.Header().Set("Referrer-Policy", "unsafe-url")
+					next.ServeHTTP(w, r)
+				})
+			})
+		}),
+	)
+	report, err := collage.Build(context.Background(), site.App, collage.BuildOptions{OutDir: t.TempDir()})
+	if !errors.Is(err, collage.ErrBuildFindings) {
+		t.Fatalf("Build: err = %v, want ErrBuildFindings", err)
+	}
+	var found bool
+	for _, f := range report.Findings {
+		if f.Rule == "referrer-policy" && f.Path == "/" && f.Level == collage.FindingError {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("findings = %+v, want referrer-policy on /", report.Findings)
+	}
+}
+
+func TestPolicy_BuildWarnsWithoutAContact(t *testing.T) {
+	report, err := collage.Build(context.Background(), newSite(t).App, collage.BuildOptions{OutDir: t.TempDir()})
+	if err != nil {
+		t.Fatalf("Build: %v", err) // a warning fails nothing
+	}
+	if len(report.Findings) != 1 || report.Findings[0].Rule != "no-contact" || report.Findings[0].Level != collage.FindingWarning {
+		t.Errorf("findings = %+v, want one no-contact warning", report.Findings)
+	}
+}
+```
+
+Her test plugin'in bir sözünü kontrol eder:
+
+| Test | Ne gösterir |
+| --- | --- |
+| `SendsTheDefault` | Sıfır `Options` çalışan bir plugin'dir |
+| `ReadsItsConfiguration` | Config bölümü hem header'a hem template fonksiyonuna ulaşır |
+| `RefusesAnUnknownPolicy` | Kötü bir değer `collage.New`'u başarısız kılar, `TrySite` da hatayı döner |
+| `BuildFindsAnOverriddenHeader` | Uygulamanın `WithSetup` ile register edilen kendi middleware'i plugin'inkinin içinde çalışır ve kazanır; build page'i raporlar ve `ErrBuildFindings` ile başarısız olur |
+| `BuildWarnsWithoutAContact` | Build'in bütünü hakkındaki bir uyarının `Path`'i boştur ve hiçbir şeyi başarısız kılmaz |

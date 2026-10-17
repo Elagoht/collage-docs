@@ -17,14 +17,50 @@ if err := app.RegisterPage(page); errors.Is(err, collage.ErrDuplicateRoute) {
 
 Bunların çoğu **uygulama açılırken** bildirilir. `New` config'i doğrular ve bütün
 template'leri parse eder. Register işlemi her page'i doğrular. Uygulama başlarken de
-ancak kümenin tamamına bakınca görülebilecek sorunlar kontrol edilir. Böylece sitenin
-bir araya getirilişindeki bir hata, onu ilk bulan okuyucuda patlayan bir page olarak
-değil, hiç başlamayan bir program olarak ortaya çıkar. `collage dev` altında bu ret,
-programın yazdıklarını gösteren bir 503 page'i olarak tarayıcıda görünür. Bkz.
-[CLI](/docs/cli#collage-dev).
+ancak kümenin tamamına bakınca görülebilecek sorunlar kontrol edilir.
+
+Böylece sitenin bir araya getirilişindeki bir hata, onu ilk bulan okuyucuda
+başarısız olan bir page olarak değil, hiç başlamayan bir program olarak ortaya
+çıkar. `collage dev` altında bu ret, programın yazdıklarını gösteren bir 503
+page'i olarak tarayıcıda görünür. Bkz. [CLI](/docs/cli#collage-dev).
+
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 384" role="img" aria-labelledby="errs-title">
+<title id="errs-title">Bir hata size ne zaman ulaşır. collage.New, ErrTemplateRootMissing gibi config hatalarını döner. Bir builder, ErrMissingContent gibi hatalarını kurduğu değerin üzerine kaydeder ve register bu değeri reddeder. Register, validation'ın bulduğunu döner, örneğin ErrUnknownSlot. Start ya da ListenAndServe ile başlatma, ancak kümenin tamamında görülebileni döner, örneğin ErrMountShadowsRoute. Sonrasında bir request sırasındaki hata 404, 500 ya da fallback olur, stage'iyle birlikte error hook'larına ulaşır ve production'daki error page sebebini gizler. collage.Build ile static bir build hatasını döner ya da report'a kaydeder: Errors, Skipped ve Findings. errors.Is, nasıl wrap edilmiş olursa olsun her sentinel için aynı testtir.</title>
+<defs><marker id="errs-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
+<rect class="d-frame" x="4" y="8" width="130" height="40" rx="6" /><text x="69" y="24" text-anchor="middle">collage.New</text><text class="d-small" x="69" y="38" text-anchor="middle">config, template'ler</text>
+<line class="d-flow" x1="134" y1="28" x2="148" y2="28" marker-end="url(#errs-arrow)" />
+<rect class="d-chip" x="152" y="8" width="164" height="40" rx="6" /><text class="d-small" x="234" y="24" text-anchor="middle">ErrTemplateRootMissing</text><text class="d-small" x="234" y="38" text-anchor="middle">New döner</text>
+<line class="d-flow" x1="69" y1="48" x2="69" y2="54" marker-end="url(#errs-arrow)" />
+<rect class="d-frame" x="4" y="58" width="130" height="40" rx="6" /><text x="69" y="74" text-anchor="middle">builder'lar</text><text class="d-small" x="69" y="88" text-anchor="middle">NewPage … Build()</text>
+<line class="d-flow" x1="134" y1="78" x2="148" y2="78" marker-end="url(#errs-arrow)" />
+<rect class="d-chip" x="152" y="58" width="164" height="40" rx="6" /><text class="d-small" x="234" y="74" text-anchor="middle">ErrMissingContent</text><text class="d-small" x="234" y="88" text-anchor="middle">Register'da reddedilir</text>
+<line class="d-flow" x1="69" y1="98" x2="69" y2="104" marker-end="url(#errs-arrow)" />
+<rect class="d-frame" x="4" y="108" width="130" height="40" rx="6" /><text x="69" y="124" text-anchor="middle">register</text><text class="d-small" x="69" y="138" text-anchor="middle">Register, RegisterPage</text>
+<line class="d-flow" x1="134" y1="128" x2="148" y2="128" marker-end="url(#errs-arrow)" />
+<rect class="d-chip" x="152" y="108" width="164" height="40" rx="6" /><text class="d-small" x="234" y="124" text-anchor="middle">ErrUnknownSlot</text><text class="d-small" x="234" y="138" text-anchor="middle">Register döner</text>
+<line class="d-flow" x1="69" y1="148" x2="69" y2="154" marker-end="url(#errs-arrow)" />
+<rect class="d-frame" x="4" y="158" width="130" height="40" rx="6" /><text x="69" y="174" text-anchor="middle">başlatma</text><text class="d-small" x="69" y="188" text-anchor="middle">Start, ListenAndServe</text>
+<line class="d-flow" x1="134" y1="178" x2="148" y2="178" marker-end="url(#errs-arrow)" />
+<rect class="d-chip" x="152" y="158" width="164" height="40" rx="6" /><text class="d-small" x="234" y="174" text-anchor="middle">ErrMountShadowsRoute</text><text class="d-small" x="234" y="188" text-anchor="middle">Start döner</text>
+<path class="d-flow" d="M69 198C69 206 79 206 79 214" marker-end="url(#errs-arrow)" />
+<path class="d-flow" d="M100 198C100 210 241 202 241 214" marker-end="url(#errs-arrow)" />
+<rect class="d-c" x="4" y="218" width="150" height="26" rx="6" /><text class="d-on-c" x="79" y="235" text-anchor="middle">bir request</text>
+<rect class="d-c" x="166" y="218" width="150" height="26" rx="6" /><text class="d-on-c" x="241" y="235" text-anchor="middle">collage.Build</text>
+<line class="d-flow" x1="79" y1="244" x2="79" y2="256" marker-end="url(#errs-arrow)" />
+<line class="d-flow" x1="241" y1="244" x2="241" y2="256" marker-end="url(#errs-arrow)" />
+<rect class="d-chip" x="4" y="260" width="150" height="54" rx="6" /><text class="d-small" x="79" y="276" text-anchor="middle">404, 500 ya da fallback</text><text class="d-small" x="79" y="290" text-anchor="middle">OnError stage'i alır</text><text class="d-small" x="79" y="304" text-anchor="middle">production sebebi gizler</text>
+<rect class="d-chip" x="166" y="260" width="150" height="54" rx="6" /><text class="d-small" x="241" y="276" text-anchor="middle">Build döner ya da</text><text class="d-small" x="241" y="290" text-anchor="middle">report'a yazar: Errors,</text><text class="d-small" x="241" y="304" text-anchor="middle">Skipped, Findings</text>
+<rect class="d-cmd" x="4" y="332" width="312" height="44" rx="6" /><text class="d-cmd-text" x="160" y="350" text-anchor="middle">errors.Is(err, collage.ErrUnknownSlot)</text><text class="d-cmd-text d-small" x="160" y="366" text-anchor="middle">wrap edilmiş olsa da her sentinel'e aynı test</text>
+</svg>
+<figcaption>Her tür hata size farklı bir anda ulaşır. <code>New</code> hatalı bir config'i reddeder. Bir builder'ın kaydettiği hata, kurduğu değerin üzerinde kalır ve register bu değeri, validation'ın bulduklarıyla birlikte reddeder. Başlatma, ancak kümenin tamamında görülebileni kontrol eder: <code>Start</code> bu hatayı döner, <code>Handler</code> ise onu log'lar ve 503 ile cevap verir. Sonrasında bir request sırasındaki hata bir status'a, bir fallback'e ya da bir error page'e dönüşür ve error hook'larına ulaşır; production page'i sebep hakkında hiçbir şey söylemez. Static bir build ise hatasını döner ya da report'una kaydeder. Hangisi olursa olsun, onu <code>errors.Is</code> ile eşleştirin.</figcaption>
+</figure>
 
 Aşağıdaki tablolar her hatanın nereden geldiğine göre gruplanmıştır. Mesaj,
-sentinel'in wrap işlemi ayrıntı eklemeden önce taşıdığı metindir.
+sentinel'in wrap işlemi ayrıntı eklemeden önce taşıdığı metindir. Register'ın
+yakaladığı üç hata ve collage'ın her biri için yazdığını nasıl okuyacağınız
+[Örnek: register'ın yakaladığı üç hata](#example-three-mistakes-registration-catches)
+bölümünde adım adım anlatılır.
 
 v0.10.0'dan beri aşağıdaki bütün hatalar export edilir. Daha önce action, request
 forgery, method, asset, `{{dict}}` ve template-escapes-root hataları ile `ErrNotStatic`
@@ -35,8 +71,10 @@ v0.60.0'dan beri bazı hataların sentinel'i yoktur, çünkü bir uygulamanın o
 eşleştirerek yapabileceği bir şey yoktur: `New(nil)`, `nil` bir plugin ya da page,
 ismi boş bir plugin ya da komut, tek sayıda argüman ya da string olmayan bir key
 almış bir `{{dict}}` çağrısı ve version'ı olmayan bir disk cache'i. Bunlar yine
-reddedilir; mesaj neyin yanlış olduğunu söyler. Birkaç sentinel de kalan sentinel'in
-ismini aldı: `ErrMissingTTL` artık `ErrInvalidTTL`, `ErrUnsupportedCache` artık
+reddedilir; mesaj neyin yanlış olduğunu söyler.
+
+Birkaç sentinel de kalan sentinel'in ismini aldı: `ErrMissingTTL` artık
+`ErrInvalidTTL`, `ErrUnsupportedCache` artık
 `ErrInvalidCacheType`, `ErrInvalidHandlerPrefix` artık `ErrInvalidPrefix`,
 `ErrInvalidBaseURL` artık `ErrInvalidOrigin`, `ErrNoMethods` artık
 `ErrNoActionMethods`, `ErrNilRenderer` artık `ErrNilApp`, `ErrInvalidOutDir` artık
@@ -79,11 +117,13 @@ Bu hataları iki yer bildirir. Birkaçını builder'lar zincir çalışırken ka
 `WithSlot`, `WithSlotResolver` ve `WithSlotFragment` `ErrDuplicateSlot` ve
 `ErrSlotResolved`'u kaydeder (`WithSlotFragment` ayrıca `ErrNilFragment` ve
 `ErrSlotOccupied` hatalarını da kaydeder). `WithTimeout` `ErrInvalidTimeout`'u,
-`WithPath` `ErrDuplicateLocalePath` ve `ErrInvalidLocale`'i, `WithLayouts` `ErrMissingLayout`, `ErrConflictingLayout`,
-`ErrNilFragment` ve `ErrFragmentCycle`'ı, bir page'in `Build`'i
+`WithPath` `ErrDuplicateLocalePath` ve `ErrInvalidLocale`'i, `WithLayouts`
+`ErrMissingLayout`, `ErrConflictingLayout`, `ErrNilFragment` ve
+`ErrFragmentCycle`'ı, bir page'in `Build`'i
 `ErrMissingContent`'i, bir document'ın `Build`'i de `ErrNoDocumentHandler`'ı
-kaydeder. Bunları `BuildErr()` ile
-okuyabilirsiniz. Bir builder'ın kaydettiği hatalar, kurduğu değerin üzerinde kalır.
+kaydeder. Bunları `BuildErr()` ile okuyabilirsiniz.
+
+Bir builder'ın kaydettiği hatalar, kurduğu değerin üzerinde kalır.
 `RegisterPage` ve `RegisterDocument`, böyle bir hata taşıyan değeri reddeder. Hata
 page'in kendisine ya da ağacındaki herhangi bir fragment'e ait olabilir. Red,
 `collage: page %q was built with errors: %w` olarak wrap edilir (document için
@@ -93,11 +133,12 @@ ya da olmasın geçerlidir.
 Geri kalanları, page register edilirken validation bulur. `RegisterPage` ağaçtaki
 her fragment'i kontrol eder: isimlerini, template'lerini, slot'larını (her bağlamayı
 template'in çağırdığı slot'larla karşılaştırarak), verilerini, timeout'larını,
-TTL'lerini, path'lerini ve error page'lerini. İlk hatayı döner. `WithFragmentPath`
-ile açılan bir fragment de bu açıdan page'in bir parçası sayılır (v0.11.0'dan beri).
-Onun template'i, builder hataları ve validation'ı da diğerleri gibi register sırasında
-kontrol edilir. Her iki durumda da hatalı bir page, hiçbir şey serve etmeden
-reddedilir.
+TTL'lerini, path'lerini ve error page'lerini. İlk hatayı döner.
+
+`WithFragmentPath` ile açılan bir fragment de bu açıdan page'e dahil sayılır
+(v0.11.0'dan beri). Onun template'i, builder hataları ve validation'ı da diğerleri
+gibi register sırasında kontrol edilir. Her iki durumda da hatalı bir page, hiçbir
+şey serve etmeden reddedilir.
 
 | Hata | Mesaj | Anlamı |
 | --- | --- | --- |
@@ -216,9 +257,10 @@ yer alır. Production page'i değişmemiştir ve sebep hakkında hiçbir şey s�
 
 ## Link'ler ve URL'ler
 
-Bu hataları `App.URL`, `App.ActionURL` ve `App.FragmentURL` döner. `{{pageURL}}`, `{{actionURL}}`, `{{pageURLIn}}`,
-`{{localeURL}}`, `{{fragmentURL}}` ve `{{fragmentURLIn}}` ise başarısız olan
-render'larla bildirir. Bkz. [Link'ler ve locale'ler](/docs/links-and-locales).
+Bu hataları `App.URL`, `App.ActionURL` ve `App.FragmentURL` döner. `{{pageURL}}`,
+`{{actionURL}}`, `{{pageURLIn}}`, `{{localeURL}}`, `{{fragmentURL}}` ve
+`{{fragmentURLIn}}` ise başarısız olan render'larla bildirir. Bkz.
+[Link'ler ve locale'ler](/docs/links-and-locales).
 
 | Hata | Mesaj | Anlamı |
 | --- | --- | --- |
@@ -232,9 +274,11 @@ render'larla bildirir. Bkz. [Link'ler ve locale'ler](/docs/links-and-locales).
 ## Action'lar
 
 Bu hataları `RegisterAction` döner. `RegisterPage` de bir page'e eklenmiş action'ı
-kontrol eder: `ErrNilAction`, `ErrNoActionMethods` ve v0.10.0'dan beri `ErrNoActionHandler`
-ile `ErrDuplicateAction`. `nil` bir fragment path'ini ise `ErrNilFragmentPath` ile
-reddeder. v0.11.0'dan beri tek bir `ErrNoActionHandler` vardır; register sırasında
+kontrol eder: `ErrNilAction`, `ErrNoActionMethods` ve v0.10.0'dan beri
+`ErrNoActionHandler` ile `ErrDuplicateAction`. `nil` bir fragment path'ini ise
+`ErrNilFragmentPath` ile reddeder.
+
+v0.11.0'dan beri tek bir `ErrNoActionHandler` vardır; register sırasında
 ve request'te aynı değerdir. v0.60.0'dan beri kurulurken hata kaydetmiş bir action
 (örneğin `WithPath`'te tekrar eden bir locale) da register sırasında reddedilir;
 `ActionBuilder.BuildErr()` bu hataları önceden okur.
@@ -321,13 +365,15 @@ geçmiştir) `400` ya da `408` ile cevaplanır ve hiçbir error hook'una ulaşma
 seviyesinde log'lanır. Bkz.
 [Streaming body'ler](/docs/forms-and-actions#streaming-bodies).
 
-Alarm kurmaya değer stage `"error_page"`'dir (`collage.StageErrorPage`; v0.61.0'dan beri her stage'in bir `Stage*` sabiti vardır). Hataları bildiren page'in kendisi başarısız
-olmuştur, ama okuyucu yine de makul görünen bir page görmüştür. Bu yüzden size bunu
-başka hiçbir şey söylemez.
+Alarm kurmaya değer stage `"error_page"`'dir (`collage.StageErrorPage`;
+v0.61.0'dan beri her stage'in bir `Stage*` sabiti vardır). Hataları bildiren
+page'in kendisi başarısız olmuştur, ama okuyucu yine de makul görünen bir page
+görmüştür. Bu yüzden size bunu başka hiçbir şey söylemez.
 
 ## Static build'ler
 
-Bu hataları `collage.Build` döner ya da döndüğü `BuildReport`'a kaydedilirler. Bkz. [Static export](/docs/static-export).
+Bu hataları `collage.Build` döner ya da döndüğü `BuildReport`'a kaydedilirler.
+Bkz. [Static export](/docs/static-export).
 
 | Hata | Mesaj | Nerede | Anlamı |
 | --- | --- | --- | --- |
@@ -355,3 +401,141 @@ hatalardan oluşan bir slice'tır. Bir atlama ise `BuildReport.Skipped` içindek
 (v0.10.0'dan beri) kod için sentinel'dir: `ErrNotStatic`, `ErrGuarded`,
 `ErrDynamicPathUnresolved` ya da `ErrUnresolvedToken`.
 Bu yüzden `Reason`'ı okumak yerine onu `errors.Is(skip.Err, …)` ile eşleştirin.
+
+## Örnek: register'ın yakaladığı üç hata
+
+Yeni bir proje page'lerini `routes.go`'da register eder. Scaffold edilen `main.go`
+ilk hatada durur ve onu saatin ve projenin isminin ardından yazar (aşağıda saat
+gösterilmez). Buradaki projenin ismi `blog`'dur. `Register` reddettiği ilk öğede
+durur, bu yüzden bu hatalar her çalıştırmada birer birer gelir: düzeltin, yeniden
+çalıştırın, sıradakini okuyun.
+
+Her satır dıştan içe okunur:
+
+- `blog:` önekini `main.go` ekler;
+- `register page "home":`, `Register`'ın reddettiği öğeyi adıyla belirtmesidir;
+- `collage: unknown slot`, sentinel'in yukarıdaki tablolarda da yer alan mesajıdır;
+- geri kalanı ayrıntıdır: page, fragment, template.
+
+### Yazım hatalı bir slot ismi
+
+Home page'in content'i bir aside'ı bir slot'a bağlar, ama slot'un ismini
+template'ten farklı yazar:
+
+```go
+func Home() *collage.Fragment {
+	return collage.NewFragment("home", "pages/home.html").
+		WithSlotFragment("sidebr", Aside()).
+		Build()
+}
+```
+
+```html
+<h1>Home</h1>
+{{slot "sidebar"}}
+```
+
+```text
+blog: register page "home": collage: unknown slot: page "home" fragment "home" binds into slot "sidebr", but template "pages/home.html" never calls it; it calls [sidebar]
+```
+
+Cevap satırın sonundadır: template `sidebar`'ı çağırır, Go tarafı ise `sidebr`'a
+bağlar. Hangi taraf yanlışsa onu düzeltin. Bu kontrol olmasaydı aside her request'te
+hiçbir yerde render edilmezdi.
+
+Bir slot'un ismini render sırasında hesaplayan bir template herhangi bir slot'u
+çağırabilir, bu yüzden onun bağlamaları bu şekilde kontrol edilmez.
+
+### Verinin sahip olmadığı bir alan
+
+Post'un `fragments/pages/post.go`'daki (package `fragments`) content'i template'ine
+bir `postView` verir, template ise bir alanın ismini yanlış yazar:
+
+```go
+type postView struct {
+	Title string
+}
+
+func Post() *collage.Fragment {
+	return collage.NewFragment("post", "pages/post.html").
+		WithData(collage.Value(postView{Title: "Hello"})).
+		Build()
+}
+```
+
+```html
+<h1>{{.Titel}}</h1>
+```
+
+```text
+blog: register page "post": collage: page "post": fragment "post" (pages/post.html:1:6): {{.Titel}}: type fragments.postView has no field or method Titel (did you mean Title?)
+```
+
+Bu hata, sentinel'inin mesajını (`collage: template does not fit its data`)
+taşımaz. Her bulgu bir `*collage.TemplateTypeError`'dır ve kendini şöyle yazar:
+page, fragment, template'in dosyası, satırı ve sütunu, ifade, ifadedeki sorun ve
+yakın bir isim varsa muhtemelen kastettiğiniz isim. `{{.Title}}` yazın.
+
+`errors.Is(err, collage.ErrTemplateType)` yine de onunla eşleşir. Page'de daha
+önce reddedilen başka bir şey yoksa, page'in template'lerindeki bütün bulgular tek
+seferde, her biri ayrı bir satırda bildirilir. Eksik bir template ya da yanlış bir
+slot bağlaması, kontrolü bulgular döndürülmeden önce durdurur. `errors.As` ilk
+bulgunun alanlarına ulaşır:
+
+```go
+var typeErr *collage.TemplateTypeError
+if errors.As(err, &typeErr) {
+	fmt.Printf("%s:%d:%d: %s\n", typeErr.Template, typeErr.Line, typeErr.Col, typeErr.Expr)
+}
+```
+
+### Page'inin path'indeki bir fragment path'i
+
+Search page'i, bir script sonuçları yenileyebilsin diye onları ayrı bir URL'de
+açar, ama onlara page'in kendi path'ini verir:
+
+```go
+func Search() *collage.Page {
+	return collage.NewPage("search").
+		WithLayouts(layouts.Master()).
+		WithContent(fragments.Search()).
+		WithPath("en", "/search").
+		WithFragmentPath("en", "/search", fragments.SearchResults()).
+		Build()
+}
+```
+
+```text
+blog: register page "search": collage: duplicate route: action "search:search-results" and page "search" both answer GET "/search" for locale "en"
+```
+
+Mesajdaki action sizin yazdığınız bir action değildir. collage bir fragment path'ini,
+`GET`'e cevap veren ve page ile fragment'in isimlerini taşıyan bir action ile serve
+eder; `fragments.SearchResults()` `search-results` isimli fragment'i kurar. Bu
+action'ın path'i page'in kendi path'idir, bu yüzden `GET /search`'e iki route cevap
+verir. Fragment'e kendine ait bir path verin, örneğin `/search/results`.
+
+Aynı path'teki iki page de durumu aynı biçimde bir mesajla bildirir:
+`page "team" and page "about" both claim "/about" for locale "en"`.
+
+### Bir test ile yakalayın
+
+Üç hatayı da register döner, dolayısıyla `newApp` da onları döner. Onu çağıran bir
+test, hiçbir şey deploy edilmeden aynı hatayla başarısız olur. `Start` buna,
+uygulama başlarken kontrol edilenleri ekler:
+
+```go
+func TestAppStarts(t *testing.T) {
+	cacheDir = t.TempDir()
+	app, err := newApp(false, 0)
+	if err != nil {
+		t.Fatalf("newApp() = %v, want nil", err)
+	}
+	t.Cleanup(func() { _ = app.Shutdown(context.Background()) })
+	if err := app.Start(); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+}
+```
+
+Bkz. [Test yazmak](/docs/testing#test-the-application-main-builds).

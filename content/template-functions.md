@@ -34,23 +34,67 @@ Templates are Go's `html/template`, so everything it provides is there: `if`,
 | [`formatTime`](#formattime) | `formatTime time layout` | the time, formatted |
 
 A function that returns an error fails the template, and the fragment fails with
-it — under the fragment's own failure policy: a required fragment fails the page,
-an optional one renders its fallback, or nothing when it has none. In development
-mode "nothing" is an HTML comment naming the fragment and its error, and the
-development panel on top of the page names every failed fragment, fallback or not.
-In every mode, since v0.36.0, the failure is also logged as a warning.
-See [Fragments and slots](/docs/fragments-and-slots).
+it — under the fragment's own failure policy:
+
+- a required fragment fails the page;
+- an optional one renders its fallback;
+- or nothing when it has none.
+
+In development mode "nothing" is an HTML comment naming the fragment and its
+error, and the development panel on top of the page names every failed fragment,
+fallback or not. In every mode, since v0.36.0, the failure is also logged as a
+warning. See [Fragments and slots](/docs/fragments-and-slots).
 
 ## Bound per render
 
 The first eleven functions need the render they are part of — the fragment, the
-request, the locale, the application's routes and mounts. They are registered when
-templates are parsed as placeholders, so that a template may call them, and the
-render engine binds the real implementation on every render. A placeholder that
-somehow runs outside a render returns an error rather than guessing.
+request, the locale, the application's routes and mounts. Each reads something
+different:
+
+| Function | What it reads |
+| --- | --- |
+| `slot` | this fragment, and the fragments bound into its slots |
+| `hoist` | the render's areas, filled once the whole page has rendered |
+| `asset` | the application's mounts |
+| `stylesheet` | the head this render declares into |
+| `csrfToken` | a placeholder each reader's token replaces as the response is written |
+| `pageURL`, `actionURL`, `fragmentURL` | the render's locale, with the application's routes |
+| `pageURLIn`, `fragmentURLIn` | the application's routes; the locale is an argument |
+| `localeURL` | the page being rendered and its path parameters |
+
+They are registered when templates are parsed as placeholders, so that a template
+may call them, and the render engine binds the real implementation on every
+render. A placeholder that somehow runs outside a render returns an error rather
+than guessing.
 
 One consequence: an entry under one of these names in `Config.Template.Funcs`, or
 from a plugin, is parsed but never called. The other nine can be replaced.
+
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 306" role="img" aria-labelledby="tf-bind-title">
+<title id="tf-bind-title">Where a template's functions come from. collage.New parses the templates with one function map: collage's twenty built-ins, eleven of them placeholders, then the functions plugins add with AddTemplateFunc, then Config.Template.Funcs, each merged over the one before. On every render, for each fragment, the eleven per-render names are bound again from that render, and so are the functions plugins add with AddRenderFunc. So a Template.Funcs entry named pageURL is parsed and never runs, while one named upper replaces the built-in.</title>
+<defs><marker id="tf-bind-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
+<rect class="d-pill" x="40" y="4" width="240" height="22" rx="11" /><text x="160" y="19" text-anchor="middle">collage.New: parse templates</text>
+<line class="d-flow" x1="160" y1="26" x2="160" y2="36" marker-end="url(#tf-bind-arrow)" />
+<rect class="d-frame" x="4" y="40" width="312" height="96" rx="6" />
+<text class="d-small" x="14" y="55">one function map</text>
+<rect class="d-b" x="14" y="62" width="232" height="20" rx="4" /><text class="d-on-b" x="130" y="76" text-anchor="middle">20 built-ins (11 placeholders)</text>
+<rect class="d-b" x="14" y="86" width="232" height="20" rx="4" /><text class="d-on-b" x="130" y="100" text-anchor="middle">plugins: AddTemplateFunc</text>
+<rect class="d-b" x="14" y="110" width="232" height="20" rx="4" /><text class="d-on-b" x="130" y="124" text-anchor="middle">Config.Template.Funcs</text>
+<line class="d-flow" x1="262" y1="66" x2="262" y2="126" marker-end="url(#tf-bind-arrow)" />
+<text class="d-small" x="292" y="92" text-anchor="middle">later</text><text class="d-small" x="292" y="104" text-anchor="middle">wins</text>
+<line class="d-flow" x1="160" y1="136" x2="160" y2="148" marker-end="url(#tf-bind-arrow)" />
+<rect class="d-pill" x="40" y="152" width="240" height="22" rx="11" /><text x="160" y="167" text-anchor="middle">every render, each fragment</text>
+<line class="d-flow" x1="140" y1="174" x2="90" y2="188" marker-end="url(#tf-bind-arrow)" />
+<line class="d-flow" x1="180" y1="174" x2="230" y2="188" marker-end="url(#tf-bind-arrow)" />
+<rect class="d-a" x="12" y="192" width="146" height="40" rx="5" /><text class="d-on-a" x="85" y="208" text-anchor="middle">11 per-render</text><text class="d-on-a d-small" x="85" y="223" text-anchor="middle">bound from this render</text>
+<rect class="d-c" x="162" y="192" width="146" height="40" rx="5" /><text class="d-on-c" x="235" y="208" text-anchor="middle">AddRenderFunc</text><text class="d-on-c d-small" x="235" y="223" text-anchor="middle">plugins', per render</text>
+<text class="d-small" x="160" y="252" text-anchor="middle">a Template.Funcs entry named…</text>
+<g class="d-dropped"><rect class="d-frame" x="12" y="260" width="146" height="40" rx="6" /><text x="85" y="276" text-anchor="middle">"pageURL"</text><text class="d-small" x="85" y="291" text-anchor="middle">parsed, never runs</text></g>
+<rect class="d-chip-hit" x="162" y="260" width="146" height="40" rx="8" /><text class="d-hit-text" x="235" y="276" text-anchor="middle">"upper"</text><text class="d-hit-text d-small" x="235" y="291" text-anchor="middle">replaces the built-in</text>
+</svg>
+<figcaption>Every template is parsed in <code>collage.New</code> with one function map: collage's twenty built-ins, then what plugins add with <code>AddTemplateFunc</code>, then <code>Config.Template.Funcs</code>, each over the one before. Eleven of the built-ins are placeholders. On every render, for each fragment, those eleven are bound again from that render, and so are the functions plugins add with <code>AddRenderFunc</code>. An entry of yours under one of the other nine names, such as <code>upper</code>, replaces the built-in; one under a per-render name, such as <code>pageURL</code>, is parsed and never runs.</figcaption>
+</figure>
 
 ### slot
 
@@ -71,16 +115,16 @@ fragments can each have a slot called `"sidebar"` without meeting.
 
 - Calling `slot` is what declares the slot: the fragment's Go code needs no
   `WithSlot` for it, and one the template calls with nothing bound renders nothing.
-  The check faces the other way: a fragment bound into a slot this template never
+- The check faces the other way: a fragment bound into a slot this template never
   calls fails registration with `ErrUnknownSlot`, naming the slot and the slots the
   template does call. Otherwise a typo on either side of the binding would be a
   section that is silently missing. A slot named by anything but a literal,
   `{{slot .Which}}`, turns the check off for that fragment.
-- An empty slot renders nothing — unless `WithSlot` made it required. A
-  required slot with nothing bound and no resolver is refused when the page is
-  registered, with `ErrRequiredSlotUnfilled`, so it never reaches a render. A
-  required slot filled by a resolver is checked at render time instead: a resolver
-  that returns no fragments fails the render with `ErrRequiredSlotEmpty`.
+- An empty slot renders nothing — unless `WithSlot` made it required:
+  - A required slot with nothing bound and no resolver is refused when the page is
+    registered, with `ErrRequiredSlotUnfilled`, so it never reaches a render.
+  - A required slot filled by a resolver is checked at render time instead: a
+    resolver that returns no fragments fails the render with `ErrRequiredSlotEmpty`.
 - A layout's content goes in `{{slot "content"}}`, the name
   `collage.DefaultContentSlot` holds.
 
@@ -192,9 +236,10 @@ in a field with exactly the right name, and a form that gets the name wrong is
 refused with nothing to explain why.
 
 The value written during the render is a placeholder. It is replaced with each
-reader's own token as the response is written, which is why a **cached** page can
-carry a form: the cached bytes hold the placeholder, and every reader gets their
-own token.
+reader's own token as the response is written.
+
+That is why a **cached** page can carry a form: the cached bytes hold the
+placeholder, and every reader gets their own token.
 
 - With `Security.DisableCSRF` set, `csrfToken` fails the render with
   `ErrCSRFDisabled`: a form expecting a token would otherwise be rendered without
@@ -228,7 +273,8 @@ its path changes.
   placeholder for (`ErrRouteParams`) fails the render. A link that cannot be built
   is a bug to find in development, not a 404 for a reader.
 - **Values are strings, integers or `fmt.Stringer`s** (integers and Stringers
-  since v0.36.0), and are escaped. A value of `.` or `..`, which a browser would
+  since v0.36.0), and are escaped.
+- **Some values are refused.** A value of `.` or `..`, which a browser would
   resolve as a path step, is refused. So is a float, a bool or nil, with
   `ErrRouteParams` naming its type, since none has one obvious spelling in a URL:
 
@@ -429,14 +475,217 @@ app, err := collage.New(&collage.Config{
 ```
 
 They are merged over the built-ins, so an entry under a built-in name — other than
-the per-render ones — replaces it. They must be there before `New` because
-`html/template` can only call a name that was in its function map when the
-template was parsed; a template calling a name nobody registered fails in `New`,
-not at the first request.
+the per-render ones — replaces it.
+
+They must be there before `New` because `html/template` can only call a name that
+was in its function map when the template was parsed; a template calling a name
+nobody registered fails in `New`, not at the first request.
 
 A plugin adds functions the same way, from its `Configure` phase; an application's
 entry under the same name wins. See
 [Writing a plugin](/docs/writing-plugins#template-functions).
 
+A plugin's `AddRenderFunc` function is the exception on both sides:
+
+- It is bound per render, like the eleven above, so an application's entry under
+  its name is parsed and never called.
+- It cannot take any of the twenty built-in names. `AddRenderFunc` refuses them
+  with `ErrDuplicateTemplateFunc`.
+
 Anything that needs the request belongs in a data handler rather than a function:
 that is where the page's data comes from anyway.
+
+## Example: a product page in two languages
+
+The shop from [Links and locales](/docs/links-and-locales#example-a-bilingual-product-catalogue)
+sells in English and Turkish. Its product page, with a layout around it, calls nine
+of the eleven per-render functions:
+
+| Function | In the example |
+| --- | --- |
+| `asset` | the shop's stylesheet, and the product's picture, whose path comes from the data |
+| `hoist` | where the title and `product.css` land in the head |
+| `localeURL` | the language switcher |
+| `slot` | the layout's content, and the product's stock box |
+| `stylesheet` | `product.css`, which only this page needs |
+| `pageURL` | the link back to the catalogue |
+| `fragmentURL` | the stock box's own URL, for a script that refreshes it |
+| `actionURL` | the "add to basket" form's target |
+| `csrfToken` | that form's token |
+
+The `catalog` package stands for your own data layer, and keeps each product's
+name in both languages. The handler picks the labels for the render's locale and
+hoists the product's name as the title:
+
+```go
+type labels struct {
+	Back string
+	Add  string
+}
+
+var labelsIn = map[string]labels{
+	"en": {Back: "All products", Add: "Add to basket"},
+	"tr": {Back: "Tüm ürünler", Add: "Sepete ekle"},
+}
+
+type productView struct {
+	catalog.Product // ID, Name, Image
+	Labels          labels
+}
+
+func loadProduct(ctx context.Context, rc *collage.RenderContext) (productView, []string, error) {
+	id := rc.Param("id")
+	p, err := catalog.Find(ctx, id, rc.Locale)
+	if errors.Is(err, catalog.ErrNoProduct) {
+		return productView{}, nil, fmt.Errorf("catalog: no product %q: %w", id, collage.ErrNotFound)
+	}
+	if err != nil {
+		return productView{}, nil, err
+	}
+	rc.HoistTitle(p.Name)
+	return productView{Product: p, Labels: labelsIn[rc.Locale]}, []string{"product:" + id}, nil
+}
+
+func loadStock(ctx context.Context, rc *collage.RenderContext) (int, error) {
+	return catalog.Stock(ctx, rc.Param("id"))
+}
+```
+
+The page and its stock box have a path in each locale, and so does the basket
+action:
+
+- The catalogue page is the one Links and locales registers.
+- `addToBasket` is the action's handler, as in
+  [Forms and actions](/docs/forms-and-actions).
+- `static/` is mounted at `/static/`, as in [Static assets](/docs/assets).
+- The product is `Required`: a page without it has nothing to show.
+
+```go
+layout := collage.NewFragment("layout", "layouts/default.html").Build()
+
+stock := collage.NewFragment("product-stock", "fragments/stock.html").
+	WithData(collage.Load(loadStock)).
+	Build()
+
+product := collage.NewPage("product").
+	WithLayouts(layout).
+	WithContent(collage.NewFragment("product", "pages/product.html").
+		WithData(collage.LoadTagged(loadProduct)).
+		WithSlotFragment("stock", stock).
+		Required().
+		Build()).
+	WithPath("en", "/products/{id}").
+	WithPath("tr", "/urunler/{id}").
+	WithFragmentPath("en", "/products/{id}/stock", stock).
+	WithFragmentPath("tr", "/urunler/{id}/stok", stock).
+	Build()
+
+if err := app.Register(catalogue, product); err != nil {
+	return err
+}
+return app.RegisterAction(collage.NewAction("basket-add").
+	WithPath("en", "/basket/{id}").
+	WithPath("tr", "/sepet/{id}").
+	WithMethods(http.MethodPost).
+	WithHandler(addToBasket).
+	Build())
+```
+
+The layout links the shop's stylesheet, marks the head's area and carries the
+language switcher:
+
+```html
+<!-- templates/layouts/default.html -->
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="{{asset "/static/app.css"}}">
+  {{hoist "head"}}
+</head>
+<body>
+  <nav>
+    {{with localeURL "en"}}<a hreflang="en" href="{{.}}">English</a>{{end}}
+    {{with localeURL "tr"}}<a hreflang="tr" href="{{.}}">Türkçe</a>{{end}}
+  </nav>
+  {{slot "content"}}
+</body>
+</html>
+```
+
+The product's template names every page, fragment and action it links, and never
+writes a path:
+
+```html
+<!-- templates/pages/product.html -->
+{{stylesheet "/static/product.css"}}
+<article class="product">
+  <a href="{{pageURL "catalogue"}}">{{.Labels.Back}}</a>
+  <h1>{{.Name}}</h1>
+  <img src="{{asset .Image}}" alt="">
+  <div data-live="{{fragmentURL "product" "product-stock" "id" .ID}}">{{slot "stock"}}</div>
+  <form method="post" action="{{actionURL "basket-add" "id" .ID}}">
+    {{csrfToken}}
+    <button>{{.Labels.Add}}</button>
+  </form>
+</article>
+```
+
+```html
+<!-- templates/fragments/stock.html -->
+<p class="stock">{{.}}</p>
+```
+
+### What the reader gets
+
+A request for `/tr/urunler/42` answers 200. The page reads as follows, with blank
+lines left out and the token shortened:
+
+```html
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="/static/app.6d6068180a5c710c.css">
+  <title>Pirinç güverte lambası</title><link rel="stylesheet" href="/static/product.e38a7cd1dac68eec.css">
+</head>
+<body>
+  <nav>
+    <a hreflang="en" href="/products/42">English</a>
+    <a hreflang="tr" href="/tr/urunler/42">Türkçe</a>
+  </nav>
+<article class="product">
+  <a href="/tr/urunler">Tüm ürünler</a>
+  <h1>Pirinç güverte lambası</h1>
+  <img src="/static/products/42.04115f7d8dde41ce.svg" alt="">
+  <div data-live="/tr/urunler/42/stok"><p class="stock">12</p>
+</div>
+  <form method="post" action="/tr/sepet/42">
+    <input type="hidden" name="_csrf" value="…">
+    <button>Sepete ekle</button>
+  </form>
+</article>
+</body>
+</html>
+```
+
+The same templates render `/products/42` in English. The name and the labels come
+from the data; the URLs change with the render's locale:
+
+| In the template | On `/products/42` | On `/tr/urunler/42` |
+| --- | --- | --- |
+| `pageURL "catalogue"` | `/products` | `/tr/urunler` |
+| `fragmentURL "product" "product-stock" "id" .ID` | `/products/42/stock` | `/tr/urunler/42/stok` |
+| `actionURL "basket-add" "id" .ID` | `/basket/42` | `/tr/sepet/42` |
+| `localeURL "en"`, `localeURL "tr"` | `/products/42`, `/tr/urunler/42` | the same |
+| `asset .Image` | `/static/products/42.04115f7d8dde41ce.svg` | the same |
+
+- **The title and `product.css` land at the marker**, after `app.css`, which the
+  layout writes above it. The title comes first: the handler declared it before the
+  template ran.
+- **`asset` takes a path from the data** as readily as a literal one. A picture
+  missing from the mount is `ErrUnknownAsset`, and since the product is required,
+  the page answers 500 instead of showing a broken image.
+- **The token is each reader's own.** Were this page cached, the cached bytes
+  would hold the placeholder, and every reader would get their own token in its
+  place.

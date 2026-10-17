@@ -42,6 +42,45 @@ collage <command> [flags]
 `collage <command> -h` de aynı şeyi yapar. Flag'ler Go'nun `flag` sözdizimini
 kullanır: `-out dist` ile `-out=dist` aynıdır, `--out` da çalışır.
 
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 380" role="img" aria-labelledby="cli-life-title">
+<title id="cli-life-title">Bir projenin collage komutları boyunca hayatı. collage new, projeyi bu dizinde scaffold eder. Proje üzerinde çalışırken: collage add bir page, fragment, action ya da document yazar; collage dev projeyi localhost:6060'ta çalıştırır ve Go kodu değiştiğinde yeniden build eder; collage check template'lerin link'lerini kontrol eder; collage plugin add ve del, plugins.go'yu ve go.mod'u düzenler; collage inspect projeyi JSON olarak yazdırır. Yayına almak için iki yol vardır. collage build, bin/ içine tek bir static binary derler; -i ile yanına bir image dosyası ve bir servis unit'i de yazar. Binary bir sunucuya gider ve orada HOST ile PORT'u okur. Ya da collage export, HTML ve static dosyaları dist/ içine render eder; collage serve dist/'i localhost:4000'de gösterir, bir static host da aynı dosyaları sunar.</title>
+<defs><marker id="cli-life-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
+<rect class="d-cmd" x="100" y="8" width="120" height="24" rx="12" /><text class="d-cmd-text" x="160" y="24" text-anchor="middle">collage new</text>
+<line class="d-flow" x1="160" y1="32" x2="160" y2="46" marker-end="url(#cli-life-arrow)" />
+<rect class="d-frame" x="6" y="50" width="308" height="122" rx="8" />
+<text x="16" y="67">bu dizindeki proje</text>
+<rect class="d-cmd" x="14" y="76" width="96" height="24" rx="12" /><text class="d-cmd-text" x="62" y="92" text-anchor="middle">collage add</text>
+<rect class="d-cmd" x="112" y="76" width="96" height="24" rx="12" /><text class="d-cmd-text" x="160" y="92" text-anchor="middle">collage dev</text>
+<rect class="d-cmd" x="210" y="76" width="96" height="24" rx="12" /><text class="d-cmd-text" x="258" y="92" text-anchor="middle">collage check</text>
+<text class="d-small" x="62" y="114" text-anchor="middle">Go dosyası yazar</text>
+<text class="d-small" x="160" y="114" text-anchor="middle">:6060'ta çalışır</text>
+<text class="d-small" x="258" y="114" text-anchor="middle">link kontrolü</text>
+<rect class="d-cmd" x="14" y="124" width="146" height="24" rx="12" /><text class="d-cmd-text" x="87" y="140" text-anchor="middle">collage plugin add/del</text>
+<rect class="d-cmd" x="170" y="124" width="136" height="24" rx="12" /><text class="d-cmd-text" x="238" y="140" text-anchor="middle">collage inspect</text>
+<text class="d-small" x="87" y="162" text-anchor="middle">plugins.go ve go.mod</text>
+<text class="d-small" x="238" y="162" text-anchor="middle">JSON olarak yazdırır</text>
+<line class="d-flow" x1="84" y1="172" x2="84" y2="186" marker-end="url(#cli-life-arrow)" />
+<line class="d-flow" x1="236" y1="172" x2="236" y2="186" marker-end="url(#cli-life-arrow)" />
+<rect class="d-cmd" x="14" y="190" width="140" height="24" rx="12" /><text class="d-cmd-text" x="84" y="206" text-anchor="middle">collage build</text>
+<rect class="d-cmd" x="166" y="190" width="140" height="24" rx="12" /><text class="d-cmd-text" x="236" y="206" text-anchor="middle">collage export</text>
+<line class="d-flow" x1="84" y1="214" x2="84" y2="228" marker-end="url(#cli-life-arrow)" />
+<line class="d-flow" x1="236" y1="214" x2="236" y2="228" marker-end="url(#cli-life-arrow)" />
+<rect class="d-folder" x="14" y="232" width="140" height="34" rx="4" /><text x="84" y="246" text-anchor="middle">bin/&lt;name&gt;</text><text class="d-small" x="84" y="259" text-anchor="middle">tek bir static binary</text>
+<rect class="d-folder" x="166" y="232" width="140" height="34" rx="4" /><text x="236" y="246" text-anchor="middle">dist/</text><text class="d-small" x="236" y="259" text-anchor="middle">HTML ve static dosyalar</text>
+<line class="d-hitline" x1="66" y1="266" x2="66" y2="284" />
+<rect class="d-folder" x="14" y="284" width="104" height="34" rx="4" /><text class="d-small" x="66" y="298" text-anchor="middle">-i: image dosyası</text><text class="d-small" x="66" y="311" text-anchor="middle">ve servis unit'i</text>
+<line class="d-hitline" x1="218" y1="266" x2="218" y2="284" />
+<rect class="d-cmd" x="166" y="284" width="104" height="24" rx="12" /><text class="d-cmd-text" x="218" y="300" text-anchor="middle">collage serve</text>
+<text class="d-small" x="218" y="322" text-anchor="middle">localhost:4000</text>
+<line class="d-flow" x1="140" y1="266" x2="140" y2="336" marker-end="url(#cli-life-arrow)" />
+<line class="d-flow" x1="292" y1="266" x2="292" y2="336" marker-end="url(#cli-life-arrow)" />
+<rect class="d-pill" x="14" y="340" width="140" height="34" rx="17" /><text x="84" y="354" text-anchor="middle">bir sunucu</text><text class="d-small" x="84" y="367" text-anchor="middle">HOST ve PORT'u okur</text>
+<rect class="d-pill" x="166" y="340" width="140" height="34" rx="17" /><text x="236" y="354" text-anchor="middle">bir static host</text><text class="d-small" x="236" y="367" text-anchor="middle">aynı dosyaları sunar</text>
+</svg>
+<figcaption>Bir projenin komutlar boyunca hayatı. <code>collage new</code> projeyi bir kez scaffold eder. Proje üzerinde çalışırken <code>add</code>, <code>dev</code>, <code>check</code>, <code>plugin add</code> ile <code>del</code> ve <code>inspect</code>, bulunduğunuz dizindeki projeye etki eder. Yayına almak için <code>collage build</code> bir sunucu için tek bir binary derler; binary <code>HOST</code> ve <code>PORT</code> üzerinde dinler. <code>-i</code> ise yanına bir image dosyası ve bir servis unit'i yazar. Ya da <code>collage export</code> projeyi <code>dist/</code> içine render eder; <code>collage serve</code>, siz yüklemeden önce <code>dist/</code>'i bir static host'un sunacağı gibi gösterir. <code>collage plugin check</code> şemada yoktur: bir plugin'in kendi repository'sinde çalışır.</figcaption>
+</figure>
+
 ### Çıkış kodları
 
 | Kod | Anlamı |
@@ -91,14 +130,18 @@ ad vermek kullanım hatasıdır. Hedef dizin varsa ve boş değilse, `-force`
 vermediğiniz sürece komut reddedilir. `-force` verdiğinizde ise scaffold'un
 yazdığı dosyalar, dizindeki aynı adlı dosyaların yerine geçer.
 
-**Her projede** şunlar bulunur: `go.mod`; config'i, static mount'u,
-[aşağıda](#the-contract-with-maingo) anlatılan CLI sözleşmesini ve
-[plugin komutlarının](#plugin-commands) dispatch'ini içeren bir `main.go`; bütün
-route'ları register eden bir `routes.go`; sitenin adını `WithTitle` ile veren ve
-hiç slot tanımlamayan bir layout (böylece bir page'in kendi başlığı sitenin
-başlığının yerine geçer); template'ine proje adını `collage.Value` ile veren bir ana
-sayfa (içinde hiçbir şey veri çekmediği için `Static()` demeden static'tir);
-`static/`, bir `.gitignore` ve bir README.
+**Her projede** şunlar bulunur:
+
+- `go.mod`;
+- config'i, static mount'u, [aşağıda](#the-contract-with-maingo) anlatılan CLI
+  sözleşmesini ve [plugin komutlarının](#plugin-commands) dispatch'ini içeren bir
+  `main.go`;
+- bütün route'ları register eden bir `routes.go`;
+- sitenin adını `WithTitle` ile veren ve hiç slot tanımlamayan bir layout
+  (böylece bir page'in kendi başlığı sitenin başlığının yerine geçer);
+- template'ine proje adını `collage.Value` ile veren bir ana sayfa (içinde hiçbir
+  şey veri çekmediği için `Static()` demeden static'tir);
+- `static/`, bir `.gitignore` ve bir README.
 
 **`--template demo`**, projeye canlı demolardan oluşan bir page ekler:
 JSON dönen bir action, kendi page'ine post eden bir form, kendi URL'si olan bir
@@ -231,24 +274,31 @@ bu sayede mümkündür.
 v0.34.0'dan beri `collage dev` yalnızca `Host`'u bu makineyi adlandıran request'lere
 cevap verir: `localhost` ya da onun altındaki bir ad, bir IP adresi, `example.com`
 ya da `*.test` gibi ayrılmış bir ad (v0.56.0'dan beri), başlatıldığı `HOST` veya
-`COLLAGE_DEV_HOST` içindeki bir ad. Diğer her şeyi `403` ile reddeder. Başka bir sitedeki bir page,
-kendi adının `127.0.0.1`'e çözümlenmesini sağlayabilir (DNS rebinding) ve böylece
-`collage dev` ile same-origin olur. Bu durumda page'lerinizi, stack'leriyle birlikte
-development hata sayfalarını ve programın çıktısını okuyabilirdi. Gönderdiği `Host`
-ise kendi adıdır ve bunu değiştiremez. `collage dev`'e başka bir adla erişmek için
-onu `HOST` bu ada ayarlanmış olarak başlatın ya da adı `COLLAGE_DEV_HOST` içine
-yazın. Bu, virgülle ayrılmış bir listedir. Örneğin `app,mybox.lan`, bir
-docker-compose servisini ve bir LAN adını verir. `collage dev` onu shell'den ya da
-environment dosyasından okur, kendi proxy'sine uygular ve programı listeyi kendi
-`HOST`'uyla birlikte vererek başlatır. Program loopback'te dinler ama tarayıcının
-`Host`'unu görür. Program da development modunda aynı kuralı uygular.
+`COLLAGE_DEV_HOST` içindeki bir ad. Diğer her şeyi `403` ile reddeder.
+
+Başka bir sitedeki bir page, kendi adının `127.0.0.1`'e çözümlenmesini
+sağlayabilir (DNS rebinding) ve böylece `collage dev` ile same-origin olur. Bu
+durumda page'lerinizi, stack'leriyle birlikte development hata sayfalarını ve
+programın çıktısını okuyabilir. Gönderdiği `Host` ise kendi adıdır ve bunu
+değiştiremez.
+
+`collage dev`'e başka bir adla erişmek için onu `HOST` bu ada ayarlanmış olarak
+başlatın ya da adı `COLLAGE_DEV_HOST` içine yazın. Bu, virgülle ayrılmış bir
+listedir. Örneğin `app,mybox.lan`, bir docker-compose servisini ve bir LAN adını
+verir. `collage dev` onu shell'den ya da environment dosyasından okur ve kendi
+proxy'sine uygular. Programı da listeye kendi `HOST`'unu ekleyerek başlatır,
+çünkü program loopback'te dinler ama tarayıcının `Host`'unu görür. Program da
+development modunda aynı kuralı uygular.
+
 v0.56.0'dan beri `collage dev`, kendi proxy'si loopback dışında bir adrese
-bağlandığında ayrıca bir Warn log'lar, çünkü development sayfalarına o zaman başka
-makinelerden erişilebilir. Bkz. [Deployment](/docs/deployment#development-mode-stays-on-this-machine).
+bağlandığında ayrıca bir Warn log'lar, çünkü development sayfalarına o zaman
+başka makinelerden erişilebilir. Bkz.
+[Deployment](/docs/deployment#development-mode-stays-on-this-machine).
 
 Programın yazdıkları terminale programın yazdığı gibi ulaşır, tek bir farkla:
 programın kendi adresi `collage dev`'in adresiyle değiştirilir. Böylece
 `collage: listening` satırı açmanız gereken adresi gösterir (v0.32.0'dan beri).
+
 Renkli bir terminalde program `FORCE_COLOR=1` ile başlatılır ve
 [varsayılan logger](/docs/configuration#logger) bunu dikkate alır. Programın çıktısı
 `collage dev`'e bir pipe üzerinden ulaşsa da satırları saatini, renkli işaretlerini
@@ -586,9 +636,10 @@ go run . collage-inspect
 bir komuttur: uygulamanın tarifini girintili JSON olarak yazdırır. Sözleşme bu
 JSON'dur; arkasındaki Go tipleri (`App.Inspect`, `collage.Inspection`,
 `collage.InspectCommand`) v0.60.0'da public API'den çıktı ve çıktı byte byte
-öncekiyle aynıdır. Adı prefix'lidir, böylece
-hiçbir plugin'in komut adını elinden almaz. Scaffold edilen `main.go`, flag'lerinden
-sonraki kelimeyi `DispatchCommands`'a verir (bkz.
+öncekiyle aynıdır.
+
+Adı prefix'lidir, böylece hiçbir plugin'in komut adını elinden almaz. Scaffold
+edilen `main.go`, flag'lerinden sonraki kelimeyi `DispatchCommands`'a verir (bkz.
 [Plugin komutları](#plugin-commands)). Bu yüzden collage v0.27.0 veya daha yeni bir
 sürümle çalışan, scaffold edilmiş bir projenin başka hiçbir şeye ihtiyacı yoktur.
 Argümanlarını bu şekilde dispatch etmeyen bir programın ise cevap verecek bir şeyi
@@ -641,20 +692,23 @@ sırasında olduğu gibi kontrol edebilir (bkz.
   tipleri ve method sonuçları üzerinden ulaşılabilen her isimli tipi tutar. Her
   tip Go adıyla key'lenir ve export edilmiş alanlarını (promote edilenler dahil)
   ve kendisinin ve pointer'ının bir şey dönen export edilmiş method'larını
-  içerir. Export edilmiş bir embedded alan da bir alandır: template ona
-  `{{.Base}}` diye ulaşır. Bu alan `"embedded": true` taşır, promote ettiği
-  alanlar da her zamanki gibi yanında listelenir (v0.51.1'den beri). İsimli bir
-  pointer, slice, array, map ya da chan, tuttuğu tipi `elem` ile verir. Map
-  ayrıca `key` de taşır (v0.51.1'den beri). Bir tip bir kez listelenir, diğer
-  her yerde adıyla anılır. Böylece
-  özyinelemeli bir tip sonsuza gitmez. İsimsiz bir struct, Go yazımıyla
-  listelenir. Diğer isimsiz bileşik tipler bir tip string'inin içinde yazılır
-  (`[]blog.Comment`). `time.Time` ve `template.HTML` gibi standart kütüphane
-  tipleri ayrıntılandırılmaz, yalnızca adıyla anılır. Hiçbir fragment'in bilinen bir veri
-  tipi yoksa `types` yazılmaz. İki farklı tipin paylaştığı bir key (`models`
-  adlı iki paketteki `models.User`) alan ve method içermeden
-  `{"kind": "struct", "ambiguous": true}` olarak yazılır ve editör onu bilinmeyen
-  bir tip sayar (v0.51.2'den beri).
+  içerir.
+  - Export edilmiş bir embedded alan da bir alandır: template ona `{{.Base}}`
+    diye ulaşır. Bu alan `"embedded": true` taşır, promote ettiği alanlar da her
+    zamanki gibi yanında listelenir (v0.51.1'den beri).
+  - İsimli bir pointer, slice, array, map ya da chan, tuttuğu tipi `elem` ile
+    verir. Map ayrıca `key` de taşır (v0.51.1'den beri).
+  - Bir tip bir kez listelenir, diğer her yerde adıyla anılır. Böylece
+    özyinelemeli bir tip sonsuza gitmez. İsimsiz bir struct, Go yazımıyla
+    listelenir. Diğer isimsiz bileşik tipler bir tip string'inin içinde yazılır
+    (`[]blog.Comment`).
+  - `time.Time` ve `template.HTML` gibi standart kütüphane tipleri
+    ayrıntılandırılmaz, yalnızca adıyla anılır.
+  - Hiçbir fragment'in bilinen bir veri tipi yoksa `types` yazılmaz.
+  - İki farklı tipin paylaştığı bir key (`models` adlı iki paketteki
+    `models.User`), alan ve method içermeden
+    `{"kind": "struct", "ambiguous": true}` olarak yazılır ve editör onu
+    bilinmeyen bir tip sayar (v0.51.2'den beri).
 
 Bunlar eklemedir: çıktının `version`'ı hâlâ `1`'dir.
 
@@ -890,6 +944,152 @@ Argümansız çalıştırıldığında bütün komutları listeler ve `0` ile ç
 adı verildiğinde o komutun kullanım bilgisini yazdırır. Bilinmeyen bir ad
 verildiğinde `collage: unknown command: "nope"` yazdırır ve `2` ile çıkar.
 
+## Örnek: yeni bir projeden ilk deploy'a
+
+Bu bölüm, yukarıdaki komutları bir sitenin onlarla karşılaştığı sırayla izler.
+Proje, bir laptop'ta yazılan ve başka platformdaki bir sunucuya deploy edilen
+`myblog` adlı bir sitedir.
+Çıktıdaki saatler, boyutlar, hash'ler ve cache dizinleri sizin makinenizde
+farklı olur.
+
+**1. Scaffold edin.**
+
+```sh
+collage new myblog
+cd myblog
+go mod tidy
+```
+
+`new`, [minimal projeyi](#collage-new) yazar ve sonraki adımları yazdırır:
+
+```text
+Scaffolded "myblog" in myblog
+
+Next steps:
+  cd myblog
+  go mod tidy
+  collage dev
+```
+
+Scaffold edilen `go.mod` yalnızca module adını ve Go sürümünü içerir;
+collage'ı `go mod tidy` ekler.
+
+**2. Çalıştırın.**
+
+```sh
+collage dev
+```
+
+```text
+01:13:17 • collage dev: serving http://localhost:6060
+01:13:18 • collage: dev mode is rendering templates from disk, not the embedded copy  root=templates
+01:13:18 • collage: dev mode, using an in-memory cache instead of the configured disk cache
+01:13:18 • collage: listening  addr=localhost:6060
+```
+
+`http://localhost:6060` adresinde `Hello from myblog` görünür. Çalışır hâlde
+bırakın: sonraki adım Go dosyaları ekler ve `collage dev`, dosyalar oluştuğunda
+projeyi yeniden build eder.
+
+**3. Bir page ekleyin ve link'leri kontrol edin.** İkinci bir terminalde:
+
+```sh
+collage add page about
+```
+
+```text
+wrote  fragments/pages/about.go
+wrote  pages/about.go
+edited routes.go
+locale en, from the default; main.go sets no Locale.Default literal, --locale changes it
+page "about" at /about
+```
+
+`collage dev` yeniden build eder ve `/about` cevap verir. Ardından:
+
+```sh
+collage check
+```
+
+```text
+01:14:05 • collage: caching to disk  dir=.cache/6ba57471adaf48bf  version=19be6c1c06fea3dcff022e9dab873f1f
+collage: check: nothing found
+```
+
+İlk satır programın kendisine aittir, çünkü `check` programı başlatır. İkincisi
+kontrolün sonucudur ve çıkış kodu `0`'dır; CI'da bu, `collage build`'den önceki adımdır.
+
+**4. Sunucu için build edin.** Laptop sunucu değildir, bu yüzden sunucunun
+platformunu belirtin ve iki ek dosyayı `-i` ile isteyin:
+
+```sh
+collage build -i -os linux -arch amd64
+```
+
+```text
+Building myblog for linux/amd64.
+
+  Write a Dockerfile? [y/N]: y
+  Write a systemd unit? [y/N]: y
+
+
+✓ bin/myblog
+    linux/amd64 · 10.3 MB
+    wrote bin/Dockerfile    docker build -f bin/Dockerfile .
+    wrote bin/myblog.service
+
+10.3 MB · linux/amd64 · 6.7s
+```
+
+Scaffold'un `.gitignore`'u `bin/myblog`'u adıyla yok sayar, yanındaki iki dosyayı
+ise yok saymaz: onlar sizin düzenleyip commit edeceğiniz dosyalardır. Komutu
+yeniden çalıştırdığınızda iki soru da sorulmaz, çünkü dosyalar zaten vardır.
+
+**5. Sunucuya koyun.** İki dosya, projeyi çalıştırmanın iki yoludur ve yalnızca
+biri `bin/myblog`'u kullanır:
+
+- **Servis unit'i**, derlediğiniz binary'yi çalıştırır. `bin/myblog`'u sunucuda
+  `/usr/local/bin/myblog` konumuna kopyalayın. Unit'in `User` ve
+  `WorkingDirectory` değerlerini düzenleyin (dosya bunları bilemez) ve unit'i
+  ilk yorum satırında belirtilen yere kurun. Önüne konacak bir reverse proxy
+  için `127.0.0.1:8080` üzerinde dinler.
+- **Image dosyası** kendi binary'sini derler: ilk aşaması projeyi kaynaktan aynı
+  flag'lerle derler, ikinci aşaması da sonucu taşır. Raporun söylediği gibi proje
+  kökünden build edin. `0.0.0.0:8080` üzerinde dinler.
+
+`8080` bu dosyaların kendi ayarıdır, `PORT=8080` olarak yazılır. `HOST` ya da
+`PORT` verilmeden çalıştırılan binary, scaffold'un varsayılanı olan
+`localhost:6060` üzerinde dinler; bkz. [Deployment](/docs/deployment#environment).
+İki dosyada da yorum satırı olarak bir `COLLAGE_CSRF_KEY` bulunur: onu en az 32
+rastgele byte'a ayarlayın. Aksi hâlde her process için bir key üretilir ve bir
+restart'tan önce gönderilen her form, restart'tan sonra reddedilir.
+
+Plugin'leri `-i`'den önce ekleyin. Image dosyası `plugins-config.json`'ı
+yalnızca dosya yazıldığı sırada projede varsa kopyalar ve `-i` dosyayı hiçbir
+zaman yeniden yazmaz. Sonradan eklenen bir plugin için o `COPY` satırını elle
+eklemeniz gerekir.
+
+**Ya da export edin.** Dosya sunan bir host için `collage export -clean`, bunun
+yerine `dist/`'i render eder ve raporu yeni page'i dışarıda bırakır:
+
+```text
+✓ 3 files written
+    dist/index.html
+    dist/static/app.css
+    dist/static/app.f106e88ebb47f51d.css
+
+▲ 1 skipped
+    about  page uses the dynamic render strategy, which cannot be built statically
+
+3 written · 1 skipped · 0 failed · 1.5ms
+```
+
+`collage add`, `about`'a bir `collage.Load` handler'ı verdi ama strateji vermedi,
+bu yüzden page dynamic'tir. `pages/about.go` içindeki builder'ına `.Static()`
+ekleyin; bir sonraki export `dist/about/index.html`'i de yazar. Ardından
+`collage serve`, `dist/`'i `localhost:4000`'de bir static host'un sunacağı gibi
+gösterir.
+
 ## main.go ile sözleşme
 
 `dev`, `export` ve `inspect`, `main.go`'nuzun yaptığı üç şeye dayanır. Scaffold
@@ -1015,21 +1215,26 @@ go run . pages
 ./bin/myblog -port 4000 pages
 ```
 
-Çıkış kodları CLI'ınkilerle aynı mantığı izler. Başarı için `0` döner. Açılış
-hatası, çalışıp başarısız olan bir komut ya da `Run`'ı olmayan bir komut için `1`
-döner. Nil bir app, argüman verilmemesi ya da hiçbir plugin'in register etmediği bir
-kelime (`ErrUnknownCommand`) için `2` döner. Hiçbir komuta karşılık gelmeyen bir
-kelime, yanlışlıkla başlatılmış bir sunucuya değil, kullanım hatasına yol açar.
+Çıkış kodları CLI'ınkilerle aynı mantığı izler:
+
+| Kod | Ne zaman |
+| --- | --- |
+| `0` | başarı |
+| `1` | açılış hatası, çalışıp başarısız olan bir komut ya da `Run`'ı olmayan bir komut |
+| `2` | nil bir app, argüman verilmemesi ya da hiçbir plugin'in register etmediği bir kelime (`ErrUnknownCommand`) |
+
+Hiçbir komuta karşılık gelmeyen bir kelime, yanlışlıkla başlatılmış bir sunucuya
+değil, kullanım hatasına yol açar.
 Hiçbir plugin'in register etmediği bir kelimeye yine de cevap verilir:
 [`collage inspect`](#collage-inspect) komutunun çalıştırdığı `collage-inspect`.
 Hiçbir komut eşleşmediğinde sunucuyu başlatmayı tercih eden bir program,
 `errors.Is(err, collage.ErrUnknownCommand)` ile kontrol edip çıkmak yerine devam
 edebilir. Kendi kullanım metninizi yazdırmak isterseniz `app.Commands()`
-plugin'lerin register ettiği komutları listeler. Dispatch işlemi uygulamayı başlatır
-ve bu da register aşamasını kapatır. Sonradan çağrılan `ListenAndServe` aynı başlatmayı
-yeniden kullanır. `DispatchCommands` uygulamayı shutdown etmez, çünkü bir program
+plugin'lerin register ettiği komutları listeler.
+
+Dispatch işlemi uygulamayı başlatır ve bu da register aşamasını kapatır. Sonradan
+çağrılan `ListenAndServe` aynı başlatmayı yeniden kullanır. `DispatchCommands` uygulamayı shutdown etmez, çünkü bir program
 ardından onunla hizmet vermeye devam edebilir. Bir komut çalıştıktan sonra,
 yukarıdaki gibi `app.Shutdown`'ı kendiniz çağırın. Böylece her plugin'in
-`Shutdown`'ı çalışır.
-Böyle bir komutun nasıl yazıldığı
+`Shutdown`'ı çalışır. Böyle bir komutun nasıl yazıldığı
 [Plugin yazmak](/docs/writing-plugins#commands) sayfasında anlatılır.

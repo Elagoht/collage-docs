@@ -41,6 +41,29 @@ func TestLoad(t *testing.T) {
 	}
 }
 
+// A diagram is drawn for the page; the text a reader of Markdown gets is its
+// caption, not the SVG.
+func TestLoad_DiagramIsItsCaptionInMarkdown(t *testing.T) {
+	s, err := Load(files(map[string]string{
+		"one": "# One\n\nBefore.\n\n<figure class=\"diagram-figure\" data-search-ignore>\n<svg class=\"diagram\" viewBox=\"0 0 320 40\" role=\"img\" aria-labelledby=\"t\">\n<title id=\"t\">A box.</title>\n<rect class=\"d-a\" x=\"0\" y=\"0\" width=\"10\" height=\"10\" />\n</svg>\n<figcaption>The box holds the <code>slot</code>.</figcaption>\n</figure>\n\nAfter.\n",
+	}, `[{"title":"Start","pages":["one"]}]`))
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	one, _ := s.Page("one")
+	if !strings.Contains(string(one.Body), "<svg") {
+		t.Error("the page lost its diagram")
+	}
+	for _, bad := range []string{"<svg", "<rect", "<figure", "<figcaption"} {
+		if strings.Contains(one.Markdown, bad) {
+			t.Errorf("the Markdown has %s:\n%s", bad, one.Markdown)
+		}
+	}
+	if !strings.Contains(one.Markdown, "Diagram: The box holds the `slot`.") || !strings.Contains(one.Markdown, "After.") {
+		t.Errorf("the Markdown does not keep the caption in the diagram's place:\n%s", one.Markdown)
+	}
+}
+
 // The failures a documentation site makes silently are errors here.
 func TestLoad_Refusals(t *testing.T) {
 	for name, c := range map[string]struct {

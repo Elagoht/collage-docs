@@ -9,8 +9,31 @@ Bir collage sitesi bir Go programıdır. Bu yüzden deploy ettiğiniz şey derle
 binary'dir. Template'ler ve static dosyalar binary'nin içine gömülüdür. Binary,
 yanına hiçbir şey kopyalamadan herhangi bir dizinden çalışır. Tek istisna, plugin'leri
 yapılandırıyorsanız `plugins-config.json` dosyasıdır; [aşağıya](#plugin-configuration)
-bakın. Bu sayfa o binary'yi bir sunucuda çalıştırmayı anlatır. Hiç sunucusu olmayan
-bir site için [Static export](/docs/static-export) sayfasına bakın.
+bakın.
+
+Bu sayfa o binary'yi bir sunucuda çalıştırmayı anlatır. Hiç sunucusu olmayan bir site
+için [Static export](/docs/static-export) sayfasına bakın.
+
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 290" role="img" aria-labelledby="deploy-server-title">
+<title id="deploy-server-title">Bir sunucuda tek bir collage binary'si. Okuyucunun tarayıcısı TLS ile bir reverse proxy'ye ya da load balancer'a bağlanır; TLS orada biter. Proxy request'i düz HTTP ile, tarayıcının Host'u, X-Forwarded-For ve X-Forwarded-Proto ile iletir; binary'nin bu header'lara inanıp inanmayacağına Server.TrustedProxies karar verir. Binary HOST:PORT'u dinler. Kendi dışından ortamını okur: PORT, ayarlı değilse 6060; HOST, ayarlı değilse localhost; ayarlanması gereken COLLAGE_CSRF_KEY; ayarsız kalması gereken COLLAGE_DEV. Çalışma dizininde page cache'i .cache/hash altında tutar ve plugins-config.json'ı okur.</title>
+<defs><marker id="deploy-server-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
+<rect class="d-pill" x="90" y="8" width="140" height="24" rx="12" /><text x="160" y="24" text-anchor="middle">okuyucunun tarayıcısı</text>
+<line class="d-flow" x1="160" y1="32" x2="160" y2="50" marker-end="url(#deploy-server-arrow)" />
+<text class="d-small" x="168" y="45">TLS</text>
+<rect class="d-b" x="30" y="54" width="260" height="38" rx="5" /><text class="d-on-b" x="160" y="70" text-anchor="middle">reverse proxy ya da load balancer</text><text class="d-on-b d-small" x="160" y="84" text-anchor="middle">TLS burada biter</text>
+<line class="d-flow" x1="160" y1="92" x2="160" y2="122" marker-end="url(#deploy-server-arrow)" />
+<text class="d-small" x="168" y="104">Host, X-Forwarded-For,</text>
+<text class="d-small" x="168" y="116">X-Forwarded-Proto</text>
+<text class="d-small" x="152" y="110" text-anchor="end">düz HTTP</text>
+<rect class="d-a" x="6" y="126" width="308" height="52" rx="6" /><text class="d-on-a" x="160" y="143" text-anchor="middle">bin/mysite, HOST:PORT'ta</text><text class="d-on-a d-small" x="160" y="158" text-anchor="middle">Server.TrustedProxies: kimin header'ı geçer</text><text class="d-on-a d-small" x="160" y="171" text-anchor="middle">template'ler ve static dosyalar içinde</text>
+<line class="d-flow" x1="80" y1="178" x2="80" y2="194" marker-end="url(#deploy-server-arrow)" />
+<line class="d-flow" x1="240" y1="178" x2="240" y2="194" marker-end="url(#deploy-server-arrow)" />
+<rect class="d-frame" x="6" y="198" width="150" height="86" rx="5" /><text x="81" y="214" text-anchor="middle">ortam</text><text class="d-small" x="14" y="232">PORT: yoksa 6060</text><text class="d-small" x="14" y="246">HOST: yoksa localhost</text><text class="d-small" x="14" y="260">COLLAGE_CSRF_KEY: şart</text><text class="d-small" x="14" y="274">COLLAGE_DEV: ayarsız</text>
+<rect class="d-folder" x="164" y="198" width="150" height="86" rx="4" /><text x="239" y="214" text-anchor="middle">çalışma dizini</text><text class="d-small" x="239" y="234" text-anchor="middle">.cache/&lt;hash&gt;/</text><text class="d-small" x="239" y="247" text-anchor="middle">page cache</text><text class="d-small" x="239" y="266" text-anchor="middle">plugins-config.json</text>
+</svg>
+<figcaption>Bir sunucuda tek bir binary. Öndeki reverse proxy ya da load balancer TLS'i bitirir ve her request'i düz HTTP ile, tarayıcının <code>Host</code>'u ve <code>X-Forwarded-For</code> ile <code>X-Forwarded-Proto</code> header'larıyla iletir; binary'nin bunlara inanıp inanmayacağına <code>Server.TrustedProxies</code> karar verir. Binary <code>HOST:PORT</code>'u dinler; ikisi de ayarlı değilse bu <code>localhost:6060</code>'dır. <code>collage build -i</code>'ın yazdığı image dosyası, <code>0.0.0.0:8080</code>'i ayarlar; servis unit'i ise <code>127.0.0.1:8080</code>'i. İhtiyaç duyduğu diğer her şey binary'nin içindedir. Dışında kalanlar yalnızca ortamı, bir de çalışma dizinine göre konumlanan page cache ile <code>plugins-config.json</code>'dır.</figcaption>
+</figure>
 
 ## Build: `collage build`
 
@@ -114,7 +137,7 @@ systemctl daemon-reload && systemctl enable --now mysite
 
 ## Ortam değişkenleri
 
-Scaffold edilen `main.go` dört değişken okur. Production'da `.env` dosyalarını okuyan
+Scaffold edilen `main.go` beş değişken okur. Production'da `.env` dosyalarını okuyan
 hiçbir şey yoktur, çünkü onlar `collage dev` içindir. Bu değişkenleri binary nerede
 çalışıyorsa orada ayarlayın.
 
@@ -126,6 +149,7 @@ beri). Production'da ayarlamayın. Bkz. [Development modu bu makinede kalır](#d
 | --- | --- | --- |
 | `HOST` | `localhost` | Container'da `0.0.0.0`. `localhost` makinenin dışından gelen hiçbir bağlantıyı kabul etmez. Bu, yerel bir reverse proxy'nin arkasında doğrudur, başka her yerde yanlıştır. |
 | `PORT` | `6060` | Platformunuz hangi port'u atıyorsa o. Binary'nin `-port` flag'i bu değeri ezer. |
+| `BASE_URL` | ayarlı değil | Sitenin herkese açık origin'i, `https://example.com`. Canonical link'in, `og:url`'in ya da sitemap'in bir path'in önüne koyduğu değerdir. Path içermeyen yalın bir origin olmalıdır; `collage.New` başka bir şeyi `ErrInvalidOrigin` ile reddeder. |
 | `COLLAGE_CSRF_KEY` | üretilir | En az 32 rastgele byte. **Bunu mutlaka ayarlayın.** |
 | `COLLAGE_DEV` | ayarlı değil | **Hiçbir şey; ayarlamadan bırakın.** `collage dev` bu değişkeni `1` yapar ve development mode'u açar. Bu modda template'ler ve static dosyalar diskten okunur, cache bellekte tutulur ama hiç okunmaz, error page'lerde hata zincirinin tamamı gösterilir. Bu değişkenle çalışan bir sunucu bir development sunucusudur. |
 
@@ -232,7 +256,27 @@ aynısı olur. Sıra sabittir:
 3. **Sunucu.** Port kapanır. Devam eden request'lerin bitmesi için en fazla
    `Server.ShutdownTimeout` kadar (varsayılan 10 saniye) beklenir.
 4. **Plugin'ler.** Her plugin'in `Shutdown`'ı çalışır ve `ListenAndServe` `nil`
-   döner.
+   döner. Bundan önce, bir invalidation'dan sonra hâlihazırda çalışan warm
+   render'lar beklenir (kuyrukta bekleyenler atılır). Data cache'in yenilemeleri
+   ve disk yazımları da beklenir. Bu bekleme, 3. adımla aynı deadline'a tabidir.
+
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 334" role="img" aria-labelledby="deploy-stop-title">
+<title id="deploy-stop-title">Bir collage sunucusu SIGTERM ya da SIGINT ile nasıl durur. Önce drain: ServeHook ctx'i iptal edilir, DrainHook plugin'lerine haber verilir, keep-alive'lar kapatılır ve port DrainDelay boyunca (varsayılan 0) hizmet vermeye devam eder. Sonra, drain bittiğinde başlayan ve varsayılanı 10 saniye olan ShutdownTimeout altında: stream'ler kapanır; port kapanır ve devam eden request'ler biter; warm render'lar ve data cache'in yazımları beklenir, her plugin'in Shutdown'ı çalışır ve ListenAndServe döner.</title>
+<defs><marker id="deploy-stop-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
+<rect class="d-pill" x="85" y="8" width="150" height="24" rx="12" /><text x="160" y="24" text-anchor="middle">SIGTERM ya da SIGINT</text>
+<line class="d-flow" x1="160" y1="32" x2="160" y2="46" marker-end="url(#deploy-stop-arrow)" />
+<rect class="d-a" x="6" y="50" width="308" height="66" rx="6" /><text class="d-on-a" x="160" y="66" text-anchor="middle">1 · drain</text><text class="d-on-a d-small" x="160" y="82" text-anchor="middle">ServeHook ctx iptal, DrainHook'a haber,</text><text class="d-on-a d-small" x="160" y="95" text-anchor="middle">keep-alive'lar kapalı; port hizmete devam</text><text class="d-on-a d-small" x="160" y="108" text-anchor="middle">DrainDelay boyunca (0: beklenmez)</text>
+<line class="d-flow" x1="160" y1="116" x2="160" y2="132" marker-end="url(#deploy-stop-arrow)" />
+<rect class="d-frame-a" x="6" y="136" width="308" height="190" rx="6" /><text class="d-small" x="160" y="152" text-anchor="middle">ShutdownTimeout (10s) altında, buradan itibaren</text>
+<rect class="d-frame" x="18" y="160" width="284" height="38" rx="5" /><text x="160" y="176" text-anchor="middle">2 · stream'ler kapanır</text><text class="d-small" x="160" y="190" text-anchor="middle">reload stream'leri, plugin stream'leri</text>
+<line class="d-flow" x1="160" y1="198" x2="160" y2="210" marker-end="url(#deploy-stop-arrow)" />
+<rect class="d-frame" x="18" y="214" width="284" height="38" rx="5" /><text x="160" y="230" text-anchor="middle">3 · port kapanır</text><text class="d-small" x="160" y="244" text-anchor="middle">devam eden request'ler biter</text>
+<line class="d-flow" x1="160" y1="252" x2="160" y2="264" marker-end="url(#deploy-stop-arrow)" />
+<rect class="d-frame" x="18" y="268" width="284" height="50" rx="5" /><text x="160" y="284" text-anchor="middle">4 · plugin'ler durur</text><text class="d-small" x="160" y="298" text-anchor="middle">warm render'lar, data cache yazımları beklenir;</text><text class="d-small" x="160" y="311" text-anchor="middle">her Shutdown, sonra ListenAndServe döner</text>
+</svg>
+<figcaption>Bir sinyalin başlattıkları. Önce drain gelir; port drain boyunca, yani <code>DrainDelay</code> kadar, hizmet vermeye devam eder. Bu değer varsayılan olarak 0'dır ve development modunda yok sayılır. <code>ShutdownTimeout</code> ancak drain bittiğinde başlar ve ondan sonraki her şeyi sınırlar, bu yüzden bir durdurma <code>DrainDelay + ShutdownTimeout</code> kadar sürebilir. <code>app.Shutdown(ctx)</code>'i kendiniz çağırdığınızda aynı adımlar çalışır ve drain dahil hepsini sizin ctx'iniz sınırlar.</figcaption>
+</figure>
 
 `DrainDelay` varsayılan olarak 0'dır, yani hiç beklenmez. nginx, Caddy ya da
 Cloudflare arkasındaki tek bir instance, v0.53.0'dan önce olduğu kadar hızlı durur.
@@ -254,18 +298,21 @@ yüzden bir durdurma `DrainDelay + ShutdownTimeout` kadar sürebilir.
 `app.Shutdown(ctx)`'i kendiniz çağırdığınızda tek bir ctx hem drain'i hem de devam
 eden request'lerin beklenmesini sınırlar, `ShutdownTimeout` ise kullanılmaz. Bu
 ctx'e en az `DrainDelay` artı request'lerinizin ihtiyaç duyduğu süre kadar bir
-deadline verin. Aksi halde drain, request'lere kalacak süreyi tüketir. Bir
-plugin'in `Shutdown`'ı bu deadline'ı biraz aşabilir:
+deadline verin. Aksi halde drain, request'lere kalacak süreyi tüketir.
+
+Bir plugin'in `Shutdown`'ı bu deadline'ı biraz aşabilir:
 [elagoht/jobs](/docs/plugins#elagohtjobs), ctx'ini dinlemeyen bir job için bir
 saniye daha bekler. Bu yüzden onunla bir durdurma
 `DrainDelay + ShutdownTimeout + 1s` kadar sürebilir.
 
 Bekleme erken de bitebilir. İkinci bir `SIGINT` ya da `SIGTERM` (Ctrl-C'ye iki kez
 basmak) beklemeyi hemen bitirir ve doğrudan sunucunun durdurulmasına geçer. Bitmiş
-bir `Shutdown` ctx'i de aynısını yapar. Development modunda `DrainDelay` yok
-sayılır, böylece restart'lar anında olur. `OnDrain` ise yine çağrılır. Henüz hiçbir
-şey hizmet vermezken yapılan bir `Shutdown` beklemez, çünkü drain edilecek trafik
-yoktur; hiçbir plugin'e de haber vermez, çünkü hiçbiri başlamamıştır (v0.61.4'ten beri).
+bir `Shutdown` ctx'i de aynısını yapar.
+
+Development modunda `DrainDelay` yok sayılır, böylece restart'lar anında olur.
+`OnDrain` ise yine çağrılır. Henüz hiçbir şey hizmet vermezken yapılan bir
+`Shutdown` beklemez, çünkü drain edilecek trafik yoktur; hiçbir plugin'e de haber
+vermez, çünkü hiçbiri başlamamıştır (v0.61.4'ten beri).
 
 Process'i durduran şey, onu öldürmeden önce bu toplamdan daha uzun beklemelidir:
 
@@ -490,9 +537,11 @@ Paylaşımlı bir store veriyi değil, page'leri tutar.
 [`collage.Cached`](/docs/caching#caching-data-across-pages) ile tutulan değerler,
 `Cache.Store` ne olursa olsun her process'in kendi belleğinde yaşar. Bir invalidation
 da yalnızca içinde çalıştığı instance'a ulaşır. Webhook A instance'ına ulaştıktan
-sonra, paylaşımlı store page'i invalidate ettiği için B instance'ı page'i yeniden render eder.
-Ama bunu hâlâ elinde tuttuğu eski değerle yapar. Bu değerlere katlanabileceğiniz
-kadar kısa bir TTL verin ya da invalidation'ı her instance'a gönderin.
+sonra, paylaşımlı store page'i invalidate ettiği için B instance'ı page'i yeniden
+render eder. Ama bunu hâlâ elinde tuttuğu eski değerle yapar.
+
+Bu değerlere katlanabileceğiniz kadar kısa bir TTL verin ya da invalidation'ı her
+instance'a gönderin.
 
 ## TLS, bir proxy'nin arkasında
 
@@ -504,12 +553,15 @@ yapar: load balancer, reverse proxy, Cloudflare, Fly, Render.
 Binary'yi bunlardan birinin arkasına koyun ve proxy'nin `X-Forwarded-Proto: https`
 gönderdiğinden emin olun. collage bu header'a bakarak forgery token cookie'sini
 `Secure` olarak işaretler. Böylece HTTPS üzerinden sunulan bir site bu cookie'yi asla
-düz HTTP üzerinden göndermez. Header'ı değiştirmek yerine sonuna ekleyen bir proxy
-bir liste gönderir: `https, http`. v0.34.0'dan beri geçerli olan, okuyucunun kendi
-bağlantısını gösteren ilk entry'dir. Tarayıcının gönderdiği `Host`'u da iletin.
-Forgery kontrolü eski bir tarayıcının `Origin`'ini onunla karşılaştırır ve `Host`
-page cache'in key'inin bir parçasıdır. Sertifikayı da kendisi alan minimal bir Caddy
-config'i şöyledir:
+düz HTTP üzerinden göndermez.
+
+Header'ı değiştirmek yerine sonuna ekleyen bir proxy bir liste gönderir:
+`https, http`. v0.34.0'dan beri geçerli olan, okuyucunun kendi bağlantısını
+gösteren ilk entry'dir.
+
+Tarayıcının gönderdiği `Host`'u da iletin. Forgery kontrolü eski bir tarayıcının
+`Origin`'ini onunla karşılaştırır ve `Host` page cache'in key'inin bir parçasıdır.
+Sertifikayı da kendisi alan minimal bir Caddy config'i şöyledir:
 
 ```
 example.com {
@@ -558,11 +610,13 @@ Server: collage.ServerConfig{
 ```
 
 Her girdi bir adres ya da CIDR aralığıdır; ikisinden de olmayan bir girdi
-`collage.New`'ı başarısız kılar. `collage.ClientIP(r)` bundan sonra istemcinin kim
-olduğunu söyler: `RemoteAddr`'in host'u; ta ki o güvenilen bir proxy olana kadar.
-Öyleyse header sağdan okunur, güvenilen adresler atlanır ve güvenilmeyen ilk adres
-istemcidir (hepsi güvenilense en soldaki). Boşken, yani varsayılanda, hiçbir header'a
-güvenilmez ve `ClientIP` her zaman `RemoteAddr`'dir.
+`collage.New`'ı başarısız kılar.
+
+`collage.ClientIP(r)` bundan sonra istemcinin kim olduğunu söyler: `RemoteAddr`'in
+host'u; ta ki o güvenilen bir proxy olana kadar. Öyleyse header sağdan okunur,
+güvenilen adresler atlanır ve güvenilmeyen ilk adres istemcidir (hepsi güvenilense
+en soldaki). Boşken, yani varsayılanda, hiçbir header'a güvenilmez ve `ClientIP` her
+zaman `RemoteAddr`'dir.
 
 Header'daki bir girdi, bazı proxy'lerin yazdığı gibi port (`9.9.9.9:4567`,
 `[2001:db8::1]:443`) ya da köşeli parantez (`[2001:db8::1]`) taşıyabilir; adres olarak
@@ -574,15 +628,18 @@ request'i atlar.
 
 İstemciyle sunucu arasındaki her hop'u yazın: kendi proxy'lerinizi ve bir CDN'in
 arkasındaysanız CDN'in yayımladığı aralıkları da. Unutulan bir hop istemci sanılır ve
-onun üzerinden gelen her ziyaretçi tek bir istemci olur. Yalnızca kendi işlettiğiniz
-proxy'leri ya da platformunuzun belgelediği aralıkları yazın: istemcinin request
-gönderebildiği bir aralığa güvenmek, o istemcinin istediği adresi kendine vermesine
-izin vermektir. Sıfır bitlik bir girdi (`0.0.0.0/0`, `::/0`) herkese güvenir;
-`collage.New` onu kabul eder ama bunu söyleyen bir Warn log'lar.
+onun üzerinden gelen her ziyaretçi tek bir istemci olur.
+
+Yalnızca kendi işlettiğiniz proxy'leri ya da platformunuzun belgelediği aralıkları
+yazın: istemcinin request gönderebildiği bir aralığa güvenmek, o istemcinin istediği
+adresi kendine vermesine izin vermektir. Sıfır bitlik bir girdi (`0.0.0.0/0`,
+`::/0`) herkese güvenir; `collage.New` onu kabul eder ama bunu söyleyen bir Warn
+log'lar.
 
 Aynı liste, hangi proxy'nin `X-Forwarded-Proto`'suna inanılacağını da belirler
 (v0.56.0'dan beri). Forgery cookie'si, request TLS üzerinden geldiğinde `Secure`
 olur. TLS'i terminate eden bir proxy'nin arkasında bunu proxy o header ile söyler.
+
 `TrustedProxies` set edilmişse `RemoteAddr`'ı listedeki bir proxy olmayan bir
 request bu header'ı set edemez. Port'a düz http ile doğrudan ulaşan bir client, düz
 http üzerinden geri gönderebileceği bir cookie alır. Liste boşsa header herkesten
@@ -623,10 +680,11 @@ header timeout'unu kullanır. Bunlardan herhangi birindeki negatif değer
 
 Upload'lar için yalnızca `ReadTimeout`'u artırmak bir tuzaktır. `WriteTimeout`'tan
 uzun süren bir upload okunur ve handler onu kaydeder, ama cevap yarıda kesilir.
-Client bağlantının kapandığını görür ve yeniden dener. İkisini birden bütün sunucu
-için artırmak ise yavaş her client'ın her endpoint'i o kadar süre tutmasına izin
-verir. Bunun yerine upload action'ına `WithBodyTimeout` ile kendi deadline'ını
-verin. [Upload'lar](#uploads) bölümüne bakın.
+Client bağlantının kapandığını görür ve yeniden dener.
+
+İkisini birden bütün sunucu için artırmak ise yavaş her client'ın her endpoint'i o
+kadar süre tutmasına izin verir. Bunun yerine upload action'ına `WithBodyTimeout`
+ile kendi deadline'ını verin. [Upload'lar](#uploads) bölümüne bakın.
 
 Bir data handler'ın ne kadar sürebileceği ayrı bir ayardır. Bunu her fragment'in
 `WithTimeout`'u belirler. Timeout belirtmeyen fragment'ler ve document'lar için
@@ -754,6 +812,151 @@ reddedilir. Bu bilerek böyledir, çünkü development sayfalarını internete a
 
 İki koruma da production'da geçerli değildir. Orada `DevMode` kapalıdır ve `Host`,
 DNS'inizin gönderdiği ne ise odur.
+
+## Örnek: bir ekibin iş listesini deploy etmek
+
+[Bir ekibin iş listesi](/docs/middleware-and-apis#example-a-teams-task-list) (her
+üye giriş yapar; bir admin ekibin her görevini, bir üye ise yalnızca kendi
+görevlerini değiştirebilir) bir load balancer'ın arkasındaki iki sunucuyla
+production'a çıkar. Load balancer TLS'i bitirir ve her request'i iki sunucudan
+birine gönderir.
+
+İki sunucu olmasının sebebi, bir instance'ı restart etmenin onun port'unu
+kapatmasıdır. Tek sunucuyla her restart bir kesintidir; iki sunucuyla biri restart
+olurken diğeri hizmet verir. Session'lar uygulamanın kendi `sid` cookie'sidir ve
+uygulamanın kendi veri katmanından okunur. Bu yüzden iki sunucu da bir session'ı
+okuyabilir. Bu deploy, bir değişiklikten sonra gösterilen mesajlar için
+[elagoht/flash](/docs/plugins#elagohtflash) plugin'ini ekler. Bu plugin
+cookie'sini kendine ait bir key ile imzalar.
+
+| Neye ihtiyacı var | Nereden gelir |
+| --- | --- |
+| İki sunucuda da aynı forgery key'i | Unit'in okuduğu secret dosyasındaki `COLLAGE_CSRF_KEY` |
+| İki sunucuda da aynı flash key'i | `KeyEnv`'in adlandırdığı değişken olan `FLASH_KEY` |
+| Yazabildiği bir page cache | Unit'in `WorkingDirectory`'sinde `.cache/<hash>`, her sunucuda bir tane |
+| Okuyucunun adresi ve scheme'i | Load balancer'ı listeleyen `Server.TrustedProxies` |
+| Load balancer'ın fark ettiği bir drain | Plugin listesinde ilk sıradaki elagoht/health ve `Server.DrainDelay` |
+
+### Config
+
+Scaffold'daki `newApp`, load balancer, drain ve iki plugin eklenmiş hâliyle:
+
+```go
+h := health.New(health.Options{})
+h.Check("db", func(ctx context.Context) error { return db.PingContext(ctx) })
+
+app, err := collage.New(&collage.Config{
+	Server: collage.ServerConfig{
+		Host: envString("HOST", "localhost"),
+		Port: port,
+		// The load balancer's private address: only its X-Forwarded-For
+		// and X-Forwarded-Proto are believed.
+		TrustedProxies: []string{"10.0.1.10"},
+		// The load balancer checks /readyz every 2 seconds and takes a
+		// server out after one failure: keep serving until it has.
+		DrainDelay: 5 * time.Second,
+	},
+	Cache: collage.CacheConfig{
+		Enabled:    true,
+		Type:       "disk",
+		Dir:        cacheDir, // ".cache", under the unit's WorkingDirectory
+		DefaultTTL: 5 * time.Minute,
+	},
+	Plugins: []collage.Plugin{
+		h, // first, so a probe always reaches it
+		flash.New(flash.Options{KeyEnv: "FLASH_KEY"}),
+	},
+	Security: collage.SecurityConfig{
+		CSRFKey: []byte(os.Getenv("COLLAGE_CSRF_KEY")),
+	},
+	// Template and the rest as scaffolded.
+})
+```
+
+Load balancer listelendiğinde `collage.ClientIP`, load balancer'ın değil,
+okuyucunun adresidir. Bir sunucunun port'una başka bir yoldan ulaşan bir request de
+kendi `X-Forwarded-Proto`'suyla HTTPS iddia edemez. Load balancer'ın health
+check'ini `/readyz`'ye yönlendirin: veritabanı check'i başarısız olduğu sürece ve bir
+drain başladığı andan itibaren `503` döner.
+
+### Unit ve secret'lar
+
+`collage build -i -os linux -arch amd64`, `bin/tasks.service`'i yazar. Her sunucuda
+bu dosyanın `[Service]` bölümü iki yerde değişir:
+
+```text
+WorkingDirectory=/srv/tasks
+ExecStart=/usr/local/bin/tasks
+Environment=HOST=10.0.1.11
+Environment=PORT=8080
+EnvironmentFile=/etc/tasks/secrets.env
+```
+
+- **`HOST` sunucunun private adresidir.** Unit'teki `127.0.0.1`, başka bir
+  makinedeki load balancer'dan gelen hiçbir şeyi kabul etmezdi. `PORT=8080` unit'in
+  ayarladığı değerdir; o olmasa collage 6060'ı dinlerdi.
+- **Secret'lar kendi dosyalarındadır**; repository'nin ve unit'in dışında tutulur:
+
+```sh
+# 32 random bytes, hex
+COLLAGE_CSRF_KEY=…
+# 32 random bytes, hex, another one
+FLASH_KEY=…
+```
+
+İki sunucu da aynı dosyayı alır. Böylece bir sunucunun render ettiği form diğerinde
+kabul edilir, birinin set ettiği flash cookie'si diğerinde okunur. Her birinin kendi
+key'i olsaydı ikisi de diğerinin verdiğini kabul etmezdi.
+
+Page cache `/srv/tasks/.cache/<hash>` altına yazılır. Bu yüzden unit'in kullanıcısı
+`tasks`, `/srv/tasks`'a yazabilmelidir. Her sunucu kendi cache'ini doldurur.
+
+### Invalidation'ın ulaşmadığı sunucu
+
+İş listesinin data handler'ı ekibin listesini `collage.Cached` ile ve sıfır bir
+`ttl` ile tutar: liste, tag'i invalidate edilene kadar taze kalır. API bu tag'i,
+request'in ulaştığı sunucuda invalidate eder. Diğer sunucu bundan hiç haberdar olmaz
+ve elindeki listeyi sunmaya devam eder.
+
+Listeye bunun yerine bir TTL verin:
+
+```go
+list, err := collage.Cached(rc, teamTasksKey.With(user.TeamID), 30*time.Second,
+	[]string{"team:" + user.TeamID + ":tasks"},
+	func(ctx context.Context) ([]Task, error) { return tasks.ByTeam(ctx, user.TeamID) })
+```
+
+Artık iki sunucu da aynı şekilde güncellenir. API çağrısının ulaştığı sunucuda
+listeyi, eskisi gibi, invalidation stale yapar; diğer sunucuda ise bunu 30 saniyenin
+dolması yapar. İki durumda da bir sonraki render'a eski liste sunulur. Bu sırada
+listeyi arka planda tek bir çekme işlemi yeniler ve ondan sonraki bir request
+değişikliği görür. Diğer çözüm, invalidation'ı iki sunucuya da göndermektir.
+Ayrıntılar için
+[Birden fazla instance ile invalidation](#invalidation-with-several-instances)
+bölümüne bakın.
+
+### Kesintisiz bir restart
+
+Yeni bir build sunuculara birer birer gider:
+
+1. **Yeni binary'yi `/usr/local/bin/tasks` konumuna koyun** ve
+   servisi yeniden başlatın.
+2. **Drain.** Servis yöneticisi `SIGTERM` gönderir. `/readyz` `503 draining` döner,
+   keep-alive'lar kapatılır ve sunucu `DrainDelay` boyunca hizmet vermeye devam
+   eder. Load balancer'ın check'i 2 saniye içinde başarısız olur ve load balancer
+   her şeyi diğer sunucuya gönderir.
+3. **Durdurma.** Port kapanır ve devam eden request'lere en fazla
+   `ShutdownTimeout`, yani 10 saniye verilir. Unit'in `TimeoutStopSec=30`'u, bunun
+   sürebileceği 15 saniyeden uzundur.
+4. **Yeni binary.** Servis yöneticisi onu başlatır. Yeni binary yeni bir `.cache/<hash>`
+   dizinini okur, bu yüzden önceki build'in render ettiği bir page'i asla sunmaz.
+5. **`/readyz`'nin `200` dönmesini** ve load balancer'ın sunucuyu geri almasını
+   bekleyin, sonra aynısını diğer sunucuda yapın.
+
+Okuyucular hiçbir şey fark etmez: restart'tan önce render edilen bir form,
+restart'tan sonra da kabul edilir, çünkü key değişmemiştir. İki sunucu da yeni
+build'i çalıştırdığında, önceki build'lerin `/srv/tasks/.cache` içinde bıraktığı
+dizinleri silin.
 
 ## Kontrol listesi
 

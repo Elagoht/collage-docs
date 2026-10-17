@@ -8,8 +8,31 @@ reference: ServerConfig, CacheConfig, LoadPluginConfig, IsHTTPS
 A collage site is a Go program, so what you deploy is a compiled binary. Templates
 and static files are embedded in it, so it runs from any directory with nothing
 copied beside it — except `plugins-config.json`, if you configure plugins; see
-[below](#plugin-configuration). This page is about running that binary on a server; for a site
-with no server at all, see [Static export](/docs/static-export).
+[below](#plugin-configuration).
+
+This page is about running that binary on a server; for a site with no server at
+all, see [Static export](/docs/static-export).
+
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 290" role="img" aria-labelledby="deploy-server-title">
+<title id="deploy-server-title">One collage binary on a server. A reader's browser connects over TLS to a reverse proxy or load balancer, where TLS ends. The proxy passes the request on over plain HTTP with the browser's Host, X-Forwarded-For and X-Forwarded-Proto; Server.TrustedProxies decides whether the binary believes those headers. The binary listens on HOST:PORT. From outside itself it reads its environment: PORT, 6060 when unset; HOST, localhost when unset; COLLAGE_CSRF_KEY, which must be set; COLLAGE_DEV, which must stay unset. In its working directory it keeps the page cache under .cache/hash and reads plugins-config.json.</title>
+<defs><marker id="deploy-server-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
+<rect class="d-pill" x="90" y="8" width="140" height="24" rx="12" /><text x="160" y="24" text-anchor="middle">reader's browser</text>
+<line class="d-flow" x1="160" y1="32" x2="160" y2="50" marker-end="url(#deploy-server-arrow)" />
+<text class="d-small" x="168" y="45">TLS</text>
+<rect class="d-b" x="30" y="54" width="260" height="38" rx="5" /><text class="d-on-b" x="160" y="70" text-anchor="middle">reverse proxy or load balancer</text><text class="d-on-b d-small" x="160" y="84" text-anchor="middle">TLS ends here</text>
+<line class="d-flow" x1="160" y1="92" x2="160" y2="122" marker-end="url(#deploy-server-arrow)" />
+<text class="d-small" x="168" y="104">Host, X-Forwarded-For,</text>
+<text class="d-small" x="168" y="116">X-Forwarded-Proto</text>
+<text class="d-small" x="152" y="110" text-anchor="end">plain HTTP</text>
+<rect class="d-a" x="6" y="126" width="308" height="52" rx="6" /><text class="d-on-a" x="160" y="143" text-anchor="middle">bin/mysite on HOST:PORT</text><text class="d-on-a d-small" x="160" y="158" text-anchor="middle">Server.TrustedProxies: whose headers count</text><text class="d-on-a d-small" x="160" y="171" text-anchor="middle">templates and static files inside</text>
+<line class="d-flow" x1="80" y1="178" x2="80" y2="194" marker-end="url(#deploy-server-arrow)" />
+<line class="d-flow" x1="240" y1="178" x2="240" y2="194" marker-end="url(#deploy-server-arrow)" />
+<rect class="d-frame" x="6" y="198" width="150" height="86" rx="5" /><text x="81" y="214" text-anchor="middle">environment</text><text class="d-small" x="14" y="232">PORT: 6060 if unset</text><text class="d-small" x="14" y="246">HOST: localhost if unset</text><text class="d-small" x="14" y="260">COLLAGE_CSRF_KEY: set</text><text class="d-small" x="14" y="274">COLLAGE_DEV: unset</text>
+<rect class="d-folder" x="164" y="198" width="150" height="86" rx="4" /><text x="239" y="214" text-anchor="middle">working directory</text><text class="d-small" x="239" y="234" text-anchor="middle">.cache/&lt;hash&gt;/</text><text class="d-small" x="239" y="247" text-anchor="middle">the page cache</text><text class="d-small" x="239" y="266" text-anchor="middle">plugins-config.json</text>
+</svg>
+<figcaption>One binary on a server. The reverse proxy or load balancer in front ends TLS and passes each request on over plain HTTP, with the browser's <code>Host</code> and the <code>X-Forwarded-For</code> and <code>X-Forwarded-Proto</code> headers; <code>Server.TrustedProxies</code> decides whether the binary believes them. The binary listens on <code>HOST:PORT</code>, which is <code>localhost:6060</code> when neither is set; the image file that <code>collage build -i</code> writes sets <code>0.0.0.0:8080</code>, and its service unit <code>127.0.0.1:8080</code>. Everything else it needs is inside it, except its environment and, relative to its working directory, the page cache and <code>plugins-config.json</code>.</figcaption>
+</figure>
 
 ## Building: `collage build`
 
@@ -110,7 +133,7 @@ systemctl daemon-reload && systemctl enable --now mysite
 
 ## Environment
 
-The scaffolded `main.go` reads four variables. Nothing reads `.env` files in
+The scaffolded `main.go` reads five variables. Nothing reads `.env` files in
 production — those are for `collage dev` — so set them wherever the binary runs.
 
 One more is read by the framework itself, not by `main.go`: `COLLAGE_DEV_HOST`, which
@@ -121,6 +144,7 @@ production; see [Development mode stays on this machine](#development-mode-stays
 | --- | --- | --- |
 | `HOST` | `localhost` | `0.0.0.0` in a container. `localhost` accepts nothing from outside the machine, which is right behind a local reverse proxy and wrong everywhere else. |
 | `PORT` | `6060` | Whatever your platform assigns. The binary's `-port` flag overrides it. |
+| `BASE_URL` | unset | The site's public origin, `https://example.com`: what a canonical link, an `og:url` or a sitemap puts in front of a path. A bare origin, with no path; `collage.New` refuses anything else with `ErrInvalidOrigin`. |
 | `COLLAGE_CSRF_KEY` | generated | At least 32 random bytes. **Set this.** |
 | `COLLAGE_DEV` | unset | **Nothing — leave it unset.** `collage dev` sets it to `1`, which turns on development mode: templates and static files read from disk, an in-memory cache that is never read, full error chains on error pages. A server running with it is a development server. |
 
@@ -221,6 +245,27 @@ fixed:
 3. **Server.** The port closes, and requests in flight get up to
    `Server.ShutdownTimeout` (10 seconds by default) to finish.
 4. **Plugins.** Every plugin's `Shutdown` runs, and `ListenAndServe` returns `nil`.
+   Before that, the warm renders already running after an invalidation (queued
+   ones are dropped) and the data cache's refreshes and disk writes are waited for,
+   under the same deadline as step 3.
+
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 334" role="img" aria-labelledby="deploy-stop-title">
+<title id="deploy-stop-title">How a collage server stops on SIGTERM or SIGINT. First the drain: the ServeHook ctx is cancelled, DrainHook plugins are told, keep-alives are turned off, and the port keeps serving for DrainDelay, 0 by default. Then, under ShutdownTimeout, 10 seconds by default and counted from the end of the drain: streams are closed; the port closes and requests in flight finish; warm renders and the data cache's writes are waited for, every plugin's Shutdown runs, and ListenAndServe returns.</title>
+<defs><marker id="deploy-stop-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
+<rect class="d-pill" x="85" y="8" width="150" height="24" rx="12" /><text x="160" y="24" text-anchor="middle">SIGTERM or SIGINT</text>
+<line class="d-flow" x1="160" y1="32" x2="160" y2="46" marker-end="url(#deploy-stop-arrow)" />
+<rect class="d-a" x="6" y="50" width="308" height="66" rx="6" /><text class="d-on-a" x="160" y="66" text-anchor="middle">1 · drain</text><text class="d-on-a d-small" x="160" y="82" text-anchor="middle">ServeHook ctx cancelled, DrainHook told,</text><text class="d-on-a d-small" x="160" y="95" text-anchor="middle">keep-alives off; the port still serves</text><text class="d-on-a d-small" x="160" y="108" text-anchor="middle">for DrainDelay (0: no wait)</text>
+<line class="d-flow" x1="160" y1="116" x2="160" y2="132" marker-end="url(#deploy-stop-arrow)" />
+<rect class="d-frame-a" x="6" y="136" width="308" height="190" rx="6" /><text class="d-small" x="160" y="152" text-anchor="middle">under ShutdownTimeout (10s), counted from here</text>
+<rect class="d-frame" x="18" y="160" width="284" height="38" rx="5" /><text x="160" y="176" text-anchor="middle">2 · streams closed</text><text class="d-small" x="160" y="190" text-anchor="middle">reload streams, plugin streams</text>
+<line class="d-flow" x1="160" y1="198" x2="160" y2="210" marker-end="url(#deploy-stop-arrow)" />
+<rect class="d-frame" x="18" y="214" width="284" height="38" rx="5" /><text x="160" y="230" text-anchor="middle">3 · port closes</text><text class="d-small" x="160" y="244" text-anchor="middle">requests in flight finish</text>
+<line class="d-flow" x1="160" y1="252" x2="160" y2="264" marker-end="url(#deploy-stop-arrow)" />
+<rect class="d-frame" x="18" y="268" width="284" height="50" rx="5" /><text x="160" y="284" text-anchor="middle">4 · plugins stop</text><text class="d-small" x="160" y="298" text-anchor="middle">after warm renders and data-cache writes;</text><text class="d-small" x="160" y="311" text-anchor="middle">every Shutdown, then ListenAndServe returns</text>
+</svg>
+<figcaption>What a signal sets off. The drain comes first, and the port goes on serving through it for <code>DrainDelay</code>, which is 0 by default and ignored in development mode. <code>ShutdownTimeout</code> starts only when the drain ends, and bounds everything after it, so a stop can take <code>DrainDelay + ShutdownTimeout</code>. Calling <code>app.Shutdown(ctx)</code> yourself runs the same steps, with your ctx bounding all of them, the drain included.</figcaption>
+</figure>
 
 `DrainDelay` is 0 by default: no wait, and a single instance behind nginx, Caddy or
 Cloudflare stops as fast as it did before v0.53.0. Set it when a load balancer has
@@ -241,6 +286,7 @@ stop can take `DrainDelay + ShutdownTimeout`. When you call `app.Shutdown(ctx)`
 yourself, the one ctx bounds both the drain and the wait for requests in flight,
 and `ShutdownTimeout` is not used: give it a deadline of at least `DrainDelay` plus
 the time your requests need, or the drain uses up the time they would have had.
+
 A plugin's `Shutdown` may run a little past that deadline:
 [elagoht/jobs](/docs/plugins#elagohtjobs) waits up to one more second for a job
 that ignores its ctx, so with it a stop can take
@@ -248,9 +294,12 @@ that ignores its ctx, so with it a stop can take
 
 The wait can end early. A second `SIGINT` or `SIGTERM` — Ctrl-C pressed twice —
 ends it at once and goes straight on to stopping the server; so does a `Shutdown`
-ctx that is done. In development mode `DrainDelay` is ignored, so restarts stay
-instant, though `OnDrain` still fires. A `Shutdown` before anything serves does not wait, since there is no traffic to
-drain, and tells no plugin, since none has started (since v0.61.4).
+ctx that is done.
+
+In development mode `DrainDelay` is ignored, so restarts stay instant, though
+`OnDrain` still fires. A `Shutdown` before anything serves does not wait, since
+there is no traffic to drain, and tells no plugin, since none has started (since
+v0.61.4).
 
 Whatever stops the process has to wait longer than that sum before it kills it:
 
@@ -458,7 +507,9 @@ A shared store holds pages, not data. Values kept with
 [`collage.Cached`](/docs/caching#caching-data-across-pages) live in each process's
 memory, whatever `Cache.Store` is, and an invalidation reaches only the instance it
 ran in. After a webhook reaches instance A, instance B renders a fresh page — the
-shared store invalidated it — from the old value it still holds. Give those values a
+shared store invalidated it — from the old value it still holds.
+
+Give those values a
 TTL short enough to live with, or send the invalidation to every instance.
 
 ## TLS, behind a proxy
@@ -470,11 +521,15 @@ does it better than a framework flag could.
 
 Put the binary behind one, and make sure the proxy sends `X-Forwarded-Proto: https`.
 collage uses it to mark the forgery-token cookie `Secure`, so a site served over
-HTTPS never sends that cookie over plain HTTP. A proxy that appends to the header
+HTTPS never sends that cookie over plain HTTP.
+
+A proxy that appends to the header
 rather than replacing it sends a list, `https, http`; since v0.34.0 its first
-entry, the reader's own connection, is what counts. Pass the `Host` the browser
-sent on as well: the forgery check compares an older browser's `Origin` with it,
-and it is part of the page cache's key. A minimal Caddy configuration, which
+entry, the reader's own connection, is what counts.
+
+Pass the `Host` the browser sent on as well: the forgery check compares an older
+browser's `Origin` with it, and it is part of the page cache's key. A minimal Caddy
+configuration, which
 also obtains the certificate:
 
 ```
@@ -523,7 +578,9 @@ Server: collage.ServerConfig{
 ```
 
 Each entry is an address or a CIDR range; one that is neither makes `collage.New`
-fail. `collage.ClientIP(r)` then answers who the client is: `RemoteAddr`'s host,
+fail.
+
+`collage.ClientIP(r)` then answers who the client is: `RemoteAddr`'s host,
 unless that is a trusted proxy, in which case the header is read from the right,
 skipping trusted addresses, and the first untrusted one is the client (the leftmost,
 when every one is trusted). Empty, the default, trusts no header, and `ClientIP` is
@@ -538,14 +595,18 @@ plugin keying on the client skips such a request.
 
 List every hop between the client and the server: your own proxies and, behind a CDN,
 the CDN's published ranges too. A hop left out is taken for the client, and every
-visitor coming through it becomes one. List only proxies you run, or your platform's
+visitor coming through it becomes one.
+
+List only proxies you run, or your platform's
 documented ranges: trusting a range a client can send from lets that client name any
 address it likes. An entry with zero bits (`0.0.0.0/0`, `::/0`) trusts everyone;
 `collage.New` accepts it but logs a Warn saying so.
 
 The same list decides whose `X-Forwarded-Proto` is believed (since v0.56.0). The
 forgery cookie is `Secure` when the request arrived over TLS, and behind a proxy that
-terminates TLS the proxy says so in that header. With `TrustedProxies` set, a request
+terminates TLS the proxy says so in that header.
+
+With `TrustedProxies` set, a request
 whose `RemoteAddr` is not a listed proxy cannot set it: a client reaching the port
 directly over plain http gets a cookie it can send back over plain http. Empty, the
 header is believed from anyone, as it was before the list existed, and that is right
@@ -584,7 +645,9 @@ negative value in any of these is `collage.ErrNegativeDuration`.
 
 Raising only `ReadTimeout` for uploads is a trap. An upload that takes longer than
 `WriteTimeout` is read, and the handler stores it, but the answer is cut off: the
-client sees the connection close, and tries again. Raising both for the whole server
+client sees the connection close, and tries again.
+
+Raising both for the whole server
 lets any slow client hold any endpoint that long. Give the upload action its own
 deadline instead, with `WithBodyTimeout` — see [Uploads](#uploads).
 
@@ -709,6 +772,147 @@ its name, on purpose: it puts the development pages on the internet.
 
 Neither guard applies in production, where `DevMode` is off and the `Host` is
 whatever your DNS sends.
+
+## Example: deploying a team's task list
+
+The [team's task list](/docs/middleware-and-apis#example-a-teams-task-list) — every
+member signs in, an admin may change any task of the team, a member only their own —
+goes to production on two servers behind a load balancer. The load balancer ends
+TLS and sends each request to either server.
+
+Two, because restarting an instance closes its port: with one, every restart is an
+outage; with two, one serves while the other restarts. Sessions are the
+application's own `sid` cookie, looked up through its own data layer, so either
+server can read one. For the messages it shows after a change, this deployment adds
+[elagoht/flash](/docs/plugins#elagohtflash), which signs its cookie with a key of
+its own.
+
+| It needs | From |
+| --- | --- |
+| A forgery key, the same on both servers | `COLLAGE_CSRF_KEY`, in a secrets file the unit reads |
+| The flash key, the same on both servers | `FLASH_KEY`, the variable `KeyEnv` names |
+| A page cache it can write | `.cache/<hash>` in the unit's `WorkingDirectory`, one per server |
+| The reader's address and scheme | `Server.TrustedProxies` listing the load balancer |
+| A drain the load balancer notices | elagoht/health first in the list, and `Server.DrainDelay` |
+
+### The configuration
+
+The scaffold's `newApp`, with the load balancer, the drain and the two plugins added:
+
+```go
+h := health.New(health.Options{})
+h.Check("db", func(ctx context.Context) error { return db.PingContext(ctx) })
+
+app, err := collage.New(&collage.Config{
+	Server: collage.ServerConfig{
+		Host: envString("HOST", "localhost"),
+		Port: port,
+		// The load balancer's private address: only its X-Forwarded-For
+		// and X-Forwarded-Proto are believed.
+		TrustedProxies: []string{"10.0.1.10"},
+		// The load balancer checks /readyz every 2 seconds and takes a
+		// server out after one failure: keep serving until it has.
+		DrainDelay: 5 * time.Second,
+	},
+	Cache: collage.CacheConfig{
+		Enabled:    true,
+		Type:       "disk",
+		Dir:        cacheDir, // ".cache", under the unit's WorkingDirectory
+		DefaultTTL: 5 * time.Minute,
+	},
+	Plugins: []collage.Plugin{
+		h, // first, so a probe always reaches it
+		flash.New(flash.Options{KeyEnv: "FLASH_KEY"}),
+	},
+	Security: collage.SecurityConfig{
+		CSRFKey: []byte(os.Getenv("COLLAGE_CSRF_KEY")),
+	},
+	// Template and the rest as scaffolded.
+})
+```
+
+With the load balancer listed, `collage.ClientIP` is the reader's address rather
+than the load balancer's, and a request that reaches a server's port some other way
+cannot claim HTTPS with its own `X-Forwarded-Proto`. Point the load balancer's
+health check at `/readyz`: it answers `503` while the database check fails, and
+from the moment a drain starts.
+
+### The unit and its secrets
+
+`collage build -i -os linux -arch amd64` writes `bin/tasks.service`. On each server,
+its `[Service]` section changes in two places:
+
+```text
+WorkingDirectory=/srv/tasks
+ExecStart=/usr/local/bin/tasks
+Environment=HOST=10.0.1.11
+Environment=PORT=8080
+EnvironmentFile=/etc/tasks/secrets.env
+```
+
+- **`HOST` is the server's private address.** The unit's `127.0.0.1` would accept
+  nothing from a load balancer on another machine. `PORT=8080` is the value the
+  unit sets; without it collage would listen on 6060.
+- **The secrets are in a file of their own**, kept out of the repository and the
+  unit:
+
+```sh
+# 32 random bytes, hex
+COLLAGE_CSRF_KEY=…
+# 32 random bytes, hex, another one
+FLASH_KEY=…
+```
+
+Both servers get the same file. A form one server rendered is then accepted by the
+other, and a flash cookie one set is read by the other; with keys of their own,
+neither would accept what the other issued.
+
+The page cache lands in `/srv/tasks/.cache/<hash>`, so the unit's user, `tasks`,
+must be able to write to `/srv/tasks`. Each server fills its own.
+
+### What one server's invalidation misses
+
+The task list's data handler keeps the team's list with `collage.Cached` and a `ttl`
+of zero: fresh until its tag is invalidated. The API invalidates that tag on the
+server its request reached. The other server never hears of it, and keeps serving
+the list it holds.
+
+Give the list a TTL instead:
+
+```go
+list, err := collage.Cached(rc, teamTasksKey.With(user.TeamID), 30*time.Second,
+	[]string{"team:" + user.TeamID + ":tasks"},
+	func(ctx context.Context) ([]Task, error) { return tasks.ByTeam(ctx, user.TeamID) })
+```
+
+Both servers now catch up the same way. On the server the API call reached, the
+invalidation marks the list stale, as before; on the other, the 30 seconds running
+out does. Either way the next render is served the old list while one fetch in the
+background replaces it, and a request after that sees the change. Sending the invalidation to both
+servers is the other answer; see
+[Invalidation with several instances](#invalidation-with-several-instances).
+
+### A restart with no downtime
+
+A new build goes out one server at a time:
+
+1. **Put the new binary in place** at `/usr/local/bin/tasks`, and run
+   restart the service.
+2. **The drain.** The service manager sends `SIGTERM`. `/readyz` answers `503 draining`,
+   keep-alives are turned off, and the server keeps serving for `DrainDelay`. Within
+   2 seconds the load balancer's check fails, and it sends everything to the other
+   server.
+3. **The stop.** The port closes, and requests still in flight get up to
+   `ShutdownTimeout`, 10 seconds. The unit's `TimeoutStopSec=30` is longer than the
+   15 seconds this can take.
+4. **The new binary.** The service manager starts it. It reads a new `.cache/<hash>` directory,
+   so it never serves a page the previous build rendered.
+5. **Wait for `/readyz` to answer `200`** and the load balancer to take the server
+   back, then do the same on the other.
+
+Readers notice nothing: a form rendered before the restart is accepted after it,
+because the key did not change. Once both servers run the new build, remove the
+directories earlier builds left in `/srv/tasks/.cache`.
 
 ## A checklist
 

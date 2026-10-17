@@ -5,11 +5,34 @@ reference: New, NewPage, NewFragment, FragmentBuilder.WithData, FragmentBuilder.
 
 # Your first page
 
-This tutorial builds a small recipe site in a fresh project: a page at
-`/recipes/{slug}` that loads a recipe and renders it inside the site's layout,
-then a second fragment — a list of the other recipes — in a slot of that page,
-and finally a static export with a file for every recipe. It takes about fifteen
-minutes, and every piece of it is one you will use on every page you write.
+This tutorial builds a small recipe site in a fresh project. First comes a page at
+`/recipes/{slug}` that loads a recipe and renders it inside the site's layout.
+Then a second fragment, a list of the other recipes, goes in a slot of that page.
+Last, a static export writes a file for every recipe.
+
+It takes about fifteen minutes, and every piece of it is one you will use on every
+page you write.
+
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 230" role="img" aria-labelledby="yfp-page-title">
+<title id="yfp-page-title">The recipe page at /recipes/pancakes as a tree. The layout's content slot holds the recipe fragment, which is required; its handler loadRecipe reports the tag recipe:pancakes and it renders the title, minutes and ingredients. The recipe template calls a slot named more, which holds the more fragment: its handler loadMore reports the tag recipes, it lists Flatbread and Omelette, and if it fails it is left out.</title>
+<rect class="d-frame" x="4" y="4" width="312" height="222" rx="8" />
+<text x="14" y="21">layout</text>
+<text class="d-small" x="306" y="21" text-anchor="end">/recipes/pancakes</text>
+<rect class="d-slot d-slot-a" x="14" y="30" width="292" height="186" rx="5" />
+<text class="d-slot-text-a d-small" x="24" y="44">slot "content"</text>
+<rect class="d-frame d-frame-a" x="24" y="52" width="272" height="154" rx="6" />
+<text class="d-slot-text-a" x="34" y="69">recipe</text>
+<rect class="d-chip-hit" x="196" y="57" width="90" height="18" rx="9" /><text class="d-hit-text d-small" x="241" y="69" text-anchor="middle">Required()</text>
+<text class="d-small" x="34" y="88">loadRecipe · tag recipe:pancakes</text>
+<text class="d-small" x="34" y="102">title · minutes · ingredients</text>
+<rect class="d-slot d-slot-b" x="34" y="112" width="252" height="84" rx="4" />
+<text class="d-small" x="44" y="126">slot "more"</text>
+<rect class="d-b" x="44" y="134" width="232" height="30" rx="4" /><text class="d-on-b" x="160" y="153" text-anchor="middle">more: Flatbread, Omelette</text>
+<text class="d-small" x="44" y="182">loadMore · tag recipes · fails: left out</text>
+</svg>
+<figcaption>The page this tutorial builds, at <code>/recipes/pancakes</code>. The site's layout puts the page's content fragment, <code>recipe</code>, in its <code>content</code> slot. <code>recipe</code> is required: its handler <code>loadRecipe</code> loads the recipe and reports the tag <code>recipe:pancakes</code>, and if it fails, the page fails. Its own template calls a slot, <code>more</code>, which holds a list of the other recipes, loaded by <code>loadMore</code> with the tag <code>recipes</code>. That fragment has no failure policy, so if it fails, the page is served without it.</figcaption>
+</figure>
 
 You need Go and the `collage` CLI; see [Installation](/docs/installation).
 
@@ -21,6 +44,11 @@ cd cookbook
 go mod tidy
 collage dev
 ```
+
+`collage new` writes the minimal project: one layout around one page. Its
+`go.mod` names the module `cookbook`, which is why the project's own packages are
+imported as `cookbook/data/recipes`, `cookbook/fragments/pages` and so on. It
+requires nothing yet; `go mod tidy` adds collage itself.
 
 Open [http://localhost:6060](http://localhost:6060) and leave `collage dev`
 running. From here on, every Go file you save is rebuilt and the browser reloads
@@ -57,10 +85,11 @@ And its template, `templates/layouts/default.html`:
 ```
 
 `{{slot "content"}}` is a slot named `content`, and where it renders. The Go side
-declares nothing: a template calling a slot is all the declaring it needs. You
-never fill this slot yourself either: when a page is registered, collage puts the
-page's content fragment into it. That is what makes one layout shareable by every
-page.
+declares nothing: a template calling a slot is all the declaring it needs.
+
+You never fill this slot yourself either: when a page is registered, collage puts
+the page's content fragment into it. That is what makes one layout shareable by
+every page.
 
 There is no `<title>` in the template. The layout declares one with `WithTitle`,
 and `{{hoist "head"}}` is where it lands. A page that declares its own title
@@ -178,6 +207,9 @@ func List(ctx context.Context) ([]Recipe, error) {
 	return list, nil
 }
 ```
+
+Both fragments, and the export at the end, read recipes through these two
+functions, so where they come from can change without touching a page.
 
 Two details matter later. A missing recipe is reported by wrapping
 `collage.ErrNotFound` with `%w`, which is how the framework tells "this does not
@@ -341,7 +373,9 @@ registered one; `app.RegisterNotFoundPage` gives the site its own — see
 
 Break something on purpose to see what failure looks like. Change `{{.Title}}` to
 `{{.Name}}` in the template, save, and reload: the field does not exist, the
-required fragment fails, and the page is a 500. In development the error page
+required fragment fails, and the page is a 500.
+
+In development the error page
 names `recipe` as the fragment where the failure started and prints the whole
 error chain, down to `pages/recipes/recipe.html:2:8` and the field it could not
 find. Put it back.
@@ -445,9 +479,10 @@ And render the slot where it belongs, in `templates/pages/recipes/recipe.html`, 
 Nothing declares the slot: the template's `{{slot "more"}}` does, as the layout's
 `{{slot "content"}}` did. Registration checks the binding against it, so a typo on
 either side — `WithSlotFragment("mroe", ...)` — stops the program with
-`ErrUnknownSlot`, naming the slot and the ones the template does call. Save the
-files. The recipe page now has a list of the other two recipes, each linking to its
-own page.
+`ErrUnknownSlot`, naming the slot and the ones the template does call.
+
+Save the files. The recipe page now has a list of the other two recipes, each
+linking to its own page: the page in the diagram at the top.
 
 Three things are true of this page that were not written down anywhere.
 
@@ -522,13 +557,46 @@ collage export
 6 written · 0 skipped · 0 failed
 ```
 
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 268" role="img" aria-labelledby="yfp-export-title">
+<title id="yfp-export-title">collage export writes the home page, which has no handler, to index.html. The recipe page, with Static() and WithStaticParams, returns three slugs and is written to recipes/flatbread/index.html, recipes/omelette/index.html and recipes/pancakes/index.html. The static mount is copied to static/app.css and to static/app.hash.css.</title>
+<defs><marker id="yfp-export-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
+<rect class="d-cmd" x="100" y="8" width="120" height="24" rx="12" /><text class="d-cmd-text" x="160" y="24" text-anchor="middle">collage export</text>
+<text class="d-small" x="60" y="54" text-anchor="middle">from</text>
+<text class="d-small" x="225" y="54" text-anchor="middle">written to dist/</text>
+<rect class="d-pill" x="10" y="64" width="100" height="26" rx="13" /><text x="60" y="81" text-anchor="middle">home</text>
+<text class="d-small" x="60" y="104" text-anchor="middle">no handler</text>
+<line class="d-flow" x1="110" y1="77" x2="136" y2="77" marker-end="url(#yfp-export-arrow)" />
+<rect class="d-folder" x="140" y="64" width="170" height="26" rx="4" /><text class="d-small" x="225" y="81" text-anchor="middle">index.html</text>
+<rect class="d-a" x="10" y="118" width="100" height="26" rx="4" /><text class="d-on-a" x="60" y="135" text-anchor="middle">recipe</text>
+<text class="d-small" x="60" y="160" text-anchor="middle">Static()</text>
+<text class="d-small" x="60" y="173" text-anchor="middle">WithStaticParams</text>
+<text class="d-small" x="60" y="186" text-anchor="middle">3 slugs</text>
+<line class="d-flow" x1="110" y1="131" x2="136" y2="130" marker-end="url(#yfp-export-arrow)" />
+<line class="d-flow" x1="110" y1="131" x2="136" y2="162" marker-end="url(#yfp-export-arrow)" />
+<line class="d-flow" x1="110" y1="131" x2="136" y2="194" marker-end="url(#yfp-export-arrow)" />
+<rect class="d-folder" x="140" y="118" width="170" height="24" rx="4" /><text class="d-small" x="225" y="134" text-anchor="middle">recipes/flatbread/index.html</text>
+<rect class="d-folder" x="140" y="150" width="170" height="24" rx="4" /><text class="d-small" x="225" y="166" text-anchor="middle">recipes/omelette/index.html</text>
+<rect class="d-folder" x="140" y="182" width="170" height="24" rx="4" /><text class="d-small" x="225" y="198" text-anchor="middle">recipes/pancakes/index.html</text>
+<rect class="d-pill" x="10" y="224" width="100" height="26" rx="13" /><text x="60" y="241" text-anchor="middle">static/</text>
+<line class="d-flow" x1="110" y1="237" x2="136" y2="225" marker-end="url(#yfp-export-arrow)" />
+<line class="d-flow" x1="110" y1="237" x2="136" y2="251" marker-end="url(#yfp-export-arrow)" />
+<rect class="d-folder" x="140" y="214" width="170" height="22" rx="4" /><text class="d-small" x="225" y="229" text-anchor="middle">static/app.css</text>
+<rect class="d-folder" x="140" y="240" width="170" height="22" rx="4" /><text class="d-small" x="225" y="255" text-anchor="middle">static/app.&lt;hash&gt;.css</text>
+</svg>
+<figcaption>What <code>collage export</code> writes for the cookbook. The home page has no data handler, so it is static and becomes <code>dist/index.html</code>. The recipe page is one page with many URLs: <code>Static()</code> lets it be prerendered, and <code>WithStaticParams</code> returns one <code>slug</code> per recipe, so each recipe becomes <code>dist/recipes/&lt;slug&gt;/index.html</code>, the file a static host serves for that path. The mounted <code>static/</code> files are copied under their own names and under the hashed names <code>{{asset}}</code> links to.</figcaption>
+</figure>
+
 A file for each recipe, rendered by the same handlers a request would run, with
 the `slug` each one would have carried. The home page is there without a word
-from you: it has no handler, so it was static all along. Without
-`WithStaticParams` the recipe page would be skipped and named in the report — a
-build is not wrong for containing a page it cannot prerender — and without
-`Static()` it would be skipped as dynamic. `collage serve` shows `dist/` as a
-static host would; see [Static export](/docs/static-export).
+from you: it has no handler, so it was static all along.
+
+Without `WithStaticParams` the recipe page would be skipped and named in the
+report — a build is not wrong for containing a page it cannot prerender — and
+without `Static()` it would be skipped as dynamic.
+
+`collage serve` shows `dist/` as a static host would; see
+[Static export](/docs/static-export).
 
 A recipe that is not in the list is not written, but a running server still
 answers it: `WithStaticParams` is read by the build alone. `/recipes/lasagne`
@@ -538,7 +606,9 @@ remains a 404 either way.
 
 A collage application is tested without a server: `app.Handler()` is an ordinary
 `http.Handler`, and `pkg/collagetest` drives it the way a browser does — cookies
-kept, forms submitted with their hidden fields, redirects there to follow. Create
+kept, forms submitted with their hidden fields, redirects there to follow.
+
+A test is what keeps the page working after you stop looking at it. Create
 `main_test.go` with a helper that builds the application through the same
 `newApp` that `main` uses, and a test:
 

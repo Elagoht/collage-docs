@@ -32,12 +32,62 @@ Called from middleware, it marks one request as a preview. That request gets:
   around a cached copy of the published data has not been shown the draft.
 
 Documents honour it too: a document requested in a preview is neither read from
-nor written to the cache. Every other request is untouched: it is served
-from the cache as usual, and the cache still holds the published version.
+nor written to the cache.
+
+Every other request is untouched. It is served from the cache as usual, and the
+cache still holds the published version.
+
+A preview's render is also its own. A reader's render of a cached page is shared
+with every reader who asks for that page at the same time, so it is handed none of
+the reader's cookies and none of the values your middleware stored in the request
+context (see
+[What a shared render sees](/docs/caching#what-a-shared-render-sees)). A preview
+is never shared: it renders with the editor's own request and context. That is
+how a flag your middleware puts in the context reaches the data handler and the
+fetch inside `collage.Cached`.
+
+A preview's response carries no `X-Collage-Cache` header either. That header is
+set only on a response that went through the page cache, and a preview never
+does.
+
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 384" role="img" aria-labelledby="preview-flow-title">
+<title id="preview-flow-title">Two requests for the same cached page. The reader's middleware calls nothing: the page cache answers on a hit, and on a miss a render shared with other readers, which sees no cookies or context values, is stored and sent with a public Cache-Control. The editor's middleware calls SkipCache and sets a drafts flag before routing: the page cache is not read, the render is the editor's own, Cached fetches fresh, nothing is stored, and the draft is sent private, no-store.</title>
+<defs><marker id="preview-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker><marker id="preview-hit" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head-hit" d="M0 0 8 4 0 8z" /></marker></defs>
+<rect class="d-a" x="10" y="8" width="140" height="24" rx="5" /><text class="d-on-a" x="80" y="24" text-anchor="middle">reader</text>
+<rect class="d-b" x="170" y="8" width="140" height="24" rx="5" /><text class="d-on-b" x="240" y="24" text-anchor="middle">editor + cookie</text>
+<line class="d-flow" x1="80" y1="32" x2="80" y2="46" marker-end="url(#preview-arrow)" />
+<line class="d-flow" x1="240" y1="32" x2="240" y2="46" marker-end="url(#preview-arrow)" />
+<rect class="d-frame" x="10" y="50" width="140" height="40" rx="6" /><text x="80" y="66" text-anchor="middle">middleware</text><text class="d-small" x="80" y="81" text-anchor="middle">no valid cookie</text>
+<rect class="d-cmd" x="170" y="50" width="140" height="40" rx="6" /><text class="d-cmd-text" x="240" y="66" text-anchor="middle">SkipCache(r)</text><text class="d-small" x="240" y="81" text-anchor="middle">+ drafts in ctx</text>
+<line class="d-flow" x1="80" y1="90" x2="80" y2="104" marker-end="url(#preview-arrow)" />
+<line class="d-flow" x1="240" y1="90" x2="240" y2="104" marker-end="url(#preview-arrow)" />
+<rect class="d-frame" x="10" y="108" width="300" height="24" rx="6" /><text class="d-small" x="160" y="124" text-anchor="middle">routing: SkipCache is too late from here</text>
+<line class="d-flow" x1="80" y1="132" x2="80" y2="146" marker-end="url(#preview-arrow)" />
+<line class="d-flow" x1="240" y1="132" x2="240" y2="146" marker-end="url(#preview-arrow)" />
+<rect class="d-frame" x="10" y="150" width="140" height="40" rx="6" /><text x="80" y="166" text-anchor="middle">page cache</text><text class="d-small" x="80" y="181" text-anchor="middle">HIT: served as is</text>
+<g class="d-dropped"><rect class="d-frame" x="170" y="150" width="140" height="40" rx="6" /><text x="240" y="166" text-anchor="middle">page cache</text><text class="d-small" x="240" y="181" text-anchor="middle">not read</text></g>
+<line class="d-flow" x1="80" y1="190" x2="80" y2="204" marker-end="url(#preview-arrow)" /><text class="d-small" x="88" y="201">miss</text>
+<line class="d-flow" x1="240" y1="190" x2="240" y2="204" marker-end="url(#preview-arrow)" />
+<rect class="d-frame" x="10" y="208" width="140" height="52" rx="6" /><text x="80" y="224" text-anchor="middle">shared render</text><text class="d-small" x="80" y="238" text-anchor="middle">cookies, ctx hidden</text><text class="d-small" x="80" y="251" text-anchor="middle">Cached: uses its store</text>
+<rect class="d-frame" x="170" y="208" width="140" height="52" rx="6" /><text x="240" y="224" text-anchor="middle">own render</text><text class="d-small" x="240" y="238" text-anchor="middle">editor's request, ctx</text><text class="d-small" x="240" y="251" text-anchor="middle">Cached: fetches fresh</text>
+<line class="d-flow" x1="80" y1="260" x2="80" y2="274" marker-end="url(#preview-arrow)" />
+<line class="d-flow" x1="240" y1="260" x2="240" y2="274" marker-end="url(#preview-arrow)" />
+<rect class="d-frame" x="10" y="278" width="140" height="40" rx="6" /><text x="80" y="294" text-anchor="middle">stored</text><text class="d-small" x="80" y="309" text-anchor="middle">for the next reader</text>
+<g class="d-dropped"><rect class="d-frame" x="170" y="278" width="140" height="40" rx="6" /><text x="240" y="294" text-anchor="middle">nothing stored</text><text class="d-small" x="240" y="309" text-anchor="middle">page or data</text></g>
+<line class="d-flow" x1="80" y1="318" x2="80" y2="332" marker-end="url(#preview-arrow)" />
+<line class="d-flow" x1="240" y1="318" x2="240" y2="332" marker-end="url(#preview-arrow)" />
+<path class="d-hitline" d="M10 170 H3 V356 H6" marker-end="url(#preview-hit)" />
+<rect class="d-soft-a" x="10" y="336" width="140" height="40" rx="6" /><text x="80" y="352" text-anchor="middle">published page</text><text class="d-small" x="80" y="367" text-anchor="middle">public Cache-Control</text>
+<rect class="d-soft-a" x="170" y="336" width="140" height="40" rx="6" /><text x="240" y="352" text-anchor="middle">draft page</text><text class="d-small" x="240" y="367" text-anchor="middle">private, no-store</text>
+</svg>
+<figcaption>Two requests for the same cached blog post. Nothing marks the reader's, so the page cache answers it, or on a miss a render shared with other readers (and shown none of their cookies or context values) is stored and sent with a public <code>Cache-Control</code>. The editor's middleware called <code>collage.SkipCache</code> before routing: that request skips the page cache, renders on its own with the editor's request and context, makes <code>collage.Cached</code> fetch fresh, stores nothing and is sent <code>private, no-store</code>.</figcaption>
+</figure>
 
 Like `collage.Vary`, it must be called before routing, which means from middleware
 registered with `app.Use`. Called after routing — from a data handler, say — it
-returns `collage.ErrVaryTooLate`, on every route (since v0.11.0).
+returns `collage.ErrVaryTooLate`, on every route (since v0.11.0). Called on a
+request collage is not serving, it returns `collage.ErrVaryOutsideRequest`.
 
 ## A complete preview flow
 
@@ -253,25 +303,80 @@ nothing, so the draft cannot leak into the value the next reader gets.
 `/api/preview/exit`. That is safe precisely because the page is never cached: the
 banner cannot end up in front of a reader.
 
+## Example: an editor previews a draft post
+
+A blog keeps its posts in a CMS, and each post has a page at `/blog/{slug}`. The
+post `hello` is published, and readers are served it from the page cache. Ada, an
+editor, rewrites its introduction in the CMS and wants to see the result on the
+site before she publishes it.
+
+The site is wired as above, with caching on (`Cache: collage.CacheConfig{Enabled: true}`): the preview middleware, the two actions and `postData`.
+The post's page is cached for an hour:
+
+```go
+postPage := collage.NewPage("blog-post").
+	WithLayouts(layout).
+	WithContent(collage.NewFragment("post", "pages/post.html").
+		WithData(collage.LoadTagged(postData)).
+		Required(). // an unknown slug is a 404
+		Build()).
+	WithPath("en", "/blog/{slug}").
+	Incremental(time.Hour).
+	Build()
+```
+
+Its template shows the banner only in a preview:
+
+```html
+{{if .Preview}}
+<p class="preview-banner">Draft preview. <a href="/api/preview/exit">Leave preview</a></p>
+{{end}}
+<h1>{{.Post.Title}}</h1>
+```
+
+What each request gets, in order, outside development:
+
+| # | Who | Request | Gets | `Cache-Control` | `X-Collage-Cache` |
+| --- | --- | --- | --- | --- | --- |
+| 1 | A reader | `GET /blog/hello` | The published post, rendered and stored | `public, max-age=3600` | `MISS` |
+| 2 | Another reader | `GET /blog/hello` | The stored copy | `public, max-age=3600` | `HIT` |
+| 3 | Ada, from the CMS's preview button | `GET /api/preview?secret=…&slug=hello` | A `303` to `/blog/hello` and the preview cookie | `no-store` | — |
+| 4 | Ada | `GET /blog/hello` | The draft, with the banner | `private, no-store` | none |
+| 5 | Ada, after another edit | `GET /blog/hello` | The new draft: `collage.Cached` fetched again | `private, no-store` | none |
+| 6 | A reader | `GET /blog/hello` | Still the published copy | `public, max-age=3600` | `HIT` |
+| 7 | Ada, from the banner | `GET /api/preview/exit` | A `303` to `/` and the cookie cleared | `no-store` | — |
+
+Rows 4 and 5 render for Ada alone. Nothing they fetched reaches the cache, so the
+reader in row 6 is served the same stored copy as the reader in row 2.
+
+When Ada publishes, the CMS's webhook invalidates `post:hello`, the tag `postData`
+returns. The next reader gets the new version (see
+[Middleware and your own API](/docs/middleware-and-apis#invalidating-from-your-api)).
+
 ## Things to know
 
 **A CDN can still answer first.** `SkipCache` controls collage's caches and marks
 the preview response `no-store`, but a request the CDN answers from its own cache
-never reaches your server. Static pages — declared `Static()`, or declaring no
-strategy and fetching nothing — are sent with `max-age=0, must-revalidate`, so a
-CDN checks back every time; an `Incremental(ttl)` page may be
-served from the CDN for up to its TTL. Configure the CDN to bypass its cache for
-requests carrying the preview cookie.
+never reaches your server.
+
+- Static pages — declared `Static()`, or declaring no strategy and fetching
+  nothing — are sent with `max-age=0, must-revalidate`, so a CDN checks back every
+  time.
+- An `Incremental(ttl)` page may be served from the CDN for up to its TTL.
+
+Configure the CDN to bypass its cache for requests carrying the preview cookie.
 
 **Previewing inside the CMS.** If the CMS shows the preview in an `<iframe>` on its
-own domain, a `SameSite=Lax` cookie is not sent to the framed site. Use
-`SameSite: http.SameSiteNoneMode` with `Secure: true` in that case — and know that
-it may still not be enough. Inside that frame your cookie is a third-party cookie,
-which Safari and Firefox block by default, so a preview in the CMS's iframe may
-never receive it. Setting `Partitioned: true` as well (a CHIPS cookie, partitioned
-by the CMS's site) gets it through in browsers that support partitioning; the
-arrangement that works everywhere is the one above, opening the preview in a new
-tab.
+own domain, a `SameSite=Lax` cookie is not sent to the framed site.
+
+- Use `SameSite: http.SameSiteNoneMode` with `Secure: true` in that case — and
+  know that it may still not be enough. Inside that frame your cookie is a
+  third-party cookie, which Safari and Firefox block by default, so a preview in
+  the CMS's iframe may never receive it.
+- Setting `Partitioned: true` as well (a CHIPS cookie, partitioned by the CMS's
+  site) gets it through in browsers that support partitioning.
+- The arrangement that works everywhere is the one above, opening the preview in a
+  new tab.
 
 **A static export never sees a draft.** An export renders without a request, so no
 middleware runs, `preview.Drafts` is false for every page, and only published

@@ -11,11 +11,36 @@ In collage each of these is a **document**: a route that answers with bytes and 
 content type — produced by a handler, or fixed when the program starts — with no
 template, no layout and no fragments.
 
-A document shares everything else with a page. It lives in the same router, so a
-path that collides with a page is refused when the second of the two is registered,
-with `collage.ErrDuplicateRoute`. It is cached under the same key,
-gets the same content-hash `ETag` and `304` answers, uses the same three strategies,
-carries dependency tags, and is invalidated by the same `app.InvalidateTags` call.
+A document shares everything else with a page:
+
+- **The same router.** A path that collides with a page is refused when the second
+  of the two is registered, with `collage.ErrDuplicateRoute`.
+- **The same cache.** It is cached under the same key, and gets the same
+  content-hash `ETag` and `304` answers.
+- **The same three strategies.**
+- **The same tags.** It carries dependency tags, and is invalidated by the same
+  `app.InvalidateTags` call.
+
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 202" role="img" aria-labelledby="doc-shared-title">
+<title id="doc-shared-title">A page and a document compared. A page's body comes from layouts and fragments rendered through html/template; a document's comes from a handler returning bytes, or from a fixed body. What they have in common: one router, where a clash is ErrDuplicateRoute; the same cache key, ETag and 304, and three strategies; dependency tags and app.InvalidateTags. A page answers text/html; a document answers with its own content type.</title>
+<text x="80" y="16" text-anchor="middle">page</text>
+<text x="240" y="16" text-anchor="middle">document</text>
+<rect class="d-frame" x="8" y="24" width="144" height="44" rx="6" /><text x="80" y="42" text-anchor="middle">layouts, fragments</text><text class="d-small" x="80" y="58" text-anchor="middle">html/template</text>
+<rect class="d-a" x="168" y="24" width="144" height="44" rx="6" /><text class="d-on-a" x="240" y="42" text-anchor="middle">handler → bytes</text><text class="d-on-a d-small" x="240" y="58" text-anchor="middle">or a fixed body</text>
+<line class="d-rule" x1="80" y1="68" x2="80" y2="92" />
+<line class="d-rule" x1="240" y1="68" x2="240" y2="92" />
+<rect class="d-soft-a" x="8" y="92" width="304" height="56" rx="6" />
+<text class="d-small" x="160" y="110" text-anchor="middle">one router: a clash is ErrDuplicateRoute</text>
+<text class="d-small" x="160" y="124" text-anchor="middle">cache key · ETag and 304 · three strategies</text>
+<text class="d-small" x="160" y="138" text-anchor="middle">dependency tags · app.InvalidateTags</text>
+<line class="d-rule" x1="80" y1="148" x2="80" y2="170" />
+<line class="d-rule" x1="240" y1="148" x2="240" y2="170" />
+<rect class="d-pill" x="20" y="170" width="120" height="24" rx="12" /><text x="80" y="186" text-anchor="middle">text/html</text>
+<rect class="d-pill" x="170" y="170" width="140" height="24" rx="12" /><text x="240" y="186" text-anchor="middle">its content type</text>
+</svg>
+<figcaption>What a page and a document have in common, and where they differ most. A page's body is rendered from layouts and fragments through <code>html/template</code>; a document's is the bytes its handler returns, or a body fixed when the program starts. They share one router, so a clashing path is <code>collage.ErrDuplicateRoute</code>; the same cache key, <code>ETag</code> and <code>304</code> answers and three strategies; and the same dependency tags, invalidated by <code>app.InvalidateTags</code>. A page answers <code>text/html</code>; a document answers with the content type it was built with, written on every response rather than stored with the cached body.</figcaption>
+</figure>
 
 ```go
 robots := collage.NewDocument("robots", "text/plain; charset=utf-8").
@@ -73,14 +98,19 @@ request, so the `robots.txt` above is cached and exported without a `Static()`.
 
 A sitemap or a feed is produced by a handler, so it is dynamic until it says
 otherwise — which is why the examples below still say `Static()` or
-`Incremental(ttl)`. The framework cannot see inside a handler: a sitemap built from
-your posts and a health check reporting the process's state are, from outside, the
-same function returning bytes. Guessing static for both would cache the health
-check, and a health check served from a cache answers `ok` long after it stopped
-being true. Guessing dynamic costs the sitemap a render per request until you say
-what it is — a slower sitemap, not a wrong answer. A document with a handler that
-you forget to give a strategy runs on every request and is skipped by a static
-export.
+`Incremental(ttl)`.
+
+The framework cannot see inside a handler: a sitemap built from your posts and a
+health check reporting the process's state are, from outside, the same function
+returning bytes.
+
+- **Guessing static for both** would cache the health check, and a health check
+  served from a cache answers `ok` long after it stopped being true.
+- **Guessing dynamic** costs the sitemap a render per request until you say what
+  it is — a slower sitemap, not a wrong answer.
+
+A document with a handler that you forget to give a strategy runs on every request
+and is skipped by a static export.
 
 ### The content type
 
@@ -125,8 +155,10 @@ Three rules are worth knowing:
 A document's handler runs under its own timeout when it sets one with
 `WithTimeout(d)` (since v0.61.0), and under `Config.Template.Timeout` (five seconds
 by default) — the same setting that is the default data-handler timeout for
-fragments — when it does not. A sitemap that walks a large catalogue raises its
-own budget rather than every fragment's and every feed's:
+fragments — when it does not.
+
+A sitemap that walks a large catalogue raises its own budget rather than every
+fragment's and every feed's:
 
 ```go
 collage.NewDocument("sitemap", "application/xml").
@@ -144,9 +176,15 @@ the `ctx` you are given, so pass it on to whatever you call.
 
 A failing document never answers with an HTML error page: a crawler that asked for
 `sitemap.xml` has no use for one. That includes a `405` for a method the document
-does not answer (plain text since v0.11.0). It gets `text/plain` with the right status, one
-generic line in production and the route name with the full error chain in
-development, and `Cache-Control: no-store`.
+does not answer (plain text since v0.11.0).
+
+It gets `text/plain` with the right status and `Cache-Control: no-store`. The body
+depends on the mode:
+
+| Mode | Body |
+| --- | --- |
+| Production | One generic line |
+| Development | The route name with the full error chain |
 
 If you want a format-specific error — a JSON `{"error": "..."}` — handle the error
 inside the handler and return that body yourself. Whatever the handler returns is
@@ -175,9 +213,11 @@ rendered. See [Writing a plugin](/docs/writing-plugins).
 
 An invalidated document is rendered again in the background right away (since
 v0.64.0; see [Caching](/docs/caching#warming-after-an-invalidation)), or on its
-next request if that has not happened yet. Since v0.63.0 it is kept until then, as stale, and served the way a stale page is when that render
-fails: with `Cache-Control: no-store` and `X-Collage-Cache: STALE`. A render that
-answers 404 drops it. See
+next request if that has not happened yet.
+
+Since v0.63.0 it is kept until then, as stale. When that render fails, it is served
+the way a stale page is: with `Cache-Control: no-store` and
+`X-Collage-Cache: STALE`. A render that answers 404 drops it. See
 [Caching](/docs/caching#stale-pages-and-x-collage-cache).
 
 ## Example: a sitemap
@@ -447,6 +487,235 @@ through `rc.Param`, the same as a live request would have captured. A map that
 does not fill the pattern exactly fails that one file with
 `collage.ErrRouteParams`. The document has a handler, so it says `Static()` to be
 written at all.
+
+## Example: a catalogue's product feed and sitemaps
+
+A shop sells in English and Turkish. Its product page is the `product` page from
+the [bilingual catalogue](/docs/links-and-locales#example-a-bilingual-product-catalogue),
+with the patterns `/products/{id}` and `/urunler/{id}`. Beside it the shop serves
+three documents:
+
+- **A JSON product feed** per language, for partners who list the shop's products.
+- **A sitemap** per language.
+- **One `robots.txt`**, which belongs to no language and names both sitemaps.
+
+This shop gives English a prefix too, with `PrefixDefault`, and turns the cache on.
+Caching is off by default, and with it off every request runs the handler, whatever
+the strategy:
+
+```go
+cfg := &collage.Config{
+	// Server and Template as before.
+	Cache: collage.CacheConfig{Enabled: true},
+	Locale: collage.LocaleConfig{
+		Default:       "en",
+		Supported:     []string{"en", "tr"},
+		PrefixDefault: true,
+	},
+}
+```
+
+The `catalog` package stands for your own data layer, as on
+[Links and locales](/docs/links-and-locales): `catalog.List` returns the products
+in a locale, each with an `ID`, a `Name`, a `Price` and an `Updated` time. `origin`
+is the constant from the sitemap example above.
+
+The product feed has a path in each locale and reads the render's locale, so each
+language gets its own feed, cached separately:
+
+```go
+type feedItem struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Price string `json:"price"`
+	URL   string `json:"url"`
+}
+
+func ProductFeedDocument(app *collage.App) *collage.Document {
+	return collage.NewDocument("product-feed", "application/json").
+		WithPath("en", "/products.json").
+		WithPath("tr", "/urunler.json").
+		WithHandler(func(ctx context.Context, rc *collage.RenderContext) ([]byte, []string, error) {
+			list, err := catalog.List(ctx, rc.Locale)
+			if err != nil {
+				return nil, nil, fmt.Errorf("product feed: %w", err)
+			}
+
+			items := make([]feedItem, 0, len(list))
+			tags := []string{"catalog"}
+			for _, p := range list {
+				path, err := app.URL("product", rc.Locale, map[string]string{"id": p.ID})
+				if err != nil {
+					return nil, nil, err
+				}
+				items = append(items, feedItem{ID: p.ID, Name: p.Name, Price: p.Price, URL: origin + path})
+				tags = append(tags, "product:"+p.ID)
+			}
+
+			body, err := json.Marshal(items)
+			if err != nil {
+				return nil, nil, fmt.Errorf("product feed: marshal: %w", err)
+			}
+			return body, tags, nil
+		}).
+		Static().
+		Build()
+}
+```
+
+`encoding/json` escapes a product name with a quote or a `<` in it, which a page's
+HTML escaping would have got wrong. The sitemap is built the same way, with the
+`urlSet` and `sitemapURL` types from the sitemap example, and has one pattern in
+both locales:
+
+```go
+func CatalogueSitemapDocument(app *collage.App) *collage.Document {
+	return collage.NewDocument("sitemap", "application/xml").
+		WithPath("en", "/sitemap.xml").
+		WithPath("tr", "/sitemap.xml").
+		WithHandler(func(ctx context.Context, rc *collage.RenderContext) ([]byte, []string, error) {
+			list, err := catalog.List(ctx, rc.Locale)
+			if err != nil {
+				return nil, nil, fmt.Errorf("sitemap: %w", err)
+			}
+
+			set := urlSet{Xmlns: "http://www.sitemaps.org/schemas/sitemap/0.9"}
+			tags := []string{"catalog"}
+			for _, p := range list {
+				path, err := app.URL("product", rc.Locale, map[string]string{"id": p.ID})
+				if err != nil {
+					return nil, nil, err
+				}
+				set.URLs = append(set.URLs, sitemapURL{
+					Loc:     origin + path,
+					LastMod: p.Updated.Format("2006-01-02"),
+				})
+				tags = append(tags, "product:"+p.ID)
+			}
+
+			body, err := xml.MarshalIndent(set, "", "  ")
+			if err != nil {
+				return nil, nil, fmt.Errorf("sitemap: marshal: %w", err)
+			}
+			return append([]byte(xml.Header), body...), tags, nil
+		}).
+		Static().
+		Build()
+}
+```
+
+`robots.txt` is at the root, and asks `app.URL` for the sitemap in each locale. It
+returns no tags, since nothing in the catalogue changes it:
+
+```go
+func ShopRobotsDocument(app *collage.App) *collage.Document {
+	return collage.NewDocument("robots", "text/plain; charset=utf-8").
+		AtRoot("/robots.txt").
+		WithHandler(func(context.Context, *collage.RenderContext) ([]byte, []string, error) {
+			body := "User-agent: *\nDisallow: /api/\n\n"
+			for _, locale := range []string{"en", "tr"} {
+				sitemap, err := app.URL("sitemap", locale, nil)
+				if err != nil {
+					return nil, nil, err
+				}
+				body += "Sitemap: " + origin + sitemap + "\n"
+			}
+			return []byte(body), nil, nil
+		}).
+		Static().
+		Build()
+}
+```
+
+All three are registered together:
+
+```go
+for _, doc := range []*collage.Document{
+	ProductFeedDocument(app),
+	CatalogueSitemapDocument(app),
+	ShopRobotsDocument(app),
+} {
+	if err := app.RegisterDocument(doc); err != nil {
+		return err
+	}
+}
+```
+
+With `PrefixDefault`, the localised documents are under `/en/` and `/tr/`, and
+`robots.txt` stays at its one bare address:
+
+| Document | Served at | Written by a static export to |
+| --- | --- | --- |
+| `product-feed`, `en` | `/en/products.json` | `en/products.json` |
+| `product-feed`, `tr` | `/tr/urunler.json` | `tr/urunler.json` |
+| `sitemap`, `en` | `/en/sitemap.xml` | `en/sitemap.xml` |
+| `sitemap`, `tr` | `/tr/sitemap.xml` | `tr/sitemap.xml` |
+| `robots` | `/robots.txt` | `robots.txt` |
+
+The other spellings are handled for you:
+
+- `/products.json` and `/sitemap.xml` redirect, `301`, to their `/en/` addresses.
+- `/en/robots.txt` redirects to `/robots.txt`.
+- `/tr/robots.txt` is a 404, since a root document has no Turkish path.
+
+`robots.txt` names both sitemaps:
+
+```text
+User-agent: *
+Disallow: /api/
+
+Sitemap: https://example.com/en/sitemap.xml
+Sitemap: https://example.com/tr/sitemap.xml
+```
+
+### Changing a product
+
+The feed and the sitemap carry two kinds of tag, for two kinds of change:
+
+| Change | Tag to invalidate | Why |
+| --- | --- | --- |
+| A listed product is edited: its name, its price | `product:<id>` | Each listed product's tag is on every feed and sitemap that lists it |
+| A product is added or removed | `catalog` | A new product's tag is on no cached list yet; `catalog` is on all of them |
+
+```go
+// After an edit to product 42.
+if err := app.InvalidateTags(ctx, "product:42"); err != nil {
+	log.Printf("invalidate: %v", err)
+}
+
+// After a product is added or removed.
+if err := app.InvalidateTags(ctx, "catalog"); err != nil {
+	log.Printf("invalidate: %v", err)
+}
+```
+
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 226" role="img" aria-labelledby="doc-invalidate-title">
+<title id="doc-invalidate-title">InvalidateTags with the tag product:42 reaches four cached documents: in en, /en/products.json and /en/sitemap.xml; in tr, /tr/urunler.json and /tr/sitemap.xml. Each is marked stale, and rendered again in the background or on its next request. /robots.txt, at the root and carrying no tags, is not touched.</title>
+<defs><marker id="doc-invalidate-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
+<rect class="d-cmd" x="50" y="8" width="220" height="26" rx="13" /><text class="d-cmd-text" x="160" y="25" text-anchor="middle">InvalidateTags "product:42"</text>
+<path class="d-flow" d="M120 34C120 44 82 44 82 52" marker-end="url(#doc-invalidate-arrow)" />
+<path class="d-flow" d="M200 34C200 44 238 44 238 52" marker-end="url(#doc-invalidate-arrow)" />
+<rect class="d-frame" x="8" y="56" width="148" height="96" rx="6" /><text x="82" y="72" text-anchor="middle">en</text>
+<rect class="d-b" x="18" y="80" width="128" height="26" rx="4" /><text class="d-on-b" x="82" y="97" text-anchor="middle">/en/products.json</text>
+<rect class="d-b" x="18" y="114" width="128" height="26" rx="4" /><text class="d-on-b" x="82" y="131" text-anchor="middle">/en/sitemap.xml</text>
+<rect class="d-frame" x="164" y="56" width="148" height="96" rx="6" /><text x="238" y="72" text-anchor="middle">tr</text>
+<rect class="d-b" x="174" y="80" width="128" height="26" rx="4" /><text class="d-on-b" x="238" y="97" text-anchor="middle">/tr/urunler.json</text>
+<rect class="d-b" x="174" y="114" width="128" height="26" rx="4" /><text class="d-on-b" x="238" y="131" text-anchor="middle">/tr/sitemap.xml</text>
+<text class="d-small" x="160" y="170" text-anchor="middle">stale · warmed, or rendered on next request</text>
+<rect class="d-frame" x="8" y="184" width="304" height="34" rx="6" /><text x="160" y="198" text-anchor="middle">/robots.txt</text><text class="d-small" x="160" y="211" text-anchor="middle">AtRoot · no tags · not touched</text>
+</svg>
+<figcaption>Invalidating <code>product:42</code> reaches every cached document that listed product 42: the English and Turkish product feeds and the English and Turkish sitemaps, each cached on its own because the locale is part of the key. Each is kept as stale, and rendered again in the background or on its next request. <code>robots.txt</code>, at the root and with no tags, stays cached as it is.</figcaption>
+</figure>
+
+The documents a visitor has read are warmed, as pages are; see
+[Caching](/docs/caching#warming-after-an-invalidation). Each tag
+reaches cached pages too, the ones whose handlers returned it: `product:<id>`
+also reaches that product's page, and `catalog` also reaches a catalogue page whose
+handler returns `catalog`, as the one on
+[Links and locales](/docs/links-and-locales#example-a-bilingual-product-catalogue)
+does, whenever it is cached. Changing one product does not refresh the
+catalogue listing; invalidate `catalog` for that.
 
 ## What documents do not do
 

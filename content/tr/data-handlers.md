@@ -8,8 +8,10 @@ reference: Data, FragmentBuilder.WithData, FragmentBuilder.WithTitle, FragmentBu
 Data handler, bir fragment'in template'inde render edeceği veriyi almak için
 çağırdığı fonksiyondur. Request'in context'ini ve render context'ini alır. Geriye
 kendi Go tipindeki veriyi, bu verinin geldiği dependency tag'leri ve bir hata
-döner. Bir page'in dış dünyayla konuştuğu her şey (bir veritabanı, bir CMS, bir
-API) data handler'larda olur, başka hiçbir yerde olmaz.
+döner.
+
+Bir page'in dış dünyayla konuştuğu her şey (bir veritabanı, bir CMS, bir API) data
+handler'larda olur, başka hiçbir yerde olmaz.
 
 ```go
 content := collage.NewFragment("post", "pages/post.html").
@@ -56,11 +58,12 @@ content := collage.NewFragment("post", "pages/post.html").
 `T` fonksiyonun imzasından gelir. Page register edilirken template de bu tipe
 göre kontrol edilir (bkz.
 [Template'ler nasıl kontrol edilir](#how-templates-are-checked)). Bu yüzden
-handler ile template'in kendi verisine dair varsayımı birbirinden ayrışamaz. Bu
-şekilde yazılan bir loader'ı bir test'ten ya da bir sitemap handler'ından çağırmak
-da kolaydır: bunlar assert edilmesi gereken bir değer yerine bir `*Post` alır.
-Constructor'ların `WithData`'nın bir biçimi değil de ayrı fonksiyonlar olmasının
-nedeni, Go method'larının type parameter alamamasıdır.
+handler ile template'in kendi verisine dair varsayımı birbirinden ayrışamaz.
+
+Bu şekilde yazılan bir loader'ı bir test'ten ya da bir sitemap handler'ından
+çağırmak da kolaydır: bunlar assert edilmesi gereken bir değer yerine bir `*Post`
+alır. Constructor'ların `WithData`'nın bir biçimi değil de ayrı fonksiyonlar
+olmasının nedeni, Go method'larının type parameter alamamasıdır.
 
 v0.49.0'dan önce bir handler `WithDataHandler` ile verilir ve
 `(any, []string, error)` dönerdi. Sabit veri ise `WithData(v)` ile verilirdi. İkisi
@@ -75,7 +78,7 @@ Bir `LoadTagged`'ın üç dönüş değerinin her birinin ayrı bir görevi vard
   daha anlaşılırdır. Her fragment kendi verisini alır. Bir child, parent'ının
   verisini görmez. Hata durumunda veri atılır. Böylece bir hatanın yanında dönen
   nil bir `*Post`, template'e mevcutmuş gibi görünen bir değer olarak hiç ulaşmaz.
-- **Tag'ler:** Bu verinin oluşturulduğu içerik parçalarıdır, örneğin
+- **Tag'ler:** Bu verinin oluşturulduğu içerik öğeleridir, örneğin
   `"post:hello-world"` ya da `"author:ada"`. Page'deki her fragment'ten, page'in
   kendi `WithDependencyTags` tag'leriyle birlikte toplanır ve cache'lenen page ile
   birlikte saklanır. Böylece bir tag'i invalidate ettiğinizde, o tag'i gösteren her
@@ -85,21 +88,49 @@ Bir `LoadTagged`'ın üç dönüş değerinin her birinin ayrı bir görevi vard
   anlama geldiğine fragment'in
   [failure policy'si](/docs/fragments-and-slots#when-a-fragment-fails) karar verir.
 
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 244" role="img" aria-labelledby="dh-contract-title">
+<title id="dh-contract-title">Bir data handler ctx ve rc alır ve üç şey döner. Veri template'in noktası olur ve hata varsa atılır. Tag'ler page'in tag'lerine eklenir, hata varsa korunur ve cache'lenen page'le saklanır. Hata, fragment'in failure policy'sine gider: required bir fragment page'i 500 ile, hata ErrNotFound'u wrap ediyorsa 404 ile başarısız kılar; fallback'i olan bir fragment fallback'ini render eder; diğerleri hiçbir şey render etmez.</title>
+<defs><marker id="dh-contract-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
+<rect class="d-pill" x="110" y="8" width="100" height="24" rx="12" /><text x="160" y="24" text-anchor="middle">ctx, rc</text>
+<line class="d-flow" x1="160" y1="32" x2="160" y2="46" marker-end="url(#dh-contract-arrow)" />
+<rect class="d-a" x="90" y="50" width="140" height="34" rx="5" /><text class="d-on-a" x="160" y="65" text-anchor="middle">data handler</text><text class="d-on-a d-small" x="160" y="78" text-anchor="middle">LoadTagged(fn)</text>
+<path class="d-flow" d="M130 84C130 96 56 92 56 104" marker-end="url(#dh-contract-arrow)" />
+<line class="d-flow" x1="160" y1="84" x2="160" y2="104" marker-end="url(#dh-contract-arrow)" />
+<path class="d-flow" d="M190 84C190 96 264 92 264 104" marker-end="url(#dh-contract-arrow)" />
+<rect class="d-frame" x="8" y="108" width="96" height="26" rx="5" /><text x="56" y="125" text-anchor="middle">veri: T</text>
+<rect class="d-frame" x="112" y="108" width="96" height="26" rx="5" /><text x="160" y="125" text-anchor="middle">tag'ler</text>
+<rect class="d-frame" x="216" y="108" width="96" height="26" rx="5" /><text x="264" y="125" text-anchor="middle">hata</text>
+<line class="d-flow" x1="56" y1="134" x2="56" y2="150" marker-end="url(#dh-contract-arrow)" />
+<line class="d-flow" x1="160" y1="134" x2="160" y2="150" marker-end="url(#dh-contract-arrow)" />
+<line class="d-flow" x1="264" y1="134" x2="264" y2="150" marker-end="url(#dh-contract-arrow)" />
+<rect class="d-a" x="8" y="154" width="96" height="26" rx="5" /><text class="d-on-a" x="56" y="171" text-anchor="middle">template'in .</text>
+<rect class="d-b" x="112" y="154" width="96" height="26" rx="5" /><text class="d-on-b" x="160" y="171" text-anchor="middle">page tag'leri</text>
+<rect class="d-c" x="216" y="154" width="96" height="26" rx="5" /><text class="d-on-c" x="264" y="171" text-anchor="middle">failure policy</text>
+<text class="d-small" x="56" y="196" text-anchor="middle">hatada</text><text class="d-small" x="56" y="209" text-anchor="middle">atılır</text>
+<text class="d-small" x="160" y="196" text-anchor="middle">hatada korunur</text><text class="d-small" x="160" y="209" text-anchor="middle">cache'lenen</text><text class="d-small" x="160" y="222" text-anchor="middle">page'le saklanır</text>
+<text class="d-small" x="264" y="196" text-anchor="middle">Required(): 500,</text><text class="d-small" x="264" y="209" text-anchor="middle">ErrNotFound: 404</text><text class="d-small" x="264" y="222" text-anchor="middle">WithFallback: f</text><text class="d-small" x="264" y="235" text-anchor="middle">hiçbiri: boş</text>
+</svg>
+<figcaption>Data handler'a request'in context'i ve render context'i verilir; üç dönüş değerinin her biri ayrı bir yere gider. Veri template'in <code>.</code>'sı olur; hata durumunda atılır. Tag'ler page'in kendi tag'lerine eklenir ve page cache'lenince onunla saklanır; hata durumunda korunur. Hata, fragment'in failure policy'sine gider: <code>Required()</code> bir fragment page'i 500 ile, hata <code>collage.ErrNotFound</code>'u wrap ediyorsa 404 ile başarısız kılar; fallback'i olan bir fragment onu render eder; diğerleri hiçbir şey render etmez.</figcaption>
+</figure>
+
 Handler hata dönse bile tag'ler korunur. Neye bağlı olduğunu belirledikten sonra
 başarısız olan bir handler, page'i neyin invalidate edeceğini yine de bildirmiştir.
 
 Handler, strateji tanımlamayan bir page'in nasıl sunulacağını da belirler. Böyle
 bir page, render ettiği herhangi bir şeyin data handler'ı varsa dynamic, yoksa
 static olur. Çünkü bir handler request'i, bir cookie'yi ya da saati okuyabilir ve
-fonksiyonun dışındaki hiçbir şey bunu yapıp yapmadığını bilemez. Çıktısı her
-okuyucu için aynı olan bir handler'ı (dosyadan okunan bir yazı gibi),
-`Static()` ya da `Incremental(ttl)`'yi kendisi belirten bir page'e koyun. Yalnızca
-path'in parametrelerini ve locale'i okuyan bir handler bunu bunun yerine kendi
-fragment'inde `Static()` ile söyleyebilir. O zaman o fragment'i kullanan her page
-static kalır. Çıktısı her okuyucu için aynı olan ama zaman içinde değişen bir
-handler (bir ölçüm gibi) bunun yerine `Shared()` der. Render'ı okuyucular arasında
-paylaşılabilir ve page dynamic kalır. Ayrıntılar için
-[Caching](/docs/caching#a-page-that-declares-none) sayfasına bakın.
+fonksiyonun dışındaki hiçbir şey bunu yapıp yapmadığını bilemez.
+
+Bunun yerine ne söyleneceği handler'ın çıktısına bağlıdır:
+
+| Handler'ın çıktısı | Söylenecek | Ne yapar |
+| --- | --- | --- |
+| Her okuyucu için aynıysa (dosyadan okunan bir yazı gibi) | Page'in kendisinde `Static()` ya da `Incremental(ttl)` | Page tanımladığı stratejiyi korur |
+| Yalnızca path'in parametrelerine ve locale'e bağlıysa | Handler'ın fragment'inde `Static()` | O fragment'i kullanan her page'i static bırakır |
+| Her okuyucu için aynı ama zaman içinde değişiyorsa (bir ölçüm gibi) | Fragment'te `Shared()` | Render'ı okuyucular arasında paylaşılabilir ve page dynamic kalır |
+
+Ayrıntılar için [Caching](/docs/caching#a-page-that-declares-none) sayfasına bakın.
 
 ### Sabit veri: collage.Value
 
@@ -123,8 +154,10 @@ Bir fragment'in tek bir veri kaynağı vardır. `WithData`'yı veriyle iki kez
 çağırmak, register sırasında `collage.ErrConflictingData` ile reddedilir. Hata
 mesajı fragment'in adını verir: `fragment "home-content" has its data set twice`.
 Kastettiğiniz çağrıyı tutun, diğerini silin. v0.49.0'dan önce ikinci çağrı sessizce
-kazanırdı. nil bir `Data` (`WithData(nil)` ya da nil bir fonksiyon verilmiş bir
-constructor) veri yok demektir ve hiçbir şeyle çakışmaz.
+kazanırdı.
+
+nil bir `Data` (`WithData(nil)` ya da nil bir fonksiyon verilmiş bir constructor)
+veri yok demektir ve hiçbir şeyle çakışmaz.
 
 ### Tag'siz handler'lar
 
@@ -281,7 +314,9 @@ if !ok {
 ```
 
 Key altında hiçbir şey saklanmamışsa `ok` false olur. Okurken type assertion
-gerekmez; yanlış tipte bir yazma ise derlenmez. Bir key, ismi *ve* tipinden oluşur:
+gerekmez; yanlış tipte bir yazma ise derlenmez.
+
+Bir key, ismi *ve* tipinden oluşur:
 `NewKey[*Post]("post")` ile `NewKey[*Draft]("post")` iki ayrı key'dir ve iki ayrı
 değer tutar. Farklı dosyalarda tanımlanmış iki `NewKey[*Post]("post")` ise tek bir
 key'dir. Key'ler uygulamanızın kendi namespace'idir. Çakışmayacak isimler seçin.
@@ -394,6 +429,191 @@ gerektirmez. Fragment üzerindeki `WithTitle(s)` onu tanımlar ve strateji
 tanımlamayan bir page'i static bırakır. Ayrıntılar için
 [Head ve SEO](/docs/head-and-seo) sayfasına bakın.
 
+## Örnek: bir katalogdaki ürün page'i
+
+Bir mağazanın `/products/{id}` adresindeki ürün page'i üç servisten beslenir ve her
+veri kendisine uyan yolla çekilir:
+
+| Veri | Nereden gelir | Nasıl çekilir |
+| --- | --- | --- |
+| Ad ve marka id'si | Katalog | Ürünün handler'ı, her render'da |
+| Fiyat | Bir fiyat servisi | Aynı handler, katalogdan sonra |
+| Marka: ad ve ülke | Katalog; birçok ürünün paylaştığı yavaş bir sorgu | `collage.Cached`, bir gün için, `brand:<id>` tag'iyle |
+| Yorumlar | Bir yorum servisi | `collage.Once`, iki sibling fragment'ten: yorum kutusu ve page'in description'ı |
+
+Buradaki catalog, pricing ve reviews package'ları sizin kendi client'larınızı
+temsil eder. Ürünün handler'ı:
+
+```go
+var (
+	brandKey   = collage.NewKey[catalog.Brand]("brand")
+	reviewsKey = collage.NewKey[reviews.Summary]("reviews")
+)
+
+type productView struct {
+	Name  string
+	Price string
+	Brand catalog.Brand
+}
+
+func loadProduct(ctx context.Context, rc *collage.RenderContext) (productView, []string, error) {
+	id := rc.Param("id")
+	p, err := catalog.Product(ctx, id)
+	if errors.Is(err, catalog.ErrNoProduct) {
+		return productView{}, nil, fmt.Errorf("shop: no product %q: %w", id, collage.ErrNotFound)
+	}
+	if err != nil {
+		return productView{}, nil, fmt.Errorf("shop: load product %q: %w", id, err)
+	}
+	price, err := pricing.Price(ctx, id)
+	if err != nil {
+		return productView{}, nil, fmt.Errorf("shop: price of %q: %w", id, err)
+	}
+	// Many products share a brand: one fetch serves all of them.
+	brand, err := collage.Cached(rc, brandKey.With(p.BrandID), 24*time.Hour, []string{"brand:" + p.BrandID},
+		func(ctx context.Context) (catalog.Brand, error) { return catalog.LookupBrand(ctx, p.BrandID) })
+	if err != nil {
+		return productView{}, nil, fmt.Errorf("shop: brand %q: %w", p.BrandID, err)
+	}
+	return productView{Name: p.Name, Price: price, Brand: brand}, []string{"product:" + id, "price:" + id}, nil
+}
+```
+
+- **Bilinmeyen bir id 404'tür.** Handler `collage.ErrNotFound`'u wrap eder ve
+  fragment'i `Required()`'dır. Bu yüzden okuyucu not-found page'ini görür. Diğer
+  her hata page'i 500 ile başarısız kılar.
+- **Marka, bütün ürünleri için bir kez çekilir.** `brand:<id>` tag'i, handler onu
+  dönmüş gibi page'in tag'lerine eklenir. Bu yüzden handler yalnızca
+  `product:<id>` ve `price:<id>` döner.
+
+Yorumlara iki yerde ihtiyaç vardır: yorum kutusunda ve puanı page'in
+description'ına koyan bir fragment'te. İkisi de aynı fonksiyonu çağırır:
+
+```go
+// reviewsOf is called by two sibling fragments; Once makes it one call per render.
+func reviewsOf(rc *collage.RenderContext, id string) (reviews.Summary, error) {
+	return collage.Once(rc, reviewsKey.With(id), func(ctx context.Context) (reviews.Summary, error) {
+		return reviews.For(ctx, id)
+	})
+}
+
+func loadReviews(ctx context.Context, rc *collage.RenderContext) (reviews.Summary, []string, error) {
+	id := rc.Param("id")
+	summary, err := reviewsOf(rc, id)
+	if err != nil {
+		return reviews.Summary{}, nil, err
+	}
+	return summary, []string{"reviews:" + id}, nil
+}
+
+func productSEO(ctx context.Context, rc *collage.RenderContext) error {
+	summary, err := reviewsOf(rc, rc.Param("id"))
+	if err != nil {
+		return err
+	}
+	rc.HoistMeta("description", fmt.Sprintf("Rated %.1f out of 5 in %d reviews.", summary.Average, summary.Count))
+	return nil
+}
+```
+
+İki fragment sibling'dir, bu yüzden handler'ları aynı anda başlar. `reviewsOf`'a
+ilk ulaşan yorum servisini çağırır, diğeri onun sonucunu bekler. Bir `Get`,
+bulunamazsa çekme ve ardından bir `Set` ise servisi iki kez çağırabilirdi.
+
+Ürün ikisini de kendi slot'larına bağlar:
+
+```go
+reviewsBox := collage.NewFragment("product-reviews", "fragments/reviews.html").
+	WithData(collage.LoadTagged(loadReviews)).
+	WithTimeout(500 * time.Millisecond).
+	Build()
+
+seo := collage.NewFragment("product-seo", "fragments/empty.html").
+	WithData(collage.Effect(productSEO)).
+	WithTimeout(500 * time.Millisecond).
+	Build()
+
+content := collage.NewFragment("product", "pages/product.html").
+	WithData(collage.LoadTagged(loadProduct)).
+	WithSlotFragment("reviews", reviewsBox).
+	WithSlotFragment("seo", seo).
+	Required().
+	Build()
+
+page := collage.NewPage("product").
+	WithLayouts(layout).
+	WithContent(content).
+	WithPath("en", "/products/{id}").
+	Incremental(10 * time.Minute).
+	Build()
+```
+
+```html
+<!-- templates/pages/product.html -->
+<article>
+  <h1>{{.Name}}</h1>
+  <p class="price">{{.Price}}</p>
+  <p class="brand">{{.Brand.Name}}, {{.Brand.Country}}</p>
+  {{slot "reviews"}}
+</article>
+{{slot "seo"}}
+```
+
+Description, layout'taki `{{hoist "head"}}` marker'ının olduğu yere yerleşir (bkz.
+[Head ve SEO](/docs/head-and-seo)). İki fragment'e aynı timeout verilir, çünkü tek
+çağrı, onu ilk isteyen fragment'in context'i altında çalışır.
+
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 200" role="img" aria-labelledby="dh-share-title">
+<title id="dh-share-title">Once ve Cached yan yana. Solda Once: tek bir render'da sibling fragment'ler reviews ve seo, reviews:42 key'ini ister ve tek bir çağrı ikisine de yeter; sonraki render yeniden çağırır. Sağda Cached: ürün 42'nin ve ürün 43'ün render'ları brand:acme key'ini ister ve tek bir çağrı data cache'te tutulur; 24 saat ya da brand:acme invalidate edilene kadar tazedir.</title>
+<defs><marker id="dh-share-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
+<line class="d-rule" x1="160" y1="8" x2="160" y2="192" />
+<text x="80" y="20" text-anchor="middle">Once</text>
+<rect class="d-frame" x="6" y="28" width="146" height="128" rx="6" />
+<text class="d-small" x="14" y="42">tek render</text>
+<rect class="d-b" x="16" y="50" width="60" height="24" rx="4" /><text class="d-on-b d-small" x="46" y="66" text-anchor="middle">reviews</text>
+<rect class="d-b" x="84" y="50" width="60" height="24" rx="4" /><text class="d-on-b d-small" x="114" y="66" text-anchor="middle">seo</text>
+<path class="d-flow" d="M46 74C46 86 76 82 76 94" marker-end="url(#dh-share-arrow)" />
+<path class="d-flow" d="M114 74C114 86 84 82 84 94" marker-end="url(#dh-share-arrow)" />
+<rect class="d-chip" x="22" y="98" width="116" height="22" rx="11" /><text class="d-small" x="80" y="113" text-anchor="middle">reviews:42</text>
+<text class="d-small" x="80" y="142" text-anchor="middle">tek çağrı, ortak</text>
+<text class="d-small" x="80" y="176" text-anchor="middle">sonraki render:</text>
+<text class="d-small" x="80" y="189" text-anchor="middle">yeniden çağrılır</text>
+<text x="242" y="20" text-anchor="middle">Cached</text>
+<rect class="d-frame" x="168" y="28" width="70" height="46" rx="6" /><text class="d-small" x="203" y="48" text-anchor="middle">ürün 42</text><text class="d-small" x="203" y="61" text-anchor="middle">render'ı</text>
+<rect class="d-frame" x="246" y="28" width="70" height="46" rx="6" /><text class="d-small" x="281" y="48" text-anchor="middle">ürün 43</text><text class="d-small" x="281" y="61" text-anchor="middle">render'ı</text>
+<path class="d-flow" d="M203 74C203 86 238 82 238 94" marker-end="url(#dh-share-arrow)" />
+<path class="d-flow" d="M281 74C281 86 246 82 246 94" marker-end="url(#dh-share-arrow)" />
+<rect class="d-chip" x="184" y="98" width="116" height="22" rx="11" /><text class="d-small" x="242" y="113" text-anchor="middle">brand:acme</text>
+<rect class="d-soft-a" x="168" y="128" width="148" height="28" rx="6" /><text class="d-small" x="242" y="146" text-anchor="middle">data cache: tek çağrı</text>
+<text class="d-small" x="242" y="176" text-anchor="middle">taze: 24 saat ya da</text>
+<text class="d-small" x="242" y="189" text-anchor="middle">invalidate edilene dek</text>
+</svg>
+<figcaption><code>Once</code> bir çağrıyı tek bir render'ın fragment'leri arasında, <code>Cached</code> ise render'lar arasında paylaştırır. Ürün page'inde yorum kutusu ile description her render'da yorum servisine yapılan tek bir çağrıyı paylaşır; bir markanın bütün ürünleri de tek bir marka sorgusunu paylaşır. Render'lar arasında hiçbir şeyin tutulmadığı yerde (cache kapalıyken, development'ta, bir preview'da) <code>Cached</code>, <code>Once</code> gibi davranır.</figcaption>
+</figure>
+
+Her hatanın bu page'e etkisi:
+
+- **Ürün 7 yoktur.** Required fragment'in hatası `collage.ErrNotFound`'u wrap
+  eder. Sonuç, 404 ile not-found page'idir.
+- **Katalog ya da fiyat servisi başarısız olur.** Ürün required olduğu için
+  page'in error page'i 500 ile sunulur.
+- **Marka sorgusu başarısız olur.** Henüz saklanmış bir marka yoksa bu da 500'dür.
+  Stale bir marka saklanmışsa `Cached` onu sunar ve stale veriden
+  oluşturulan page cache'lenmez.
+- **Yorum servisi çökmüştür ya da 500 milisaniyeden yavaştır.** Servise yapılan
+  tek çağrı başarısız olur ve iki fragment de aynı hatayı alır: yorum kutusu
+  hiçbir şey render etmez, description tanımlanmaz ve page onlarsız 200 ile cevap
+  verir.
+  Başarısız bir fragment'le sunulan page degraded'dır ve hiç cache'lenmez. Bu
+  yüzden sonraki request yorum servisine yeniden sorar. Page cache'te daha eski
+  bir kopya duruyorsa ise o kopya `STALE` olarak işaretlenip sunulur.
+
+Cache açıkken page taze olduğu sürece bunların hiçbiri çalışmaz: cache'lenmiş bir
+page render edilmez. Bu yüzden `/products/42`'nin on dakika içindeki sonraki
+okuyucusu hiçbir çağrıya mal olmaz. Bkz.
+[Caching](/docs/caching#once-cached-and-the-page-cache).
+
 ## Timeout'lar ve context
 
 Her data handler bir deadline altında çalışır. Bu deadline fragment'in
@@ -401,11 +621,13 @@ Her data handler bir deadline altında çalışır. Bu deadline fragment'in
 `Config.Template.Timeout` kullanılır, varsayılan değeri beş saniyedir.
 
 Deadline, handler'ın aldığı `ctx` üzerindedir. **Handler'ı değil, context'i
-sınırlar.** Framework bir handler'ı deadline'ı geldiğinde bırakmaz, dönmesini
-bekler. Çünkü bir goroutine dışarıdan durdurulamaz. Hiç dönmeyen handler'ları
-bırakmak, her request için bir goroutine'in sonsuza kadar sızması anlamına gelirdi.
-Bu yüzden context'ini yok sayan bir handler deadline'ını aşarak çalışabilir ve page
-onu bekler.
+sınırlar.**
+
+Framework bir handler'ı deadline'ı geldiğinde bırakmaz, dönmesini bekler. Çünkü
+bir goroutine dışarıdan durdurulamaz. Hiç dönmeyen handler'ları bırakmak, her
+request için bir goroutine'in sonsuza kadar sızması anlamına gelirdi. Bu yüzden
+context'ini yok sayan bir handler deadline'ını aşarak çalışabilir ve page onu
+bekler.
 
 Deadline'a uymak tek bir alışkanlığa bağlıdır: bekleyebilecek her şeye `ctx`'i
 geçirin.
@@ -434,9 +656,11 @@ Süre dolduğunda context'inin hatasını dönen bir handler, diğer handler'lar
 başarısız olur. Bu hata yine de `errors.Is(err, context.DeadlineExceeded)` ile
 eşleşir. Deadline ancak handler onu hata olarak dönerse bir hatadır. `ctx`'i yok
 sayıp geç de olsa `nil` dönen bir handler başarılı olmuştur ve verisi render
-edilir. Olmasa da olur türündeki her şey için kısa bir timeout'u bir fallback ile
-birlikte kullanın. Böylece page, yavaş bir servisi sizin seçtiğiniz noktada
-beklemeyi bırakır.
+edilir.
+
+Olmasa da olur türündeki her şey için kısa bir timeout'u bir fallback ile birlikte
+kullanın. Böylece page, yavaş bir servisi sizin seçtiğiniz noktada beklemeyi
+bırakır.
 
 Hata, hangi deadline'ın dolduğunu söyler. Yalnızca fragment'in kendi timeout'u
 timeout olarak bildirilir: `collage: execution exceeded 5s`. Daha yukarıda biten
@@ -457,9 +681,11 @@ stack'i gösterir. Kendi kodunuzda bu hataya `errors.As` ile ulaşabilirsiniz.
 Bir template verisini isimle okur: `{{.Title}}`, `{{.Author.Name}}`.
 `html/template` bu isimleri ancak template çalışırken çözer. Bir `{{.Titel}}`,
 page'inin her render'ını başarısız kılar. Kimsenin ziyaret etmediği bir page'de
-ise hiç ortaya çıkmaz. v0.49.0'dan beri her fragment'in verisi tipli bir
-constructor'dan gelir. Bu yüzden register işlemi her template'in hangi Go tipiyle
-çalışacağını bilir ve template'i bu tipe göre dolaşır. `RegisterPage`,
+ise hiç ortaya çıkmaz.
+
+v0.49.0'dan beri her fragment'in verisi tipli bir constructor'dan gelir. Bu
+yüzden register işlemi her template'in hangi Go tipiyle çalışacağını bilir ve
+template'i bu tipe göre dolaşır. `RegisterPage`,
 template'leri verilerine uymayan bir page'i reddeder. Hata mesajında page'in,
 fragment'in ve dosyanın adı, satır ve sütun yer alır:
 
@@ -641,7 +867,9 @@ Dönen hata üzerinde `errors.As` ilk bulguyu bulur. Alanları:
 Kontrol, register sırasında yapılan diğer kontrollerin çalıştığı yerde çalışır:
 başlangıçta, dolayısıyla uygulamayı başlatan
 [`collage check`](/docs/cli#collage-check)'te ve page'leri register eden bir
-test'te. `collage dev` altında, program çalışırken düzenlenen bir template yeniden
+test'te.
+
+`collage dev` altında, program çalışırken düzenlenen bir template yeniden
 parse edilir. Ama bir sonraki yeniden başlatmaya, yani Go kodundaki bir sonraki
 değişikliğe kadar tekrar kontrol edilmez.
 [`collage inspect`](/docs/cli#collage-inspect), bir editörün aynı şekilde kontrol

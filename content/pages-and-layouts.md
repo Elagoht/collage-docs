@@ -138,21 +138,46 @@ page := collage.NewPage("login").
 	Build()
 ```
 
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 150" role="img" aria-labelledby="pl-chain-title">
+<title id="pl-chain-title">The login page's layout chain after registration. The outermost layout, Master, has a content slot holding the auth layout, the second and innermost layout. The auth layout's content slot holds the login content fragment.</title>
+<rect class="d-frame" x="4" y="4" width="312" height="142" rx="8" />
+<text x="14" y="21">Master()</text>
+<text class="d-small" x="306" y="21" text-anchor="end">1st · outermost</text>
+<rect class="d-slot d-slot-a" x="14" y="30" width="292" height="106" rx="5" />
+<text class="d-slot-text-a d-small" x="24" y="44">slot "content"</text>
+<rect class="d-frame d-frame-a" x="24" y="52" width="272" height="76" rx="6" />
+<text class="d-slot-text-a" x="34" y="69">Auth()</text>
+<text class="d-small" x="286" y="69" text-anchor="end">2nd · innermost</text>
+<rect class="d-slot d-slot-c" x="34" y="78" width="252" height="42" rx="4" />
+<text class="d-small" x="40" y="103">slot "content"</text>
+<rect class="d-c" x="126" y="84" width="152" height="30" rx="4" />
+<text class="d-on-c" x="202" y="103" text-anchor="middle">login · content</text>
+</svg>
+<figcaption><code>WithLayouts(layouts.Master(), layouts.Auth())</code> lists the chain outermost first. Registration does the nesting: the login content goes into the content slot of <code>Auth()</code>, the innermost layout, and <code>Auth()</code> into the content slot of <code>Master()</code>, each on the page's own copy of the layout's slot table.</figcaption>
+</figure>
+
 Every layout in the chain renders the one inside it with `{{slot "content"}}`, as
 a single layout renders the content. Registration does all of the wrapping: the
 content goes into the innermost layout's `content` slot, and each layout into the
-`content` slot of the one outside it. So a layout with a hole in it is still a
-finished `*collage.Fragment`, and a helper that makes one returns it built, not as
-a builder the page has to complete.
+`content` slot of the one outside it.
+
+So a layout with a hole in it is still a finished `*collage.Fragment`, and a helper
+that makes one returns it built, not as a builder the page has to complete.
 
 Each page gets its own copy of every layout's slot table, as it does of a single
 layout, so the chain's layouts can be shared across the site. A layout in a chain
 must arrive with its `content` slot empty — registration fills it — and is refused
 with `ErrSlotOccupied` otherwise.
 
-`WithLayouts` records `ErrMissingLayout` when called with no layouts,
-`ErrNilFragment` for a nil one, `ErrFragmentCycle` for the same layout twice, and
-`ErrConflictingLayout` when called a second time on one builder.
+`WithLayouts` records an error, which registration refuses, when it is called:
+
+| Called | Error |
+| --- | --- |
+| with no layouts | `ErrMissingLayout` |
+| with a nil layout | `ErrNilFragment` |
+| with the same layout twice | `ErrFragmentCycle` |
+| a second time on one builder | `ErrConflictingLayout` |
 
 ## Private pages: guards
 
@@ -191,9 +216,36 @@ parameter.
 
 A guard is asked for a page when it is on the page's **spine**: a layout in the
 page's chain, or the page's content fragment. Guards run outermost first, the
-content fragment's last, and the first that answers decides. A guard on any other
-fragment — one bound into a slot, one a resolver returns, a fallback — is ignored:
-who may see a page is a property of the page, not of the parts it is drawn from.
+content fragment's last, and the first that answers decides.
+
+A guard on any other fragment — one bound into a slot, one a resolver returns, a
+fallback — is ignored: who may see a page is a property of the page, not of the
+parts it is drawn from.
+
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 306" role="img" aria-labelledby="pl-spine-title">
+<title id="pl-spine-title">A request for /admin/users meets the guards on the page's spine, outermost first. Master has no guard. Account's guard answers a signed-out reader with 303 to /login. Admin's guard answers a reader who is not an admin with 403 and no body. The content fragment, admin-users, is asked last. Only when no guard answers does the page render; for a cached page, the cache is read only after the guards too. A menu fragment bound into a slot is not on the spine, so a guard on it is not asked.</title>
+<defs><marker id="pl-spine-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
+<rect class="d-pill" x="40" y="6" width="140" height="24" rx="12" /><text x="110" y="22" text-anchor="middle">GET /admin/users</text>
+<line class="d-flow" x1="110" y1="30" x2="110" y2="44" marker-end="url(#pl-spine-arrow)" />
+<rect class="d-frame" x="20" y="48" width="180" height="34" rx="6" /><text x="110" y="62" text-anchor="middle">Master</text><text class="d-small" x="110" y="75" text-anchor="middle">layout 1 · no guard</text>
+<line class="d-flow" x1="110" y1="82" x2="110" y2="96" marker-end="url(#pl-spine-arrow)" />
+<rect class="d-a" x="20" y="100" width="180" height="34" rx="6" /><text class="d-on-a" x="110" y="114" text-anchor="middle">Account</text><text class="d-on-a d-small" x="110" y="127" text-anchor="middle">layout 2 · RequireUser</text>
+<line class="d-flow" x1="200" y1="117" x2="212" y2="117" marker-end="url(#pl-spine-arrow)" />
+<rect class="d-chip" x="216" y="100" width="100" height="34" rx="6" /><text class="d-small" x="266" y="114" text-anchor="middle">signed out</text><text class="d-small" x="266" y="127" text-anchor="middle">303 · /login</text>
+<line class="d-flow" x1="110" y1="134" x2="110" y2="148" marker-end="url(#pl-spine-arrow)" />
+<rect class="d-a" x="20" y="152" width="180" height="34" rx="6" /><text class="d-on-a" x="110" y="166" text-anchor="middle">Admin</text><text class="d-on-a d-small" x="110" y="179" text-anchor="middle">layout 3 · requireRole</text>
+<line class="d-flow" x1="200" y1="169" x2="212" y2="169" marker-end="url(#pl-spine-arrow)" />
+<rect class="d-chip" x="216" y="152" width="100" height="34" rx="6" /><text class="d-small" x="266" y="166" text-anchor="middle">not an admin</text><text class="d-small" x="266" y="179" text-anchor="middle">403 · no body</text>
+<line class="d-flow" x1="110" y1="186" x2="110" y2="200" marker-end="url(#pl-spine-arrow)" />
+<rect class="d-frame" x="20" y="204" width="180" height="34" rx="6" /><text x="110" y="218" text-anchor="middle">admin-users</text><text class="d-small" x="110" y="231" text-anchor="middle">content · asked last</text>
+<g class="d-dropped"><rect class="d-frame" x="216" y="204" width="100" height="34" rx="6" /><text class="d-small" x="266" y="218" text-anchor="middle">menu · in a slot</text><text class="d-small" x="266" y="231" text-anchor="middle">guard not asked</text></g>
+<line class="d-flow" x1="110" y1="238" x2="110" y2="252" marker-end="url(#pl-spine-arrow)" />
+<rect class="d-c" x="20" y="256" width="180" height="24" rx="6" /><text class="d-on-c" x="110" y="272" text-anchor="middle">page renders</text>
+<text class="d-small" x="160" y="298" text-anchor="middle">outermost first · the first answer decides</text>
+</svg>
+<figcaption>The spine of the admin page in <a href="#example-a-blog-with-a-private-area">Example: a blog with a private area</a>. A request meets the guards of its layouts, outermost first, then the content fragment's. The first guard that answers sends its answer and nothing further runs: a signed-out reader gets a redirect to log in from the account layout, a signed-in reader who is not an admin gets a bare 403 from the admin layout. Only a request no guard answered reaches the render, and on a cached page the cache, which is read only after the guards. A guard on a fragment bound into a slot, such as the admin menu, is not asked.</figcaption>
+</figure>
 
 It answers in one of three ways:
 
@@ -228,14 +280,18 @@ What the guard covers:
   error pages — a private error page would otherwise redirect the reader who hit
   the error.
 
-Readers the guard allows share the page's cache, which is the server's own. A CDN
+Readers the guard allows share the page's cache, which is the server's own —
+unless something skips it for them, as [elagoht/session](/docs/plugins#elagohtsession)
+does for every reader with a session. A CDN
 or proxy in front of the server runs no guard, so a guarded page goes out with
-`Cache-Control: private, no-cache` whatever its strategy says. The guard's own
-answer — a redirect to log in, a refusal — is sent `no-store` since v0.34.0, so a
-CDN that keeps a 404 or a 308 by default does not hand one reader's answer to the
-next. A page whose
-content differs from one reader to the next is a personalisation question, not a
-guard question — see [Caching](/docs/caching#render-strategies). A
+`Cache-Control: private, no-cache` whatever its strategy says.
+
+The guard's own answer — a redirect to log in, a refusal — is sent `no-store` since
+v0.34.0, so a CDN that keeps a 404 or a 308 by default does not hand one reader's
+answer to the next.
+
+A page whose content differs from one reader to the next is a personalisation
+question, not a guard question — see [Caching](/docs/caching#render-strategies). A
 [static export](/docs/static-export#what-is-skipped) does not write guarded pages
 at all.
 
@@ -272,14 +328,17 @@ A data handler reads what was captured with `rc.Param("slug")`, or
 
 A segment holding an encoded slash, `%2F`, is a 404 since v0.34.0. By the URL
 standard `%2F` is not a separator: `/public%2Fsecret` is one segment whose value is
-`public/secret`. But Go decodes the path into `r.URL.Path` before any middleware
-reads it, and there `/public%2Fsecret` has become `/public/secret`, which no longer
-tells an encoded slash from a real one. So a middleware sees two segments where the
-router sees one. A router that matched the one — as collage did before — would serve
-a request the middleware had judged as something else, so collage serves neither
-reading. A value that is itself a path, such as `guide/intro`, belongs in a
-catch-all: `{rest...}`. `{{pageURL}}` and `BuildPath` refuse a `/` in a single
-segment's value.
+`public/secret`.
+
+But Go decodes the path into `r.URL.Path` before any middleware reads it, and there
+`/public%2Fsecret` has become `/public/secret`, which no longer tells an encoded
+slash from a real one. So a middleware sees two segments where the router sees one.
+A router that matched the one — as collage did before — would serve a request the
+middleware had judged as something else, so collage serves neither reading.
+
+A value that is itself a path, such as `guide/intro`, belongs in a catch-all:
+`{rest...}`. `{{pageURL}}` and `BuildPath` refuse a `/` in a single segment's
+value.
 
 At every level a static segment is tried first, then a placeholder with text
 around it — the most specific first — then a bare `{param}`, then a `{rest...}`,
@@ -342,16 +401,21 @@ how a form posts to the page it sits on.
 
 Locales, locale prefixes such as `/tr/hakkinda` — and the redirect that sends
 `/en/about` to `/about` — and building links from page names are covered in
-[Links and locales](/docs/links-and-locales). A page can also
-carry redirects from old URLs, with `WithRedirect(from, to, status)` and
-`WithPermanentRedirect(from, to)`. Since v0.34.0 a redirect carries the request's
-query string to its destination, a value it captured is escaped for where it
-lands — a path segment, or a query value after a `?`, so `/login?next={slug}`
-cannot be handed a second `next` — and a destination that would leave the site,
-`//host` or `/\host`, is `ErrInvalidPath` at registration. Since v0.52.0 a control
-character in either path, such as a line feed, is `ErrInvalidRedirect`, and a
-static export fails on a redirect over a page it wrote; see
-[Static export](/docs/static-export#what-fails).
+[Links and locales](/docs/links-and-locales).
+
+A page can also carry redirects from old URLs, with
+`WithRedirect(from, to, status)` and `WithPermanentRedirect(from, to)`. Since
+v0.34.0:
+
+- a redirect carries the request's query string to its destination;
+- a value it captured is escaped for where it lands — a path segment, or a query
+  value after a `?`, so `/login?next={slug}` cannot be handed a second `next`;
+- a destination that would leave the site, `//host` or `/\host`, is
+  `ErrInvalidPath` at registration.
+
+Since v0.52.0 a control character in either path, such as a line feed, is
+`ErrInvalidRedirect`, and a static export fails on a redirect over a page it wrote;
+see [Static export](/docs/static-export#what-fails).
 
 ## Render strategies
 
@@ -567,3 +631,189 @@ that refers to a page by value must use that one:
 at them — a sitemap listing every page's paths, a test checking a strategy. A copy
 is not the registered value, so do not pass one where a registered page is
 expected.
+
+## Example: a blog with a private area
+
+A multi-user blog has three kinds of page. Posts are public. Each signed-in writer
+has an account page listing their drafts. Admins also have a page listing the
+users. The three share one shell, and the private ones sit in layouts that say who
+may enter:
+
+| Page | Path | Layouts, outermost first | Strategy |
+| --- | --- | --- | --- |
+| `post` | `/blog/{slug}` | `Master` | `Incremental(10 * time.Minute)` |
+| `account` | `/account` | `Master`, `Account` | none declared: dynamic, it has a data handler |
+| `admin-users` | `/admin/users` | `Master`, `Account`, `Admin` | none declared: dynamic, it has a data handler |
+| `not-found`, `error` | no path | `Master` | `Dynamic()` |
+
+The layouts carry the guards. `Account` uses the
+[session plugin](/docs/plugins#elagohtsession)'s `RequireUser`, which sends a
+signed-out reader to `/login` with where they were going in `next`. `Admin` checks
+a role, under a session key `"role"` that this application's own login action
+writes; the plugin defines only the user key.
+
+```go
+// Master is the site's shell: <head>, header, footer.
+func Master() *collage.Fragment {
+	return collage.NewFragment("layout", "layouts/default.html").
+		WithTitle("My blog").
+		Build()
+}
+
+// Account is the signed-in area. Its guard sends everyone else to log in.
+func Account() *collage.Fragment {
+	return collage.NewFragment("account-layout", "layouts/account.html").
+		WithGuard(session.RequireUser("/login")).
+		Build()
+}
+
+// Admin sits inside Account and lets only admins through.
+func Admin() *collage.Fragment {
+	menu := collage.NewFragment("admin-menu", "fragments/admin-menu.html").Build()
+
+	return collage.NewFragment("admin-layout", "layouts/admin.html").
+		WithGuard(requireRole("admin")).
+		WithSlotFragment("menu", menu).
+		Build()
+}
+
+// requireRole lets through a reader whose session holds role under "role",
+// which the login action sets. Anyone else gets a bare 403.
+func requireRole(role string) collage.GuardFunc {
+	return func(ctx context.Context, _ *http.Request) (*collage.GuardDecision, error) {
+		if session.FromContext(ctx).Get("role") == role {
+			return nil, nil
+		}
+		return &collage.GuardDecision{Status: http.StatusForbidden}, nil
+	}
+}
+```
+
+The admin layout calls both of its slots: `menu`, bound above, and `content`, which
+registration fills. `layouts/account.html` is the same with only `content`.
+
+```html
+<!-- templates/layouts/admin.html -->
+<div class="admin">
+  <nav>{{slot "menu"}}</nav>
+  <main>{{slot "content"}}</main>
+</div>
+```
+
+A page is public or private by the layouts it lists, and nothing else:
+
+```go
+// Post is public and cached; an unknown slug is a 404.
+func Post() *collage.Page {
+	content := collage.NewFragment("post", "pages/post.html").
+		WithData(collage.LoadTagged(func(ctx context.Context, rc *collage.RenderContext) (store.Post, []string, error) {
+			slug := rc.Param("slug")
+			// PostBySlug wraps collage.ErrNotFound for a slug it does not know.
+			post, err := store.PostBySlug(ctx, slug)
+			return post, []string{"post:" + slug}, err
+		})).
+		Required().
+		Build()
+
+	return collage.NewPage("post").
+		WithLayouts(layouts.Master()).
+		WithContent(content).
+		WithPath("en", "/blog/{slug}").
+		Incremental(10 * time.Minute).
+		Build()
+}
+
+// Account lists the signed-in reader's drafts.
+func Account() *collage.Page {
+	content := collage.NewFragment("account", "pages/account.html").
+		WithData(collage.Load(func(ctx context.Context, rc *collage.RenderContext) ([]store.Draft, error) {
+			return store.Drafts(ctx, session.Get(rc).Get(session.UserKey))
+		})).
+		Build()
+
+	return collage.NewPage("account").
+		WithLayouts(layouts.Master(), layouts.Account()).
+		WithContent(content).
+		WithPath("en", "/account").
+		Build()
+}
+
+// AdminUsers is for admins only: it sits in both guarded layouts.
+func AdminUsers() *collage.Page {
+	content := collage.NewFragment("admin-users", "pages/admin-users.html").
+		WithData(collage.Load(func(ctx context.Context, _ *collage.RenderContext) ([]store.User, error) {
+			return store.Users(ctx)
+		})).
+		Build()
+
+	return collage.NewPage("admin-users").
+		WithLayouts(layouts.Master(), layouts.Account(), layouts.Admin()).
+		WithContent(content).
+		WithPath("en", "/admin/users").
+		Build()
+}
+
+// NotFound and Error wrap the shell alone, so they look like the public site.
+func NotFound() *collage.Page {
+	content := collage.NewFragment("not-found-content", "pages/404.html").Build()
+
+	return collage.NewPage("not-found").
+		WithLayouts(layouts.Master()).
+		WithContent(content).
+		Dynamic().
+		Build()
+}
+
+func Error() *collage.Page {
+	content := collage.NewFragment("error-content", "pages/500.html").Build()
+
+	return collage.NewPage("error").
+		WithLayouts(layouts.Master()).
+		WithContent(content).
+		Dynamic().
+		Build()
+}
+```
+
+```go
+func register(app *collage.App) error {
+	if err := app.Register(
+		pages.Post(),
+		pages.Account(),
+		pages.AdminUsers(),
+	); err != nil {
+		return err
+	}
+	if err := app.RegisterNotFoundPage(pages.NotFound()); err != nil {
+		return err
+	}
+	return app.RegisterErrorPage(pages.Error())
+}
+```
+
+What each reader gets:
+
+| Request | Reader | Answer |
+| --- | --- | --- |
+| `/blog/hello` | signed out | The post; with caching on, from the cache until ten minutes have passed |
+| `/blog/hello` | signed in | The post, rendered fresh: the session plugin skips the cache for a reader with a session |
+| `/blog/no-such-post` | anyone | `404` and the site's not-found page, in the shell |
+| `/account` | signed out | `303` to `/login?next=%2Faccount` |
+| `/admin/users` | signed out | `303` to `/login?next=%2Fadmin%2Fusers`: the account guard answers first, and the role is never checked |
+| `/admin/users` | signed in, not an admin | `403`, with no body |
+| `/admin/users` | an admin | The page |
+
+A few things follow from the rules above:
+
+- **No list of private paths.** A new page under `/admin` is private because it
+  lists `layouts.Admin()`, not because of where its path starts. A page that
+  forgets it is public, so `collage inspect` is worth a look: it lists, per page,
+  the fragments that carry a guard.
+- **The admin menu's guard would not be asked.** The menu is bound into a slot, not
+  on the spine. Guarding the area is the admin layout's job.
+- **Private pages are not shared caches.** The account and admin pages go out with
+  `Cache-Control: private, no-cache`, the `303` and `403` with `no-store`, and a
+  static export leaves both pages out.
+- **The error pages render for anyone.** They wrap `Master()` alone, and the guards
+  of the page that failed are not asked for them, so a reader who hit an error is
+  never redirected to log in instead of seeing it.

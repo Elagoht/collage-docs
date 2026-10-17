@@ -8,6 +8,7 @@ reference: Data, FragmentBuilder.WithData, FragmentBuilder.WithTitle, FragmentBu
 A data handler is the function a fragment calls to get what its template renders.
 It receives the request's context and the render context, and returns the data in
 a Go type of its own, the dependency tags that data came from, and an error.
+
 Everything about a page that talks to the outside world — a database, a CMS, an
 API — happens in data handlers, and nowhere else.
 
@@ -55,10 +56,12 @@ content := collage.NewFragment("post", "pages/post.html").
 `T` comes from the function's signature, and it is the type the template is
 checked against when the page is registered — see
 [How templates are checked](#how-templates-are-checked) — so the handler and the
-template's idea of its data cannot drift apart. A loader written this way is also
-easy to call from a test or a sitemap's handler, which get a `*Post` rather than a
-value to assert. The constructors are functions of their own rather than forms of
-`WithData` because Go methods cannot take type parameters.
+template's idea of its data cannot drift apart.
+
+A loader written this way is also easy to call from a test or a sitemap's handler,
+which get a `*Post` rather than a value to assert. The constructors are functions
+of their own rather than forms of `WithData` because Go methods cannot take type
+parameters.
 
 Before v0.49.0 a handler was handed over with `WithDataHandler` and returned
 `(any, []string, error)`, and fixed data was `WithData(v)`. Both are gone: wrap the
@@ -81,20 +84,49 @@ The three results of a `LoadTagged` each have a job.
   [failure policy](/docs/fragments-and-slots#when-a-fragment-fails) decides what
   that means for the page.
 
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 244" role="img" aria-labelledby="dh-contract-title">
+<title id="dh-contract-title">A data handler receives ctx and rc and returns three things. The data becomes the template's dot, and is dropped when there is an error. The tags join the page's tags, are kept when there is an error, and are stored with a cached page. The error goes to the fragment's failure policy: a required fragment fails the page with a 500, or a 404 when the error wraps ErrNotFound; a fragment with a fallback renders the fallback; any other renders nothing.</title>
+<defs><marker id="dh-contract-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
+<rect class="d-pill" x="110" y="8" width="100" height="24" rx="12" /><text x="160" y="24" text-anchor="middle">ctx, rc</text>
+<line class="d-flow" x1="160" y1="32" x2="160" y2="46" marker-end="url(#dh-contract-arrow)" />
+<rect class="d-a" x="90" y="50" width="140" height="34" rx="5" /><text class="d-on-a" x="160" y="65" text-anchor="middle">data handler</text><text class="d-on-a d-small" x="160" y="78" text-anchor="middle">LoadTagged(fn)</text>
+<path class="d-flow" d="M130 84C130 96 56 92 56 104" marker-end="url(#dh-contract-arrow)" />
+<line class="d-flow" x1="160" y1="84" x2="160" y2="104" marker-end="url(#dh-contract-arrow)" />
+<path class="d-flow" d="M190 84C190 96 264 92 264 104" marker-end="url(#dh-contract-arrow)" />
+<rect class="d-frame" x="8" y="108" width="96" height="26" rx="5" /><text x="56" y="125" text-anchor="middle">data: T</text>
+<rect class="d-frame" x="112" y="108" width="96" height="26" rx="5" /><text x="160" y="125" text-anchor="middle">tags</text>
+<rect class="d-frame" x="216" y="108" width="96" height="26" rx="5" /><text x="264" y="125" text-anchor="middle">error</text>
+<line class="d-flow" x1="56" y1="134" x2="56" y2="150" marker-end="url(#dh-contract-arrow)" />
+<line class="d-flow" x1="160" y1="134" x2="160" y2="150" marker-end="url(#dh-contract-arrow)" />
+<line class="d-flow" x1="264" y1="134" x2="264" y2="150" marker-end="url(#dh-contract-arrow)" />
+<rect class="d-a" x="8" y="154" width="96" height="26" rx="5" /><text class="d-on-a" x="56" y="171" text-anchor="middle">template's .</text>
+<rect class="d-b" x="112" y="154" width="96" height="26" rx="5" /><text class="d-on-b" x="160" y="171" text-anchor="middle">page's tags</text>
+<rect class="d-c" x="216" y="154" width="96" height="26" rx="5" /><text class="d-on-c" x="264" y="171" text-anchor="middle">failure policy</text>
+<text class="d-small" x="56" y="196" text-anchor="middle">dropped on</text><text class="d-small" x="56" y="209" text-anchor="middle">an error</text>
+<text class="d-small" x="160" y="196" text-anchor="middle">kept on an error</text><text class="d-small" x="160" y="209" text-anchor="middle">stored with a</text><text class="d-small" x="160" y="222" text-anchor="middle">cached page</text>
+<text class="d-small" x="264" y="196" text-anchor="middle">Required(): 500,</text><text class="d-small" x="264" y="209" text-anchor="middle">ErrNotFound: 404</text><text class="d-small" x="264" y="222" text-anchor="middle">WithFallback: f</text><text class="d-small" x="264" y="235" text-anchor="middle">neither: nothing</text>
+</svg>
+<figcaption>A data handler is handed the request's context and the render context, and each of its three results goes somewhere else. The data becomes the template's <code>.</code>; on an error it is dropped. The tags join the page's own and are stored with the page when it is cached; on an error they are kept. The error goes to the fragment's failure policy: a <code>Required()</code> fragment fails the page with a 500, or a 404 when the error wraps <code>collage.ErrNotFound</code>; a fragment with a fallback renders it; any other renders nothing.</figcaption>
+</figure>
+
 Tags are kept even when the handler returns an error. A handler that worked out
 what it depends on and then failed has still said what would invalidate the page.
 
 A handler also decides how a page that declares no strategy is served. Such a page
 is dynamic when anything it renders has a data handler, and static otherwise: a
 handler may read the request, a cookie, the clock, and nothing outside the function
-can tell whether it does. A handler whose output is the same for every reader — a
-post read from a file — belongs on a page that says `Static()` or
-`Incremental(ttl)` itself. A handler that reads only the path's parameters and the
-locale can say it on its fragment instead, with `Static()`, and then it leaves
-every page using that fragment static. A handler whose output is the same for
-every reader but changes over time — a measurement — says `Shared()` instead:
-its render may be shared between readers, and the page stays dynamic. See
-[Caching](/docs/caching#a-page-that-declares-none).
+can tell whether it does.
+
+What to say instead depends on the handler's output:
+
+| The handler's output | Say | What it does |
+| --- | --- | --- |
+| Is the same for every reader — a post read from a file | `Static()` or `Incremental(ttl)` on the page itself | The page keeps the strategy it declares |
+| Depends only on the path's parameters and the locale | `Static()` on the handler's fragment | Leaves every page using that fragment static |
+| Is the same for every reader but changes over time — a measurement | `Shared()` on the fragment | Its render may be shared between readers, and the page stays dynamic |
+
+See [Caching](/docs/caching#a-page-that-declares-none).
 
 ### Fixed data: collage.Value
 
@@ -117,7 +149,9 @@ declares no strategy static.
 A fragment has one source of data. Calling `WithData` twice with data is refused at
 registration with `collage.ErrConflictingData`, whose message names the fragment:
 `fragment "home-content" has its data set twice`. Keep the call you mean and drop
-the other; before v0.49.0 the second call silently won. A nil `Data` —
+the other; before v0.49.0 the second call silently won.
+
+A nil `Data` —
 `WithData(nil)`, or a constructor handed a nil function — is no data, and
 conflicts with nothing.
 
@@ -267,7 +301,9 @@ if !ok {
 ```
 
 `ok` is false when nothing is stored under the key. A read needs no type assertion,
-and a write of the wrong type does not compile. A key is its name *and* its type:
+and a write of the wrong type does not compile.
+
+A key is its name *and* its type:
 `NewKey[*Post]("post")` and `NewKey[*Draft]("post")` are two keys holding two
 values, and two `NewKey[*Post]("post")` declared in different files are one. Keys
 are your application's own namespace; pick names that will not collide.
@@ -368,6 +404,189 @@ A title known when the program starts — the site's name, on its layout — nee
 handler at all. `WithTitle(s)` on the fragment declares it, and leaves a page that
 declares no strategy static; see [Head and SEO](/docs/head-and-seo).
 
+## Example: a catalogue product page
+
+A shop's product page at `/products/{id}` draws on three services, and each piece
+of data is fetched in the way that suits it:
+
+| Data | Comes from | Fetched with |
+| --- | --- | --- |
+| Name and brand id | The catalogue | The product's handler, on every render |
+| Price | A pricing service | The same handler, after the catalogue |
+| Brand: name and country | The catalogue, a slow lookup many products share | `collage.Cached`, for a day, tagged `brand:<id>` |
+| Reviews | A reviews service | `collage.Once`, from two sibling fragments: the reviews box and the page's description |
+
+The catalog, pricing and reviews packages stand for your own clients. The
+product's handler:
+
+```go
+var (
+	brandKey   = collage.NewKey[catalog.Brand]("brand")
+	reviewsKey = collage.NewKey[reviews.Summary]("reviews")
+)
+
+type productView struct {
+	Name  string
+	Price string
+	Brand catalog.Brand
+}
+
+func loadProduct(ctx context.Context, rc *collage.RenderContext) (productView, []string, error) {
+	id := rc.Param("id")
+	p, err := catalog.Product(ctx, id)
+	if errors.Is(err, catalog.ErrNoProduct) {
+		return productView{}, nil, fmt.Errorf("shop: no product %q: %w", id, collage.ErrNotFound)
+	}
+	if err != nil {
+		return productView{}, nil, fmt.Errorf("shop: load product %q: %w", id, err)
+	}
+	price, err := pricing.Price(ctx, id)
+	if err != nil {
+		return productView{}, nil, fmt.Errorf("shop: price of %q: %w", id, err)
+	}
+	// Many products share a brand: one fetch serves all of them.
+	brand, err := collage.Cached(rc, brandKey.With(p.BrandID), 24*time.Hour, []string{"brand:" + p.BrandID},
+		func(ctx context.Context) (catalog.Brand, error) { return catalog.LookupBrand(ctx, p.BrandID) })
+	if err != nil {
+		return productView{}, nil, fmt.Errorf("shop: brand %q: %w", p.BrandID, err)
+	}
+	return productView{Name: p.Name, Price: price, Brand: brand}, []string{"product:" + id, "price:" + id}, nil
+}
+```
+
+- **An unknown id is a 404.** The handler wraps `collage.ErrNotFound`, and its
+  fragment is `Required()`, so the reader gets the not-found page. Any other
+  error fails the page with a 500.
+- **The brand is fetched once for all its products.** The `brand:<id>` tag joins
+  the page's tags as if the handler had returned it, so the handler returns only
+  `product:<id>` and `price:<id>`.
+
+The reviews are wanted twice: by the reviews box, and by a fragment that puts the
+rating in the page's description. Both call one function:
+
+```go
+// reviewsOf is called by two sibling fragments; Once makes it one call per render.
+func reviewsOf(rc *collage.RenderContext, id string) (reviews.Summary, error) {
+	return collage.Once(rc, reviewsKey.With(id), func(ctx context.Context) (reviews.Summary, error) {
+		return reviews.For(ctx, id)
+	})
+}
+
+func loadReviews(ctx context.Context, rc *collage.RenderContext) (reviews.Summary, []string, error) {
+	id := rc.Param("id")
+	summary, err := reviewsOf(rc, id)
+	if err != nil {
+		return reviews.Summary{}, nil, err
+	}
+	return summary, []string{"reviews:" + id}, nil
+}
+
+func productSEO(ctx context.Context, rc *collage.RenderContext) error {
+	summary, err := reviewsOf(rc, rc.Param("id"))
+	if err != nil {
+		return err
+	}
+	rc.HoistMeta("description", fmt.Sprintf("Rated %.1f out of 5 in %d reviews.", summary.Average, summary.Count))
+	return nil
+}
+```
+
+The two fragments are siblings, so their handlers start together. Whichever
+reaches `reviewsOf` first calls the reviews service, and the other waits for its
+result. A `Get`, a fetch on a miss and a `Set` could have called it twice.
+
+The product binds both into its slots:
+
+```go
+reviewsBox := collage.NewFragment("product-reviews", "fragments/reviews.html").
+	WithData(collage.LoadTagged(loadReviews)).
+	WithTimeout(500 * time.Millisecond).
+	Build()
+
+seo := collage.NewFragment("product-seo", "fragments/empty.html").
+	WithData(collage.Effect(productSEO)).
+	WithTimeout(500 * time.Millisecond).
+	Build()
+
+content := collage.NewFragment("product", "pages/product.html").
+	WithData(collage.LoadTagged(loadProduct)).
+	WithSlotFragment("reviews", reviewsBox).
+	WithSlotFragment("seo", seo).
+	Required().
+	Build()
+
+page := collage.NewPage("product").
+	WithLayouts(layout).
+	WithContent(content).
+	WithPath("en", "/products/{id}").
+	Incremental(10 * time.Minute).
+	Build()
+```
+
+```html
+<!-- templates/pages/product.html -->
+<article>
+  <h1>{{.Name}}</h1>
+  <p class="price">{{.Price}}</p>
+  <p class="brand">{{.Brand.Name}}, {{.Brand.Country}}</p>
+  {{slot "reviews"}}
+</article>
+{{slot "seo"}}
+```
+
+The description lands where the layout's `{{hoist "head"}}` marker is — see
+[Head and SEO](/docs/head-and-seo). Both fragments get the same timeout because
+the one call runs under the context of whichever fragment asked first.
+
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 200" role="img" aria-labelledby="dh-share-title">
+<title id="dh-share-title">Once and Cached side by side. Left, Once: in one render, the sibling fragments reviews and seo both ask for the key reviews:42, and one call serves both; the next render calls again. Right, Cached: the renders of product 42 and product 43 both ask for the key brand:acme, and one call is kept in the data cache, fresh for 24 hours or until brand:acme is invalidated.</title>
+<defs><marker id="dh-share-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
+<line class="d-rule" x1="160" y1="8" x2="160" y2="192" />
+<text x="80" y="20" text-anchor="middle">Once</text>
+<rect class="d-frame" x="6" y="28" width="146" height="128" rx="6" />
+<text class="d-small" x="14" y="42">one render</text>
+<rect class="d-b" x="16" y="50" width="60" height="24" rx="4" /><text class="d-on-b d-small" x="46" y="66" text-anchor="middle">reviews</text>
+<rect class="d-b" x="84" y="50" width="60" height="24" rx="4" /><text class="d-on-b d-small" x="114" y="66" text-anchor="middle">seo</text>
+<path class="d-flow" d="M46 74C46 86 76 82 76 94" marker-end="url(#dh-share-arrow)" />
+<path class="d-flow" d="M114 74C114 86 84 82 84 94" marker-end="url(#dh-share-arrow)" />
+<rect class="d-chip" x="22" y="98" width="116" height="22" rx="11" /><text class="d-small" x="80" y="113" text-anchor="middle">reviews:42</text>
+<text class="d-small" x="80" y="142" text-anchor="middle">one call, shared</text>
+<text class="d-small" x="80" y="176" text-anchor="middle">next render:</text>
+<text class="d-small" x="80" y="189" text-anchor="middle">called again</text>
+<text x="242" y="20" text-anchor="middle">Cached</text>
+<rect class="d-frame" x="168" y="28" width="70" height="46" rx="6" /><text class="d-small" x="203" y="48" text-anchor="middle">render of</text><text class="d-small" x="203" y="61" text-anchor="middle">product 42</text>
+<rect class="d-frame" x="246" y="28" width="70" height="46" rx="6" /><text class="d-small" x="281" y="48" text-anchor="middle">render of</text><text class="d-small" x="281" y="61" text-anchor="middle">product 43</text>
+<path class="d-flow" d="M203 74C203 86 238 82 238 94" marker-end="url(#dh-share-arrow)" />
+<path class="d-flow" d="M281 74C281 86 246 82 246 94" marker-end="url(#dh-share-arrow)" />
+<rect class="d-chip" x="184" y="98" width="116" height="22" rx="11" /><text class="d-small" x="242" y="113" text-anchor="middle">brand:acme</text>
+<rect class="d-soft-a" x="168" y="128" width="148" height="28" rx="6" /><text class="d-small" x="242" y="146" text-anchor="middle">data cache: one call</text>
+<text class="d-small" x="242" y="176" text-anchor="middle">fresh 24 h, or until</text>
+<text class="d-small" x="242" y="189" text-anchor="middle">brand:acme invalidated</text>
+</svg>
+<figcaption><code>Once</code> shares a call between the fragments of one render, <code>Cached</code> between renders. On the product page the reviews box and the description share one call to the reviews service per render, and every product of one brand shares one brand lookup. Where nothing is kept across renders (caching off, development, a preview) <code>Cached</code> behaves like <code>Once</code>.</figcaption>
+</figure>
+
+What each failure does to this page:
+
+- **There is no product 7.** The required fragment's error wraps
+  `collage.ErrNotFound`: the not-found page, with a 404.
+- **The catalogue or the pricing service fails.** The product is required, so the
+  page's error page is served with a 500.
+- **The brand lookup fails.** With no brand stored yet, that is a 500 too. With
+  a stale one stored, `Cached` serves it instead, and the page, built from stale
+  data, is not cached.
+- **The reviews service is down, or slower than 500 milliseconds.** Its one call
+  fails, and both fragments get that error: the reviews box renders nothing, no
+  description is declared, and the page answers 200 without them. A page served
+  with a failed fragment is degraded and never cached, so the next request asks
+  the reviews service again — unless the page cache still holds an older copy,
+  which is then served marked `STALE`.
+
+With the cache on, none of this runs while the page is fresh: a cached page is
+not rendered, so the next reader of `/products/42` within ten minutes costs no call
+at all. See [Caching](/docs/caching#once-cached-and-the-page-cache).
+
 ## Timeouts and the context
 
 Every data handler runs under a deadline: the fragment's `WithTimeout(d)`, or
@@ -375,11 +594,13 @@ Every data handler runs under a deadline: the fragment's `WithTimeout(d)`, or
 none.
 
 The deadline is on the `ctx` the handler receives. **It bounds the context, not
-the handler.** The framework does not abandon a handler at its deadline; it waits
-for it to return, because a goroutine cannot be stopped from outside, and
-abandoning handlers that never return would leak one goroutine per request,
-forever. So a handler that ignores its context can run past its deadline, and the
-page waits for it.
+the handler.**
+
+The framework does not abandon a handler at its deadline; it waits for it to
+return, because a goroutine cannot be stopped from outside, and abandoning
+handlers that never return would leak one goroutine per request, forever. So a
+handler that ignores its context can run past its deadline, and the page waits
+for it.
 
 Honouring it is one habit: pass `ctx` to everything that can wait.
 
@@ -406,7 +627,9 @@ func loadWeather(ctx context.Context, rc *collage.RenderContext) (*Weather, []st
 A handler that returns its context's error when time runs out fails like any
 other, with an error that still matches `errors.Is(err, context.DeadlineExceeded)`.
 The deadline is only an error if the handler says so: one that ignores `ctx` and
-returns `nil` late has succeeded, and its data renders. Pair a short timeout with a
+returns `nil` late has succeeded, and its data renders.
+
+Pair a short timeout with a
 fallback on anything that is nice to have, and the page stops waiting on a slow
 service at the point you chose.
 
@@ -428,8 +651,9 @@ reach it in your own code with `errors.As`.
 
 A template reads its data by name — `{{.Title}}`, `{{.Author.Name}}` — and
 `html/template` resolves those names only when the template runs. A `{{.Titel}}`
-fails every render of its page, and on a page nobody visits, it never shows. Since
-v0.49.0 every fragment's data comes from a typed constructor, so registration
+fails every render of its page, and on a page nobody visits, it never shows.
+
+Since v0.49.0 every fragment's data comes from a typed constructor, so registration
 knows the Go type each template will run with and walks the template against it.
 `RegisterPage` refuses a page whose templates do not fit their data, naming the
 page, the fragment, the file, the line and the column:
@@ -600,9 +824,11 @@ if err := app.RegisterPage(page); errors.Is(err, collage.ErrTemplateType) {
 
 The check runs where the other registration checks run: at startup, and so in
 [`collage check`](/docs/cli#collage-check), which starts the application, and in
-a test that registers the pages. Under `collage dev` a template edited while the
-program runs is reparsed but not checked again until the next restart, which is
-the next change to its Go code. [`collage inspect`](/docs/cli#collage-inspect)
+a test that registers the pages.
+
+Under `collage dev` a template edited while the program runs is reparsed but not
+checked again until the next restart, which is the next change to its Go code.
+[`collage inspect`](/docs/cli#collage-inspect)
 prints each fragment's data type, and the types it reaches, for an editor to check
 the same way.
 

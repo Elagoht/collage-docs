@@ -9,9 +9,31 @@ Bu rehberde sıfırdan açılmış bir projede küçük bir tarif sitesi kurars�
 `/recipes/{slug}` adresinde bir tarifi yükleyen ve onu sitenin layout'u içinde
 render eden bir page yazarsınız. Ardından ikinci bir fragment eklersiniz: diğer
 tariflerin listesi. Bu fragment o page'in bir slot'una yerleşir. Son olarak siteyi,
-her tarif için bir dosya olacak şekilde static olarak export edersiniz. Rehber
-yaklaşık on beş dakika sürer. İçindeki her parçayı, yazacağınız her page'de yeniden
-kullanacaksınız.
+her tarif için bir dosya olacak şekilde static olarak export edersiniz.
+
+Rehber yaklaşık on beş dakika sürer. İçindeki her adımı, yazacağınız her page'de
+yeniden kullanacaksınız.
+
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 230" role="img" aria-labelledby="yfp-page-title">
+<title id="yfp-page-title">/recipes/pancakes adresindeki tarif page'i bir ağaç olarak. Layout'un content slot'unda zorunlu recipe fragment'i durur; handler'ı loadRecipe, recipe:pancakes tag'ini bildirir ve fragment başlığı, süreyi ve malzemeleri render eder. Recipe template'i more adında bir slot çağırır. Bu slot'ta more fragment'i durur: handler'ı loadMore, recipes tag'ini bildirir, fragment Flatbread ve Omelette'i listeler ve başarısız olursa atlanır.</title>
+<rect class="d-frame" x="4" y="4" width="312" height="222" rx="8" />
+<text x="14" y="21">layout</text>
+<text class="d-small" x="306" y="21" text-anchor="end">/recipes/pancakes</text>
+<rect class="d-slot d-slot-a" x="14" y="30" width="292" height="186" rx="5" />
+<text class="d-slot-text-a d-small" x="24" y="44">slot "content"</text>
+<rect class="d-frame d-frame-a" x="24" y="52" width="272" height="154" rx="6" />
+<text class="d-slot-text-a" x="34" y="69">recipe</text>
+<rect class="d-chip-hit" x="196" y="57" width="90" height="18" rx="9" /><text class="d-hit-text d-small" x="241" y="69" text-anchor="middle">Required()</text>
+<text class="d-small" x="34" y="88">loadRecipe · tag recipe:pancakes</text>
+<text class="d-small" x="34" y="102">başlık · süre · malzemeler</text>
+<rect class="d-slot d-slot-b" x="34" y="112" width="252" height="84" rx="4" />
+<text class="d-small" x="44" y="126">slot "more"</text>
+<rect class="d-b" x="44" y="134" width="232" height="30" rx="4" /><text class="d-on-b" x="160" y="153" text-anchor="middle">more: Flatbread, Omelette</text>
+<text class="d-small" x="44" y="182">loadMore · tag recipes · hata: atlanır</text>
+</svg>
+<figcaption>Bu rehberde kurulan page, <code>/recipes/pancakes</code> adresinde. Sitenin layout'u, page'in content fragment'i olan <code>recipe</code>'yi kendi <code>content</code> slot'una yerleştirir. <code>recipe</code> zorunludur: handler'ı <code>loadRecipe</code> tarifi yükler ve <code>recipe:pancakes</code> tag'ini bildirir; fragment başarısız olursa page de başarısız olur. Bu fragment'in kendi template'i <code>more</code> adında bir slot çağırır. Bu slot'ta, <code>loadMore</code>'un <code>recipes</code> tag'iyle yüklediği diğer tariflerin listesi durur. <code>more</code> fragment'inin bir failure policy'si yoktur; başarısız olursa page onsuz sunulur.</figcaption>
+</figure>
 
 Go ve `collage` CLI kurulu olmalı; bkz. [Kurulum](/docs/installation).
 
@@ -23,6 +45,12 @@ cd cookbook
 go mod tidy
 collage dev
 ```
+
+`collage new` minimal projeyi yazar: tek bir page'i saran tek bir layout. Projenin
+`go.mod` dosyası modülü `cookbook` olarak adlandırır. Projenin kendi package'larının
+`cookbook/data/recipes`, `cookbook/fragments/pages` gibi import edilmesi bu
+yüzdendir. `go.mod` henüz hiçbir şeyi require etmez; collage'ın kendisini
+`go mod tidy` ekler.
 
 [http://localhost:6060](http://localhost:6060) adresini açın ve `collage dev`'i
 çalışır hâlde bırakın. Bundan sonra kaydettiğiniz her Go dosyası yeniden build
@@ -61,6 +89,7 @@ Template'i ise `templates/layouts/default.html` dosyasındadır:
 
 `{{slot "content"}}`, `content` adında bir slot'tur ve render edildiği yerdir. Go
 tarafında hiçbir şey tanımlanmaz: bir slot için template'in onu çağırması yeterlidir.
+
 Bu slot'u hiçbir zaman kendiniz de doldurmazsınız. Bir page register edildiğinde
 collage, page'in content fragment'ini bu slot'a yerleştirir. Tek bir layout'un
 bütün page'ler tarafından paylaşılabilmesi bu sayede olur.
@@ -186,6 +215,9 @@ func List(ctx context.Context) ([]Recipe, error) {
 	return list, nil
 }
 ```
+
+İki fragment de, sondaki export da tarifleri bu iki fonksiyon üzerinden okur. Bu
+sayede tariflerin nereden geldiği hiçbir page'e dokunmadan değişebilir.
 
 Buradaki iki ayrıntı ileride önem kazanacak. Birincisi, eksik bir tarif
 `collage.ErrNotFound`'un `%w` ile sarılmasıyla bildirilir. Framework "bu yok" (404)
@@ -359,7 +391,9 @@ ile siteye kendi page'inizi verebilirsiniz; bkz.
 Bir hatanın nasıl göründüğünü görmek için bilerek bir şeyi bozun. Template'te
 `{{.Title}}` ifadesini `{{.Name}}` olarak değiştirin, kaydedin ve tarayıcıyı
 yenileyin. Böyle bir alan olmadığı için zorunlu fragment başarısız olur ve page 500
-döner. Development'ta error page, hatanın başladığı fragment olarak
+döner.
+
+Development'ta error page, hatanın başladığı fragment olarak
 `recipe`'yi gösterir. Ayrıca hata zincirinin tamamını, `pages/recipes/recipe.html:2:8`
 konumuna ve bulunamayan alana kadar yazdırır. Sonra değişikliği geri alın.
 
@@ -373,9 +407,9 @@ bir `collage.ErrTemplateType` döner. Bkz.
 
 ## Bir slot'a ikinci bir fragment ekleyin
 
-Bir page nadiren tek parçadan oluşur. Diğer tariflerin listesini, kendi verisi olan
-ayrı bir fragment olarak ekleyin. `collage add fragment`, kendi page'i olmayan bir
-fragment'i page'in içeriğinin yanına yazar:
+Bir page nadiren tek bir kısımdan oluşur. Diğer tariflerin listesini, kendi verisi
+olan ayrı bir fragment olarak ekleyin. `collage add fragment`, kendi page'i
+olmayan bir fragment'i page'in içeriğinin yanına yazar:
 
 ```sh
 collage add fragment recipes/more --file
@@ -464,9 +498,10 @@ Slot'u hiçbir şey tanımlamaz. Layout'taki `{{slot "content"}}` gibi, template
 `{{slot "more"}}` tanımlar. Register işlemi, slot'a yapılan bağlamayı bu çağrıyla
 karşılaştırır. Bu yüzden iki taraftan birindeki bir yazım hatası
 (`WithSlotFragment("mroe", ...)`) programı `ErrUnknownSlot` ile durdurur. Hata,
-slot'u ve template'in gerçekten çağırdığı slot'ları söyler. Dosyaları kaydedin.
-Tarif page'inde artık diğer iki tarifin listesi var ve her biri kendi page'ine link
-veriyor.
+slot'u ve template'in gerçekten çağırdığı slot'ları söyler.
+
+Dosyaları kaydedin. Tarif page'inde artık diğer iki tarifin listesi var ve her biri
+kendi page'ine link veriyor. Bu, en baştaki diyagramda gördüğünüz page'dir.
 
 Bu page hakkında, hiçbir yerde açıkça yazılmamış üç şey geçerlidir.
 
@@ -545,13 +580,46 @@ collage export
 6 written · 0 skipped · 0 failed
 ```
 
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 268" role="img" aria-labelledby="yfp-export-title">
+<title id="yfp-export-title">collage export, handler'ı olmayan home page'i index.html'e yazar. Static() ve WithStaticParams'lı tarif page'i üç slug döndürür ve recipes/flatbread/index.html, recipes/omelette/index.html ve recipes/pancakes/index.html dosyalarına yazılır. Static mount, static/app.css'e ve static/app.hash.css'e kopyalanır.</title>
+<defs><marker id="yfp-export-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
+<rect class="d-cmd" x="100" y="8" width="120" height="24" rx="12" /><text class="d-cmd-text" x="160" y="24" text-anchor="middle">collage export</text>
+<text class="d-small" x="60" y="54" text-anchor="middle">kaynak</text>
+<text class="d-small" x="225" y="54" text-anchor="middle">dist/'e yazılan</text>
+<rect class="d-pill" x="10" y="64" width="100" height="26" rx="13" /><text x="60" y="81" text-anchor="middle">home</text>
+<text class="d-small" x="60" y="104" text-anchor="middle">handler yok</text>
+<line class="d-flow" x1="110" y1="77" x2="136" y2="77" marker-end="url(#yfp-export-arrow)" />
+<rect class="d-folder" x="140" y="64" width="170" height="26" rx="4" /><text class="d-small" x="225" y="81" text-anchor="middle">index.html</text>
+<rect class="d-a" x="10" y="118" width="100" height="26" rx="4" /><text class="d-on-a" x="60" y="135" text-anchor="middle">recipe</text>
+<text class="d-small" x="60" y="160" text-anchor="middle">Static()</text>
+<text class="d-small" x="60" y="173" text-anchor="middle">WithStaticParams</text>
+<text class="d-small" x="60" y="186" text-anchor="middle">3 slug</text>
+<line class="d-flow" x1="110" y1="131" x2="136" y2="130" marker-end="url(#yfp-export-arrow)" />
+<line class="d-flow" x1="110" y1="131" x2="136" y2="162" marker-end="url(#yfp-export-arrow)" />
+<line class="d-flow" x1="110" y1="131" x2="136" y2="194" marker-end="url(#yfp-export-arrow)" />
+<rect class="d-folder" x="140" y="118" width="170" height="24" rx="4" /><text class="d-small" x="225" y="134" text-anchor="middle">recipes/flatbread/index.html</text>
+<rect class="d-folder" x="140" y="150" width="170" height="24" rx="4" /><text class="d-small" x="225" y="166" text-anchor="middle">recipes/omelette/index.html</text>
+<rect class="d-folder" x="140" y="182" width="170" height="24" rx="4" /><text class="d-small" x="225" y="198" text-anchor="middle">recipes/pancakes/index.html</text>
+<rect class="d-pill" x="10" y="224" width="100" height="26" rx="13" /><text x="60" y="241" text-anchor="middle">static/</text>
+<line class="d-flow" x1="110" y1="237" x2="136" y2="225" marker-end="url(#yfp-export-arrow)" />
+<line class="d-flow" x1="110" y1="237" x2="136" y2="251" marker-end="url(#yfp-export-arrow)" />
+<rect class="d-folder" x="140" y="214" width="170" height="22" rx="4" /><text class="d-small" x="225" y="229" text-anchor="middle">static/app.css</text>
+<rect class="d-folder" x="140" y="240" width="170" height="22" rx="4" /><text class="d-small" x="225" y="255" text-anchor="middle">static/app.&lt;hash&gt;.css</text>
+</svg>
+<figcaption><code>collage export</code>'un cookbook için yazdıkları. Home page'in data handler'ı yoktur, bu yüzden static'tir ve <code>dist/index.html</code> olur. Tarif page'i, birçok URL'si olan tek bir page'dir: <code>Static()</code> onun prerender edilmesine izin verir, <code>WithStaticParams</code> da her tarif için bir <code>slug</code> döndürür. Böylece her tarif, static bir host'un o path için sunduğu dosya olan <code>dist/recipes/&lt;slug&gt;/index.html</code> olur. Mount edilmiş <code>static/</code> dosyaları hem kendi adlarıyla hem de <code>{{asset}}</code>'in link verdiği hash'li adlarla kopyalanır.</figcaption>
+</figure>
+
 Her tarif için bir dosya yazıldı. Her biri, bir request'in çalıştıracağı handler'lar
 tarafından, o request'in taşıyacağı `slug` ile render edildi. Home page de siz bir
 şey söylemeden oradadır: handler'ı yoktur, yani baştan beri static'tir.
+
 `WithStaticParams` olmasaydı tarif page'i atlanır ve raporda adıyla gösterilirdi.
 Prerender edemediği bir page içerdiği için build hatalı sayılmaz. `Static()`
-olmasaydı da dynamic olduğu için atlanırdı. `collage serve`, `dist/`'i bir static
-host'un göstereceği gibi gösterir; bkz. [Static export](/docs/static-export).
+olmasaydı da dynamic olduğu için atlanırdı.
+
+`collage serve`, `dist/`'i bir static host'un göstereceği gibi gösterir; bkz.
+[Static export](/docs/static-export).
 
 Listede olmayan bir tarif için dosya yazılmaz, ama çalışan bir server ona yine cevap
 verir: `WithStaticParams`'ı yalnızca build okur. `/recipes/lasagne` her iki durumda
@@ -562,8 +630,11 @@ da 404 olarak kalır.
 Bir collage uygulaması sunucu çalıştırmadan test edilir. `app.Handler()` sıradan bir
 `http.Handler`'dır ve `pkg/collagetest` onu bir tarayıcının yaptığı gibi çalıştırır:
 cookie'ler saklanır, form'lar gizli alanlarıyla gönderilir, redirect'ler takip
-edilmeye hazırdır. `main_test.go` dosyasını oluşturun. İçine, uygulamayı `main`'in
-kullandığı `newApp` fonksiyonuyla kuran bir yardımcı fonksiyon ve bir test yazın:
+edilmeye hazırdır.
+
+Siz bakmayı bıraktıktan sonra page'i çalışır tutan şey bir test'tir.
+`main_test.go` dosyasını oluşturun. İçine, uygulamayı `main`'in kullandığı
+`newApp` fonksiyonuyla kuran bir yardımcı fonksiyon ve bir test yazın:
 
 ```go
 package main

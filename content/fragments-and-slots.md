@@ -389,7 +389,7 @@ func loadProduct(ctx context.Context, rc *collage.RenderContext) (product, []str
 	if err != nil {
 		return product{}, nil, err
 	}
-	return p, []string{"product:" + id}, nil
+	return product{ID: p.ID, Name: p.Name, Price: p.Price}, []string{"product:" + id}, nil
 }
 
 func loadStock(ctx context.Context, rc *collage.RenderContext) (stockLevel, error) {

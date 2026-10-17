@@ -144,22 +144,47 @@ page := collage.NewPage("login").
 	Build()
 ```
 
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 150" role="img" aria-labelledby="pl-chain-title">
+<title id="pl-chain-title">Register işleminden sonra login page'inin layout zinciri. En dıştaki layout olan Master'ın content slot'unda, ikinci ve en içteki layout olan auth layout'u durur. Auth layout'unun content slot'unda da login content fragment'i durur.</title>
+<rect class="d-frame" x="4" y="4" width="312" height="142" rx="8" />
+<text x="14" y="21">Master()</text>
+<text class="d-small" x="306" y="21" text-anchor="end">1. · en dıştaki</text>
+<rect class="d-slot d-slot-a" x="14" y="30" width="292" height="106" rx="5" />
+<text class="d-slot-text-a d-small" x="24" y="44">slot "content"</text>
+<rect class="d-frame d-frame-a" x="24" y="52" width="272" height="76" rx="6" />
+<text class="d-slot-text-a" x="34" y="69">Auth()</text>
+<text class="d-small" x="286" y="69" text-anchor="end">2. · en içteki</text>
+<rect class="d-slot d-slot-c" x="34" y="78" width="252" height="42" rx="4" />
+<text class="d-small" x="40" y="103">slot "content"</text>
+<rect class="d-c" x="126" y="84" width="152" height="30" rx="4" />
+<text class="d-on-c" x="202" y="103" text-anchor="middle">login · content</text>
+</svg>
+<figcaption><code>WithLayouts(layouts.Master(), layouts.Auth())</code> zinciri en dıştakinden başlayarak sıralar. İç içe yerleştirmeyi register işlemi yapar: login içeriği en içteki layout olan <code>Auth()</code>'un content slot'una, <code>Auth()</code> da <code>Master()</code>'ın content slot'una girer. Bu yerleştirmelerin her biri, layout'un slot tablosunun page'e ait kopyası üzerinde yapılır.</figcaption>
+</figure>
+
 Tek bir layout içeriği nasıl render ediyorsa, zincirdeki her layout da
 içindekini `{{slot "content"}}` ile öyle render eder. Sarmalamanın tamamını
 register işlemi yapar. İçerik en içteki layout'un `content` slot'una, her layout
-da kendisini saran layout'un `content` slot'una girer. Bu yüzden içinde boşluk
-bırakan bir layout da bitmiş bir `*collage.Fragment`'tir. Onu oluşturan bir
-yardımcı fonksiyon, page'in tamamlaması gereken bir builder değil, build edilmiş
-fragment'i döner.
+da kendisini saran layout'un `content` slot'una girer.
+
+Bu yüzden içinde boşluk bırakan bir layout da bitmiş bir `*collage.Fragment`'tir.
+Onu oluşturan bir yardımcı fonksiyon, page'in tamamlaması gereken bir builder değil,
+build edilmiş fragment'i döner.
 
 Tek bir layout'ta olduğu gibi her page, zincirdeki her layout'un slot tablosunun
 kendine ait bir kopyasını alır. Bu yüzden zincirin layout'ları site genelinde
 paylaşılabilir. Zincirdeki bir layout'un `content` slot'u boş gelmelidir, çünkü onu
 register işlemi doldurur. Dolu gelen bir layout `ErrSlotOccupied` ile reddedilir.
 
-`WithLayouts`, hiç layout verilmeden çağrılırsa `ErrMissingLayout`, nil bir layout
-için `ErrNilFragment`, aynı layout iki kez verilirse `ErrFragmentCycle`, aynı
-builder'da ikinci kez çağrılırsa `ErrConflictingLayout` kaydeder.
+`WithLayouts` şu durumlarda, register işleminin reddettiği bir hata kaydeder:
+
+| Çağrı | Hata |
+| --- | --- |
+| hiç layout verilmeden | `ErrMissingLayout` |
+| nil bir layout ile | `ErrNilFragment` |
+| aynı layout iki kez verilerek | `ErrFragmentCycle` |
+| aynı builder'da ikinci kez | `ErrConflictingLayout` |
 
 ## Private page'ler: guard'lar
 
@@ -200,9 +225,36 @@ parametreyle çalışır.
 Bir guard, page'in **omurgasında** olduğunda o page için sorulur: page'in
 zincirindeki bir layout ya da page'in content fragment'i. Guard'lar en dıştakinden
 başlayarak çalışır, content fragment'inki en son sorulur ve ilk cevap veren karar
-verir. Başka bir fragment'teki guard yok sayılır: bir slot'a bağlanan, bir
-resolver'ın döndüğü ya da fallback olan fragment'lerdekiler. Bir page'i kimin
-görebileceği, onu oluşturan fragment'lerin değil, page'in kendi özelliğidir.
+verir.
+
+Başka bir fragment'teki guard yok sayılır: bir slot'a bağlanan, bir resolver'ın
+döndüğü ya da fallback olan fragment'lerdekiler. Bir page'i kimin görebileceği,
+onu oluşturan fragment'lerin değil, page'in kendi özelliğidir.
+
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 306" role="img" aria-labelledby="pl-spine-title">
+<title id="pl-spine-title">/admin/users için gelen bir request, page'in omurgasındaki guard'lardan en dıştakinden başlayarak geçer. Master'ın guard'ı yoktur. Account'un guard'ı giriş yapmamış bir okuyucuya /login'e 303 ile cevap verir. Admin'in guard'ı admin olmayan bir okuyucuya body'siz bir 403 ile cevap verir. Content fragment'i olan admin-users en son sorulur. Page ancak hiçbir guard cevap vermediğinde render edilir; cache'lenen bir page'de cache de ancak guard'lardan sonra okunur. Bir slot'a bağlanan menu fragment'i omurgada değildir, bu yüzden üzerindeki bir guard sorulmaz.</title>
+<defs><marker id="pl-spine-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
+<rect class="d-pill" x="40" y="6" width="140" height="24" rx="12" /><text x="110" y="22" text-anchor="middle">GET /admin/users</text>
+<line class="d-flow" x1="110" y1="30" x2="110" y2="44" marker-end="url(#pl-spine-arrow)" />
+<rect class="d-frame" x="20" y="48" width="180" height="34" rx="6" /><text x="110" y="62" text-anchor="middle">Master</text><text class="d-small" x="110" y="75" text-anchor="middle">1. layout · guard yok</text>
+<line class="d-flow" x1="110" y1="82" x2="110" y2="96" marker-end="url(#pl-spine-arrow)" />
+<rect class="d-a" x="20" y="100" width="180" height="34" rx="6" /><text class="d-on-a" x="110" y="114" text-anchor="middle">Account</text><text class="d-on-a d-small" x="110" y="127" text-anchor="middle">2. layout · RequireUser</text>
+<line class="d-flow" x1="200" y1="117" x2="212" y2="117" marker-end="url(#pl-spine-arrow)" />
+<rect class="d-chip" x="216" y="100" width="100" height="34" rx="6" /><text class="d-small" x="266" y="114" text-anchor="middle">giriş yapmamış</text><text class="d-small" x="266" y="127" text-anchor="middle">303 · /login</text>
+<line class="d-flow" x1="110" y1="134" x2="110" y2="148" marker-end="url(#pl-spine-arrow)" />
+<rect class="d-a" x="20" y="152" width="180" height="34" rx="6" /><text class="d-on-a" x="110" y="166" text-anchor="middle">Admin</text><text class="d-on-a d-small" x="110" y="179" text-anchor="middle">3. layout · requireRole</text>
+<line class="d-flow" x1="200" y1="169" x2="212" y2="169" marker-end="url(#pl-spine-arrow)" />
+<rect class="d-chip" x="216" y="152" width="100" height="34" rx="6" /><text class="d-small" x="266" y="166" text-anchor="middle">admin değil</text><text class="d-small" x="266" y="179" text-anchor="middle">403 · body'siz</text>
+<line class="d-flow" x1="110" y1="186" x2="110" y2="200" marker-end="url(#pl-spine-arrow)" />
+<rect class="d-frame" x="20" y="204" width="180" height="34" rx="6" /><text x="110" y="218" text-anchor="middle">admin-users</text><text class="d-small" x="110" y="231" text-anchor="middle">content · en son sorulur</text>
+<g class="d-dropped"><rect class="d-frame" x="216" y="204" width="100" height="34" rx="6" /><text class="d-small" x="266" y="218" text-anchor="middle">menu · slot'ta</text><text class="d-small" x="266" y="231" text-anchor="middle">guard sorulmaz</text></g>
+<line class="d-flow" x1="110" y1="238" x2="110" y2="252" marker-end="url(#pl-spine-arrow)" />
+<rect class="d-c" x="20" y="256" width="180" height="24" rx="6" /><text class="d-on-c" x="110" y="272" text-anchor="middle">page render edilir</text>
+<text class="d-small" x="160" y="298" text-anchor="middle">en dıştaki önce · ilk cevap karar verir</text>
+</svg>
+<figcaption><a href="#example-a-blog-with-a-private-area">Örnek: private bir bölümü olan bir blog</a> bölümündeki admin page'inin omurgası. Bir request önce layout'larının guard'larından, en dıştakinden başlayarak geçer, sonra content fragment'inkinden. Cevap veren ilk guard'ın cevabı gönderilir ve sonrasında hiçbir şey çalışmaz: giriş yapmamış bir okuyucu account layout'undan login page'ine bir redirect alır, giriş yapmış ama admin olmayan bir okuyucu da admin layout'undan body'siz bir 403 alır. Render'a ve cache'lenen bir page'de cache'e yalnızca hiçbir guard'ın cevap vermediği bir request ulaşır; cache ancak guard'lardan sonra okunur. Admin menüsü gibi bir slot'a bağlanan bir fragment'teki guard sorulmaz.</figcaption>
+</figure>
 
 Guard üç şekilde cevap verir:
 
@@ -230,7 +282,7 @@ Guard'ın kapsadıkları:
   body okunmadan ve forgery kontrolünden önce çalışır.
 - **Page'in fragment path'leri.**
   [`WithFragmentPath`](/docs/forms-and-actions#a-fragment-at-its-own-url) ile kendi
-  URL'sinde açılan bir fragment page'in bir parçasıdır. v0.34.0'dan beri
+  URL'sinde açılan bir fragment page'in bir kısmıdır. v0.34.0'dan beri
   fragment'in kendi guard'ından önce page'in guard'larından geçer. Öncesinde bir
   fragment path yalnızca fragment'inin guard'ını çalıştırırdı. Private bir
   page'deki fragment path de, o fragment bir guard taşımıyorsa public'ti.
@@ -239,13 +291,18 @@ Guard'ın kapsadıkları:
   okuyucuyu redirect ederdi.
 
 Guard'ın izin verdiği okuyucular page'in cache'ini paylaşır; bu cache sunucunun
-kendi cache'idir. Sunucunun önündeki bir CDN ya da proxy guard çalıştırmaz. Bu
+kendi cache'idir. Bir şey onlar için cache'i atlamadıkça böyledir:
+[elagoht/session](/docs/plugins#elagohtsession) session'ı olan her okuyucu için
+cache'i atlar. Sunucunun önündeki bir CDN ya da proxy guard çalıştırmaz. Bu
 yüzden guard'lı bir page, stratejisi ne derse desin `Cache-Control: private,
-no-cache` ile gönderilir. v0.34.0'dan beri guard'ın kendi cevabı (giriş yapmaya
-yönlendiren bir redirect, bir ret) `no-store` ile gönderilir. Böylece varsayılan
-olarak bir 404'ü ya da 308'i saklayan bir CDN, bir okuyucuya verilen cevabı
-sonrakine vermez. İçeriği okuyucudan okuyucuya değişen bir page ise guard
-değil kişiselleştirme konusudur; bkz. [Caching](/docs/caching#render-strategies).
+no-cache` ile gönderilir.
+
+v0.34.0'dan beri guard'ın kendi cevabı (giriş yapmaya yönlendiren bir redirect, bir
+ret) `no-store` ile gönderilir. Böylece varsayılan olarak bir 404'ü ya da 308'i
+saklayan bir CDN, bir okuyucuya verilen cevabı sonrakine vermez.
+
+İçeriği okuyucudan okuyucuya değişen bir page ise guard değil kişiselleştirme
+konusudur; bkz. [Caching](/docs/caching#render-strategies).
 [Static export](/docs/static-export#what-is-skipped) guard'lı page'leri hiç yazmaz.
 
 Guard'ın neyi kontrol ettiği framework'ün bilebileceği bir şey değildir. Yukarıdaki
@@ -282,13 +339,15 @@ ile okur. Değerler percent-decode edilmiş olarak ve segment segment gelir.
 
 v0.34.0'dan beri encode edilmiş bir slash (`%2F`) içeren bir segment 404 döner.
 URL standardına göre `%2F` bir ayırıcı değildir: `/public%2Fsecret`, değeri
-`public/secret` olan tek bir segment'tir. Ama Go, path'i hiçbir middleware okumadan
-önce decode edip `r.URL.Path`'e yazar. Orada `/public%2Fsecret` artık
-`/public/secret` olmuştur ve encode edilmiş slash gerçek bir slash'ten ayırt
-edilemez. Yani router'ın tek segment gördüğü yerde middleware iki segment görür.
-Tek segment'i eşleyen bir router (collage'ın eskiden yaptığı gibi), middleware'in
-başka bir şey olarak değerlendirdiği bir request'i sunmuş olurdu. Bu yüzden collage
-iki okumadan hiçbirini sunmaz.
+`public/secret` olan tek bir segment'tir.
+
+Ama Go, path'i hiçbir middleware okumadan önce decode edip `r.URL.Path`'e yazar.
+Orada `/public%2Fsecret` artık `/public/secret` olmuştur ve encode edilmiş slash
+gerçek bir slash'ten ayırt edilemez. Yani router'ın tek segment gördüğü yerde
+middleware iki segment görür. Tek segment'i eşleyen bir router (collage'ın eskiden
+yaptığı gibi), middleware'in başka bir şey olarak değerlendirdiği bir request'i
+sunmuş olurdu. Bu yüzden collage iki okumadan hiçbirini sunmaz.
+
 Kendisi bir path olan bir değer, örneğin `guide/intro`, bir catch-all'da yer
 almalıdır: `{rest...}`. `{{pageURL}}` ve `BuildPath`, tek bir segment'in
 değerindeki `/`'ı reddeder.
@@ -362,17 +421,22 @@ Bir form, üzerinde bulunduğu page'e bu sayede post eder.
 
 Locale'ler, `/tr/hakkinda` gibi locale prefix'leri, `/en/about`'u `/about`'a
 gönderen redirect ve page adlarından link üretmek
-[Link'ler ve locale'ler](/docs/links-and-locales) sayfasında anlatılıyor. Bir page
-ayrıca eski URL'lerden redirect'ler de taşıyabilir. Bunun için
+[Link'ler ve locale'ler](/docs/links-and-locales) sayfasında anlatılıyor.
+
+Bir page ayrıca eski URL'lerden redirect'ler de taşıyabilir. Bunun için
 `WithRedirect(from, to, status)` ve `WithPermanentRedirect(from, to)` kullanılır.
-v0.34.0'dan beri bir redirect, request'in query string'ini hedefine taşır. Yakaladığı
-bir değer, düştüğü yere göre escape edilir: bir path segment'i ya da `?` işaretinden
-sonraki bir query değeri. Böylece `/login?next={slug}`'a ikinci bir `next`
-verilemez. Siteden çıkacak bir hedef (`//host` ya da `/\host`) ise register sırasında
-`ErrInvalidPath` olur. v0.52.0'dan beri iki path'ten birinde satır sonu gibi bir
-control karakteri olması `ErrInvalidRedirect` olur. Static export da yazdığı bir
-page'in üstüne düşen bir redirect'te başarısız olur; bkz.
-[Static export](/docs/static-export#what-fails).
+v0.34.0'dan beri:
+
+- bir redirect, request'in query string'ini hedefine taşır;
+- yakaladığı bir değer, düştüğü yere göre escape edilir: bir path segment'i ya da
+  `?` işaretinden sonraki bir query değeri. Böylece `/login?next={slug}`'a ikinci
+  bir `next` verilemez;
+- siteden çıkacak bir hedef (`//host` ya da `/\host`) register sırasında
+  `ErrInvalidPath` olur.
+
+v0.52.0'dan beri iki path'ten birinde satır sonu gibi bir control karakteri olması
+`ErrInvalidRedirect` olur. Static export da yazdığı bir page'in üstüne düşen bir
+redirect'te başarısız olur; bkz. [Static export](/docs/static-export#what-fails).
 
 ## Render stratejileri
 
@@ -604,3 +668,191 @@ Bir page'e değer üzerinden başvuran her şey o değeri kullanmalıdır:
 Bu kopyalar incelemek içindir: örneğin her page'in path'lerini listeleyen bir
 sitemap ya da bir stratejiyi kontrol eden bir test. Kopya, register edilmiş değer
 değildir. Bu yüzden register edilmiş bir page beklenen yere kopya vermeyin.
+
+## Örnek: private bir bölümü olan bir blog
+
+Çok kullanıcılı bir blogda üç tür page vardır. Yazılar public'tir. Giriş yapmış her
+yazarın taslaklarını listeleyen bir hesap page'i vardır. Admin'lerin ayrıca
+kullanıcıları listeleyen bir page'i vardır. Üçü aynı iskeleti paylaşır; private
+olanlar, kimin girebileceğini söyleyen layout'ların içinde durur:
+
+| Page | Path | Layout'lar, en dıştakinden başlayarak | Strateji |
+| --- | --- | --- | --- |
+| `post` | `/blog/{slug}` | `Master` | `Incremental(10 * time.Minute)` |
+| `account` | `/account` | `Master`, `Account` | tanımlanmamış: data handler'ı olduğu için dynamic |
+| `admin-users` | `/admin/users` | `Master`, `Account`, `Admin` | tanımlanmamış: data handler'ı olduğu için dynamic |
+| `not-found`, `error` | path yok | `Master` | `Dynamic()` |
+
+Guard'ları layout'lar taşır. `Account`,
+[session plugin'inin](/docs/plugins#elagohtsession) `RequireUser`'ını kullanır. Bu
+guard, giriş yapmamış bir okuyucuyu gitmek istediği yeri `next` içinde taşıyarak
+`/login`'e gönderir. `Admin` bir rolü kontrol eder. Rol, bu uygulamanın kendi login
+action'ının yazdığı `"role"` session key'inde durur; plugin yalnızca kullanıcı
+key'ini tanımlar.
+
+```go
+// Master is the site's shell: <head>, header, footer.
+func Master() *collage.Fragment {
+	return collage.NewFragment("layout", "layouts/default.html").
+		WithTitle("My blog").
+		Build()
+}
+
+// Account is the signed-in area. Its guard sends everyone else to log in.
+func Account() *collage.Fragment {
+	return collage.NewFragment("account-layout", "layouts/account.html").
+		WithGuard(session.RequireUser("/login")).
+		Build()
+}
+
+// Admin sits inside Account and lets only admins through.
+func Admin() *collage.Fragment {
+	menu := collage.NewFragment("admin-menu", "fragments/admin-menu.html").Build()
+
+	return collage.NewFragment("admin-layout", "layouts/admin.html").
+		WithGuard(requireRole("admin")).
+		WithSlotFragment("menu", menu).
+		Build()
+}
+
+// requireRole lets through a reader whose session holds role under "role",
+// which the login action sets. Anyone else gets a bare 403.
+func requireRole(role string) collage.GuardFunc {
+	return func(ctx context.Context, _ *http.Request) (*collage.GuardDecision, error) {
+		if session.FromContext(ctx).Get("role") == role {
+			return nil, nil
+		}
+		return &collage.GuardDecision{Status: http.StatusForbidden}, nil
+	}
+}
+```
+
+Admin layout'u iki slot'unu da çağırır: yukarıda bağlanan `menu`'yü ve register
+işleminin doldurduğu `content`'i. `layouts/account.html` de aynıdır, yalnızca
+`content`'i çağırır.
+
+```html
+<!-- templates/layouts/admin.html -->
+<div class="admin">
+  <nav>{{slot "menu"}}</nav>
+  <main>{{slot "content"}}</main>
+</div>
+```
+
+Bir page'in public ya da private olması yalnızca listelediği layout'lara bağlıdır:
+
+```go
+// Post is public and cached; an unknown slug is a 404.
+func Post() *collage.Page {
+	content := collage.NewFragment("post", "pages/post.html").
+		WithData(collage.LoadTagged(func(ctx context.Context, rc *collage.RenderContext) (store.Post, []string, error) {
+			slug := rc.Param("slug")
+			// PostBySlug wraps collage.ErrNotFound for a slug it does not know.
+			post, err := store.PostBySlug(ctx, slug)
+			return post, []string{"post:" + slug}, err
+		})).
+		Required().
+		Build()
+
+	return collage.NewPage("post").
+		WithLayouts(layouts.Master()).
+		WithContent(content).
+		WithPath("en", "/blog/{slug}").
+		Incremental(10 * time.Minute).
+		Build()
+}
+
+// Account lists the signed-in reader's drafts.
+func Account() *collage.Page {
+	content := collage.NewFragment("account", "pages/account.html").
+		WithData(collage.Load(func(ctx context.Context, rc *collage.RenderContext) ([]store.Draft, error) {
+			return store.Drafts(ctx, session.Get(rc).Get(session.UserKey))
+		})).
+		Build()
+
+	return collage.NewPage("account").
+		WithLayouts(layouts.Master(), layouts.Account()).
+		WithContent(content).
+		WithPath("en", "/account").
+		Build()
+}
+
+// AdminUsers is for admins only: it sits in both guarded layouts.
+func AdminUsers() *collage.Page {
+	content := collage.NewFragment("admin-users", "pages/admin-users.html").
+		WithData(collage.Load(func(ctx context.Context, _ *collage.RenderContext) ([]store.User, error) {
+			return store.Users(ctx)
+		})).
+		Build()
+
+	return collage.NewPage("admin-users").
+		WithLayouts(layouts.Master(), layouts.Account(), layouts.Admin()).
+		WithContent(content).
+		WithPath("en", "/admin/users").
+		Build()
+}
+
+// NotFound and Error wrap the shell alone, so they look like the public site.
+func NotFound() *collage.Page {
+	content := collage.NewFragment("not-found-content", "pages/404.html").Build()
+
+	return collage.NewPage("not-found").
+		WithLayouts(layouts.Master()).
+		WithContent(content).
+		Dynamic().
+		Build()
+}
+
+func Error() *collage.Page {
+	content := collage.NewFragment("error-content", "pages/500.html").Build()
+
+	return collage.NewPage("error").
+		WithLayouts(layouts.Master()).
+		WithContent(content).
+		Dynamic().
+		Build()
+}
+```
+
+```go
+func register(app *collage.App) error {
+	if err := app.Register(
+		pages.Post(),
+		pages.Account(),
+		pages.AdminUsers(),
+	); err != nil {
+		return err
+	}
+	if err := app.RegisterNotFoundPage(pages.NotFound()); err != nil {
+		return err
+	}
+	return app.RegisterErrorPage(pages.Error())
+}
+```
+
+Her okuyucunun aldığı cevap:
+
+| Request | Okuyucu | Cevap |
+| --- | --- | --- |
+| `/blog/hello` | giriş yapmamış | Yazı; cache açıksa on dakika geçene kadar cache'ten |
+| `/blog/hello` | giriş yapmış | Yazı, yeniden render edilir: session plugin'i session'ı olan okuyucu için cache'i atlar |
+| `/blog/no-such-post` | herkes | `404` ve sitenin not-found page'i, iskeletin içinde |
+| `/account` | giriş yapmamış | `/login?next=%2Faccount`'a `303` |
+| `/admin/users` | giriş yapmamış | `/login?next=%2Fadmin%2Fusers`'a `303`: önce account guard'ı cevap verir, rol hiç kontrol edilmez |
+| `/admin/users` | giriş yapmış, admin değil | Body'siz bir `403` |
+| `/admin/users` | bir admin | Page |
+
+Yukarıdaki kurallardan birkaç sonuç çıkar:
+
+- **Private path listesi yoktur.** `/admin` altındaki yeni bir page, path'inin
+  nasıl başladığı yüzünden değil, `layouts.Admin()`'i listelediği için private'tır.
+  Bunu unutan bir page public'tir. Bu yüzden `collage inspect`'e bakmaya değer:
+  her page için guard taşıyan fragment'leri listeler.
+- **Admin menüsünün guard'ı sorulmazdı.** Menü bir slot'a bağlıdır, omurgada
+  değildir. Bölümü korumak admin layout'unun işidir.
+- **Private page'ler ortak cache'lere girmez.** Account ve admin page'leri
+  `Cache-Control: private, no-cache` ile, `303` ve `403` ise `no-store` ile
+  gönderilir. Static export da iki page'i de yazmaz.
+- **Error page'ler herkes için render edilir.** Yalnızca `Master()`'ı sararlar ve
+  başarısız olan page'in guard'ları onlar için sorulmaz. Böylece hatayla karşılaşan
+  bir okuyucu, hatayı görmek yerine giriş yapmaya yönlendirilmez.

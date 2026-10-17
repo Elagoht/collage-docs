@@ -458,14 +458,33 @@ func (p *Page) align(doc ast.Node, source []byte, name string, original *Page) e
 // markdownLink is a Markdown link to another page, with an optional fragment.
 var markdownLink = regexp.MustCompile(`\]\(/docs/([a-z0-9-]+)(#[^)\s]*)?\)`)
 
-// markdownText is body without its title line, and with the links retarget
-// would rewrite in the HTML rewritten the same way in the text.
+// diagram is a figure drawn for the page, and its caption.
+var diagram = regexp.MustCompile(`(?s)<figure class="diagram-figure"[^>]*>.*?<figcaption>(.*?)</figcaption>\s*</figure>`)
+
+// captionMarkup is what a caption's text carries besides words: inline code, and
+// any other tag.
+var captionMarkup = regexp.MustCompile(`</?code>|<[^>]+>`)
+
+// markdownText is body without its title line, with every diagram replaced by its
+// caption, and with the links retarget would rewrite in the HTML rewritten the
+// same way in the text. A diagram is drawn for the page; what it says in words is
+// its caption, and an SVG is noise to a reader of Markdown.
 func markdownText(body []byte, linkTo func(slug string) string) string {
 	text := string(body)
 	lines := strings.SplitN(strings.TrimLeft(text, "\n"), "\n", 2)
 	if strings.HasPrefix(lines[0], "# ") && len(lines) == 2 {
 		text = lines[1]
 	}
+	text = diagram.ReplaceAllStringFunc(text, func(figure string) string {
+		caption := diagram.FindStringSubmatch(figure)[1]
+		caption = captionMarkup.ReplaceAllStringFunc(caption, func(tag string) string {
+			if tag == "<code>" || tag == "</code>" {
+				return "`"
+			}
+			return ""
+		})
+		return "Diagram: " + strings.TrimSpace(caption)
+	})
 	text = markdownLink.ReplaceAllStringFunc(text, func(link string) string {
 		match := markdownLink.FindStringSubmatch(link)
 		return "](" + linkTo(match[1]) + match[2] + ")"
