@@ -29,6 +29,59 @@ app, err := collage.New(&collage.Config{
 Passing `nil` is an error. A nil configuration is a mistake rather than a
 request for defaults, because the configuration says where your templates are.
 
+A scaffolded project builds its configuration in `newApp`, in `main.go`. What
+changes between your machine and a server comes from the environment; the rest is
+written there:
+
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 456" role="img" aria-labelledby="config-shape-title">
+<title id="config-shape-title">Where the scaffolded main.go gets each field of collage.Config. From the environment: DevMode from COLLAGE_DEV=1, BaseURL from BASE_URL, Server.Host from HOST, Server.Port from the -port flag, whose default is PORT or 6060, and Security.CSRFKey from COLLAGE_CSRF_KEY. Set in main.go and the files beside it: PluginConfig from plugins-config.json, Plugins from plugins() in plugins.go, Template from the embedded templates directory, and Cache as a disk cache under .cache with a five-minute TTL. Not set, keeping their defaults: Locale, en only, Logger, DevWatch, TrailingSlash and Observability. The whole value goes to collage.New, which fills in defaults, validates and builds the application.</title>
+<defs><marker id="config-shape-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
+<text class="d-small" x="78" y="14" text-anchor="middle">in the scaffold's main.go</text>
+<text class="d-small" x="242" y="14" text-anchor="middle">collage.Config field</text>
+<text class="d-small" x="160" y="34" text-anchor="middle">read from the environment</text>
+<rect class="d-pill" x="6" y="40" width="144" height="24" rx="12" /><text class="d-small" x="78" y="56" text-anchor="middle">COLLAGE_DEV=1</text>
+<line class="d-flow" x1="150" y1="52" x2="166" y2="52" marker-end="url(#config-shape-arrow)" />
+<rect class="d-a" x="170" y="40" width="144" height="24" rx="5" /><text class="d-on-a" x="242" y="56" text-anchor="middle">DevMode</text>
+<rect class="d-pill" x="6" y="70" width="144" height="24" rx="12" /><text class="d-small" x="78" y="86" text-anchor="middle">BASE_URL</text>
+<line class="d-flow" x1="150" y1="82" x2="166" y2="82" marker-end="url(#config-shape-arrow)" />
+<rect class="d-a" x="170" y="70" width="144" height="24" rx="5" /><text class="d-on-a" x="242" y="86" text-anchor="middle">BaseURL</text>
+<rect class="d-pill" x="6" y="100" width="144" height="24" rx="12" /><text class="d-small" x="78" y="116" text-anchor="middle">HOST</text>
+<line class="d-flow" x1="150" y1="112" x2="166" y2="112" marker-end="url(#config-shape-arrow)" />
+<rect class="d-a" x="170" y="100" width="144" height="24" rx="5" /><text class="d-on-a" x="242" y="116" text-anchor="middle">Server.Host</text>
+<rect class="d-pill" x="6" y="130" width="144" height="24" rx="12" /><text class="d-small" x="78" y="146" text-anchor="middle">-port, PORT or 6060</text>
+<line class="d-flow" x1="150" y1="142" x2="166" y2="142" marker-end="url(#config-shape-arrow)" />
+<rect class="d-a" x="170" y="130" width="144" height="24" rx="5" /><text class="d-on-a" x="242" y="146" text-anchor="middle">Server.Port</text>
+<rect class="d-pill" x="6" y="160" width="144" height="24" rx="12" /><text class="d-small" x="78" y="176" text-anchor="middle">COLLAGE_CSRF_KEY</text>
+<line class="d-flow" x1="150" y1="172" x2="166" y2="172" marker-end="url(#config-shape-arrow)" />
+<rect class="d-a" x="170" y="160" width="144" height="24" rx="5" /><text class="d-on-a" x="242" y="176" text-anchor="middle">Security.CSRFKey</text>
+<text class="d-small" x="160" y="202" text-anchor="middle">set in main.go and the files beside it</text>
+<rect class="d-folder" x="6" y="208" width="144" height="24" rx="4" /><text class="d-small" x="78" y="224" text-anchor="middle">plugins-config.json</text>
+<line class="d-flow" x1="150" y1="220" x2="166" y2="220" marker-end="url(#config-shape-arrow)" />
+<rect class="d-b" x="170" y="208" width="144" height="24" rx="5" /><text class="d-on-b" x="242" y="224" text-anchor="middle">PluginConfig</text>
+<rect class="d-folder" x="6" y="238" width="144" height="24" rx="4" /><text class="d-small" x="78" y="254" text-anchor="middle">plugins() in plugins.go</text>
+<line class="d-flow" x1="150" y1="250" x2="166" y2="250" marker-end="url(#config-shape-arrow)" />
+<rect class="d-b" x="170" y="238" width="144" height="24" rx="5" /><text class="d-on-b" x="242" y="254" text-anchor="middle">Plugins</text>
+<rect class="d-folder" x="6" y="268" width="144" height="24" rx="4" /><text class="d-small" x="78" y="284" text-anchor="middle">embedded templates/</text>
+<line class="d-flow" x1="150" y1="280" x2="166" y2="280" marker-end="url(#config-shape-arrow)" />
+<rect class="d-b" x="170" y="268" width="144" height="24" rx="5" /><text class="d-on-b" x="242" y="284" text-anchor="middle">Template</text>
+<rect class="d-folder" x="6" y="298" width="144" height="24" rx="4" /><text class="d-small" x="78" y="314" text-anchor="middle">disk, .cache, 5m</text>
+<line class="d-flow" x1="150" y1="310" x2="166" y2="310" marker-end="url(#config-shape-arrow)" />
+<rect class="d-b" x="170" y="298" width="144" height="24" rx="5" /><text class="d-on-b" x="242" y="314" text-anchor="middle">Cache</text>
+<text class="d-small" x="160" y="340" text-anchor="middle">not set: each keeps its default</text>
+<rect class="d-frame" x="6" y="346" width="308" height="40" rx="6" /><text class="d-small" x="160" y="362" text-anchor="middle">Locale (en only), Logger, DevWatch,</text><text class="d-small" x="160" y="376" text-anchor="middle">TrailingSlash, Observability</text>
+<line class="d-flow" x1="160" y1="386" x2="160" y2="404" marker-end="url(#config-shape-arrow)" />
+<rect class="d-cmd" x="90" y="408" width="140" height="24" rx="12" /><text class="d-cmd-text" x="160" y="424" text-anchor="middle">collage.New</text>
+<text class="d-small" x="160" y="448" text-anchor="middle">fills in defaults, validates, builds</text>
+</svg>
+<figcaption>Where the scaffolded <code>main.go</code> gets each field of <code>collage.Config</code>. Development mode, the public origin, the address the server listens on and the forgery key come from the environment, so one binary runs on your machine and on a server; the port's <code>-port</code> flag defaults to <code>PORT</code>, or 6060. The plugins, their configuration, the embedded templates and the disk cache are written in <code>main.go</code> and the files beside it. <code>Locale</code>, <code>Logger</code>, <code>DevWatch</code>, <code>TrailingSlash</code> and <code>Observability</code> are not set, so each keeps its default. <code>collage.New</code> receives the whole value.</figcaption>
+</figure>
+
+The fields and their defaults are in the tables below.
+[A complete configuration](#a-complete-configuration) shows the scaffold's code,
+and [Example: one configuration for development and production](#example-one-configuration-for-development-and-production)
+what a production application adds to it.
+
 ## Config
 
 | Field | Type | Default | Meaning |
@@ -49,17 +102,23 @@ request for defaults, because the configuration says where your templates are.
 
 ### DevMode
 
-Turns on development mode: templates reloaded from disk before every render, pages
-that reload themselves in the browser, failed fragments shown on the page, the
-page cache never read from, a disk cache replaced by memory, directories named in
-`DevWatch` watched, and the built-in error page naming the fragment where a
-failure started, leading with the cause — for a template, the file, line and
-column of the call that failed (since v0.15.0) — and showing the full error chain.
+Turns on development mode:
+
+- templates reloaded from disk before every render;
+- pages that reload themselves in the browser;
+- failed fragments shown on the page;
+- the page cache never read from, and a disk cache replaced by memory;
+- directories named in `DevWatch` watched;
+- the built-in error page naming the fragment where a failure started, leading
+  with the cause — for a template, the file, line and column of the call that
+  failed (since v0.15.0) — and showing the full error chain.
+
 **It must be off in production** — those diagnostics carry paths, hostnames and
 whatever else error messages contain.
 
 `DevMode` is the one switch: `Template.DevMode`, which did the same before v0.60.0,
-is gone. A plugin reads it with `host.DevMode()`. A scaffolded project sets it from `COLLAGE_DEV=1`, which `collage dev` sets for you.
+is gone. A plugin reads it with `host.DevMode()`. A scaffolded project sets it from
+`COLLAGE_DEV=1`, which `collage dev` sets for you.
 
 ### DevWatch
 
@@ -82,14 +141,18 @@ on the next render — rather than a copy loaded at startup — is up to your co
 
 ### Logger
 
-`nil`, the default, lets the framework choose when it builds the application: on a
-terminal — and only when nothing has replaced slog's default handler — a compact
-handler meant for a person, one line per record with a coloured level marker.
-Anywhere else it is `slog.Default()`, unchanged — except where `FORCE_COLOR` is
-set, as [`collage dev`](/docs/cli#collage-dev) does for the program it runs on a
-colour terminal, and `NO_COLOR` is not (since v0.32.0). An application that called
-`slog.SetDefault` keeps its handler. Pass a logger to be certain, such as a JSON
-handler for logs a machine reads. `New` leaves this field `nil`.
+`nil`, the default, lets the framework choose when it builds the application:
+
+- **On a terminal** — and only when nothing has replaced slog's default handler — a
+  compact handler meant for a person, one line per record with a coloured level
+  marker.
+- **Anywhere else** it is `slog.Default()`, unchanged — except where `FORCE_COLOR`
+  is set, as [`collage dev`](/docs/cli#collage-dev) does for the program it runs on
+  a colour terminal, and `NO_COLOR` is not (since v0.32.0).
+
+An application that called `slog.SetDefault` keeps its handler. Pass a logger to be
+certain, such as a JSON handler for logs a machine reads. `New` leaves this field
+`nil`.
 
 ### Plugins and PluginConfig
 
@@ -137,15 +200,18 @@ spelling it was posted to.
 | `TrustedProxies` | `[]string` | none | Addresses and CIDR ranges of the proxies in front of the server, whose `X-Forwarded-For` is believed (since v0.47.0), and, when the list is set, whose `X-Forwarded-Proto` is (since v0.56.0). |
 
 `Host` defaults to `localhost`, which is unreachable from outside the machine — in
-a container, set it to `0.0.0.0`. A scaffolded project fills `Host` and `Port` from
-the `HOST` and `PORT` environment variables. Under `collage dev` those are a
-loopback address `collage dev` chose, and it listens on yours itself, so keep
-reading them from the environment; see [CLI](/docs/cli#collage-dev). `MaxBodyBytes` is not filled in by
-`New`: zero means the built-in 4 MiB (`4 << 20` bytes), applied when a
-request arrives, and a negative value means unbounded. An unbounded body is memory
-an anonymous caller chooses the size of, so choose that deliberately. An action can
-set its own bound with `WithMaxBodyBytes`; see
-[Forms and actions](/docs/forms-and-actions).
+a container, set it to `0.0.0.0`.
+
+A scaffolded project fills `Host` and `Port` from the `HOST` and `PORT` environment
+variables. Under `collage dev` those are a loopback address `collage dev` chose,
+and it listens on yours itself, so keep reading them from the environment; see
+[CLI](/docs/cli#collage-dev).
+
+`MaxBodyBytes` is not filled in by `New`: zero means the built-in 4 MiB
+(`4 << 20` bytes), applied when a request arrives, and a negative value means
+unbounded. An unbounded body is memory an anonymous caller chooses the size of, so
+choose that deliberately. An action can set its own bound with `WithMaxBodyBytes`;
+see [Forms and actions](/docs/forms-and-actions).
 
 `TrustedProxies` is what makes the client's address knowable behind a reverse proxy,
 where every request's `RemoteAddr` is the proxy's. Each entry is an address or a CIDR
@@ -161,13 +227,18 @@ Server: collage.ServerConfig{
 
 A request from a trusted proxy names its client in `X-Forwarded-For`, read from the
 right: the first address that is not a trusted proxy is the client, or the leftmost
-when every one is. An entry may carry a port (`9.9.9.9:4567`, `[2001:db8::1]:443`) or
-brackets (`[2001:db8::1]`). An entry that is not an address (`unknown`), met before
-any untrusted one, leaves the client unknown: `ClientIP` is the zero `netip.Addr`,
-never the proxy. List every hop, a CDN's published ranges included, and only proxies
-you run or your platform's documented ranges. Trusting a range a client can send from
-lets that client name any address it likes; a range with zero bits (`0.0.0.0/0`,
-`::/0`) trusts everyone, and `collage.New` logs a Warn for it.
+when every one is.
+
+- An entry may carry a port (`9.9.9.9:4567`, `[2001:db8::1]:443`) or brackets
+  (`[2001:db8::1]`).
+- An entry that is not an address (`unknown`), met before any untrusted one, leaves
+  the client unknown: `ClientIP` is the zero `netip.Addr`, never the proxy.
+
+List every hop, a CDN's published ranges included, and only proxies you run or your
+platform's documented ranges. Trusting a range a client can send from lets that
+client name any address it likes; a range with zero bits (`0.0.0.0/0`, `::/0`)
+trusts everyone, and `collage.New` logs a Warn for it.
+
 Since v0.56.0 the same list decides whose `X-Forwarded-Proto` marks the forgery cookie
 `Secure`; empty, that header is believed from anyone, as before.
 See [Deployment](/docs/deployment#behind-a-proxy-trustedproxies).
@@ -187,17 +258,20 @@ See [Deployment](/docs/deployment#behind-a-proxy-trustedproxies).
 | `DisableNoSniff` | `bool` | `false` | Stops the `X-Content-Type-Options: nosniff` header sent on every response (the header since v0.39.0; before v0.60.0 this field was `NoSniff *bool`). |
 
 **Set `CSRFKey` before deploying anything with a form.** It should be at least 32
-random bytes, kept with your other secrets and the same on every instance. Left
-empty, a key is generated for each process: fine for a first run, wrong to deploy,
-because a token issued before a restart — or by another instance — is refused. The
-application logs that it generated one — a warning outside development, at info
-level in it — and only when some action answers an unsafe method (`POST`, `PUT`, `PATCH`,
-`DELETE`) and is not exempted with `WithoutCSRF`, since only such an action ever
-verifies a token (the `WithoutCSRF` exemption since v0.11.0). The key is not part
-of the disk cache's namespace, so the cache survives a new key; a cached page with
-a form in it, stored under the old one, is rendered again rather than served — see
-[Caching](/docs/caching#the-namespace). The scaffolded `main.go` reads it from
-`COLLAGE_CSRF_KEY`; `openssl rand -hex 32` makes one.
+random bytes, kept with your other secrets and the same on every instance.
+
+Left empty, a key is generated for each process: fine for a first run, wrong to
+deploy, because a token issued before a restart — or by another instance — is
+refused. The application logs that it generated one — a warning outside
+development, at info level in it — and only when some action answers an unsafe
+method (`POST`, `PUT`, `PATCH`, `DELETE`) and is not exempted with `WithoutCSRF`,
+since only such an action ever verifies a token (the `WithoutCSRF` exemption since
+v0.11.0).
+
+The key is not part of the disk cache's namespace, so the cache survives a new key;
+a cached page with a form in it, stored under the old one, is rendered again rather
+than served — see [Caching](/docs/caching#the-namespace). The scaffolded `main.go`
+reads it from `COLLAGE_CSRF_KEY`; `openssl rand -hex 32` makes one.
 
 `CSRFTrustedOrigins` names the origins, other than this one, whose forms may post
 here; every other origin is refused even with a valid token. See
@@ -321,16 +395,21 @@ they are not encrypted: see [Caching](/docs/caching#across-a-restart).
 
 **`MaxEntries`** also bounds the values `collage.Cached` keeps across requests, and,
 with a built-in cache, the number of keys the dependency tracker holds in all
-(since v0.40.0). **`MaxBytes`** bounds what a built-in cache weighs: zero picks the
-type's default, and a page larger than the whole cap is served but not stored. A
-custom `Store` ignores it. See [Caching](/docs/caching#bounded-in-bytes-too).
+(since v0.40.0).
+
+**`MaxBytes`** bounds what a built-in cache weighs: zero picks the type's default,
+and a page larger than the whole cap is served but not stored. A custom `Store`
+ignores it. See [Caching](/docs/caching#bounded-in-bytes-too).
+
 **`MaxEntries` also bounds the framework's dependency tracker per tag** — the
 per-process index that maps a tag back to cache keys. Before v0.60.0 that was a
-field of its own, `MaxKeysPerTag`. Every distinct query string is a distinct key,
-and nothing removes a key from the tracker when the cache evicts or expires its
-entry, so without a cap a client could grow that index without limit. When a tag is
-at the cap, its oldest key is dropped from the tracker only, not from the cache. A
-negative `MaxEntries` keeps this per-tag cap at 10000.
+field of its own, `MaxKeysPerTag`.
+
+Every distinct query string is a distinct key, and nothing removes a key from the
+tracker when the cache evicts or expires its entry, so without a cap a client could
+grow that index without limit. When a tag is at the cap, its oldest key is dropped
+from the tracker only, not from the cache. A negative `MaxEntries` keeps this
+per-tag cap at 10000.
 
 What that costs depends on the store. The built-in memory and disk caches index
 tags themselves (they implement `TaggedCache`), so `InvalidateTags` still reaches
@@ -355,12 +434,15 @@ unlimited. See
 The URL is the only thing that selects a locale: `/about` is in `Default`, and
 `/tr/hakkinda` is in `"tr"`. collage never picks one from `Accept-Language` or a
 cookie, because a URL that means different things to different readers is one
-caches, crawlers and shared links all get wrong. `/en/about`, the default
-locale's own prefix, redirects permanently to `/about` — unless `PrefixDefault` is
-set, which makes `/en/about` the address and redirects `/about` to it; see
-[Links and locales](/docs/links-and-locales#the-url-decides-the-locale). To negotiate, do it in
-middleware: redirect a Turkish browser to `/tr`, or render one URL per language
-and declare it with `collage.Vary`. See
+caches, crawlers and shared links all get wrong.
+
+`/en/about`, the default locale's own prefix, redirects permanently to `/about` —
+unless `PrefixDefault` is set, which makes `/en/about` the address and redirects
+`/about` to it; see
+[Links and locales](/docs/links-and-locales#the-url-decides-the-locale).
+
+To negotiate, do it in middleware: redirect a Turkish browser to `/tr`, or render
+one URL per language and declare it with `collage.Vary`. See
 [Links and locales](/docs/links-and-locales#negotiating-a-language-yourself).
 
 ## ObservabilityConfig
@@ -467,4 +549,99 @@ app, err := collage.New(&collage.Config{
 ```
 
 `envString` and `envInt` are two small helpers in the scaffolded `main.go` that
-read a variable and fall back to a default.
+read a variable and fall back to a default. The scaffold also reads `BaseURL` from
+`BASE_URL`, and sets `Plugins` to `plugins()`, from the `plugins.go` that
+`collage plugin add` and `del` manage.
+
+## Example: one configuration for development and production
+
+The [team's task list](/docs/middleware-and-apis#example-a-teams-task-list) — every
+member signs in, an admin may change any task of the team, a member only their own —
+runs under `collage dev` on a developer's machine and, in production, on
+[two servers behind a load balancer](/docs/deployment#example-deploying-a-teams-task-list).
+Its pages are in English and Turkish, and the team's admin panel, on a subdomain of
+its own, posts forms to it.
+
+One binary serves both. Its `newApp` is the scaffold's, with the production
+settings added; what differs between the two is read from the environment or
+decided by `devMode`:
+
+```go
+func newApp(devMode bool, port int) (*collage.App, error) {
+	pluginConfig, err := collage.LoadPluginConfig("plugins-config.json")
+	if err != nil {
+		return nil, fmt.Errorf("plugin configuration: %w", err)
+	}
+
+	cfg := &collage.Config{
+		DevMode: devMode,
+		BaseURL: os.Getenv("BASE_URL"), // empty in development
+		Server: collage.ServerConfig{
+			Host:              envString("HOST", "localhost"),
+			Port:              port,
+			ReadHeaderTimeout: 5 * time.Second,
+			DrainDelay:        5 * time.Second, // ignored in development
+		},
+		Template: collage.TemplateConfig{
+			FS:        templatesFS,
+			Root:      "templates",
+			Extension: ".html",
+		},
+		Cache: collage.CacheConfig{
+			Enabled:    true,
+			Type:       collage.CacheDisk,
+			Dir:        cacheDir,
+			DefaultTTL: 5 * time.Minute,
+		},
+		Locale: collage.LocaleConfig{
+			Default:   "en",
+			Supported: []string{"en", "tr"},
+		},
+		PluginConfig: pluginConfig,
+		Plugins:      plugins(),
+		Security: collage.SecurityConfig{
+			// Empty in development: a key is generated per process.
+			CSRFKey: []byte(os.Getenv("COLLAGE_CSRF_KEY")),
+		},
+	}
+
+	if !devMode {
+		// The load balancer in front of both servers, and the admin
+		// panel whose forms post here.
+		cfg.Server.TrustedProxies = []string{"10.0.1.10"}
+		cfg.Security.CSRFTrustedOrigins = []string{"https://admin.tasks.example.com"}
+	}
+
+	app, err := collage.New(cfg)
+	if err != nil {
+		return nil, err
+	}
+	// Routes and the static mount as scaffolded.
+	return app, nil
+}
+```
+
+What each setting is in each place, and why:
+
+| Setting | Development | Production | Why |
+| --- | --- | --- | --- |
+| `DevMode` | on: `collage dev` sets `COLLAGE_DEV=1` | off: the variable is unset | Development's error pages carry paths and error chains. A development server also answers only requests whose `Host` names this machine; see [Deployment](/docs/deployment#development-mode-stays-on-this-machine). |
+| `Server.Host`, `Server.Port` | the loopback address `collage dev` chose | `HOST` and `PORT`, or `-port` | `collage dev` listens on your address itself and passes requests on; see [CLI](/docs/cli#collage-dev). |
+| `BaseURL` | empty | `https://tasks.example.com` from `BASE_URL` | Empty is not an error: a site that builds no absolute URL needs none. Set, it must be a bare origin, or `New` fails with `ErrInvalidOrigin`. |
+| `Security.CSRFKey` | empty: a key per process, logged at info level | at least 32 random bytes, the same on both servers | A generated key refuses every token issued before a restart, or by the other server. |
+| `Security.CSRFTrustedOrigins` | none | the admin panel's origin | Every other origin is refused, even with a valid token. |
+| `Server.TrustedProxies` | none | the load balancer | Without it, every client's address is the load balancer's. |
+| `Server.DrainDelay` | 5s, ignored | 5s | The load balancer stops sending traffic before the port closes. |
+| `Server.ReadHeaderTimeout` | 5s | 5s | A client sending headers a byte at a time is dropped early, while a body still has the whole `ReadTimeout`. |
+| `Cache` | the same lines: memory stands in, never read | a disk cache under `.cache`, one per server | Development shows the template you just edited. A disk cache comes up warm after a restart. |
+| `Locale` | `en`, `tr` | `en`, `tr` | The URL selects the locale, so nothing about it depends on where the binary runs. |
+| `WriteTimeout`, `Template.Timeout` | defaults, 30s and 5s | defaults, 30s and 5s | Keeping `Template.Timeout` well under `WriteTimeout` turns a slow upstream into a fragment's fallback rather than a connection closed halfway through the page; see [Deployment](/docs/deployment#timeouts). |
+
+The development side needs nothing written down: `collage dev` sets `COLLAGE_DEV`,
+`HOST` and `PORT`. To keep a form open across the restarts `collage dev` makes when
+Go code changes, give development a key of its own in `.env.development` — never
+the production one; see [CLI](/docs/cli#environment-files).
+
+The production side is four variables — `HOST`, `PORT`, `BASE_URL` and
+`COLLAGE_CSRF_KEY` — set where the binary runs. Nothing reads `.env` files there;
+see [Deployment](/docs/deployment#environment).

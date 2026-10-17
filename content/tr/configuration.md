@@ -30,6 +30,59 @@ app, err := collage.New(&collage.Config{
 `nil` verirseniz bir hata alırsınız. nil bir config varsayılanları istemek
 anlamına gelmez, bir hatadır. Çünkü template'lerinizin nerede olduğunu config söyler.
 
+Scaffold edilmiş bir proje config'ini `main.go`'daki `newApp`'te kurar. Sizin
+makinenizle bir sunucu arasında değişen şeyler ortamdan gelir; geri kalanı orada
+yazılıdır:
+
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 456" role="img" aria-labelledby="config-shape-title">
+<title id="config-shape-title">Scaffold edilmiş main.go, collage.Config'in her alanını nereden alır. Ortamdan: DevMode COLLAGE_DEV=1'den, BaseURL BASE_URL'den, Server.Host HOST'tan, Server.Port varsayılanı PORT ya da 6060 olan -port flag'inden, Security.CSRFKey COLLAGE_CSRF_KEY'den. main.go'da ve yanındaki dosyalarda: PluginConfig plugins-config.json'dan, Plugins plugins.go'daki plugins()'ten, Template gömülü templates dizininden, Cache ise .cache altında beş dakikalık TTL'li bir disk cache. Atanmayan ve varsayılanında kalanlar: Locale (yalnızca en), Logger, DevWatch, TrailingSlash ve Observability. Değerin tamamı collage.New'a gider; New varsayılanları doldurur, validation yapar ve uygulamayı kurar.</title>
+<defs><marker id="config-shape-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
+<text class="d-small" x="78" y="14" text-anchor="middle">scaffold'un main.go'sunda</text>
+<text class="d-small" x="242" y="14" text-anchor="middle">collage.Config alanı</text>
+<text class="d-small" x="160" y="34" text-anchor="middle">ortamdan okunur</text>
+<rect class="d-pill" x="6" y="40" width="144" height="24" rx="12" /><text class="d-small" x="78" y="56" text-anchor="middle">COLLAGE_DEV=1</text>
+<line class="d-flow" x1="150" y1="52" x2="166" y2="52" marker-end="url(#config-shape-arrow)" />
+<rect class="d-a" x="170" y="40" width="144" height="24" rx="5" /><text class="d-on-a" x="242" y="56" text-anchor="middle">DevMode</text>
+<rect class="d-pill" x="6" y="70" width="144" height="24" rx="12" /><text class="d-small" x="78" y="86" text-anchor="middle">BASE_URL</text>
+<line class="d-flow" x1="150" y1="82" x2="166" y2="82" marker-end="url(#config-shape-arrow)" />
+<rect class="d-a" x="170" y="70" width="144" height="24" rx="5" /><text class="d-on-a" x="242" y="86" text-anchor="middle">BaseURL</text>
+<rect class="d-pill" x="6" y="100" width="144" height="24" rx="12" /><text class="d-small" x="78" y="116" text-anchor="middle">HOST</text>
+<line class="d-flow" x1="150" y1="112" x2="166" y2="112" marker-end="url(#config-shape-arrow)" />
+<rect class="d-a" x="170" y="100" width="144" height="24" rx="5" /><text class="d-on-a" x="242" y="116" text-anchor="middle">Server.Host</text>
+<rect class="d-pill" x="6" y="130" width="144" height="24" rx="12" /><text class="d-small" x="78" y="146" text-anchor="middle">-port, PORT ya da 6060</text>
+<line class="d-flow" x1="150" y1="142" x2="166" y2="142" marker-end="url(#config-shape-arrow)" />
+<rect class="d-a" x="170" y="130" width="144" height="24" rx="5" /><text class="d-on-a" x="242" y="146" text-anchor="middle">Server.Port</text>
+<rect class="d-pill" x="6" y="160" width="144" height="24" rx="12" /><text class="d-small" x="78" y="176" text-anchor="middle">COLLAGE_CSRF_KEY</text>
+<line class="d-flow" x1="150" y1="172" x2="166" y2="172" marker-end="url(#config-shape-arrow)" />
+<rect class="d-a" x="170" y="160" width="144" height="24" rx="5" /><text class="d-on-a" x="242" y="176" text-anchor="middle">Security.CSRFKey</text>
+<text class="d-small" x="160" y="202" text-anchor="middle">main.go'da ve yanındaki dosyalarda</text>
+<rect class="d-folder" x="6" y="208" width="144" height="24" rx="4" /><text class="d-small" x="78" y="224" text-anchor="middle">plugins-config.json</text>
+<line class="d-flow" x1="150" y1="220" x2="166" y2="220" marker-end="url(#config-shape-arrow)" />
+<rect class="d-b" x="170" y="208" width="144" height="24" rx="5" /><text class="d-on-b" x="242" y="224" text-anchor="middle">PluginConfig</text>
+<rect class="d-folder" x="6" y="238" width="144" height="24" rx="4" /><text class="d-small" x="78" y="254" text-anchor="middle">plugins.go'da plugins()</text>
+<line class="d-flow" x1="150" y1="250" x2="166" y2="250" marker-end="url(#config-shape-arrow)" />
+<rect class="d-b" x="170" y="238" width="144" height="24" rx="5" /><text class="d-on-b" x="242" y="254" text-anchor="middle">Plugins</text>
+<rect class="d-folder" x="6" y="268" width="144" height="24" rx="4" /><text class="d-small" x="78" y="284" text-anchor="middle">gömülü templates/</text>
+<line class="d-flow" x1="150" y1="280" x2="166" y2="280" marker-end="url(#config-shape-arrow)" />
+<rect class="d-b" x="170" y="268" width="144" height="24" rx="5" /><text class="d-on-b" x="242" y="284" text-anchor="middle">Template</text>
+<rect class="d-folder" x="6" y="298" width="144" height="24" rx="4" /><text class="d-small" x="78" y="314" text-anchor="middle">disk, .cache, 5m</text>
+<line class="d-flow" x1="150" y1="310" x2="166" y2="310" marker-end="url(#config-shape-arrow)" />
+<rect class="d-b" x="170" y="298" width="144" height="24" rx="5" /><text class="d-on-b" x="242" y="314" text-anchor="middle">Cache</text>
+<text class="d-small" x="160" y="340" text-anchor="middle">atanmaz: her biri varsayılanında kalır</text>
+<rect class="d-frame" x="6" y="346" width="308" height="40" rx="6" /><text class="d-small" x="160" y="362" text-anchor="middle">Locale (yalnızca en), Logger, DevWatch,</text><text class="d-small" x="160" y="376" text-anchor="middle">TrailingSlash, Observability</text>
+<line class="d-flow" x1="160" y1="386" x2="160" y2="404" marker-end="url(#config-shape-arrow)" />
+<rect class="d-cmd" x="90" y="408" width="140" height="24" rx="12" /><text class="d-cmd-text" x="160" y="424" text-anchor="middle">collage.New</text>
+<text class="d-small" x="160" y="448" text-anchor="middle">varsayılanlar, validation, kurulum</text>
+</svg>
+<figcaption>Scaffold edilmiş <code>main.go</code>, <code>collage.Config</code>'in her alanını nereden alır. Development modu, public origin, sunucunun dinlediği adres ve forgery key'i ortamdan gelir; böylece tek bir binary hem sizin makinenizde hem bir sunucuda çalışır. Port'un <code>-port</code> flag'inin varsayılanı <code>PORT</code>, o da yoksa 6060'tır. Plugin'ler, config'leri, gömülü template'ler ve disk cache <code>main.go</code>'da ve yanındaki dosyalarda yazılıdır. <code>Locale</code>, <code>Logger</code>, <code>DevWatch</code>, <code>TrailingSlash</code> ve <code>Observability</code> atanmaz, bu yüzden her biri varsayılanında kalır. <code>collage.New</code> değerin tamamını alır.</figcaption>
+</figure>
+
+Alanlar ve varsayılanları aşağıdaki tablolardadır.
+[Eksiksiz bir config](#a-complete-configuration) scaffold'un kodunu,
+[Örnek: development ve production için tek bir config](#example-one-configuration-for-development-and-production)
+ise production'daki bir uygulamanın ona ne eklediğini gösterir.
+
 ## Config
 
 | Alan | Tip | Varsayılan | Anlamı |
@@ -50,14 +103,19 @@ anlamına gelmez, bir hatadır. Çünkü template'lerinizin nerede olduğunu con
 
 ### DevMode
 
-Development modunu açar. Bu modda template'ler her render'dan önce diskten yeniden
-yüklenir ve page'ler tarayıcıda kendilerini yeniler. Başarısız fragment'ler page'in
-üzerinde gösterilir, page cache'ten hiç okunmaz ve disk cache'in yerini memory alır.
-`DevWatch`'ta adı geçen dizinler izlenir. Built-in error page de hatanın hangi
-fragment'te başladığını söyler, hatanın sebebiyle başlar (template kaynaklı bir
-hatada başarısız olan çağrının dosyası, satırı ve sütunu; v0.15.0'dan beri) ve hata
-zincirinin tamamını gösterir. **Production'da kapalı olmalıdır.** Bu tanı bilgileri
-dosya yollarını, host adlarını ve hata mesajlarında ne varsa hepsini içerir.
+Development modunu açar. Bu modda:
+
+- template'ler her render'dan önce diskten yeniden yüklenir;
+- page'ler tarayıcıda kendilerini yeniler;
+- başarısız fragment'ler page'in üzerinde gösterilir;
+- page cache'ten hiç okunmaz ve disk cache'in yerini memory alır;
+- `DevWatch`'ta adı geçen dizinler izlenir;
+- built-in error page hatanın hangi fragment'te başladığını söyler, hatanın
+  sebebiyle başlar (template kaynaklı bir hatada başarısız olan çağrının dosyası,
+  satırı ve sütunu; v0.15.0'dan beri) ve hata zincirinin tamamını gösterir.
+
+**Production'da kapalı olmalıdır.** Bu tanı bilgileri dosya yollarını, host
+adlarını ve hata mesajlarında ne varsa hepsini içerir.
 
 Tek şalter `DevMode`'dur: v0.60.0'dan önce aynı işi yapan `Template.DevMode`
 kaldırıldı. Bir plugin onu `host.DevMode()` ile okur.
@@ -86,15 +144,19 @@ değil de bir sonraki render'da okumak sizin kodunuzun işidir.
 ### Logger
 
 Varsayılan değer olan `nil`, seçimi framework'e bırakır ve framework uygulamayı
-kurarken seçer. Terminalde, ve yalnızca slog'un varsayılan handler'ını hiçbir şey
-değiştirmemişse, insanların okuması için tasarlanmış kompakt bir handler kullanılır.
-Bu handler her kaydı tek satırda ve renkli bir level işaretiyle yazar. Diğer bütün
-ortamlarda `slog.Default()` olduğu gibi kullanılır. İstisnası, `NO_COLOR` ayarlı
-değilken `FORCE_COLOR`'ın ayarlı olmasıdır (v0.32.0'dan beri): [`collage dev`](/docs/cli#collage-dev)
-renkli bir terminalde çalıştırdığı program için bunu ayarlar. `slog.SetDefault`'u çağırmış bir
-uygulama kendi handler'ını korur. Sonuçtan emin olmak istiyorsanız bir logger verin,
-örneğin makinelerin okuyacağı loglar için bir JSON handler. `New` bu alanı
-`nil` bırakır.
+kurarken seçer:
+
+- **Terminalde**, ve yalnızca slog'un varsayılan handler'ını hiçbir şey
+  değiştirmemişse, insanların okuması için tasarlanmış kompakt bir handler
+  kullanılır. Bu handler her kaydı tek satırda ve renkli bir level işaretiyle yazar.
+- **Diğer bütün ortamlarda** `slog.Default()` olduğu gibi kullanılır. İstisnası,
+  `NO_COLOR` ayarlı değilken `FORCE_COLOR`'ın ayarlı olmasıdır (v0.32.0'dan beri):
+  [`collage dev`](/docs/cli#collage-dev) renkli bir terminalde çalıştırdığı program
+  için bunu ayarlar.
+
+`slog.SetDefault`'u çağırmış bir uygulama kendi handler'ını korur. Sonuçtan emin
+olmak istiyorsanız bir logger verin, örneğin makinelerin okuyacağı loglar için bir
+JSON handler. `New` bu alanı `nil` bırakır.
 
 ### Plugins ve PluginConfig
 
@@ -146,15 +208,19 @@ action ise hangi yazıma post edildiyse o adreste cevap verir.
 | `TrustedProxies` | `[]string` | yok | Sunucunun önündeki proxy'lerin adresleri ve CIDR aralıkları; bunların `X-Forwarded-For`'una inanılır (v0.47.0'dan beri). Liste set edilmişse `X-Forwarded-Proto`'suna da inanılır (v0.56.0'dan beri). |
 
 `Host`'un varsayılanı `localhost`'tur ve bu adrese makinenin dışından erişilemez.
-Container içinde bu alanı `0.0.0.0` yapın. Scaffold edilen bir proje `Host` ve
-`Port`'u `HOST` ve `PORT` ortam değişkenlerinden doldurur. `collage dev` altında bu
-değişkenler, `collage dev`'in seçtiği bir loopback adresidir; sizin adresinizde ise
-`collage dev`'in kendisi dinler. Bu yüzden onları ortamdan okumaya devam edin. Bkz.
-[CLI](/docs/cli#collage-dev). `MaxBodyBytes`'ı `New` doldurmaz. Sıfır,
-request geldiğinde uygulanan yerleşik 4 MiB (`4 << 20` byte) demektir. Negatif bir
-değer ise sınır olmadığı anlamına gelir. Sınırsız bir body, boyutunu anonim bir
-çağıranın belirlediği bir bellek kullanımıdır. Bu yüzden bunu bilerek seçin. Bir
-action kendi sınırını `WithMaxBodyBytes` ile koyabilir. Ayrıntılar için [Form'lar ve
+Container içinde bu alanı `0.0.0.0` yapın.
+
+Scaffold edilen bir proje `Host` ve `Port`'u `HOST` ve `PORT` ortam
+değişkenlerinden doldurur. `collage dev` altında bu değişkenler, `collage dev`'in
+seçtiği bir loopback adresidir; sizin adresinizde ise `collage dev`'in kendisi
+dinler. Bu yüzden onları ortamdan okumaya devam edin. Bkz.
+[CLI](/docs/cli#collage-dev).
+
+`MaxBodyBytes`'ı `New` doldurmaz. Sıfır, request geldiğinde uygulanan yerleşik
+4 MiB (`4 << 20` byte) demektir. Negatif bir değer ise sınır olmadığı anlamına
+gelir. Sınırsız bir body, boyutunu anonim bir çağıranın belirlediği bir bellek
+kullanımıdır. Bu yüzden bunu bilerek seçin. Bir action kendi sınırını
+`WithMaxBodyBytes` ile koyabilir. Ayrıntılar için [Form'lar ve
 action'lar](/docs/forms-and-actions) sayfasına bakın.
 
 `TrustedProxies`, bir reverse proxy'nin arkasında istemcinin adresini bilmeyi
@@ -172,14 +238,21 @@ Server: collage.ServerConfig{
 
 Güvenilen bir proxy'den gelen request, istemcisini `X-Forwarded-For`'da bildirir ve
 header sağdan okunur: güvenilen proxy olmayan ilk adres istemcidir; hepsi güvenilense
-en soldaki. Bir girdi port (`9.9.9.9:4567`, `[2001:db8::1]:443`) ya da köşeli
-parantez (`[2001:db8::1]`) taşıyabilir. Güvenilmeyen bir adresten önce gelen ve adres
-olmayan bir girdi (`unknown`) istemciyi bilinmez kılar: `ClientIP` sıfır
-`netip.Addr`'dir, asla proxy değil. Her hop'u, bir CDN'in yayımladığı aralıklar dahil,
-yazın; yalnızca kendi işlettiğiniz proxy'leri ya da platformunuzun belgelediği
-aralıkları. İstemcinin request gönderebildiği bir aralığa güvenmek, o istemcinin
-istediği adresi kendine vermesine izin vermektir; sıfır bitlik bir aralık
-(`0.0.0.0/0`, `::/0`) herkese güvenir ve `collage.New` bunun için bir Warn log'lar.
+en soldaki.
+
+- Bir girdi port (`9.9.9.9:4567`, `[2001:db8::1]:443`) ya da köşeli parantez
+  (`[2001:db8::1]`) taşıyabilir.
+- Güvenilmeyen bir adresten önce gelen ve adres olmayan bir girdi (`unknown`)
+  istemciyi bilinmez kılar: `ClientIP` sıfır `netip.Addr`'dir, asla proxy değil.
+
+Her hop'u, bir CDN'in yayımladığı aralıklar dahil, yazın; yalnızca kendi
+işlettiğiniz proxy'leri ya da platformunuzun belgelediği aralıkları. İstemcinin
+request gönderebildiği bir aralığa güvenmek, o istemcinin istediği adresi kendine
+vermesine izin vermektir; sıfır bitlik bir aralık (`0.0.0.0/0`, `::/0`) herkese
+güvenir ve `collage.New` bunun için bir Warn log'lar.
+
+Aynı liste, forgery cookie'sini kimin `X-Forwarded-Proto`'sunun `Secure`
+yapacağına da karar verir; liste boşken bu header'a herkesten inanılır.
 Bkz. [Deployment](/docs/deployment#behind-a-proxy-trustedproxies).
 
 ## SecurityConfig
@@ -198,14 +271,18 @@ Bkz. [Deployment](/docs/deployment#behind-a-proxy-trustedproxies).
 
 **Form içeren herhangi bir şeyi deploy etmeden önce `CSRFKey`'i ayarlayın.** Key en
 az 32 byte rastgele veri olmalı, diğer secret'larınızla birlikte saklanmalı ve her
-instance'ta aynı olmalıdır. Boş bırakılırsa her process için yeni bir key üretilir.
+instance'ta aynı olmalıdır.
+
+Boş bırakılırsa her process için yeni bir key üretilir.
 Bu ilk çalıştırma için yeterlidir ama deploy için yanlıştır. Çünkü restart'tan önce ya
 da başka bir instance tarafından üretilmiş bir token reddedilir. Uygulama key
 ürettiğini log'lar. Development dışında bu bir uyarı, development'ta ise info
 seviyesinde bir kayıttır. Bu log yalnızca unsafe bir method'a (`POST`, `PUT`, `PATCH`,
 `DELETE`) cevap veren ve `WithoutCSRF` ile muaf tutulmamış bir action varsa yazılır.
 Çünkü token'ı yalnızca böyle bir action doğrular (`WithoutCSRF` muafiyeti v0.11.0'dan
-beri vardır). Key disk cache'in namespace'ine dahil değildir, bu yüzden cache yeni bir
+beri vardır).
+
+Key disk cache'in namespace'ine dahil değildir, bu yüzden cache yeni bir
 key'e rağmen korunur. İçinde form olan ve eski key ile saklanmış bir cache'lenmiş page ise
 sunulmaz, yeniden render edilir. Ayrıntılar için
 [Caching](/docs/caching#the-namespace) sayfasına bakın. Scaffold edilmiş `main.go`
@@ -343,13 +420,18 @@ durmaz ve şifrelenmez. Bkz. [Caching](/docs/caching#across-a-restart).
 
 **`MaxEntries`**, `collage.Cached`'in request'ler arasında tuttuğu değerleri ve
 built-in bir cache'le dependency tracker'ın toplamda tuttuğu key sayısını da
-sınırlar (v0.40.0'dan beri). **`MaxBytes`**, built-in bir cache'in ne kadar yer
+sınırlar (v0.40.0'dan beri).
+
+**`MaxBytes`**, built-in bir cache'in ne kadar yer
 kapladığını sınırlar: sıfır, tipin varsayılanını seçer. Sınırın tamamından büyük bir
 page sunulur ama saklanmaz. Kendi `Store`'unuz bunu yok sayar. Bkz.
 [Caching](/docs/caching#bounded-in-bytes-too).
+
 **`MaxEntries` framework'ün dependency tracker'ını tag başına da sınırlar.**
-v0.60.0'dan önce bu ayrı bir alandı: `MaxKeysPerTag`. Bu tracker, her process'te bir tag'i cache key'lerine eşleyen bir index'tir. Her farklı
-query string ayrı bir key'dir. Cache bir entry'yi evict ettiğinde ya da entry'nin
+Bu tracker, her process'te bir tag'i cache key'lerine eşleyen bir index'tir.
+v0.60.0'dan önce bu ayrı bir alandı: `MaxKeysPerTag`.
+
+Her farklı query string ayrı bir key'dir. Cache bir entry'yi evict ettiğinde ya da entry'nin
 süresi dolduğunda key tracker'dan silinmez. Bu yüzden bir üst sınır olmasa bir client
 bu index'i sınırsızca büyütebilirdi. Bir tag sınıra ulaştığında o tag'in en eski key'i
 yalnızca tracker'dan düşürülür, cache'ten silinmez. Negatif bir `MaxEntries`, tag
@@ -378,12 +460,16 @@ negatif bir değerdir. Ayrıntılar için [Caching](/docs/caching) sayfasına ba
 Locale'i seçen tek şey URL'dir. `/about` `Default` locale'indedir, `/tr/hakkinda` ise
 `"tr"` locale'indedir. collage locale'i hiçbir zaman `Accept-Language`'ten ya da bir
 cookie'den seçmez. Çünkü farklı okuyuculara farklı şey ifade eden bir URL'yi cache'ler,
-crawler'lar ve paylaşılan link'ler hep yanlış ele alır. Varsayılan locale'in kendi
+crawler'lar ve paylaşılan link'ler hep yanlış ele alır.
+
+Varsayılan locale'in kendi
 prefix'i olan `/en/about`, `/about`'a kalıcı olarak redirect edilir. `PrefixDefault`
 ayarlıysa durum tersine döner: adres `/en/about` olur ve `/about` oraya redirect
 edilir. Ayrıntılar için
 [Link'ler ve locale'ler](/docs/links-and-locales#the-url-decides-the-locale) sayfasına
-bakın. Dili kendiniz belirlemek istiyorsanız bunu middleware'de yapın. Türkçe bir
+bakın.
+
+Dili kendiniz belirlemek istiyorsanız bunu middleware'de yapın. Türkçe bir
 tarayıcıyı `/tr`'ye redirect edebilir ya da her dil için ayrı bir URL render edip bunu
 `collage.Vary` ile bildirebilirsiniz. Ayrıntılar için
 [Link'ler ve locale'ler](/docs/links-and-locales#negotiating-a-language-yourself)
@@ -499,4 +585,100 @@ app, err := collage.New(&collage.Config{
 
 `envString` ve `envInt`, scaffold edilmiş `main.go` içindeki iki küçük yardımcı
 fonksiyondur. Bir environment değişkenini okurlar, değişken yoksa varsayılan bir
-değere dönerler.
+değere dönerler. Scaffold ayrıca `BaseURL`'ü `BASE_URL`'den okur ve `Plugins`'i,
+`collage plugin add` ve `del` komutlarının yönettiği `plugins.go`'daki
+`plugins()` ile doldurur.
+
+## Örnek: development ve production için tek bir config
+
+[Ekibin iş listesi](/docs/middleware-and-apis#example-a-teams-task-list) (her üye
+oturum açar, bir admin ekibin her görevini, bir member yalnızca kendi görevlerini
+değiştirebilir) bir geliştiricinin makinesinde `collage dev` altında, production'da
+ise [bir load balancer'ın arkasındaki iki sunucuda](/docs/deployment#example-deploying-a-teams-task-list)
+çalışır. Page'leri İngilizce ve Türkçedir. Ekibin kendi subdomain'indeki admin
+paneli de buraya form post eder.
+
+İkisine de tek bir binary hizmet verir. `newApp`'i scaffold'unkidir, production
+ayarları eklenmiştir. İki ortam arasında farklı olan her şey ya ortamdan okunur ya
+da `devMode`'a göre belirlenir:
+
+```go
+func newApp(devMode bool, port int) (*collage.App, error) {
+	pluginConfig, err := collage.LoadPluginConfig("plugins-config.json")
+	if err != nil {
+		return nil, fmt.Errorf("plugin configuration: %w", err)
+	}
+
+	cfg := &collage.Config{
+		DevMode: devMode,
+		BaseURL: os.Getenv("BASE_URL"), // empty in development
+		Server: collage.ServerConfig{
+			Host:              envString("HOST", "localhost"),
+			Port:              port,
+			ReadHeaderTimeout: 5 * time.Second,
+			DrainDelay:        5 * time.Second, // ignored in development
+		},
+		Template: collage.TemplateConfig{
+			FS:        templatesFS,
+			Root:      "templates",
+			Extension: ".html",
+		},
+		Cache: collage.CacheConfig{
+			Enabled:    true,
+			Type:       collage.CacheDisk,
+			Dir:        cacheDir,
+			DefaultTTL: 5 * time.Minute,
+		},
+		Locale: collage.LocaleConfig{
+			Default:   "en",
+			Supported: []string{"en", "tr"},
+		},
+		PluginConfig: pluginConfig,
+		Plugins:      plugins(),
+		Security: collage.SecurityConfig{
+			// Empty in development: a key is generated per process.
+			CSRFKey: []byte(os.Getenv("COLLAGE_CSRF_KEY")),
+		},
+	}
+
+	if !devMode {
+		// The load balancer in front of both servers, and the admin
+		// panel whose forms post here.
+		cfg.Server.TrustedProxies = []string{"10.0.1.10"}
+		cfg.Security.CSRFTrustedOrigins = []string{"https://admin.tasks.example.com"}
+	}
+
+	app, err := collage.New(cfg)
+	if err != nil {
+		return nil, err
+	}
+	// Routes and the static mount as scaffolded.
+	return app, nil
+}
+```
+
+Her ayarın iki ortamdaki değeri ve nedeni:
+
+| Ayar | Development | Production | Neden |
+| --- | --- | --- | --- |
+| `DevMode` | açık: `collage dev`, `COLLAGE_DEV=1` set eder | kapalı: değişken set edilmez | Development'ın error page'leri dosya yollarını ve hata zincirlerini taşır. Bir development sunucusu ayrıca yalnızca `Host`'u bu makineyi adlandıran request'lere cevap verir; bkz. [Deployment](/docs/deployment#development-mode-stays-on-this-machine). |
+| `Server.Host`, `Server.Port` | `collage dev`'in seçtiği loopback adresi | `HOST` ve `PORT`, ya da `-port` | Sizin adresinizde `collage dev`'in kendisi dinler ve request'leri iletir; bkz. [CLI](/docs/cli#collage-dev). |
+| `BaseURL` | boş | `BASE_URL`'den `https://tasks.example.com` | Boş olması hata değildir: hiç mutlak URL üretmeyen bir site için gerekmez. Set edilmişse yalın bir origin olmalıdır, yoksa `New` `ErrInvalidOrigin` ile başarısız olur. |
+| `Security.CSRFKey` | boş: her process'e bir key, info seviyesinde log'lanır | en az 32 byte rastgele veri, iki sunucuda da aynı | Üretilmiş bir key, bir restart'tan önce ya da diğer sunucunun ürettiği her token'ı reddeder. |
+| `Security.CSRFTrustedOrigins` | yok | admin panelinin origin'i | Diğer her origin, geçerli bir token taşısa bile reddedilir. |
+| `Server.TrustedProxies` | yok | load balancer | Bu olmadan her istemcinin adresi load balancer'ınkidir. |
+| `Server.DrainDelay` | 5s, yok sayılır | 5s | Load balancer, port kapanmadan önce trafik göndermeyi bırakır. |
+| `Server.ReadHeaderTimeout` | 5s | 5s | Header'ları byte byte gönderen bir istemci erkenden düşürülür; bir body ise yine `ReadTimeout`'un tamamını kullanır. |
+| `Cache` | aynı satırlar: yerine memory geçer, hiç okunmaz | `.cache` altında bir disk cache, her sunucuda bir tane | Development az önce düzenlediğiniz template'i gösterir. Bir disk cache restart'tan sonra sıcak açılır. |
+| `Locale` | `en`, `tr` | `en`, `tr` | Locale'i URL seçer, bu yüzden binary'nin nerede çalıştığına bağlı hiçbir yanı yoktur. |
+| `WriteTimeout`, `Template.Timeout` | varsayılanlar, 30s ve 5s | varsayılanlar, 30s ve 5s | `Template.Timeout`'u `WriteTimeout`'un epey altında tutmak, yavaş bir upstream'i yarısında kapanan bir bağlantı yerine bir fragment'in fallback'ine çevirir; bkz. [Deployment](/docs/deployment#timeouts). |
+
+Development tarafında hiçbir şey yazmanız gerekmez: `collage dev`, `COLLAGE_DEV`,
+`HOST` ve `PORT`'u set eder. Go kodu değiştiğinde `collage dev`'in yaptığı
+restart'larda bir form açık kalsın istiyorsanız development'a `.env.development`'ta
+kendine ait bir key verin, asla production'dakini değil; bkz.
+[CLI](/docs/cli#environment-files).
+
+Production tarafı, binary'nin çalıştığı yerde set edilen dört değişkendir: `HOST`,
+`PORT`, `BASE_URL` ve `COLLAGE_CSRF_KEY`. Orada `.env` dosyalarını hiçbir şey
+okumaz; bkz. [Deployment](/docs/deployment#environment).
