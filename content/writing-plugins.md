@@ -857,8 +857,9 @@ handler for each file's path twice and puts the answer on the file: `Status` and
 `Headers`, without the headers about one response (`Date`, `ETag`,
 `Set-Cookie`, …) and without any that differ between the two answers, such as a
 CSP nonce. `Captured` is true for every file the build asked for, also one whose
-capture failed (`Status` 0), and false for the `404.html` pages and the root
-redirect, which the build makes itself. The capture runs only when a
+capture failed (`Status` 0), and false for the `404.html` pages, which the build
+makes itself. The root copy of the home page, under `PrefixDefault`, carries the
+home page's capture. The capture runs only when a
 `BuildFinishedHook` plugin is registered. What it finds is reported as warnings;
 see [Static export](/docs/static-export#headers-and-redirects).
 

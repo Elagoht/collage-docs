@@ -906,8 +906,9 @@ uygulamanın handler'ına iki kez sorar ve cevabı dosyaya koyar: `Status` ve
 `Headers`. Tek bir response'a ait header'lar (`Date`, `ETag`, `Set-Cookie`, …) ve
 iki cevap arasında değişenler, örneğin bir CSP nonce'ı, bunlara girmez. `Captured`,
 build'in sorduğu her dosya için true'dur; yakalaması başarısız olan dosya da
-(`Status` 0) buna dahildir. Build'in kendisinin ürettiği `404.html` page'leri ve
-kök redirect için ise false'tur. Yakalama yalnızca `BuildFinishedHook` implement
+(`Status` 0) buna dahildir. Build'in kendisinin ürettiği `404.html` page'leri için
+ise false'tur. `PrefixDefault` açıkken home page'in kökteki kopyası, home page'in
+yakalanma değerlerini taşır. Yakalama yalnızca `BuildFinishedHook` implement
 eden bir plugin register edilmişse çalışır. Bulduğu şeyler uyarı olarak raporlanır;
 bkz. [Static export](/docs/static-export#headers-and-redirects).
 
