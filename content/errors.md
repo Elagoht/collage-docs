@@ -17,14 +17,49 @@ if err := app.RegisterPage(page); errors.Is(err, collage.ErrDuplicateRoute) {
 
 Most of them are reported **at startup**: `New` validates the configuration and
 parses every template, registration validates every page, and starting the
-application checks what only the whole set can reveal. A mistake in how the site is
-put together is a program that refuses to start, not a page that fails for the
-first reader who finds it. Under `collage dev` that refusal is shown in the
-browser, as a 503 page with what the program printed — see
+application checks what only the whole set can reveal.
+
+A mistake in how the site is put together is a program that refuses to start, not
+a page that fails for the first reader who finds it. Under `collage dev` that
+refusal is shown in the browser, as a 503 page with what the program printed — see
 [CLI](/docs/cli#collage-dev).
 
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 384" role="img" aria-labelledby="errs-title">
+<title id="errs-title">When an error reaches you. collage.New returns configuration errors such as ErrTemplateRootMissing. A builder records its errors, such as ErrMissingContent, on the value it built, and registration refuses that value. Registration returns what validation finds, such as ErrUnknownSlot. Starting, with Start or ListenAndServe, returns what only the whole set shows, such as ErrMountShadowsRoute. After that, a failure during a request becomes a 404, a 500 or a fallback, reaches error hooks with its stage, and the production error page hides its cause. A static build with collage.Build returns its error or records it in the report: Errors, Skipped and Findings. errors.Is is the same test for every sentinel, however it is wrapped.</title>
+<defs><marker id="errs-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
+<rect class="d-frame" x="4" y="8" width="130" height="40" rx="6" /><text x="69" y="24" text-anchor="middle">collage.New</text><text class="d-small" x="69" y="38" text-anchor="middle">config, templates</text>
+<line class="d-flow" x1="134" y1="28" x2="148" y2="28" marker-end="url(#errs-arrow)" />
+<rect class="d-chip" x="152" y="8" width="164" height="40" rx="6" /><text class="d-small" x="234" y="24" text-anchor="middle">ErrTemplateRootMissing</text><text class="d-small" x="234" y="38" text-anchor="middle">New returns it</text>
+<line class="d-flow" x1="69" y1="48" x2="69" y2="54" marker-end="url(#errs-arrow)" />
+<rect class="d-frame" x="4" y="58" width="130" height="40" rx="6" /><text x="69" y="74" text-anchor="middle">builders</text><text class="d-small" x="69" y="88" text-anchor="middle">NewPage … Build()</text>
+<line class="d-flow" x1="134" y1="78" x2="148" y2="78" marker-end="url(#errs-arrow)" />
+<rect class="d-chip" x="152" y="58" width="164" height="40" rx="6" /><text class="d-small" x="234" y="74" text-anchor="middle">ErrMissingContent</text><text class="d-small" x="234" y="88" text-anchor="middle">refused at Register</text>
+<line class="d-flow" x1="69" y1="98" x2="69" y2="104" marker-end="url(#errs-arrow)" />
+<rect class="d-frame" x="4" y="108" width="130" height="40" rx="6" /><text x="69" y="124" text-anchor="middle">registration</text><text class="d-small" x="69" y="138" text-anchor="middle">Register, RegisterPage</text>
+<line class="d-flow" x1="134" y1="128" x2="148" y2="128" marker-end="url(#errs-arrow)" />
+<rect class="d-chip" x="152" y="108" width="164" height="40" rx="6" /><text class="d-small" x="234" y="124" text-anchor="middle">ErrUnknownSlot</text><text class="d-small" x="234" y="138" text-anchor="middle">Register returns it</text>
+<line class="d-flow" x1="69" y1="148" x2="69" y2="154" marker-end="url(#errs-arrow)" />
+<rect class="d-frame" x="4" y="158" width="130" height="40" rx="6" /><text x="69" y="174" text-anchor="middle">start</text><text class="d-small" x="69" y="188" text-anchor="middle">Start, ListenAndServe</text>
+<line class="d-flow" x1="134" y1="178" x2="148" y2="178" marker-end="url(#errs-arrow)" />
+<rect class="d-chip" x="152" y="158" width="164" height="40" rx="6" /><text class="d-small" x="234" y="174" text-anchor="middle">ErrMountShadowsRoute</text><text class="d-small" x="234" y="188" text-anchor="middle">Start returns it</text>
+<path class="d-flow" d="M69 198C69 206 79 206 79 214" marker-end="url(#errs-arrow)" />
+<path class="d-flow" d="M100 198C100 210 241 202 241 214" marker-end="url(#errs-arrow)" />
+<rect class="d-c" x="4" y="218" width="150" height="26" rx="6" /><text class="d-on-c" x="79" y="235" text-anchor="middle">a request</text>
+<rect class="d-c" x="166" y="218" width="150" height="26" rx="6" /><text class="d-on-c" x="241" y="235" text-anchor="middle">collage.Build</text>
+<line class="d-flow" x1="79" y1="244" x2="79" y2="256" marker-end="url(#errs-arrow)" />
+<line class="d-flow" x1="241" y1="244" x2="241" y2="256" marker-end="url(#errs-arrow)" />
+<rect class="d-chip" x="4" y="260" width="150" height="54" rx="6" /><text class="d-small" x="79" y="276" text-anchor="middle">404, 500 or fallback</text><text class="d-small" x="79" y="290" text-anchor="middle">OnError gets the stage</text><text class="d-small" x="79" y="304" text-anchor="middle">production hides cause</text>
+<rect class="d-chip" x="166" y="260" width="150" height="54" rx="6" /><text class="d-small" x="241" y="276" text-anchor="middle">Build returns it, or</text><text class="d-small" x="241" y="290" text-anchor="middle">the report: Errors,</text><text class="d-small" x="241" y="304" text-anchor="middle">Skipped, Findings</text>
+<rect class="d-cmd" x="4" y="332" width="312" height="44" rx="6" /><text class="d-cmd-text" x="160" y="350" text-anchor="middle">errors.Is(err, collage.ErrUnknownSlot)</text><text class="d-cmd-text d-small" x="160" y="366" text-anchor="middle">the same test for every sentinel, however wrapped</text>
+</svg>
+<figcaption>When each kind of error reaches you. <code>New</code> refuses a bad configuration. What a builder records stays on the value it built, and registration refuses that value along with whatever validation finds. Starting checks what only the whole set shows: <code>Start</code> returns that failure, and <code>Handler</code> logs it and answers 503. After that, a failure during a request becomes a status, a fallback or an error page and reaches error hooks, and the production page says nothing about its cause; a static build returns its error or records it in its report. Whichever it is, match it with <code>errors.Is</code>.</figcaption>
+</figure>
+
 The tables below are grouped by where each error comes from. The message is the
-text the sentinel carries before any wrapping adds detail.
+text the sentinel carries before any wrapping adds detail. Three mistakes
+registration catches, and how to read what collage prints for each, are worked
+through in [Example: three mistakes registration catches](#example-three-mistakes-registration-catches).
 
 Since v0.10.0 every error below is exported. Before it, the action, request-forgery,
 method, asset, `{{dict}}` and template-escapes-root errors, and `ErrNotStatic`,
@@ -35,7 +70,9 @@ Since v0.60.0 a few failures carry no sentinel, because there is nothing an
 application could do by matching one: `New(nil)`, a `nil` plugin or page, a plugin
 or command with an empty name, a `{{dict}}` call with an odd number of arguments
 or a key that is not a string, and a disk cache with no version. They are still
-refused, with a message that says what is wrong. Several sentinels were renamed to
+refused, with a message that says what is wrong.
+
+Several sentinels were renamed to
 the one that stays: `ErrMissingTTL` is `ErrInvalidTTL`, `ErrUnsupportedCache` is
 `ErrInvalidCacheType`, `ErrInvalidHandlerPrefix` is `ErrInvalidPrefix`,
 `ErrInvalidBaseURL` is `ErrInvalidOrigin`, `ErrNoMethods` is `ErrNoActionMethods`,
@@ -82,9 +119,9 @@ Two places report these. A few are recorded by the builders as the chain runs �
 and `ErrInvalidLocale` from `WithPath`, `ErrMissingLayout`,
 `ErrConflictingLayout`, `ErrNilFragment` and `ErrFragmentCycle` from `WithLayouts`,
 `ErrMissingContent` from a page's `Build`, and `ErrNoDocumentHandler` from a
-document's — and you can
-read them with `BuildErr()`. What a builder recorded stays
-on the value it built, and `RegisterPage` and `RegisterDocument` refuse a value
+document's — and you can read them with `BuildErr()`.
+
+What a builder recorded stays on the value it built, and `RegisterPage` and `RegisterDocument` refuse a value
 carrying any — a page's own, or those of any fragment in its tree — wrapped as
 `collage: page %q was built with errors: %w` (`collage: document %q was built with
 errors: %w` for a document), whether or not `BuildErr()` was called.
@@ -92,10 +129,12 @@ errors: %w` for a document), whether or not `BuildErr()` was called.
 The rest are found by validation when the page is registered: `RegisterPage` checks
 every fragment in the tree, its names, templates, slots — each binding against the
 slots its template calls — data, timeouts, TTLs, paths and error pages, and returns
-the first failure. A fragment opened with
-`WithFragmentPath` is part of the page for this (since v0.11.0): its template, its
-builder's mistakes and its validation are checked at registration like the rest. Either way a malformed page is refused
-before it serves anything.
+the first failure.
+
+A fragment opened with `WithFragmentPath` is part of the page for this (since
+v0.11.0): its template, its builder's mistakes and its validation are checked at
+registration like the rest. Either way a malformed page is refused before it serves
+anything.
 
 | Error | Message | Means |
 | --- | --- | --- |
@@ -229,7 +268,9 @@ Returned by `App.URL`, `App.ActionURL` and `App.FragmentURL`, and failed renders
 Returned by `RegisterAction`. `RegisterPage` checks an action attached to a page
 too — `ErrNilAction`, `ErrNoActionMethods`, and since v0.10.0 `ErrNoActionHandler` and
 `ErrDuplicateAction` — and refuses a `nil` fragment path with
-`ErrNilFragmentPath`. Since v0.11.0 there is one `ErrNoActionHandler`, the same
+`ErrNilFragmentPath`.
+
+Since v0.11.0 there is one `ErrNoActionHandler`, the same
 value at registration and on a request. Since v0.60.0 an action that recorded
 errors while it was built — a repeated locale in `WithPath`, say — is refused at
 registration too; `ActionBuilder.BuildErr()` reads them first.
@@ -348,3 +389,139 @@ sentence for people, and its `Err` (since v0.10.0) is the sentinel for code —
 `ErrNotStatic`, `ErrGuarded`, `ErrDynamicPathUnresolved` or `ErrUnresolvedToken` —
 so match it with `errors.Is(skip.Err, …)` rather than by
 reading `Reason`.
+
+## Example: three mistakes registration catches
+
+A new project registers its pages in `routes.go`, and the scaffolded `main.go`
+stops on the first error, printing it after the time and the project's name (the
+time is left out below). Here the project is called `blog`. `Register` stops at the first item it refuses, so these arrive
+one per run: fix it, run again, read the next.
+
+Each line reads from the outside in:
+
+- `blog:` is `main.go`'s;
+- `register page "home":` is `Register` naming the item it refused;
+- `collage: unknown slot` is the sentinel's message, the one in the tables above;
+- the rest is the detail: the page, the fragment, the template.
+
+### A slot name with a typo
+
+The home page's content binds an aside into a slot, and spells it differently from
+the template:
+
+```go
+func Home() *collage.Fragment {
+	return collage.NewFragment("home", "pages/home.html").
+		WithSlotFragment("sidebr", Aside()).
+		Build()
+}
+```
+
+```html
+<h1>Home</h1>
+{{slot "sidebar"}}
+```
+
+```text
+blog: register page "home": collage: unknown slot: page "home" fragment "home" binds into slot "sidebr", but template "pages/home.html" never calls it; it calls [sidebar]
+```
+
+The end of the line is the answer: the template calls `sidebar`, and the Go side
+binds `sidebr`. Correct whichever side is wrong. Unchecked, the aside would render
+nowhere, on every request.
+
+A template that works a slot's name out as it renders may call any slot, so its
+bindings are not checked this way.
+
+### A field the data does not have
+
+The post's content, in `fragments/pages/post.go` (package `fragments`), hands its
+template a `postView`, and the template misspells a field:
+
+```go
+type postView struct {
+	Title string
+}
+
+func Post() *collage.Fragment {
+	return collage.NewFragment("post", "pages/post.html").
+		WithData(collage.Value(postView{Title: "Hello"})).
+		Build()
+}
+```
+
+```html
+<h1>{{.Titel}}</h1>
+```
+
+```text
+blog: register page "post": collage: page "post": fragment "post" (pages/post.html:1:6): {{.Titel}}: type fragments.postView has no field or method Titel (did you mean Title?)
+```
+
+This one does not carry its sentinel's message, `collage: template does not fit
+its data`. Each finding is a `*collage.TemplateTypeError`, which prints the page,
+the fragment, the template's file, line and column, the expression, what is wrong
+with it and, when one is close, the name you probably meant. Write `{{.Title}}`.
+
+`errors.Is(err, collage.ErrTemplateType)` matches it all the same. Every finding
+in the page's templates is reported at once, one per line — when nothing else on
+the page was refused first: a missing template or a wrong slot binding stops the
+check before its findings are returned.
+`errors.As` reaches the first finding's fields:
+
+```go
+var typeErr *collage.TemplateTypeError
+if errors.As(err, &typeErr) {
+	fmt.Printf("%s:%d:%d: %s\n", typeErr.Template, typeErr.Line, typeErr.Col, typeErr.Expr)
+}
+```
+
+### A fragment path on its page's path
+
+The search page opens its results at a URL of their own, so a script can refresh
+them, and gives them the page's path:
+
+```go
+func Search() *collage.Page {
+	return collage.NewPage("search").
+		WithLayouts(layouts.Master()).
+		WithContent(fragments.Search()).
+		WithPath("en", "/search").
+		WithFragmentPath("en", "/search", fragments.SearchResults()).
+		Build()
+}
+```
+
+```text
+blog: register page "search": collage: duplicate route: action "search:search-results" and page "search" both answer GET "/search" for locale "en"
+```
+
+The action named there is not one you wrote. collage serves a fragment path with
+an action that answers `GET`, named after the page and the fragment —
+`fragments.SearchResults()` builds the one named `search-results`. Its path is the page's own, so two routes answer
+`GET /search`. Give the fragment a path of its own, such as `/search/results`.
+
+Two pages on one path say so in the same words:
+`page "team" and page "about" both claim "/about" for locale "en"`.
+
+### Catch them in a test
+
+All three are returned by registration, so `newApp` returns them, and a test that
+calls it fails on the same error before anything is deployed. `Start` adds what is
+checked when the application starts:
+
+```go
+func TestAppStarts(t *testing.T) {
+	cacheDir = t.TempDir()
+	app, err := newApp(false, 0)
+	if err != nil {
+		t.Fatalf("newApp() = %v, want nil", err)
+	}
+	t.Cleanup(func() { _ = app.Shutdown(context.Background()) })
+	if err := app.Start(); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+}
+```
+
+See [Testing](/docs/testing#test-the-application-main-builds).
