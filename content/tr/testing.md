@@ -516,7 +516,13 @@ URL'si olan bir fragment'tir. Action üç şekilde cevap verir. Bu page'i, giri�
 yapmamış bir okuyucuyu `/login?next=…` adresine gönderen bir guard'ı olan bir
 layout'un içine koyun ([Page'ler ve layout'lar](/docs/pages-and-layouts#private-pages-guards)
 sayfasındaki `requireUser` gibi). Siteye de action'ı session cookie'sini set eden
-ve `next`'e redirect eden bir `/login` form'u ekleyin.
+ve `next`'e redirect eden bir `/login` form'u ekleyin. Session, uygulamanın kendi
+`sid` cookie'sidir ve
+[Middleware ve kendi API'niz](/docs/middleware-and-apis#example-a-teams-task-list)
+sayfasındaki gibi bir middleware tarafından okunur. Bunun yerine
+[elagoht/session](/docs/plugins#elagohtsession) kullanılırsa giriş yapmış bir
+okuyucunun page'i her request'te yeniden render edilir ve aşağıdaki cache testi
+`HIT` beklediği yerde `MISS` görür.
 
 Bir okuyucunun yapabildiği her şey için bir test vardır:
 

@@ -612,7 +612,7 @@ func newApp(devMode bool, port int) (*collage.App, error) {
 
 	cfg := &collage.Config{
 		DevMode: devMode,
-		BaseURL: os.Getenv("BASE_URL"), // empty in development
+		BaseURL: os.Getenv("BASE_URL"), // empty in development unless .env.development sets it
 		Server: collage.ServerConfig{
 			Host:              envString("HOST", "localhost"),
 			Port:              port,
@@ -664,7 +664,7 @@ Her ayarın iki ortamdaki değeri ve bunun nedeni şöyledir:
 | --- | --- | --- | --- |
 | `DevMode` | açık: `collage dev`, `COLLAGE_DEV=1` set eder | kapalı: değişken set edilmez | Development'ın error page'leri dosya yollarını ve hata zincirlerini taşır. Bir development sunucusu ayrıca yalnızca `Host`'u bu makineyi adlandıran request'lere cevap verir; bkz. [Deployment](/docs/deployment#development-mode-stays-on-this-machine). |
 | `Server.Host`, `Server.Port` | `collage dev`'in seçtiği loopback adresi | `HOST` ve `PORT`, ya da `-port` | Sizin adresinizde `collage dev`'in kendisi dinler ve request'leri iletir; bkz. [CLI](/docs/cli#collage-dev). |
-| `BaseURL` | boş | `BASE_URL`'den `https://tasks.example.com` | Boş olması hata değildir: hiç mutlak URL üretmeyen bir site için gerekmez. Set edilmişse yalın bir origin olmalıdır, yoksa `New` `ErrInvalidOrigin` ile başarısız olur. |
+| `BaseURL` | `.env.development` `BASE_URL`'i set etmedikçe boş | `BASE_URL`'den `https://tasks.example.com` | Boş olması hata değildir: hiç mutlak URL üretmeyen bir site için gerekmez. Set edilmişse yalın bir origin olmalıdır, yoksa `New` `ErrInvalidOrigin` ile başarısız olur. |
 | `Security.CSRFKey` | boş: her process'e bir key, info seviyesinde log'lanır | en az 32 byte rastgele veri, iki sunucuda da aynı | Üretilmiş bir key, bir restart'tan önce ya da diğer sunucunun ürettiği her token'ı reddeder. |
 | `Security.CSRFTrustedOrigins` | yok | admin panelinin origin'i | Diğer her origin, geçerli bir token taşısa bile reddedilir. |
 | `Server.TrustedProxies` | yok | load balancer | Bu olmadan her istemcinin adresi load balancer'ınkidir. |
@@ -681,5 +681,6 @@ kendine ait bir key verin. Bu key hiçbir zaman production'daki key olmamalıdı
 bkz. [CLI](/docs/cli#environment-files).
 
 Production tarafı, binary'nin çalıştığı yerde set edilen dört değişkendir: `HOST`,
-`PORT`, `BASE_URL` ve `COLLAGE_CSRF_KEY`. Orada `.env` dosyalarını hiçbir şey
+`PORT`, `BASE_URL` ve `COLLAGE_CSRF_KEY`. Bunlara bir plugin'in `KeyEnv` ile
+adlandırdığı değişkenler eklenir. Orada `.env` dosyalarını hiçbir şey
 okumaz; bkz. [Deployment](/docs/deployment#environment).

@@ -575,7 +575,7 @@ func newApp(devMode bool, port int) (*collage.App, error) {
 
 	cfg := &collage.Config{
 		DevMode: devMode,
-		BaseURL: os.Getenv("BASE_URL"), // empty in development
+		BaseURL: os.Getenv("BASE_URL"), // empty in development unless .env.development sets it
 		Server: collage.ServerConfig{
 			Host:              envString("HOST", "localhost"),
 			Port:              port,
@@ -627,7 +627,7 @@ What each setting is in each place, and why:
 | --- | --- | --- | --- |
 | `DevMode` | on: `collage dev` sets `COLLAGE_DEV=1` | off: the variable is unset | Development's error pages carry paths and error chains. A development server also answers only requests whose `Host` names this machine; see [Deployment](/docs/deployment#development-mode-stays-on-this-machine). |
 | `Server.Host`, `Server.Port` | the loopback address `collage dev` chose | `HOST` and `PORT`, or `-port` | `collage dev` listens on your address itself and passes requests on; see [CLI](/docs/cli#collage-dev). |
-| `BaseURL` | empty | `https://tasks.example.com` from `BASE_URL` | Empty is not an error: a site that builds no absolute URL needs none. Set, it must be a bare origin, or `New` fails with `ErrInvalidOrigin`. |
+| `BaseURL` | empty, unless `.env.development` sets `BASE_URL` | `https://tasks.example.com` from `BASE_URL` | Empty is not an error: a site that builds no absolute URL needs none. Set, it must be a bare origin, or `New` fails with `ErrInvalidOrigin`. |
 | `Security.CSRFKey` | empty: a key per process, logged at info level | at least 32 random bytes, the same on both servers | A generated key refuses every token issued before a restart, or by the other server. |
 | `Security.CSRFTrustedOrigins` | none | the admin panel's origin | Every other origin is refused, even with a valid token. |
 | `Server.TrustedProxies` | none | the load balancer | Without it, every client's address is the load balancer's. |
@@ -643,5 +643,6 @@ Go code changes, give development a key of its own in `.env.development` — nev
 the production one; see [CLI](/docs/cli#environment-files).
 
 The production side is four variables — `HOST`, `PORT`, `BASE_URL` and
-`COLLAGE_CSRF_KEY` — set where the binary runs. Nothing reads `.env` files there;
+`COLLAGE_CSRF_KEY` — plus any a plugin's `KeyEnv` names, set where the binary
+runs. Nothing reads `.env` files there;
 see [Deployment](/docs/deployment#environment).

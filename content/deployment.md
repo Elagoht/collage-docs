@@ -31,7 +31,7 @@ all, see [Static export](/docs/static-export).
 <rect class="d-frame" x="6" y="198" width="150" height="86" rx="5" /><text x="81" y="214" text-anchor="middle">environment</text><text class="d-small" x="14" y="232">PORT: 6060 if unset</text><text class="d-small" x="14" y="246">HOST: localhost if unset</text><text class="d-small" x="14" y="260">COLLAGE_CSRF_KEY: set</text><text class="d-small" x="14" y="274">COLLAGE_DEV: unset</text>
 <rect class="d-folder" x="164" y="198" width="150" height="86" rx="4" /><text x="239" y="214" text-anchor="middle">working directory</text><text class="d-small" x="239" y="234" text-anchor="middle">.cache/&lt;hash&gt;/</text><text class="d-small" x="239" y="247" text-anchor="middle">the page cache</text><text class="d-small" x="239" y="266" text-anchor="middle">plugins-config.json</text>
 </svg>
-<figcaption>One binary on a server. The reverse proxy or load balancer in front ends TLS and passes each request on over plain HTTP, with the browser's <code>Host</code> and the <code>X-Forwarded-For</code> and <code>X-Forwarded-Proto</code> headers; <code>Server.TrustedProxies</code> decides whether the binary believes them. The binary listens on <code>HOST:PORT</code>, which is <code>localhost:6060</code> when neither is set; the <code>bin/Dockerfile</code> that <code>collage build -i</code> writes sets <code>0.0.0.0:8080</code>, and its systemd unit <code>127.0.0.1:8080</code>. Everything else it needs is inside it, except its environment and, relative to its working directory, the page cache and <code>plugins-config.json</code>.</figcaption>
+<figcaption>One binary on a server. The reverse proxy or load balancer in front ends TLS and passes each request on over plain HTTP, with the browser's <code>Host</code> and the <code>X-Forwarded-For</code> and <code>X-Forwarded-Proto</code> headers; <code>Server.TrustedProxies</code> decides whether the binary believes them. The binary listens on <code>HOST:PORT</code>, which is <code>localhost:6060</code> when neither is set; the image file that <code>collage build -i</code> writes sets <code>0.0.0.0:8080</code>, and its service unit <code>127.0.0.1:8080</code>. Everything else it needs is inside it, except its environment and, relative to its working directory, the page cache and <code>plugins-config.json</code>.</figcaption>
 </figure>
 
 ## Building: `collage build`
@@ -857,9 +857,9 @@ EnvironmentFile=/etc/tasks/secrets.env
   unit:
 
 ```sh
-# openssl rand -hex 32
+# 32 random bytes, hex
 COLLAGE_CSRF_KEY=…
-# openssl rand -hex 32, another one
+# 32 random bytes, hex, another one
 FLASH_KEY=…
 ```
 
@@ -897,15 +897,15 @@ servers is the other answer; see
 A new build goes out one server at a time:
 
 1. **Put the new binary in place** at `/usr/local/bin/tasks`, and run
-   `systemctl restart tasks`.
-2. **The drain.** systemd sends `SIGTERM`. `/readyz` answers `503 draining`,
+   restart the service.
+2. **The drain.** The service manager sends `SIGTERM`. `/readyz` answers `503 draining`,
    keep-alives are turned off, and the server keeps serving for `DrainDelay`. Within
    2 seconds the load balancer's check fails, and it sends everything to the other
    server.
 3. **The stop.** The port closes, and requests still in flight get up to
    `ShutdownTimeout`, 10 seconds. The unit's `TimeoutStopSec=30` is longer than the
    15 seconds this can take.
-4. **The new binary.** systemd starts it. It reads a new `.cache/<hash>` directory,
+4. **The new binary.** The service manager starts it. It reads a new `.cache/<hash>` directory,
    so it never serves a page the previous build rendered.
 5. **Wait for `/readyz` to answer `200`** and the load balancer to take the server
    back, then do the same on the other.

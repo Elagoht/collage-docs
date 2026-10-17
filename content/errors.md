@@ -501,7 +501,7 @@ an action that answers `GET`, named after the page and the fragment —
 `fragments.SearchResults()` builds the one named `search-results`. Its path is the page's own, so two routes answer
 `GET /search`. Give the fragment a path of its own, such as `/search/results`.
 
-Two pages on one path say so in the same words:
+Two pages on one path say so in a message of the same shape:
 `page "team" and page "about" both claim "/about" for locale "en"`.
 
 ### Catch them in a test

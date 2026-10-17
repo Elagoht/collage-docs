@@ -52,7 +52,7 @@ kendisinden sonra gelen çalışmadan önce cevap verebilir:
 <rect class="d-frame" x="96" y="468" width="12" height="12" rx="2" /><text class="d-small" x="114" y="478">collage</text>
 <rect class="d-c" x="180" y="468" width="12" height="12" rx="2" /><text class="d-small" x="198" y="478">sizin</text>
 </svg>
-<figcaption>collage'ın kendi adımları çerçeveli, size ait olanlar dolu çizilmiştir. Her request, herhangi bir middleware çalışmadan önce security header'larını ve temiz bir path'i alır. Middleware'lerden sonra app.Handle ile mount edilmiş bir path tamamen sizindir: guard, forgery kontrolü, body limiti ve cache yoktur. Bir page, action'ları ve fragment path'leri cache'ten önce page'in guard'larıyla karşılaşır. Ardından bir action, handler'ınızdan önce body limitiyle, sonra origin ve token ile karşılaşır; bir fragment path, GET'e cevap veren bir action'dır ve hiçbir zaman cache'lenmez. Production'da bir error page status'tan başka bir şey göstermez.</figcaption>
+<figcaption>collage'ın kendi adımları çerçeveli, size ait olanlar dolu çizilmiştir. Her request, herhangi bir middleware çalışmadan önce security header'larını ve temiz bir path'i alır. Middleware'lerden sonra app.Handle ile mount edilmiş bir path tamamen sizindir: guard, forgery kontrolü, body limiti ve cache yoktur. Bir page, action'ları ve fragment path'leri cache'ten önce page'in guard'larıyla karşılaşır. Ardından bir action, handler'ınızdan önce body limitiyle (body herhangi bir middleware çalışmadan önce sınırlanır; body'si çok büyük bir action burada reddedilir), sonra origin ve token ile karşılaşır; bir fragment path, GET'e cevap veren bir action'dır ve hiçbir zaman cache'lenmez. Production'da bir error page status'tan başka bir şey göstermez.</figcaption>
 </figure>
 
 ## Form'lar sahte olarak gönderilemez
@@ -264,7 +264,7 @@ okunur:
 app, err := collage.New(&collage.Config{
 	Server: collage.ServerConfig{
 		// The proxy that ends TLS, so ClientIP and IsHTTPS believe it.
-		TrustedProxies: []string{"10.0.0.0/8"},
+		TrustedProxies: []string{"10.0.1.10"},
 	},
 	Security: collage.SecurityConfig{
 		CSRFKey: []byte(os.Getenv("COLLAGE_CSRF_KEY")),

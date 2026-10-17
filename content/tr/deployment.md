@@ -32,7 +32,7 @@ için [Static export](/docs/static-export) sayfasına bakın.
 <rect class="d-frame" x="6" y="198" width="150" height="86" rx="5" /><text x="81" y="214" text-anchor="middle">ortam</text><text class="d-small" x="14" y="232">PORT: yoksa 6060</text><text class="d-small" x="14" y="246">HOST: yoksa localhost</text><text class="d-small" x="14" y="260">COLLAGE_CSRF_KEY: şart</text><text class="d-small" x="14" y="274">COLLAGE_DEV: ayarsız</text>
 <rect class="d-folder" x="164" y="198" width="150" height="86" rx="4" /><text x="239" y="214" text-anchor="middle">çalışma dizini</text><text class="d-small" x="239" y="234" text-anchor="middle">.cache/&lt;hash&gt;/</text><text class="d-small" x="239" y="247" text-anchor="middle">page cache</text><text class="d-small" x="239" y="266" text-anchor="middle">plugins-config.json</text>
 </svg>
-<figcaption>Bir sunucuda tek bir binary. Öndeki reverse proxy ya da load balancer TLS'i bitirir ve her request'i düz HTTP ile, tarayıcının <code>Host</code>'u ve <code>X-Forwarded-For</code> ile <code>X-Forwarded-Proto</code> header'larıyla iletir; binary'nin bunlara inanıp inanmayacağına <code>Server.TrustedProxies</code> karar verir. Binary <code>HOST:PORT</code>'u dinler; ikisi de ayarlı değilse bu <code>localhost:6060</code>'dır. <code>collage build -i</code>'ın yazdığı <code>bin/Dockerfile</code>, <code>0.0.0.0:8080</code>'i ayarlar; systemd unit'i ise <code>127.0.0.1:8080</code>'i. İhtiyaç duyduğu diğer her şey binary'nin içindedir. Dışında kalanlar yalnızca ortamı, bir de çalışma dizinine göre konumlanan page cache ile <code>plugins-config.json</code>'dır.</figcaption>
+<figcaption>Bir sunucuda tek bir binary. Öndeki reverse proxy ya da load balancer TLS'i bitirir ve her request'i düz HTTP ile, tarayıcının <code>Host</code>'u ve <code>X-Forwarded-For</code> ile <code>X-Forwarded-Proto</code> header'larıyla iletir; binary'nin bunlara inanıp inanmayacağına <code>Server.TrustedProxies</code> karar verir. Binary <code>HOST:PORT</code>'u dinler; ikisi de ayarlı değilse bu <code>localhost:6060</code>'dır. <code>collage build -i</code>'ın yazdığı image dosyası, <code>0.0.0.0:8080</code>'i ayarlar; servis unit'i ise <code>127.0.0.1:8080</code>'i. İhtiyaç duyduğu diğer her şey binary'nin içindedir. Dışında kalanlar yalnızca ortamı, bir de çalışma dizinine göre konumlanan page cache ile <code>plugins-config.json</code>'dır.</figcaption>
 </figure>
 
 ## Build: `collage build`
@@ -898,9 +898,9 @@ EnvironmentFile=/etc/tasks/secrets.env
 - **Secret'lar kendi dosyalarındadır**; repository'nin ve unit'in dışında tutulur:
 
 ```sh
-# openssl rand -hex 32
+# 32 random bytes, hex
 COLLAGE_CSRF_KEY=…
-# openssl rand -hex 32, another one
+# 32 random bytes, hex, another one
 FLASH_KEY=…
 ```
 
@@ -940,15 +940,15 @@ bölümüne bakın.
 Yeni bir build sunuculara birer birer gider:
 
 1. **Yeni binary'yi `/usr/local/bin/tasks` konumuna koyun** ve
-   `systemctl restart tasks` çalıştırın.
-2. **Drain.** systemd `SIGTERM` gönderir. `/readyz` `503 draining` döner,
+   servisi yeniden başlatın.
+2. **Drain.** Servis yöneticisi `SIGTERM` gönderir. `/readyz` `503 draining` döner,
    keep-alive'lar kapatılır ve sunucu `DrainDelay` boyunca hizmet vermeye devam
    eder. Load balancer'ın check'i 2 saniye içinde başarısız olur ve load balancer
    her şeyi diğer sunucuya gönderir.
 3. **Durdurma.** Port kapanır ve devam eden request'lere en fazla
    `ShutdownTimeout`, yani 10 saniye verilir. Unit'in `TimeoutStopSec=30`'u, bunun
    sürebileceği 15 saniyeden uzundur.
-4. **Yeni binary.** systemd onu başlatır. Yeni binary yeni bir `.cache/<hash>`
+4. **Yeni binary.** Servis yöneticisi onu başlatır. Yeni binary yeni bir `.cache/<hash>`
    dizinini okur, bu yüzden önceki build'in render ettiği bir page'i asla sunmaz.
 5. **`/readyz`'nin `200` dönmesini** ve load balancer'ın sunucuyu geri almasını
    bekleyin, sonra aynısını diğer sunucuda yapın.

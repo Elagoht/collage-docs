@@ -52,7 +52,7 @@ before what comes after it runs:
 <rect class="d-frame" x="96" y="468" width="12" height="12" rx="2" /><text class="d-small" x="114" y="478">collage</text>
 <rect class="d-c" x="180" y="468" width="12" height="12" rx="2" /><text class="d-small" x="198" y="478">yours</text>
 </svg>
-<figcaption>collage's own steps are outlined, and what is yours is filled. Every request gets the security headers and a clean path before any middleware runs. After the middleware, a path mounted with app.Handle is yours alone: no guard, no forgery check, no body limit and no cache. A page, its actions and its fragment paths meet the page's guards before the cache. An action then meets the body limit, then the origin and the token, before your handler; a fragment path is an action answering GET, and is never cached. In production, an error page shows the status and nothing else.</figcaption>
+<figcaption>collage's own steps are outlined, and what is yours is filled. Every request gets the security headers and a clean path before any middleware runs. After the middleware, a path mounted with app.Handle is yours alone: no guard, no forgery check, no body limit and no cache. A page, its actions and its fragment paths meet the page's guards before the cache. An action then meets the body limit (the body is bounded before any middleware runs; an action whose body is too large is refused here), then the origin and the token, before your handler; a fragment path is an action answering GET, and is never cached. In production, an error page shows the status and nothing else.</figcaption>
 </figure>
 
 ## Forms cannot be forged
@@ -248,7 +248,7 @@ environment variable its `KeyEnv` names, never from `plugins-config.json`:
 app, err := collage.New(&collage.Config{
 	Server: collage.ServerConfig{
 		// The proxy that ends TLS, so ClientIP and IsHTTPS believe it.
-		TrustedProxies: []string{"10.0.0.0/8"},
+		TrustedProxies: []string{"10.0.1.10"},
 	},
 	Security: collage.SecurityConfig{
 		CSRFKey: []byte(os.Getenv("COLLAGE_CSRF_KEY")),

@@ -515,7 +515,7 @@ eder; `fragments.SearchResults()` `search-results` isimli fragment'i kurar. Bu
 action'ın path'i page'in kendi path'idir, bu yüzden `GET /search`'e iki route cevap
 verir. Fragment'e kendine ait bir path verin, örneğin `/search/results`.
 
-Aynı path'teki iki page de durumu aynı sözlerle bildirir:
+Aynı path'teki iki page de durumu aynı biçimde bir mesajla bildirir:
 `page "team" and page "about" both claim "/about" for locale "en"`.
 
 ### Bir test ile yakalayın

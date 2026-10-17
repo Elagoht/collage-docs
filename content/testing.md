@@ -504,7 +504,12 @@ own at `/teams/{team}/tasks/list`, and an action that answers in three ways. Put
 it behind a layout whose guard sends a signed-out reader to `/login?next=…`, like
 `requireUser` in [Pages and layouts](/docs/pages-and-layouts#private-pages-guards),
 and give the site a `/login` form whose action sets the session cookie and
-redirects to `next`.
+redirects to `next`. The session is the application's own `sid` cookie, read by a
+middleware as in
+[Middleware and your own API](/docs/middleware-and-apis#example-a-teams-task-list).
+With [elagoht/session](/docs/plugins#elagohtsession) instead, a signed-in reader's
+page is rendered fresh on every request, and the cache test below would see a
+`MISS` where it asks for a `HIT`.
 
 Its tests, one per thing a reader can do:
 
