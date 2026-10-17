@@ -173,8 +173,9 @@ rewrite a document's body before it is cached and served — a minifier, say. Th
 page render hooks (`OnBeforeRender`, `OnAfterRender`) do not fire, since nothing is
 rendered. See [Writing a plugin](/docs/writing-plugins).
 
-An invalidated document renders again on its next request. Since v0.63.0 it is
-kept until then, as stale, and served the way a stale page is when that render
+An invalidated document is rendered again in the background right away (since
+v0.64.0; see [Caching](/docs/caching#warming-after-an-invalidation)), or on its
+next request if that has not happened yet. Since v0.63.0 it is kept until then, as stale, and served the way a stale page is when that render
 fails: with `Cache-Control: no-store` and `X-Collage-Cache: STALE`. A render that
 answers 404 drops it. See
 [Caching](/docs/caching#stale-pages-and-x-collage-cache).

@@ -277,6 +277,7 @@ handler that never checks `ctx.Done()` can run past it.
 | `MaxBytes` | `int64` | 256 MiB memory, 1 GiB disk | Cap on the total size a built-in cache stores; negative means unlimited (since v0.40.0). A disk cache's memory tier holds 256 MiB, or `MaxBytes` when smaller (since v0.63.0). |
 | `Dir` | `string` | none | Where a disk cache stores entries, and, in `Dir/data/`, the `collage.Cached` values. Required for `CacheDisk`. One per instance: instances sharing it do not share a cache. |
 | `Version` | `string` | derived from the binary | Identifies the build a disk cache's entries belong to. |
+| `WarmLimit` | `int` | `1000` | Cap on the pages one invalidation re-renders in the background, newest first; negative turns warming off (since v0.64.0). |
 
 **Caching is off by default.** With `Enabled` false nothing is cached, even with a
 `Store` set. `Type` defaults to `collage.CacheMemory` only when `Enabled` is true
@@ -393,10 +394,12 @@ type Span interface {
 ```
 
 `CacheEvent` is one of `collage.CacheHit`, `CacheMiss`, `CacheSet`, `CacheEvict`,
-`CacheInvalidate`, `CacheCoalesced` and `CacheStale`. `CacheCoalesced` means a
-request was served by a render of the same key that was already running;
+`CacheInvalidate`, `CacheCoalesced`, `CacheStale` and `CacheWarm`. `CacheCoalesced`
+means a request was served by a render of the same key that was already running;
 `CacheStale`, that a `collage.Cached` value or a cached page was served stale,
-counted once per value or response served.
+counted once per value or response served; `CacheWarm` (since v0.64.0), that a
+page or document an invalidation reached was rendered again in the background and
+stored, once per key.
 
 ## Validation
 

@@ -1,6 +1,6 @@
 ---
 description: collage'ın render edilmiş page'leri ve onları oluşturan veriyi nasıl cache'lediği, neyi atacağını nasıl bildiği.
-reference: CacheConfig, Cached, App.PurgeTags, CacheStale, Once, Key, TaggedCache, StaleCache, CacheStatusHeader, SkipCache, Vary, PageBuilder.Static, PageBuilder.Incremental, PageBuilder.Dynamic, FragmentBuilder.Static, FragmentBuilder.Shared, StrategyAuto, PathTag
+reference: CacheConfig, Cached, App.PurgeTags, CacheStale, CacheWarm, Once, Key, TaggedCache, StaleCache, CacheStatusHeader, SkipCache, Vary, PageBuilder.Static, PageBuilder.Incremental, PageBuilder.Dynamic, FragmentBuilder.Static, FragmentBuilder.Shared, StrategyAuto, PathTag
 ---
 
 # Caching
@@ -25,6 +25,7 @@ app, err := collage.New(&collage.Config{
 		DefaultTTL: 5 * time.Minute,
 		MaxEntries: 10000,
 		MaxBytes:   256 << 20, // 0 means the type's default; negative, no limit
+		WarmLimit:  0,         // pages re-rendered after an invalidation; 0 means 1000, negative, off
 	},
 })
 ```
@@ -284,9 +285,10 @@ if err := app.InvalidateTags(ctx, "post:"+slug, "blog:posts"); err != nil {
 ```
 
 Bu tag'lerden herhangi birini taşıyan her cache'lenmiş page stale olarak
-işaretlenir (v0.63.0'dan beri; önceden atılırdı). Artık taze diye sunulmaz. Her
-biri için gelen bir sonraki request page'i yeniden render eder ve başarılı bir
-render eskisinin yerine saklanır. Ama eski page tutulur, çünkü render başarısız
+işaretlenir (v0.63.0'dan beri; önceden atılırdı). Artık taze diye sunulmaz. Hemen
+arka planda yeniden render edilir (v0.64.0'dan beri;
+[aşağıya](#warming-after-an-invalidation) bakın). Bu henüz olmadıysa onu gelen bir sonraki
+request render eder. Başarılı bir render eskisinin yerine saklanır. Ama eski page tutulur, çünkü render başarısız
 olur ya da degraded çıkarsa cevap onunla verilir. Bkz. [Stale page'ler](#stale-pages-and-x-collage-cache). `collage.Cached`
 ile bu tag'ler altında saklanan her değer de stale olarak işaretlenir. Değer
 tutulur ve arka plandaki bir çekme işlemi onun yerini alırken bir kez daha sunulur
@@ -333,9 +335,13 @@ da bir admin form'unda. Bir action bunu declarative olarak da yapabilir. Bunun i
 [result'ındaki `InvalidateTags`](/docs/forms-and-actions#invalidating-what-an-action-changed)
 alanını kullanır. Bu invalidation response yazılmadan önce çalışır. Böylece az önce
 değiştirdiği page'e redirect edilen okuyucuya eski page taze bir page gibi
-sunulmaz, page yeniden render edilir. Yine de `collage.Cached` verisi okuyan bir
-page'de okuyucu o tek yüklemede eski page'e varır. Bu page, verisi yenilenirken
-stale olarak sunulur. Bkz. [oradaki not](/docs/forms-and-actions#invalidating-what-an-action-changed).
+sunulmaz. v0.64.0'dan beri redirect'in kendi page'i, redirect yazılmadan önce
+yeniden render edilir (bkz. [Warming](#warming-after-an-invalidation)). Eski page
+yalnızca bu render başarısız olursa ya da yavaş kalırsa sunulur. Bkz.
+[oradaki not](/docs/forms-and-actions#invalidating-what-an-action-changed).
+`app.InvalidateTags`'i handler'dan kendiniz çağırırsanız invalidation'ın page'leri
+yalnızca arka planda warm edilir. Redirect'in page'i, redirect yazılmadan önce
+render edilmez.
 
 ### Path'e göre invalidate etmek
 
@@ -393,11 +399,116 @@ için 10000 key, oysa cache'in kendisi toplamda 10000 entry tutuyordu. Artık
 Negatif bir `MaxEntries` bunu kapatır. Kendi store'unuz yalnızca tag başına sınırı
 korur, çünkü collage onun boyutunu bilemez.
 
+## Bir invalidation'dan sonra warming
+
+Invalidate edilmiş bir page, bir şey onu yeniden render edene kadar stale'dir. Bu
+render'ın bedelini de ilk ziyaretçi öderdi. Bu yüzden v0.64.0'dan beri her
+`InvalidateTags` ve `PurgeTags` çağrısından sonra, invalidation'ın ulaştığı page ve
+document'lar arka planda taze veriyle yeniden render edilir ve saklanır. Çağrının
+sizden, bir plugin'den ya da bir action'dan gelmesi fark etmez. Böylece sonraki
+ziyaretçiye taze bir `HIT` verilir. Bu işi her turda dört worker yapar. İlk key bir probe
+olarak tek başına önce gider. Worker'lar ancak ilk başarılı warm'dan sonra başlar.
+Bu yüzden atlanan key'ler varken tur, biri başarılı olana kadar key key ilerler.
+
+- **Yalnızca sunulmuş olan warm edilir.** Cache'e yazılan bir entry, kendisinin
+  yeniden nasıl isteneceğini kaydeder: path'ini, query'sini, locale'ini ve `Vary`
+  header değerlerini. Bir ziyaretçiye gerçekten sunulmuş her varyant warm edilir,
+  kimsenin istemediği bir varyant warm edilmez. Bu tarifler yalnızca memory'de durur.
+  Restart'tan sonra page'ler yeniden yazılana kadar hiç tarif yoktur ve ilk
+  invalidation bu durumda hiçbir şeyi warm etmez.
+- **Yalnızca hâlâ okunan yeniden warm edilir.** Bir page, son warm'ından beri bir
+  ziyaretçiye ulaştıysa warm edilir: ziyaretçiye taze ya da stale sunulduysa veya
+  ziyaretçinin request'i onu render ettiyse. Warm edilip sonra okunmayan bir page sonraki invalidation'da
+  atlanır ve bir sonraki request'inde warming yokmuş gibi render edilir. O
+  ziyaretçi, page'i yeniden warm etmeye değer kılar. Birinin bir kez istediği bir
+  varyant sonsuza kadar warm tutulmaz.
+- **Cache'in bıraktığı geri gelmez.** Bir `InvalidateTags`'in ulaştığı ama
+  entry'sini cache'in artık stale olarak bile tutmadığı bir page geri getirilmez.
+  Böyle bir entry `MaxEntries`'te ya da `MaxBytes`'ta evict edilmiş ya da
+  düşürülmüştür. `PurgeTags` ise entry'lerini kendisi siler ve onları yine de warm
+  eder. (`StaleCache` olmayan kendi store'unuz invalidate ettiği her entry'yi
+  düşürür. Bu yüzden bu kontrol ona uygulanmaz.)
+- **`Cache.WarmLimit` tek bir invalidation'ı sınırlar.** Sıfır 1000 demektir ve
+  en son yazılan page'ler önce gelir. Negatif bir değer warming'i kapatır. Sınırın
+  ötesindeki page'ler eskisi gibi ilk request'lerinde render edilir.
+- **Bir tur ilk gerçek render başarısızlığında durur** ve warn seviyesinde tek bir
+  satır log'lar (`collage: warming stopped, a page failed to render`). Böylece kapalı bir
+  upstream'e kalan her page için yeniden sorulmaz. Kalan page'ler stale bırakılır
+  ve onlara her zamanki gibi [stale sunma](#stale-pages-and-x-collage-cache)
+  uygulanır. Atlanan page'ler turu durdurmaz: 404 dönen bir page (tarifi düşürülür),
+  guard'lı bir page (tarifi düşürülür ve onu ilk okuyucusu render eder), zaten
+  taze olan bir page ve yukarıdaki iki durum.
+- **Başka bir invalidation'ın çakıştığı bir warm yeniden warm edilir.** Başka bir
+  `InvalidateTags` ya da `PurgeTags` ile çakışan render'lar saklanmaz. Bu kural
+  warm render'lar için de geçerlidir. Warmer o page'i, süren bir invalidation
+  kalmadığında yeniden kuyruğa alır. Bunu, onunla çakışan her invalidation için en
+  fazla bir kez yapar. Böylece bir invalidation fırtınası tek bir page'i durmadan
+  render ettiremez.
+- **Warm render bir request değildir.** `App.Use` ve plugin middleware'lerini,
+  request hook'larını, kişiselleştirmeyi, error hook'larını ve request başına
+  log'ları atlar. `BeforeRender`, `AfterRender` ve `DocumentRendered` ise saklanan
+  body'yi şekillendirdikleri için yine çalışır. Warm render kendi flight'ında
+  çalışır. Bu yüzden hiçbir ziyaretçi bir warm render'ı beklemez ve warm edilirken
+  bir page iki kez render edilebilir.
+- **Warming development'ta, static build'de ve cache kapalı olduğunda çalışmaz.**
+  `Shutdown` warming'i durdurur. Hâlihazırda süren render'lar shutdown
+  context'iyle tamamlanır.
+
+Bu kurallardan şunlar çıkar:
+
+- **Bir kimlik bilgisi header'ını asla `Vary` header'ı olarak bildirmeyin.** Bir
+  warm request hiçbir ziyaretçinin `Cookie`'sini ya da `Authorization`'ını taşımaz.
+  Cache key'in dayandığı header'ların değerlerini taşır. Orada `Cookie` ya da
+  `Authorization` bildirirseniz değeri tarifte, memory'de tutulur ve o page'in her
+  warm render'ında yeniden gönderilir. Bunun yerine bir middleware'in ondan
+  çıkardığı değere göre (bir plan, bir rol) vary edin ya da page'i `Dynamic` yapın.
+- **Middleware warm render'ı engellemez.** Bir request'i reddeden bir middleware,
+  bir warm'ı hiç görmez. Silinmiş bir tenant'ın host'u için 404 dönen bir tenant
+  plugin'i ya da bir auth kontrolü buna örnektir. Bu yüzden `PurgeTags`'ten sonra
+  warming, artık hiçbir ziyaretçinin ulaşmadığı bir entry yazabilir. Bu zararsızdır,
+  çünkü kimseye sunulmaz ve her entry gibi evict edilir. Böyle bir host'un
+  page'lerini, middleware onun için cevap vermeyi bıraktıktan sonra purge edin ya
+  da süreleri dolana kadar bekleyin.
+- **Bir turun dışında kalan page, yeniden yazılana kadar izlenmez.** Bir
+  invalidation ulaştığı key'leri unutur. Bir turun warm etmediği bir key,
+  `WarmLimit`'in ötesinde kalmış, bir başarısızlıkta ya da `Shutdown`'da duran bir
+  turdan geriye kalmış ya da atlanmış olabilir. Bir ziyaretçinin request'i onu
+  yeniden render edip saklayana kadar sonraki hiçbir invalidation ona ulaşmaz. Bu
+  arada stale entry'si her zamanki gibi sunulur (ya da yeniden render edilir).
+- **Gereksiz query varyantlarını `WithCacheParams` dışarıda tutar.** Hiçbirini
+  tanımlamayan bir page'de her farklı query bir key'dir. Bir ziyaretçiye sunulan
+  her key de hâlâ okunduğu sürece warm edilir. Query'si her şeyi taşıyabilen
+  (tracking parametreleri, cache-buster'lar) bir page,
+  [okuduğu parametrelerin adını vermelidir](#query-parameters-in-the-key). Böylece
+  gereksiz bir query, temiz URL ile aynı key olur.
+
+Warm edilen key'ler yeniden izlenir. Bu yüzden sonraki bir invalidation'ın
+`OnCacheInvalidate`'i onları yine adlandırır. Bir tur, info seviyesinde tek bir
+satır log'lar (`collage: warmed pages`; warm edilen, atlanan ve başarısız olan
+sayılarıyla). Warm edilen her key bir `CacheWarm` metrics event'idir. Bir warm
+request yine `CacheHit`, `CacheMiss` ve `CacheSet`'te sayılır. Render'ı da
+`RenderDuration`'da ve fragment metriklerinde sayılır. Bu yüzden bir invalidation'dan sonra
+bir miss, set ve render patlaması bekleyin. Warming, bir invalidation'ın hemen
+ardından CPU da harcar: binlerce page'i aynı anda invalidate eden bir site onları
+dörder dörder yeniden render eder. Bu önemliyse `WarmLimit`'i düşürün.
+
+Bir invalidation'ın hemen ardından `STALE` geldiğini doğrulayan bir test warmer ile
+yarışır. Böyle bir testte `WarmLimit: -1` ayarlayın. Invalidation'dan sonra `HIT`
+geldiğini doğrulayan bir test ise önce `collagetest`'in `site.WaitWarmed()`'ı ile warmer'ı bekler (bkz.
+[Test yazmak](/docs/testing#invalidation-and-warming)).
+
+Invalidate edip redirect eden bir action, önce redirect'in page'ini warm eder. Bu
+bekleme 5 saniyeyle ve response'unun write deadline'ıyla sınırlıdır. Bkz.
+[Form'lar ve action'lar](/docs/forms-and-actions#invalidating-what-an-action-changed).
+
 ## Stale page'ler ve `X-Collage-Cache`
 
 v0.63.0'dan beri stale olan bir page ya da document, built-in store'lar tarafından
 atılmaz. Stale olması `InvalidateTags` ile işaretlendiği ya da TTL'i geçtiği
-anlamına gelir. Onu isteyen bir request page'i yeniden render eder. Bu render, her
+anlamına gelir. (Bir invalidation'dan sonra böyle bir page normalde, biri onu
+istemeden önce [warm edilir](#warming-after-an-invalidation). Aşağıda anlatılanlar,
+warm render başarısız olduğunda, atlandığında ya da henüz çalışmadığında bir
+ziyaretçinin karşılaştığı durumdur.) Onu isteyen bir request page'i yeniden render eder. Bu render, her
 miss'te olduğu gibi bekleyen request'ler arasında paylaşılır
 ([aşağıya](#concurrent-misses-render-once) bakın). Sonrasında ne olacağını bu
 render belirler:
@@ -408,8 +519,8 @@ render belirler:
   page sunulur. Response `X-Collage-Cache: STALE` taşır ve hiçbir tarayıcı ya da
   CDN onu tutmasın diye `Cache-Control: no-store` ile gider. Okuyucu 500 değil,
   eski page'i görür.
-  Stale bir `collage.Cached` değerini okumak render'ı degraded yapar. Bir
-  invalidation'ın hemen ardından en sık neden de budur: arka plandaki çekme işlemi
+  Stale bir `collage.Cached` değerini okumak render'ı degraded yapar. Warming
+  yoksa bir invalidation'ın hemen ardından en sık neden de budur: arka plandaki çekme işlemi
   onu değiştirene kadar page'in verisi stale'dir.
 - **404 dönen bir render** entry'yi düşürür, çünkü içerik artık yoktur.
 
@@ -679,7 +790,9 @@ type StaleCache interface {
   `stale` true olarak dönen bir `Get`'tir. `found` yalnızca key'in hiç entry'si
   yoksa false olur.
 - `Get` ise stale bir entry'yi de expire olmuş bir entry'yi de bildirmez. Bunlar
-  eskisi gibi miss'tir.
+  eskisi gibi miss'tir. Framework, `StaleCache` olan bir store'da bir page'i
+  yalnızca `GetStale` ile arar. Böylece sayaçlarınızda bir arama, tek bir hit ya da
+  tek bir miss olur.
 - `MarkStaleKey` entry'yi içeriği, ETag'i, expire süresi ve tag'leriyle birlikte
   tutar ve işaretler. Entry'si olmayan bir key'i işaretlemek hata değildir. Key için
   sonra yapılan bir `Set` ya da `SetTagged` taze bir entry saklar ve işareti
@@ -756,8 +869,8 @@ bir şey yoktur.
 zaman sunulmaz. Scaffold ile oluşturulan bir proje bu ayarı `collage dev` altında
 açar. Development'ta template'ler her request'te diskten yeniden yüklenir.
 Cache'lenmiş bir page ise az önce yaptığınız değişikliği TTL'i boyunca gizlerdi.
-Page'ler yine yazılır ve tag'ler yine takip edilir. Böylece hook'lar ve metrikler
-production'daki gibi davranır. Ortadan kalkan tek şey, değişiklikten önce render
+Page'ler yine yazılır ve tag'ler yine takip edilir. Böylece warming dışında hook'lar
+ve metrikler production'daki gibi davranır. Ortadan kalkan tek şey, değişiklikten önce render
 edilmiş bir page'in sunulmasıdır.
 
 Development'ta disk cache'in yerini bir memory cache alır ve collage bunu yaptığını
@@ -841,13 +954,17 @@ yerine geçmeleri gereken eski yazar verisinden yeniden render edilir.
   bırakır ve bekleyenlerine `collage.ErrCachedFetchPanicked` ile cevap verir. Eskiden
   key, bir restart'a kadar dolu kalırdı.
 - **Invalidation eski değeri tutar, yenisi gelene kadar sunar.** `InvalidateTags`
-  ve bir değerin `ttl`'inin dolması, değeri silmez, stale olarak işaretler. Sonraki
-  render'a stale değer hemen sunulur ve arka planda tek bir çekme işlemi onun
+  ve bir değerin `ttl`'inin dolması, değeri silmez, stale olarak işaretler. Page'e
+  hiçbir warm render ulaşmadıysa (warming kapalıysa, `WarmLimit` aşıldıysa, tur bir
+  başarısızlıkta durduysa ya da bir ziyaretçi warmer'dan önce geldiyse; bkz.
+  [Warming](#warming-after-an-invalidation)) sonraki render'a stale değer hemen
+  sunulur ve arka planda tek bir çekme işlemi onun
   yerini alır. Bu çekme işleminin timeout'u sabit 30 saniyedir ve request'ten
   bağımsız çalışır. Çekme işlemi bittikten sonra gelen request değişikliği görür.
   Tag'leri invalidate edildiğinde hâlâ süren bir çekme işlemi, sonucunu
   bekleyenlere iletir. Sonuç da saklanır, ama stale olarak. Araya `PurgeTags`
-  girmişse sonuç hiç saklanmaz.
+  girmişse sonuç hiç saklanmaz. Bir warm render ise taze veriyi bekler ve taze bir
+  page saklar.
 - **Başarısız bir yenileme, stale değeri sunmayı sürdürür.** Arka plandaki çekme
   işlemi başarısız olursa stale değer kalır. Upstream ne kadar uzun süre kapalı
   kalırsa kalsın sunulmaya devam eder. Key'e bir bekleme süresi konur: ilk

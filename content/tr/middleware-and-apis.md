@@ -191,7 +191,10 @@ func languageData(ctx context.Context, rc *collage.RenderContext) (string, []str
 - **Key'e ham header değil, sizin çözümlediğiniz değer girer.** Tarayıcılar
   tercihlerini yüz farklı şekilde yazar: `tr-TR,tr;q=0.9`, `tr`, `tr-TR`. Bunların
   hepsi aynı page'dir. Header'ı, page'lerinizin gerçekten farklılaştığı birkaç
-  değere indirin. Cache de o sayıda entry tutar.
+  değere indirin. Cache de o sayıda entry tutar. Asla `Cookie`'nin ya da
+  `Authorization`'ın kendisine göre vary etmeyin: v0.64.0'dan beri bu değer
+  memory'de tutulur ve her [warm render](/docs/caching#warming-after-an-invalidation)
+  ile yeniden gönderilir.
 - **Değeri context'ten değil, `collage.Varied` ile okuyun.** Cache'lenebilir bir
   page'de tek bir render birçok okuyucuya sunulur. Bu yüzden middleware'inizin
   `context.WithValue` ile request context'ine koyduğu bir değer o render'dan

@@ -426,6 +426,11 @@ bulacağı, neyin değiştiğine bağlıdır:
   [Aşağıya](#a-memory-cache-and-the-containers-limit) bakın.
 - **Invalidate edilen bir page tutulur.** Yeniden render'ı başarısız ya da degraded
   olursa `STALE` olarak sunulur. Bkz. [Caching](/docs/caching#stale-pages-and-x-collage-cache).
+  v0.64.0'dan beri invalidation'ın hemen ardından arka planda yeniden de render
+  edilir. Bu, kısa bir süre CPU harcar. Bkz.
+  [warming](/docs/caching#warming-after-an-invalidation). Bir action'ın redirect'i
+  page'inin warm edilmesini bekleyebilsin diye `Server.WriteTimeout`'u 5 saniyenin
+  üzerinde tutun.
 
 Öndeki bir CDN kendi kopyalarını tutar.
 [elagoht/cdnpurge](/docs/plugins#elagohtcdnpurge), collage bir page'i invalidate

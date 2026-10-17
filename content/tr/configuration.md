@@ -294,6 +294,7 @@ bu süreyi aşabilir.
 | `MaxBytes` | `int64` | memory için 256 MiB, disk için 1 GiB | Built-in bir cache'in sakladığı toplam boyutun üst sınırı. Negatif değer sınırsız demektir (v0.40.0'dan beri). Bir disk cache'in memory katmanı 256 MiB tutar, `MaxBytes` bundan küçükse de `MaxBytes` kadar tutar (v0.63.0'dan beri). |
 | `Dir` | `string` | yok | Disk cache'in entry'leri, `Dir/data/` altında ise `collage.Cached` değerlerini sakladığı yer. `CacheDisk` için zorunludur. Her instance'ın kendi dizini olmalıdır: bir dizini paylaşan instance'lar bir cache'i paylaşmaz. |
 | `Version` | `string` | binary'den türetilir | Disk cache'teki entry'lerin hangi build'e ait olduğunu belirler. |
+| `WarmLimit` | `int` | `1000` | Tek bir invalidation'ın arka planda yeniden render ettiği page sayısının üst sınırı; en yeniler önce gelir. Negatif değer warming'i kapatır (v0.64.0'dan beri). |
 
 **Caching varsayılan olarak kapalıdır.** `Enabled` false iken bir `Store` ayarlı olsa
 bile hiçbir şey cache'lenmez. `Type`'ın varsayılanı yalnızca `Enabled` true ve `Store`
@@ -419,11 +420,14 @@ type Span interface {
 ```
 
 `CacheEvent` şu değerlerden biridir: `collage.CacheHit`, `CacheMiss`, `CacheSet`,
-`CacheEvict`, `CacheInvalidate`, `CacheCoalesced` ve `CacheStale`. `CacheCoalesced`,
+`CacheEvict`, `CacheInvalidate`, `CacheCoalesced`, `CacheStale` ve `CacheWarm`.
+`CacheCoalesced`,
 bir request'in aynı key için zaten çalışmakta olan bir render tarafından
 karşılandığı anlamına gelir. `CacheStale` ise bir `collage.Cached` değerinin ya da
 cache'lenmiş bir page'in stale olarak sunulduğu anlamına gelir. Sunulan her değer
-ya da response için bir kez sayılır.
+ya da response için bir kez sayılır. `CacheWarm` (v0.64.0'dan beri) ise bir
+invalidation'ın ulaştığı bir page ya da document'ın arka planda yeniden render
+edilip saklandığı anlamına gelir. Her key için bir kez sayılır.
 
 ## Validation
 
