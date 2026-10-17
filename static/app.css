@@ -320,7 +320,21 @@ mark:hover { background: var(--accent-bright); color: #1f1e1d; }
 .tagline { margin: 0; font-size: 1.15rem; color: var(--muted); max-width: 40rem; }
 .actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 2rem; }
 
-.hero-art { display: flex; flex-direction: column; align-items: center; gap: 1.5rem; min-width: 0; }
+.hero-art { display: flex; flex-direction: column; align-items: center; gap: 1.5rem; min-width: 0; container-type: inline-size; }
+
+/* The logo is the C of the name. Both are sized in em, so they keep their
+   proportion; the size follows the column's width, up to 8rem. */
+.wordmark {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  font-size: min(8rem, 21cqi);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -.03em;
+  color: var(--tile-c);
+}
+.wordmark img { display: block; width: 1em; height: 1em; }
 .logo { width: clamp(120px, 18vw, 180px); height: auto; }
 .tile { mix-blend-mode: multiply; }
 .tile-a { fill: var(--tile-a); transform: rotate(-6deg); transform-origin: 31px 37px; }
