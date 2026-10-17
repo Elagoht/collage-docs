@@ -41,13 +41,18 @@ açılamaz. `os.OpenRoot`, Go 1.24'ten beri vardır.
 
 collage bu açığı sizin yerinize kapatamaz. collage'a bir `fs.FS` verilir ve collage
 onun üzerinde `Open`'ı çağırır. Dosya sisteminin kendi dizini içinde kalıp
-kalmaması, dosya sisteminin bir özelliğidir. collage'ın yaptığı şey şudur: `Open`
-çağrılmadan önce URL'deki path'i `path.Clean` ile temizler. Mount'un içinde kalan
-bir `..` ya da `.` normalize edilir ve dosya sunulur; örneğin
-`/static/css/../app.css`, `/static/app.css` olarak ele alınır. Mount'un dışına
-çıkan bir path ya da boş bir elemanla başlayan bir path (`/static//…`) ise `404`
-ile reddedilir. Bu kontrol URL'ye yazılmış bir traversal'ı durdurur, ama diskteki
-symlink'lerle kurulmuş bir traversal'ı durdurmaz.
+kalmaması, dosya sisteminin bir özelliğidir.
+
+collage'ın yaptığı şey şudur: `Open` çağrılmadan önce URL'deki path'i `path.Clean`
+ile temizler:
+
+- Mount'un içinde kalan bir `..` ya da `.` normalize edilir ve dosya sunulur;
+  örneğin `/static/css/../app.css`, `/static/app.css` olarak ele alınır.
+- Mount'un dışına çıkan bir path ya da boş bir elemanla başlayan bir path
+  (`/static//…`) ise `404` ile reddedilir.
+
+Bu kontrol URL'ye yazılmış bir traversal'ı durdurur, ama diskteki symlink'lerle
+kurulmuş bir traversal'ı durdurmaz.
 
 `*os.Root`'u process boyunca açık tutun, çünkü onun dosya sistemi her request'i
 sunar.
@@ -113,7 +118,9 @@ Cache-Control: public, max-age=31536000, immutable
 ```
 
 Bu header bir yıl anlamına gelir ve dosyanın hiç değişmeyeceğine dair bir söz
-verir. Söz dürüsttür, çünkü ad byte'lardan türetilir. Dosya değiştiğinde ad da
+verir.
+
+Söz dürüsttür, çünkü ad byte'lardan türetilir. Dosya değiştiğinde ad da
 değişir, page'ler yeni ada link verir ve eski URL bir daha hiç istenmez.
 Tarayıcılar ve CDN'ler dosyayı bir yıl boyunca tutar ve hiç revalidate etmez.
 Kimseye de page ile uyuşmayan bir stylesheet sunulmaz.
@@ -134,6 +141,32 @@ birine bugünün HTML'iyle birlikte dünün stylesheet'ini verir.
   kısa `Cache-Control` değeriyle. URL'nin sabit kalması gereken yerlerde bunu
   kullanın. Örneğin site dışından referans verilen bir favicon ya da bir
   e-postadan link verilen bir dosya için.
+
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 264" role="img" aria-labelledby="assets-mount-title">
+<title id="assets-mount-title">Kodunuz app.Mount'a bir dosya sistemi verir: binary'ye derlenmiş bir embed.FS ya da development'ta os.OpenRoot ile açılmış, diskteki static dizini. Mount ardından /static/ altında üç tür ada cevap verir. asset fonksiyonunun linklediği hash'li ad app.hash.css, bir yıl cache'lenen ve immutable olan bir 200'dür. Düz ad app.css, mount'un kendi max-age=3600 değeriyle bir 200'dür. Geri kalan her şey, yani eski ya da yanlış bir hash veya olmayan bir dosya, no-store ile düz metin bir 404'tür. DevMode açıkken hash her request'te yeniden hesaplanır ve her 200 no-store olur.</title>
+<defs><marker id="assets-mount-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
+<rect class="d-frame" x="6" y="8" width="150" height="40" rx="6" /><text x="81" y="24" text-anchor="middle">embed.FS</text><text class="d-small" x="81" y="39" text-anchor="middle">binary'nin içinde</text>
+<rect class="d-frame" x="164" y="8" width="150" height="40" rx="6" /><text x="239" y="24" text-anchor="middle">os.OpenRoot</text><text class="d-small" x="239" y="39" text-anchor="middle">dev: diskteki static/</text>
+<path class="d-flow" d="M81 48C81 62 130 60 130 72" marker-end="url(#assets-mount-arrow)" />
+<path class="d-flow" d="M239 48C239 62 190 60 190 72" marker-end="url(#assets-mount-arrow)" />
+<rect class="d-a" x="50" y="76" width="220" height="26" rx="5" /><text class="d-on-a" x="160" y="93" text-anchor="middle">app.Mount("/static/", fsys)</text>
+<path class="d-flow" d="M100 102C100 114 56 110 56 122" marker-end="url(#assets-mount-arrow)" />
+<line class="d-flow" x1="160" y1="102" x2="160" y2="122" marker-end="url(#assets-mount-arrow)" />
+<path class="d-flow" d="M220 102C220 114 264 110 264 122" marker-end="url(#assets-mount-arrow)" />
+<rect class="d-frame" x="6" y="126" width="100" height="48" rx="6" /><text x="56" y="141" text-anchor="middle">hash'li ad</text><text class="d-small" x="56" y="155" text-anchor="middle">app.&lt;hash&gt;.css</text><text class="d-small" x="56" y="167" text-anchor="middle">asset'in linki</text>
+<rect class="d-frame" x="110" y="126" width="100" height="48" rx="6" /><text x="160" y="141" text-anchor="middle">düz ad</text><text class="d-small" x="160" y="155" text-anchor="middle">app.css</text><text class="d-small" x="160" y="167" text-anchor="middle">sabit bir URL</text>
+<rect class="d-frame" x="214" y="126" width="100" height="48" rx="6" /><text x="264" y="141" text-anchor="middle">geri kalan</text><text class="d-small" x="264" y="155" text-anchor="middle">eski bir hash,</text><text class="d-small" x="264" y="167" text-anchor="middle">olmayan dosya</text>
+<line class="d-flow" x1="56" y1="174" x2="56" y2="190" marker-end="url(#assets-mount-arrow)" />
+<line class="d-flow" x1="160" y1="174" x2="160" y2="190" marker-end="url(#assets-mount-arrow)" />
+<line class="d-flow" x1="264" y1="174" x2="264" y2="190" marker-end="url(#assets-mount-arrow)" />
+<rect class="d-b" x="6" y="194" width="100" height="40" rx="5" /><text class="d-on-b" x="56" y="210" text-anchor="middle">200 immutable</text><text class="d-on-b d-small" x="56" y="225" text-anchor="middle">max-age=31536000</text>
+<rect class="d-soft-a" x="110" y="194" width="100" height="40" rx="5" /><text x="160" y="210" text-anchor="middle">200</text><text class="d-small" x="160" y="225" text-anchor="middle">max-age=3600</text>
+<g class="d-dropped"><rect class="d-frame" x="214" y="194" width="100" height="40" rx="5" /><text x="264" y="210" text-anchor="middle">404 no-store</text><text class="d-small" x="264" y="225" text-anchor="middle">düz metin</text></g>
+<text class="d-small" x="160" y="254" text-anchor="middle">DevMode: her request'te hash, her 200 no-store</text>
+</svg>
+<figcaption>Mount'un hangi dosya sistemini sunacağını kodunuz seçer: production'da gömülü kopyayı, development'ta diskteki dizini. Prefix altında mount üç tür ada cevap verir. <code>{{asset}}</code>'in linklediği hash'li ad bir yıl boyunca, <code>immutable</code> ile sunulur. Düz ad, mount'un kendi <code>Cache-Control</code> değeriyle sunulur; <code>WithCacheControl</code> başka bir değer vermedikçe bu <code>public, max-age=3600</code>'dür. Dosyanın güncel hash'i olmayan bir hash ya da var olmayan bir dosya, <code>no-store</code> ile düz metin bir 404'tür. <code>DevMode</code> açıkken hash her request'te yeniden hesaplanır ve hiçbir şey cache'lenebilir değildir.</figcaption>
+</figure>
 
 ### Go'dan
 
@@ -242,7 +275,9 @@ alır, page bu URL'ye link verir ve tarayıcı dosyayı yeniden çeker. Ayrıca
 development'taki reload script'i, mount edilmiş bir dosya değiştiğinde
 page'i yeniler. (Handler'larınızın okuduğu Markdown dosyaları gibi mount edilmemiş
 bir dizin, [`Config.DevWatch`](/docs/configuration#devwatch) içinde belirtildiğinde
-page'i yeniler.) Development dışında ise diskte değişen bir dosya, process yeniden
+page'i yeniler.)
+
+Development dışında ise diskte değişen bir dosya, process yeniden
 başlatılana kadar hatırlanan hash'ini korur. Mount'lar, çalışan bir sunucunun
 altında düzenlenen dosyalar için değil, deploy edilen dosyalar içindir.
 
@@ -254,6 +289,135 @@ page'in `{{asset}}` ile gerçekten link verdiği her dosyanın content-addressed
 kopyasını da çıktıya ekler. Yalnızca bu dosyaların kopyası eklenir. Böylece bir
 medya dizini, hiçbir page'in kullanmadığı adlar için ikiye katlanmaz.
 `collage.WithoutBuildCopy()` bir mount'u bu kopyalamanın dışında bırakır.
+
+## Örnek: bir blogun stylesheet'i, script'i ve görselleri
+
+[Template'ler](/docs/templates#example-a-blog-post) sayfasındaki blogun sunacağı
+üç tür dosya vardır:
+
+| Dosya | Nereden link verilir | Ne zaman değişir |
+| --- | --- | --- |
+| `static/app.css` | Layout'tan, her page'de | Bir yeniden tasarımla |
+| `static/app.js` | Layout'tan, her page'de | Nadiren |
+| `static/img/harbour.jpg` | Bir yazının template'inden | Yayımlandıktan sonra hiç |
+
+### Mount etmek
+
+Dosyalar embed edilir, böylece binary herhangi bir dizinden çalışır. `collage dev`
+ise bunun yerine diskteki dizini sunar. `staticFiles`,
+[Embed etmek](#embedding) bölümündeki fonksiyondur:
+
+```go
+//go:embed all:static
+var staticFS embed.FS
+
+func main() {
+	devMode := os.Getenv("COLLAGE_DEV") == "1"
+
+	app, err := collage.New(&collage.Config{
+		DevMode:  devMode,
+		Template: collage.TemplateConfig{Root: "templates"},
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	static, err := staticFiles(devMode)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err := app.Mount("/static/", static); err != nil {
+		log.Fatal(err)
+	}
+
+	// register pages, then serve
+}
+```
+
+### Link vermek
+
+Layout stylesheet'e ve script'e, yazı da kendi görseline link verir. Her biri düz
+path'iyle yazılır:
+
+```html
+<link rel="stylesheet" href="{{asset "/static/app.css"}}">
+<script src="{{asset "/static/app.js"}}" defer></script>
+```
+
+```html
+<img src="{{asset "/static/img/harbour.jpg"}}" alt="The harbour at dawn">
+```
+
+Okurun tarayıcısına ulaşan HTML'de her dosyanın hash'i bulunur:
+
+```html
+<link rel="stylesheet" href="/static/app.b988912693d9423d.css">
+<script src="/static/app.dc18125931ff948b.js" defer></script>
+<img src="/static/img/harbour.9e00fefaa8d22370.jpg" alt="The harbour at dawn">
+```
+
+Tarayıcı ardından bu adları ister ve mount şöyle cevap verir:
+
+| Request | Status | `Cache-Control` |
+| --- | --- | --- |
+| `/static/app.b988912693d9423d.css` | `200` | `public, max-age=31536000, immutable` |
+| `/static/app.css` | `200` | `public, max-age=3600` |
+| `/static/app.0000000000000000.css` | `404`, düz metin | `no-store` |
+| `POST /static/app.css` | `405`, `Allow: GET, HEAD` | `no-store` |
+
+`collage dev` altında da aynı adlara link verilir ve aynı adlar sunulur, ama her
+`200` `no-store` ile gider.
+
+### Değişen bir stylesheet'i deploy etmek
+
+Bir yeniden tasarım `static/app.css`'i değiştirir ve yeni byte'ları gömülü yeni bir
+binary deploy edilir. Ardından:
+
+1. Yeni process'in render ettiği ilk page yeni dosyanın hash'ini hesaplar ve
+   `/static/app.0a044e6f01a45071.css` adresine link verir.
+2. Okurun tarayıcısı bu adı hiç görmemiştir. Stylesheet'i bir kez çeker ve bir yıl
+   boyunca tutar.
+3. Eski `app.b988912693d9423d.css` o tarayıcının cache'inde kullanılmadan kalır,
+   çünkü artık hiçbir page ona link vermez.
+4. Eski ad istendiğinde yeni process `404`, `no-store` ile cevap verir. Ne artık
+   elinde olmayan eski byte'ları sunar ne de yeni byte'ları, onları tarif etmeyen
+   bir adın altında.
+
+Hiçbir şeyin purge edilmesi gerekmedi ve hiçbir okura yeni HTML eski stylesheet'le
+birlikte gösterilmedi.
+
+Bu güvence düz adda biter. Deploy'dan kısa süre önce `/static/app.css`'i çekmiş
+bir okura, çektiği andan itibaren bir saat dolana kadar eski kopyası verilebilir.
+Page'lerin `{{asset}}` ile link vermesinin ve düz adın sizin kontrolünüz dışındaki
+URL'ler için ayrılmasının nedeni budur.
+
+### Hiçbir mount'un sunmadığı bir path
+
+Yazının template'inde bir yazım hatası:
+
+```html
+<img src="{{asset "/static/img/hrabour.jpg"}}" alt="The harbour at dawn">
+```
+
+Böyle bir dosya yoktur, bu yüzden `{{asset}}` yazı fragment'ini
+`collage.ErrUnknownAsset` ile başarısız kılar. Log, fragment'i, template'in
+satırını ve path'i gösterir. Okurun ne alacağını fragment'in
+[failure policy'si](/docs/fragments-and-slots#when-a-fragment-fails) belirler:
+
+- **Yazı `Required()` olduğu için** page başarısız olur: bir `500` ve error page
+  döner, kırık görselli bir yazı asla dönmez.
+- **Opsiyonel bir fragment'te**, örneğin bir sidebar'da, page o fragment olmadan
+  sunulur, `200` döner, `no-store` ile gider ve cache'lenmez. Hata bir warning
+  olarak log'lanır.
+
+Her iki durumda da hata, okurun network panelinde bir `404` olarak değil, ona
+ulaşan ilk render'da görünür. Bu render genellikle development'taki sizin
+render'ınızdır.
+
+Bir request ise başka bir konudur. `/static/` altında hiçbir dosyayı adlandırmayan
+bir URL, mount'tan düz metin bir `404` alır. Hiçbir mount'un prefix'i altına
+düşmeyen bir URL ise hiçbir mount'a ulaşmaz: ona router, sitenin kendi not-found
+page'iyle cevap verir.
 
 ## Mount'ların yapmadıkları
 
