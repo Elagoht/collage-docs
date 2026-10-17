@@ -5,11 +5,45 @@ reference: NewFragment, NewInlineFragment, InlineHTML, FragmentBuilder, Fragment
 
 # Fragment'ler ve slot'lar
 
-**Fragment**, bir page'in yapı taşıdır. Bir template'ten, template'in render ettiği
-veriyi çeken isteğe bağlı bir data handler'dan ve başka fragment'lerin yerleştiği
-isimli **slot**'lardan oluşur. Layout da bir fragment'tir. Bir page'in içeriği, bir
-sidebar, bir yazar kartı ve bir yorum listesi de birer fragment'tir. Bir page, kökünde
-layout'un durduğu bir fragment ağacıdır.
+**Fragment**, bir page'in yapı taşıdır. Üç kısımdan oluşur:
+
+- bir template;
+- template'in render ettiği veriyi çeken, isteğe bağlı bir data handler;
+- başka fragment'lerin yerleştiği isimli **slot**'lar.
+
+Layout da bir fragment'tir. Bir page'in içeriği, bir sidebar, bir yazar kartı ve bir
+yorum listesi de birer fragment'tir. Bir page, kökünde layout'un durduğu bir fragment
+ağacıdır.
+
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 250" role="img" aria-labelledby="fs-tree-title">
+<title id="fs-tree-title">Ağaç olarak bir ürün page'i: layout'un content slot'u, required olan product fragment'ini tutar. Product fragment'inin iki slot'u vardır: stock, failure policy'si olmayan stok kutusunu; similar ise fallback'i olan benzer ürünleri tutar. Product başarısız olursa page 500 ya da 404 ile başarısız olur. Stok kutusu başarısız olursa dışarıda kalır. Benzer ürünler başarısız olursa fallback render edilir. Bu iki durumda page 200 döner.</title>
+<rect class="d-frame" x="4" y="4" width="312" height="242" rx="8" />
+<text x="14" y="21">layout</text>
+<rect class="d-bar" x="70" y="12" width="236" height="10" rx="3" />
+<rect class="d-slot d-slot-a" x="14" y="30" width="292" height="206" rx="5" />
+<text class="d-slot-text-a d-small" x="24" y="44">slot "content"</text>
+<rect class="d-frame d-frame-a" x="24" y="52" width="272" height="174" rx="6" />
+<text class="d-slot-text-a" x="34" y="69">product</text>
+<text class="d-small" x="86" y="69">hata: 500 / 404</text>
+<rect class="d-chip-hit" x="196" y="57" width="90" height="18" rx="9" /><text class="d-hit-text d-small" x="241" y="69" text-anchor="middle">Required()</text>
+<rect class="d-bar" x="34" y="80" width="160" height="6" rx="3" />
+<rect class="d-bar" x="34" y="90" width="110" height="6" rx="3" />
+<rect class="d-slot d-slot-b" x="34" y="102" width="122" height="116" rx="4" />
+<text class="d-small" x="95" y="116" text-anchor="middle">slot "stock"</text>
+<rect class="d-b" x="44" y="124" width="102" height="30" rx="4" /><text class="d-on-b" x="95" y="143" text-anchor="middle">stock</text>
+<rect class="d-chip" x="44" y="162" width="102" height="18" rx="9" /><text class="d-small" x="95" y="174" text-anchor="middle">policy yok</text>
+<text class="d-small" x="95" y="196" text-anchor="middle">hata: boş kalır</text>
+<text class="d-small" x="95" y="209" text-anchor="middle">page: 200</text>
+<rect class="d-slot d-slot-c" x="164" y="102" width="122" height="116" rx="4" />
+<text class="d-small" x="225" y="116" text-anchor="middle">slot "similar"</text>
+<rect class="d-c" x="174" y="124" width="102" height="30" rx="4" /><text class="d-on-c" x="225" y="143" text-anchor="middle">similar</text>
+<rect class="d-chip" x="174" y="162" width="102" height="18" rx="9" /><text class="d-small" x="225" y="174" text-anchor="middle">WithFallback</text>
+<text class="d-small" x="225" y="196" text-anchor="middle">hata: fallback</text>
+<text class="d-small" x="225" y="209" text-anchor="middle">page: 200</text>
+</svg>
+<figcaption>Bir ürün page'i bir ağaçtır. Layout'un <code>content</code> slot'u ürünü tutar; ürünün template'i de kendine ait iki slot'u çağırır. Her fragment'in kendi failure policy'si vardır: ürün required'dır, bu yüzden başarısız olursa page de başarısız olur. Stok kutusunun policy'si yoktur, bu yüzden dışarıda kalır. Benzer ürünlerin bir fallback'i vardır. Page'in tamamı <a href="#example-a-product-page">Örnek: bir ürün page'i</a> bölümünde kurulur.</figcaption>
+</figure>
 
 ```go
 author := collage.NewFragment("author", "fragments/author.html").
@@ -53,10 +87,12 @@ Geri kalan her şey isteğe bağlıdır:
 | `Shared()` | Data handler'ının belli bir anda her okuyucuya aynı sonucu döndürdüğünü, ama bu sonucun zamanla değiştiğini. Böylece render'ı birçok okuyucuya gönderilebilir ve page'in stratejisine dokunulmaz. v0.19.0'dan beri |
 
 Page builder'da olduğu gibi fragment builder da hataları zinciri durdurmadan kaydeder
-ve `BuildErr()` bunları döner. Kaydedilen hatalar, builder'ın oluşturduğu fragment'in
-üzerinde kalır. İki kez kısıtlanmış bir slot, teke sınırlanmış bir slot'a bağlanan
-ikinci bir child ya da negatif bir timeout gibi hataların her biri, ağacında bu
-fragment bulunan her page'i register sırasında durdurur. Birinin `BuildErr()`'ü
+ve `BuildErr()` bunları döner.
+
+Kaydedilen hatalar, builder'ın oluşturduğu fragment'in üzerinde kalır. Bu yüzden
+iki kez kısıtlanmış bir slot, teke sınırlanmış bir slot'a bağlanan ikinci bir child
+ya da negatif bir timeout gibi hataların her biri, ağacında bu fragment bulunan her
+page'i register sırasında durdurur. Birinin `BuildErr()`'ü
 çağırıp çağırmadığı fark etmez. Hatayı `RegisterPage`'de değil de ona yol açan
 satırda almak istediğinizde `BuildErr()`'ü çağırın. Bkz. [Page'ler ve
 layout'lar](/docs/pages-and-layouts#building-a-page).
@@ -64,16 +100,22 @@ layout'lar](/docs/pages-and-layouts#building-a-page).
 Data handler'ı olmayan bir fragment, template'ini veri olmadan ya da
 `collage.Value(v)`'nin her render'da verdiği değerle render eder. Bu, hiç değişmeyen
 markup için doğru seçimdir: bir footer, static bir duyuru ya da bir link listesi
-gibi. Tek işi slot'ları yerleştirmek olan bir layout için de doğrudur. Page'i
-cache'lenebilir de tutar: strateji tanımlamayan bir page, render ettiği bir şeyin
-data handler'ı ya da slot resolver'ı olmadıkça static'tir. Bkz.
-[Caching](/docs/caching#a-page-that-declares-none). Handler'ı yalnızca path'in
-parametrelerini ve locale'i okuyan bir fragment `Static()` der ve handler'ı artık
-hesaba katılmaz. Handler'ı her okuyucu için aynı olan ama zaman içinde aynı
-kalmayan bir fragment (bir ölçüm gibi) `Shared()` der. Bu, page hakkında hiçbir şey
-söylemez ve handler yine hesaba katılır. İki sözden birini bozan bir handler, bir
-okuyucunun verisini başka bir okuyucuya gönderir. Bir fragment'in verisini iki
-kez ayarlamak, register sırasında `ErrConflictingData` hatası verir.
+gibi. Tek işi slot'ları yerleştirmek olan bir layout için de doğrudur.
+
+Page'i cache'lenebilir de tutar: strateji tanımlamayan bir page, render ettiği bir
+şeyin data handler'ı ya da slot resolver'ı olmadıkça static'tir. Bkz.
+[Caching](/docs/caching#a-page-that-declares-none). İki söz, bir handler'ın nasıl
+hesaba katılacağını değiştirir:
+
+- Handler'ı yalnızca path'in parametrelerini ve locale'i okuyan bir fragment
+  `Static()` der ve handler'ı artık hesaba katılmaz.
+- Handler'ı her okuyucu için aynı olan ama zaman içinde aynı kalmayan bir fragment
+  (bir ölçüm gibi) `Shared()` der. Bu, page hakkında hiçbir şey söylemez ve handler
+  yine hesaba katılır.
+
+İki sözden birini bozan bir handler, bir okuyucunun verisini başka bir okuyucuya
+gönderir. Bir fragment'in verisini iki kez ayarlamak, register sırasında
+`ErrConflictingData` hatası verir.
 
 ### Inline template'ler
 
@@ -95,9 +137,10 @@ Bir dosya template'i gibi render edilir: slot'lar, `hoist`, her
 [template fonksiyonu](/docs/template-functions) ve template dizinine yapılan
 `{{template}}` çağrıları aynen çalışır. Register işlemi de onu bir dosya template'i
 gibi parse edip kontrol eder. Bir parse hatası ya da template'in hiç çağırmadığı bir
-slot, page'i ve fragment'i adıyla belirterek startup'ı durdurur. İki fragment aynı
-ismi paylaşıp farklı template'ler taşıyabilir; her biri kendi template'ini render
-eder. Development error panel'i onu `inline template of fragment "post-row"`
+slot, page'i ve fragment'i adıyla belirterek startup'ı durdurur.
+
+İki fragment aynı ismi paylaşıp farklı template'ler taşıyabilir; her biri kendi
+template'ini render eder. Development error panel'i onu `inline template of fragment "post-row"`
 olarak adlandırır.
 
 Daha uzun bir template, `collage.InlineHTML` olarak tanımlanmış ayrı bir sabit
@@ -122,8 +165,10 @@ buton, bir form alanı. Layout'lar ve bütün page'ler dosya olarak daha okunakl
 Template koddur, bu yüzden sabit olmalıdır. Onu asla veriden oluşturmayın:
 `NewInlineFragment("row", "<p>"+post.Title+"</p>")`, başlığın içerdiği her
 `{{…}}` ifadesini çalıştırır ve her farklı string, program kapanana kadar saklanan
-bir template'e dönüşür. Bu en çok, fragment'leri her request'te oluşturan bir
-[slot resolver](#slots-filled-per-render)'da önemlidir. Resolver'ın fragment'leri
+bir template'e dönüşür.
+
+Bu en çok, fragment'leri her request'te oluşturan bir [slot
+resolver](#slots-filled-per-render)'da önemlidir. Resolver'ın fragment'leri
 inline olabilir, ama template'leri sabittir ve veri onlara `collage.Value` ya da bir
 data handler üzerinden ulaşır.
 
@@ -198,9 +243,10 @@ Bir **bağlamanın iki tarafından birindeki yazım hatası**, örneğin
 `{{slot "sidebar"}}` karşısında `WithSlotFragment("sidbar", ...)`, register işlemini
 `ErrUnknownSlot` ile başarısız kılar. Hata, slot'u ve template'in gerçekten çağırdığı
 slot'ları adlarıyla belirtir. Template'inin hiç çağırmadığı bir slot'a bağlanan bir
-fragment zaten hiçbir zaman render edilemez. Template'in include ettiği bir
-template'teki ya da tanımladığı bir block'taki çağrılar da sayılır. Bir slot'u
-literal dışında bir şeyle, `{{slot .Which}}` ile adlandıran bir template herhangi
+fragment zaten hiçbir zaman render edilemez.
+
+Template'in include ettiği bir template'teki ya da tanımladığı bir block'taki
+çağrılar da sayılır. Bir slot'u literal dışında bir şeyle, `{{slot .Which}}` ile adlandıran bir template herhangi
 birini çağırabilir. Bu yüzden o fragment'in bağlamaları kontrol edilmez.
 
 ### Her fragment'in kendi verisi vardır
@@ -224,11 +270,15 @@ reddedilir.
 
 ## Bir fragment başarısız olduğunda
 
-Bir fragment şu durumlarda başarısız olur: data handler'ı bir hata döndüğünde,
-template'i çalıştırılamadığında, required bir slot'u boş kaldığında ya da data
-handler veya template panic ettiğinde. Bir data handler'daki ya da bir template
-fonksiyonundaki panic recover edilir ve bir `*collage.PanicError`'a çevrilir. Bu
-durum çöken bir process olarak değil, bir başarısızlık olarak ele alınır.
+Bir fragment şu durumlarda başarısız olur:
+
+- data handler'ı bir hata döndüğünde;
+- template'i çalıştırılamadığında;
+- required bir slot'u boş kaldığında;
+- data handler veya template panic ettiğinde. Bir data handler'daki ya da bir
+  template fonksiyonundaki panic recover edilir ve bir `*collage.PanicError`'a
+  çevrilir. Bu durum çöken bir process olarak değil, bir başarısızlık olarak ele
+  alınır.
 
 Bundan sonra ne olacağını fragment'in **failure policy**'si belirler. Üç policy
 vardır.
@@ -269,29 +319,35 @@ page **degraded** sayılır. Degraded page okuyucuya gönderilir ama asla cache'
 Böylece sonraki request, hatayı bir TTL boyunca sunmak yerine yeniden dener.
 Static export, açıkça söylenmedikçe degraded bir page'i yazmaz.
 
-Development'ta bir hata asla sessiz kalmaz. Hiçbir şey render etmeyen, başarısız
-olmuş bir fragment, çıktısının olacağı yere ismini ve hatasını içeren bir HTML yorumu
-bırakır. Page ayrıca başarısız olan her fragment'i hatasıyla birlikte listeleyen bir
-panel taşır. Template hatalarında panel dosyayı ve satırı da gösterir. Bir fallback
-fragment'in yerini tutmuş olsa bile panel yine görünür. Required bir fragment bütün
-page'i başarısız kıldığında, development error page'i o fragment'in ismini verir.
-Yani hatanın içinden geçerek yukarı çıktığı layout'u değil, başladığı yeri gösterir.
+Development'ta bir hata asla sessiz kalmaz:
+
+- Hiçbir şey render etmeyen, başarısız olmuş bir fragment, çıktısının olacağı yere
+  ismini ve hatasını içeren bir HTML yorumu bırakır.
+- Page, başarısız olan her fragment'i hatasıyla birlikte listeleyen bir panel taşır.
+  Template hatalarında panel dosyayı ve satırı da gösterir. Bir fallback fragment'in
+  yerini tutmuş olsa bile panel yine görünür.
+- Required bir fragment bütün page'i başarısız kıldığında, development error page'i
+  o fragment'in ismini verir. Yani hatanın içinden geçerek yukarı çıktığı layout'u
+  değil, başladığı yeri gösterir.
+
 Development dışında bunların hiçbiri yoktur.
 
 v0.36.0'dan beri, page'in onsuz sunulduğu bir hata her mode'da
 [`Config.Logger`](/docs/configuration) üzerinden bir uyarı olarak log'lanır:
 `collage: fragment failed; the page is served without it`. Log satırı page'i,
 fragment'i, locale'i, bir fallback'in yerini tutup tutmadığını ve hatayı söyler.
+
 Böyle bir page yine 200 döner; bu yüzden production'da kaybolan bir formun
 göründüğü yer log'dur.
 
 ### Template'in atladığı bir slot
 
 Bir fragment'in child'ları, template çalışmadan önce veri çekmeye başlar. Böylece
-verileri art arda değil, aynı anda çekerler. Bu, template'in render etmemeye karar
-verdiği bir slot'taki fragment'in de handler'ının başlatılmış olduğu anlamına gelir:
-`{{if .ShowComments}}{{slot "comments"}}{{end}}`. Template biter bitmez bu
-fragment'in context'i cancel edilir ve hatası yok sayılır. Hiç render edilmemiş bir
+verileri art arda değil, aynı anda çekerler.
+
+Bu yüzden template'in render etmemeye karar verdiği bir slot'taki fragment'in de
+handler'ı başlatılmış olur: `{{if .ShowComments}}{{slot "comments"}}{{end}}`.
+Template biter bitmez bu fragment'in context'i cancel edilir ve hatası yok sayılır. Hiç render edilmemiş bir
 fragment, `Required()` olsa bile page'i başarısız kılamaz.
 
 ## Timeout'lar
@@ -315,14 +371,157 @@ Timeout handler'ı değil, handler'ın aldığı **context**'i sınırlar. `ctx`
 bir handler istediği kadar çalışır. Bekleyebilecek her çağrıya `ctx`'i geçin. Bkz.
 [Data handler'lar](/docs/data-handlers#timeouts-and-the-context).
 
+## Örnek: bir ürün page'i
+
+Bir mağazanın ürün page'i üç şey gösterir ve bunların önemi farklıdır:
+
+| Kısım | Nereden gelir | Başarısız olunca |
+| --- | --- | --- |
+| Ürün: adı, fiyatı, açıklaması | Katalog | Page'in gösterecek bir şeyi olmaz: `Required()` |
+| Bir stok kutusu: "12 adet stokta" | Zaman zaman erişilemeyen bir stok servisi | Kutu dışarıda kalır; policy yok |
+| "Benzer ürünler" | Katalog | Yerine kataloğa giden bir link gösterilir: `WithFallback` |
+
+Handler'lar ürünün id'sini path'ten okur. Katalog ve envanter paketleri sizin veri
+katmanınızın yerini tutar:
+
+```go
+type product struct {
+	ID    string
+	Name  string
+	Price string
+}
+
+type stockLevel struct {
+	Count int
+}
+
+func loadProduct(ctx context.Context, rc *collage.RenderContext) (product, []string, error) {
+	id := rc.Param("id")
+	p, err := catalog.Product(ctx, id)
+	if errors.Is(err, catalog.ErrNoProduct) {
+		return product{}, nil, fmt.Errorf("catalog: no product %q: %w", id, collage.ErrNotFound)
+	}
+	if err != nil {
+		return product{}, nil, err
+	}
+	return p, []string{"product:" + id}, nil
+}
+
+func loadStock(ctx context.Context, rc *collage.RenderContext) (stockLevel, error) {
+	n, err := inventory.Count(ctx, rc.Param("id"))
+	if err != nil {
+		return stockLevel{}, err
+	}
+	return stockLevel{Count: n}, nil
+}
+
+func loadSimilar(ctx context.Context, rc *collage.RenderContext) ([]product, []string, error) {
+	list, err := catalog.Similar(ctx, rc.Param("id"))
+	if err != nil {
+		return nil, nil, err
+	}
+	return list, []string{"catalog"}, nil
+}
+```
+
+Her kısım kendi policy'si olan bir fragment'tir ve ürün, diğer ikisini kendi
+slot'larına bağlar:
+
+```go
+stock := collage.NewFragment("product-stock", "fragments/stock.html").
+	WithData(collage.Load(loadStock)).
+	WithTimeout(300 * time.Millisecond).
+	Build()
+
+similar := collage.NewFragment("similar-products", "fragments/similar.html").
+	WithData(collage.LoadTagged(loadSimilar)).
+	WithFallback(collage.NewFragment("browse-catalogue", "fragments/browse-catalogue.html").Build()).
+	Build()
+
+content := collage.NewFragment("product", "pages/product.html").
+	WithData(collage.LoadTagged(loadProduct)).
+	WithSlotFragment("stock", stock).
+	WithSlotFragment("similar", similar).
+	Required().
+	Build()
+
+page := collage.NewPage("product").
+	WithLayouts(layout).
+	WithContent(content).
+	WithPath("en", "/products/{id}").
+	Build()
+```
+
+```html
+<!-- templates/pages/product.html -->
+<article>
+  <h1>{{.Name}}</h1>
+  <p class="price">{{.Price}}</p>
+  {{slot "stock"}}
+</article>
+<aside>{{slot "similar"}}</aside>
+```
+
+`/products/42` için bir request geldiğinde:
+
+1. Ürünün handler'ı çalışır.
+2. Handler döner dönmez stock ve similar handler'ları birlikte başlar ve ürünün
+   template'i yazmaya başlar.
+3. Template `{{slot "stock"}}`'a ulaşınca stok kutusunu bekler. Ardından
+   `{{slot "similar"}}` gelir; onun handler'ı o sırada genellikle bitmiştir.
+
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 216" role="img" aria-labelledby="fs-time-title">
+<title id="fs-time-title">Önce product handler'ı çalışır. O dönünce stock ve similar handler'ları birlikte başlar. Stock handler'ı 300 milisaniyede başarısız olur, similar handler'ı biter. Ürünün template'i sırasıyla ürünü, stok kutusu için hiçbir şeyi ve benzer ürünleri yazar; page stok kutusu olmadan 200 döner.</title>
+<defs><marker id="fs-time-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
+<text x="8" y="37">product</text>
+<rect class="d-a" x="84" y="24" width="64" height="18" rx="4" /><text class="d-on-a d-small" x="116" y="36" text-anchor="middle">handler</text>
+<text x="8" y="65">stock</text>
+<rect class="d-b" x="150" y="52" width="120" height="18" rx="4" /><text class="d-on-b d-small" x="210" y="64" text-anchor="middle">300 ms'de hata</text>
+<text x="8" y="93">similar</text>
+<rect class="d-c" x="150" y="80" width="70" height="18" rx="4" /><text class="d-on-c d-small" x="185" y="92" text-anchor="middle">handler</text>
+<line class="d-rule" x1="149" y1="18" x2="149" y2="104" />
+<line class="d-flow" x1="84" y1="108" x2="306" y2="108" marker-end="url(#fs-time-arrow)" />
+<text class="d-small" x="149" y="122" text-anchor="middle">birlikte başlar</text>
+<text class="d-small" x="310" y="122" text-anchor="end">zaman</text>
+<text x="8" y="153">yazılan</text>
+<rect class="d-a" x="150" y="136" width="50" height="26" rx="4" /><text class="d-on-a d-small" x="175" y="153" text-anchor="middle">product</text>
+<g class="d-dropped"><rect class="d-frame" x="204" y="136" width="50" height="26" rx="4" /><text class="d-small" x="229" y="153" text-anchor="middle">boş</text></g>
+<rect class="d-c" x="258" y="136" width="52" height="26" rx="4" /><text class="d-on-c d-small" x="284" y="153" text-anchor="middle">similar</text>
+<line class="d-flow" x1="230" y1="162" x2="230" y2="180" marker-end="url(#fs-time-arrow)" />
+<rect class="d-chip-hit" x="155" y="184" width="150" height="24" rx="12" /><text class="d-hit-text d-small" x="230" y="200" text-anchor="middle">200 · stok kutusuz page</text>
+</svg>
+<figcaption>Stok servisi çökmüş. Handler'ı <code>ctx</code>'i aktardığı için 300 milisaniyelik timeout o context'i cancel edince vazgeçer. Failure policy'si olmayan stok kutusu hiçbir şey render etmez. Benzer ürünler aynı anda çekildiği için bu hata page'e bir 500'e değil, 300 milisaniyeye ve bir kutuya mal olur.</figcaption>
+</figure>
+
+Her hatanın bu page'e etkisi:
+
+- **Stok servisi çökmüş ya da yavaş.** Kutu hiçbir şey render etmez, page 200 döner
+  ve hata bir uyarı olarak log'lanır. Development'ta kutunun olacağı yeri bir HTML
+  yorumu işaretler.
+- **Benzer ürünler çağrısı başarısız.** Onların yerine `browse-catalogue` render
+  edilir ve page 200 döner.
+- **42 numaralı ürün yok.** Hata, required bir fragment'te `collage.ErrNotFound`'u
+  wrap ettiği için okuyucu not-found page'ini 404 ile alır.
+- **Kataloğun kendisi başarısız.** Ürün required olduğu için page'in error page'i
+  500 ile sunulur.
+
+Stok kutusu olmadan sunulan bir page degraded'dır, bu yüzden asla cache'lenmez:
+page `Incremental(ttl)` tanımlamış olsaydı bile sonraki request, page'i bir TTL
+boyunca kutusuz tutmak yerine stok servisine yeniden sorardı. Strateji
+tanımlanmadığında handler'lar page'i dynamic yapar. Bkz.
+[Caching](/docs/caching#a-page-that-declares-none).
+
 ## Her render'da doldurulan slot'lar
 
 Buraya kadar anlatılan her şey, child'ları program başlarken bağlar. Bazı page'lerin
 düzenini ise içerikleri belirler. Örneğin bölümlerini bir editörün CMS'te seçip
 sıraladığı bir landing page ya da kullanıcının seçtiği widget'lardan oluşan bir
-dashboard. Bunları başlangıçta bağlamak, her değişiklikte yeniden başlatma gerektirir.
-Ayrıca neyin nereye gideceği konusunda veriyle uyumlu kalması gereken bir kod
-yazmanız gerekir.
+dashboard.
+
+Bunları başlangıçta bağlamak, her değişiklikte yeniden başlatma gerektirir. Ayrıca
+neyin nereye gideceği konusunda veriyle uyumlu kalması gereken bir kod yazmanız
+gerekir.
 
 `WithSlotResolver`, bir slot'u her render'da doldurur. Resolver, render'ın
 context'ini ve `RenderContext`'ini alır (context'i v0.60.0'dan beri) ve slot'un bu render'da tutacağı fragment'leri döner:
