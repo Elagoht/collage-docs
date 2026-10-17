@@ -501,7 +501,7 @@ type AfterRenderEvent struct {
 Bir page render'ı başarıyla bittikten sonra çalışır. Page'ler, error page'ler, bir
 action'ın `RenderPage` ile cevap olarak döndüğü page ve static build'ler için
 çalışır. Çıktıyı post-process etmek için `ev.HTML`'i değiştirin. Orada bıraktığınız içerik sunulan
-içeriktir. Bir cache-write hook'u yazmayı atlamadıkça, cache'e yazılan içerik de
+içeriktir. Cache'e yazılan içerik de
 odur. Sonraki plugin'ler, öncekilerin ürettiği içeriği görür.
 
 `ev.Values` (bir `*collage.RenderValues`), page'in fragment'lerinin key'ler
