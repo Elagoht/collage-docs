@@ -43,10 +43,10 @@ Bir preview'ın render'ı da yalnızca ona aittir. Cache'lenen bir page'in bir o
 için yapılan render'ı, o page'i aynı anda isteyen bütün okuyucularla paylaşılır. Bu
 yüzden ona okuyucunun cookie'leri de, middleware'inizin request context'ine koyduğu
 değerler de verilmez (bkz.
-[paylaşılan bir render neyi görür](/docs/caching#what-a-shared-render-sees)).
+[Paylaşılan bir render neyi görür](/docs/caching#what-a-shared-render-sees)).
 Preview ise hiçbir zaman paylaşılmaz: editörün kendi request'i ve context'iyle render
 edilir. Middleware'inizin context'e koyduğu bir işaret, data handler'a ve
-`collage.Cached` içindeki fetch'e bu sayede ulaşır.
+`collage.Cached` içinde veriyi çeken fonksiyona bu sayede ulaşır.
 
 Bir preview'ın response'unda `X-Collage-Cache` header'ı da bulunmaz. Bu header
 yalnızca page cache'ten geçen bir response'a konur. Preview ise page cache'ten hiç
@@ -67,7 +67,7 @@ geçmez.
 <rect class="d-frame" x="10" y="108" width="300" height="24" rx="6" /><text class="d-small" x="160" y="124" text-anchor="middle">routing: bundan sonra SkipCache geç kalır</text>
 <line class="d-flow" x1="80" y1="132" x2="80" y2="146" marker-end="url(#preview-arrow)" />
 <line class="d-flow" x1="240" y1="132" x2="240" y2="146" marker-end="url(#preview-arrow)" />
-<rect class="d-frame" x="10" y="150" width="140" height="40" rx="6" /><text x="80" y="166" text-anchor="middle">page cache</text><text class="d-small" x="80" y="181" text-anchor="middle">HIT: olduğu gibi</text>
+<rect class="d-frame" x="10" y="150" width="140" height="40" rx="6" /><text x="80" y="166" text-anchor="middle">page cache</text><text class="d-small" x="80" y="181" text-anchor="middle">HIT: aynen sunulur</text>
 <g class="d-dropped"><rect class="d-frame" x="170" y="150" width="140" height="40" rx="6" /><text x="240" y="166" text-anchor="middle">page cache</text><text class="d-small" x="240" y="181" text-anchor="middle">okunmaz</text></g>
 <line class="d-flow" x1="80" y1="190" x2="80" y2="204" marker-end="url(#preview-arrow)" /><text class="d-small" x="88" y="201">miss</text>
 <line class="d-flow" x1="240" y1="190" x2="240" y2="204" marker-end="url(#preview-arrow)" />
@@ -313,7 +313,7 @@ Banner hiçbir okuyucunun karşısına çıkamaz.
 
 ## Örnek: bir editör taslak bir yazıyı preview ediyor
 
-Bir blog yazılarını bir CMS'te tutar ve her yazının `/blog/{slug}` adresinde bir
+Bir blog, yazılarını bir CMS'te tutar ve her yazının `/blog/{slug}` adresinde bir
 page'i vardır. `hello` yazısı yayımlanmıştır ve okuyuculara page cache'ten sunulur.
 Editör Ada, CMS'te yazının girişini yeniden yazar ve yayımlamadan önce sonucu sitede
 görmek ister.
@@ -354,12 +354,12 @@ Development dışında request'ler sırasıyla şunları alır:
 | 6 | Bir okuyucu | `GET /blog/hello` | Hâlâ yayımlanmış kopya | `public, max-age=3600` | `HIT` |
 | 7 | Ada, banner'dan | `GET /api/preview/exit` | `/`'ye bir `303` ve silinen cookie | — | — |
 
-Dördüncü ve beşinci satırlar yalnızca Ada için render edilir. Bu render'ların çektiği hiçbir şey
-cache'e ulaşmaz. Bu yüzden 6. satırdaki okuyucuya, 2. satırdaki okuyucuyla aynı
+4. ve 5. satırlar yalnızca Ada için render edilir. Bu render'ların çektiği hiçbir
+şey cache'e ulaşmaz. Bu yüzden 6. satırdaki okuyucuya, 2. satırdaki okuyucuyla aynı
 saklanmış kopya sunulur.
 
-Ada yazıyı yayımladığında CMS'in webhook'u `postData`'nın döndüğü `post:hello`
-tag'ini invalidate eder. Sonraki okuyucu yeni sürümü alır (bkz.
+Ada yazıyı yayımladığında CMS'in webhook'u, `postData`'nın döndürdüğü
+`post:hello` tag'ini invalidate eder. Sonraki okuyucu yeni sürümü alır (bkz.
 [Middleware ve kendi API'niz](/docs/middleware-and-apis#invalidating-from-your-api)).
 
 ## Bilmeniz gerekenler

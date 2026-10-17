@@ -1,5 +1,5 @@
 ---
-description: Siteyi collage export ile static dosyalara render edin: nelerin yazıldığı, nelerin neden atlandığı, dinamik path'ler ve bir static host'ta yayımlama.
+description: Siteyi collage export ile static dosyalara render edin: nelerin yazıldığı, nelerin neden atlandığı, dynamic path'ler ve bir static host'ta yayımlama.
 reference: Build, BuildOptions, BuildReport, PrintBuildReport, StaticParamsFunc, SkipRecord, ErrNotStatic, ErrGuarded, ErrDynamicPathUnresolved, ErrRouteParams, ErrBuildFindings, ErrDuplicateRedirect, ErrRedirectShadowsFile, IsCapture, BuiltFile, BuiltRedirect, RedirectSource
 ---
 
@@ -57,19 +57,19 @@ func staticBuild(app *collage.App, outDir string, clean bool) error {
 değer üzerinde `Build`), hata döndürdüğünde bile bir rapor döndürür. Hata veren bir page diğerlerini
 durdurmaz ve bütün hatalar `report.Errors` içinde yer alır.
 
-Dönen hata, bunların hepsinin birleşimidir. `main` bu durumda sıfırdan farklı bir kodla çıkar, böylece
-bir page yazılamadığında CI job'ı da başarısız olur. Atlanan page'ler ve uyarılar
-build'i başarısız kılmaz. Error seviyesindeki bir [finding](#reading-the-report)
-ise kılar; bu durumda da her page yine yazılır.
+Dönen hata, bunların hepsinin birleşimidir. `main` bu durumda sıfırdan farklı bir
+kodla çıkar, böylece bir page yazılamadığında CI job'ı da başarısız olur. Atlanan
+page'ler ve uyarılar build'i başarısız kılmaz. Error seviyesindeki bir
+[finding](#reading-the-report) ise kılar; bu durumda da her page yine yazılır.
 
 Bir build de uygulamayı shutdown etmez ve ondan sonra hiçbir şey hizmet vermez. Bu
 yüzden build bitince çıkan bir program `app.Shutdown`'ı kendisi çağırır. collage
 v0.55.0'dan beri scaffold edilen `main.go` bunu yapar (bkz.
 [CLI](/docs/cli#the-contract-with-maingo)).
 
-Aksi hâlde hiçbir plugin'in `Shutdown`'ı çalışmaz: bir plugin'in elinde tuttuğu şey hiçbir zaman flush edilmez ve
-[elagoht/jobs](/docs/plugins#elagohtjobs) gibi bir queue plugin'ine build sırasında
-verilen iş loglanmadan kaybolur.
+Aksi hâlde hiçbir plugin'in `Shutdown`'ı çalışmaz: bir plugin'in elinde tuttuğu
+şey hiçbir zaman flush edilmez ve [elagoht/jobs](/docs/plugins#elagohtjobs) gibi
+bir queue plugin'ine build sırasında verilen iş loglanmadan kaybolur.
 
 `main.go`'yu yeniden yazarsanız `-collage-build`, `-out` ve `-clean` flag'lerini
 koruyun. Aksi hâlde `collage export` işe yarar hiçbir şey yapmaz.
@@ -81,7 +81,7 @@ raporda adıyla listelenir ya da page olmadığı için hiç ele alınmaz.
 
 <figure class="diagram-figure" data-search-ignore>
 <svg class="diagram" viewBox="0 0 320 548" role="img" aria-labelledby="export-routes-title">
-<title id="export-routes-title">collage export'un her route türüyle yaptığı. dist içine yazılanlar: static ya da incremental bir page path/index.html olarak; param pattern'li bir page, StaticParams'ın döndüğü her map için bir index.html olarak; static bir document birebir kendi path'ine; not-found page her locale için 404.html olarak; mount edilen dosyalar kendi adlarıyla ve link verilen hash'li adlarla; PrefixDefault açıkken /en/ home page'inin kopyası index.html olarak. Atlanıp raporda adı geçenler: dynamic bir page ya da document, StaticParams'ı olmayan bir param pattern'i, guard'lı bir page ve render'ı csrfToken içeren bir page. Action'lar, bir page'in fragment path'leri ve app.Handle handler'ları page değildir: export edilmez, raporda da yer almaz. Her dosya yazıldıktan sonra redirect'ler birbirine ve dosyalara karşı denetlenir; BuildFinishedHook plugin'i varsa header'lar yakalanır ve OnBuildFinished çalışır; error seviyesindeki bir finding build'i ErrBuildFindings ile başarısız kılar.</title>
+<title id="export-routes-title">collage export'un her route türüyle ne yaptığı. dist içine yazılanlar: static ya da incremental bir page path/index.html olarak; param pattern'li bir page, StaticParams'ın döndürdüğü her map için bir index.html olarak; static bir document birebir kendi path'ine; not-found page her locale için 404.html olarak; mount edilen dosyalar kendi adlarıyla ve link verilen hash'li adlarla; PrefixDefault açıkken /en/ home page'inin kopyası index.html olarak. Atlanıp raporda adı geçenler: dynamic bir page ya da document, StaticParams'ı olmayan bir param pattern'i, guard'lı bir page ve render'ı csrfToken içeren bir page. Action'lar, bir page'in fragment path'leri ve app.Handle handler'ları page değildir: export edilmez, raporda da yer almaz. Her dosya yazıldıktan sonra redirect'ler birbirine ve dosyalara karşı denetlenir; BuildFinishedHook plugin'i varsa header'lar yakalanır ve OnBuildFinished çalışır; error seviyesindeki bir finding build'i ErrBuildFindings ile başarısız kılar.</title>
 <defs><marker id="export-routes-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
 <rect class="d-cmd" x="100" y="8" width="120" height="24" rx="12" /><text class="d-cmd-text" x="160" y="24" text-anchor="middle">collage export</text>
 <text class="d-small" x="78" y="50" text-anchor="middle">route</text>
@@ -116,7 +116,7 @@ raporda adıyla listelenir ya da page olmadığı için hiç ele alınmaz.
 <rect class="d-frame" x="6" y="410" width="144" height="34" rx="5" /><text class="d-small" x="78" y="424" text-anchor="middle">action, fragment path</text><text class="d-small" x="78" y="437" text-anchor="middle">app.Handle</text>
 <line class="d-flow" x1="150" y1="427" x2="166" y2="427" marker-end="url(#export-routes-arrow)" />
 <rect class="d-frame" x="170" y="410" width="144" height="34" rx="5" /><text class="d-small" x="242" y="424" text-anchor="middle">export edilmez,</text><text class="d-small" x="242" y="437" text-anchor="middle">raporda yer almaz</text>
-<rect class="d-soft-a" x="6" y="460" width="308" height="80" rx="6" /><text x="160" y="477" text-anchor="middle">her dosya yazıldıktan sonra:</text><text class="d-small" x="160" y="493" text-anchor="middle">redirect'ler birbirine ve dosyalara karşı denetlenir</text><text class="d-small" x="160" y="506" text-anchor="middle">BuildFinishedHook plugin'i varsa: header yakalama,</text><text class="d-small" x="160" y="519" text-anchor="middle">ardından OnBuildFinished çalışır;</text><text class="d-small" x="160" y="532" text-anchor="middle">error seviyesindeki finding build'i başarısız kılar</text>
+<rect class="d-soft-a" x="6" y="460" width="308" height="80" rx="6" /><text x="160" y="477" text-anchor="middle">her dosya yazıldıktan sonra:</text><text class="d-small" x="160" y="493" text-anchor="middle">redirect'ler birbirine ve dosyalara karşı denetlenir</text><text class="d-small" x="160" y="506" text-anchor="middle">BuildFinishedHook plugin'iyle: header'lar yakalanır,</text><text class="d-small" x="160" y="519" text-anchor="middle">ardından OnBuildFinished çalışır;</text><text class="d-small" x="160" y="532" text-anchor="middle">error seviyesindeki finding build'i başarısız kılar</text>
 </svg>
 <figcaption>Her route türü ve <code>collage export</code>'un onunla yaptığı. Page'ler, document'lar, not-found page ve mount edilen dosyalar dosyaya dönüşür; varsayılan olmayan bir locale'deki page o locale'in prefix'i altına yazılır. Strateji tanımlamayan bir page ya da document hiçbir şey çekmiyorsa static, çekiyorsa dynamic sayılır. Dynamic bir page ya da document, <code>WithStaticParams</code>'ı olmayan bir <code>{param}</code> pattern'i, guard'lı bir page ve render'ı <code>{{csrfToken}}</code> içeren bir page atlanır; her biri raporda nedeniyle listelenir. Action'lar, fragment path'ler ve <code>app.Handle</code> handler'ları page değildir, bu yüzden export onları ne yazar ne de raporlar. Dosyalar yazıldıktan sonra redirect'ler denetlenir, onları okuyan bir plugin için header'lar yakalanır ve error seviyesindeki bir finding build'i başarısız kılar; dosyaların hepsi yine yazılmış olur.</figcaption>
 </figure>
@@ -187,8 +187,8 @@ Bazı şeyler page olmadığı için ne export edilir ne de raporda görünür:
 [action'lar](/docs/forms-and-actions), `app.Handle` ile mount edilen handler'lar ve
 middleware'ler.
 
-Export request olmadan render eder. Bu yüzden yazdığı dosyalar için
-hiçbir middleware çalışmaz ve `collage.Vary` hiç çağrılmaz. Her page, hiçbir tercihi
+Export request olmadan render eder. Bu yüzden yazdığı dosyalar için hiçbir
+middleware çalışmaz ve `collage.Vary` hiç çağrılmaz. Her page, hiçbir tercihi
 olmayan bir request'in alacağı hâliyle yazılır. Ardından
 [header'ları yakalayan](#headers-and-redirects) request'ler middleware'den geçer,
 ama onların render ettiği hiçbir şey yazılmaz.
@@ -493,8 +493,8 @@ Böylece bir plugin'in register ettiği document de, bir plugin'in yüklediği v
 `WithStaticParams` da build edilir ve plugin'ler aynı config'i okur.
 
 `OnBeforeRender`, `OnAfterRender` ve `OnDocumentRendered` her page ve document için
-tetiklenir. Yani bir minifier ya da
-structured data plugin'i sunulan bir page'e ne yapıyorsa dosyaya da onu yapar.
+tetiklenir. Yani bir minifier ya da structured data plugin'i sunulan bir page'e ne
+yapıyorsa dosyaya da onu yapar.
 v0.21.0'dan beri `OnBuildFinished`, her dosya yazıldıktan sonra bir kez çalışır.
 Build'i bir bütün olarak denetleyen plugin'ler içindir.
 
@@ -575,12 +575,12 @@ uyarılardır ve build'i asla başarısız kılmaz: `unstable-header`, `capture-
 `capture-failed`, `capture-dev-mode` ve `capture-personal`. Bkz.
 [Header'lar ve redirect'ler](#headers-and-redirects).
 
-## Örnek: bir blog'u export etmek
+## Örnek: bir blogu export etmek
 
-Export'a en uygun site türlerinden biri blog'dur: yazılar okuyucuya göre değil,
-biri yayımladığında değişir. Bu blog'da bir home page, bir `/blog` listesi, her
+Export'a en uygun site türlerinden biri blogdur: yazılar okuyucuya göre değil,
+biri yayımladığında değişir. Bu blogda bir home page, bir `/blog` listesi, her
 yazı için bir page, her tag için bir page, bir arama page'i ve bir iletişim
-form'u var. Yanlarında da Documents sayfasındaki
+form'u var. Yanlarında da Document'lar sayfasındaki
 [feed](/docs/documents#example-an-rss-feed) ve
 [sitemap](/docs/documents#example-a-sitemap) duruyor. Export'un ne yapacağını
 belirleyen route'lar:
@@ -668,7 +668,7 @@ Satır satır:
   atlanırlardı.
 - **Tag page'leri yok.** `/tag/{tag}`'in bir tag listesi olmadığı için
   `collage.ErrDynamicPathUnresolved` ile atlanır. Her tag için bir `{"tag": t}`
-  dönen bir `WithStaticParams` bu page'leri yazar.
+  döndüren bir `WithStaticParams` bu page'leri yazar.
 - **İletişim page'i yok.** Page render edildi ve render'ı form'un token'ını
   içerdiği için yazılmadı; atlamanın `Err`'i `collage.ErrUnresolvedToken`'dır. Bir
   form'un post edeceği bir sunucuya ihtiyacı vardır. `collage serve`, çoğu static
@@ -737,8 +737,8 @@ uygulamanın kendi handler'ına iki kez sorar. Bu, process içinde ve ağ olmada
 Gelen cevap dosyaya `BuiltFile.Status` ve `BuiltFile.Headers` olarak kaydedilir.
 Böyle bir plugin yoksa hiçbir şey sorulmaz.
 
-Request'ler `Config.BaseURL`'in host'unu
-taşır ve scheme'i `https` ise HTTPS üzerinden gelir. Böylece yalnızca HTTPS'te
+Request'ler `Config.BaseURL`'in host'unu taşır ve scheme'i `https` ise HTTPS
+üzerinden gelir. Böylece yalnızca HTTPS'te
 gönderilen `Strict-Transport-Security` gibi bir header da yakalanır.
 Middleware'lerinizin ve plugin'lerinizin set ettiği her şey (`Cache-Control`,
 `Content-Security-Policy`, `X-Frame-Options`) yeniden tanımlanmadan gelir. Dışarıda kalanlar:
@@ -752,7 +752,7 @@ Middleware'lerinizin ve plugin'lerinizin set ettiği her şey (`Cache-Control`,
   için false'tur. Build'in sorduğu her dosya için ise true'dur; yakalaması
   başarısız olan bir dosya da buna dahildir ve onun `Status`'u 0 kalır. Home
   page'in kökteki kopyası sorulmaz, çünkü uygulama `/`'yi redirect eder. Ama bu
-  kopya, `Captured` dahil, home page'in yakalandığı değerleri taşır.
+  kopya, `Captured` dahil, home page'in yakalama sonucunu taşır.
 
 Yakalamanın bulduğu şeyler build'in finding'lerinde uyarı olarak raporlanır:
 
