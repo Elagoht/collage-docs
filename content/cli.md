@@ -41,6 +41,45 @@ collage <command> [flags]
 `collage <command> -h`. Flags use Go's `flag` syntax: `-out dist` and `-out=dist`
 are the same, and `--out` works too.
 
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 380" role="img" aria-labelledby="cli-life-title">
+<title id="cli-life-title">A project's life through the collage commands. collage new scaffolds the project in this directory. While you work on it: collage add writes a page, fragment, action or document; collage dev runs it on localhost:6060 and rebuilds it when its Go code changes; collage check checks its templates' links; collage plugin add and del edit plugins.go and go.mod; collage inspect prints the project as JSON. To ship it, one of two roads. collage build compiles one static binary into bin/, and with -i writes an image file and a service unit beside it; the binary goes to a server, where it reads HOST and PORT. Or collage export renders HTML and static files into dist/; collage serve shows dist/ on localhost:4000, and a static host serves the same files.</title>
+<defs><marker id="cli-life-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
+<rect class="d-cmd" x="100" y="8" width="120" height="24" rx="12" /><text class="d-cmd-text" x="160" y="24" text-anchor="middle">collage new</text>
+<line class="d-flow" x1="160" y1="32" x2="160" y2="46" marker-end="url(#cli-life-arrow)" />
+<rect class="d-frame" x="6" y="50" width="308" height="122" rx="8" />
+<text x="16" y="67">the project in this directory</text>
+<rect class="d-cmd" x="14" y="76" width="96" height="24" rx="12" /><text class="d-cmd-text" x="62" y="92" text-anchor="middle">collage add</text>
+<rect class="d-cmd" x="112" y="76" width="96" height="24" rx="12" /><text class="d-cmd-text" x="160" y="92" text-anchor="middle">collage dev</text>
+<rect class="d-cmd" x="210" y="76" width="96" height="24" rx="12" /><text class="d-cmd-text" x="258" y="92" text-anchor="middle">collage check</text>
+<text class="d-small" x="62" y="114" text-anchor="middle">writes Go files</text>
+<text class="d-small" x="160" y="114" text-anchor="middle">runs it on :6060</text>
+<text class="d-small" x="258" y="114" text-anchor="middle">checks its links</text>
+<rect class="d-cmd" x="14" y="124" width="146" height="24" rx="12" /><text class="d-cmd-text" x="87" y="140" text-anchor="middle">collage plugin add/del</text>
+<rect class="d-cmd" x="170" y="124" width="136" height="24" rx="12" /><text class="d-cmd-text" x="238" y="140" text-anchor="middle">collage inspect</text>
+<text class="d-small" x="87" y="162" text-anchor="middle">edits plugins.go, go.mod</text>
+<text class="d-small" x="238" y="162" text-anchor="middle">prints it as JSON</text>
+<line class="d-flow" x1="84" y1="172" x2="84" y2="186" marker-end="url(#cli-life-arrow)" />
+<line class="d-flow" x1="236" y1="172" x2="236" y2="186" marker-end="url(#cli-life-arrow)" />
+<rect class="d-cmd" x="14" y="190" width="140" height="24" rx="12" /><text class="d-cmd-text" x="84" y="206" text-anchor="middle">collage build</text>
+<rect class="d-cmd" x="166" y="190" width="140" height="24" rx="12" /><text class="d-cmd-text" x="236" y="206" text-anchor="middle">collage export</text>
+<line class="d-flow" x1="84" y1="214" x2="84" y2="228" marker-end="url(#cli-life-arrow)" />
+<line class="d-flow" x1="236" y1="214" x2="236" y2="228" marker-end="url(#cli-life-arrow)" />
+<rect class="d-folder" x="14" y="232" width="140" height="34" rx="4" /><text x="84" y="246" text-anchor="middle">bin/&lt;name&gt;</text><text class="d-small" x="84" y="259" text-anchor="middle">one static binary</text>
+<rect class="d-folder" x="166" y="232" width="140" height="34" rx="4" /><text x="236" y="246" text-anchor="middle">dist/</text><text class="d-small" x="236" y="259" text-anchor="middle">HTML and static files</text>
+<line class="d-hitline" x1="66" y1="266" x2="66" y2="284" />
+<rect class="d-folder" x="14" y="284" width="104" height="34" rx="4" /><text class="d-small" x="66" y="298" text-anchor="middle">-i: image file</text><text class="d-small" x="66" y="311" text-anchor="middle">and service unit</text>
+<line class="d-hitline" x1="218" y1="266" x2="218" y2="284" />
+<rect class="d-cmd" x="166" y="284" width="104" height="24" rx="12" /><text class="d-cmd-text" x="218" y="300" text-anchor="middle">collage serve</text>
+<text class="d-small" x="218" y="322" text-anchor="middle">localhost:4000</text>
+<line class="d-flow" x1="140" y1="266" x2="140" y2="336" marker-end="url(#cli-life-arrow)" />
+<line class="d-flow" x1="292" y1="266" x2="292" y2="336" marker-end="url(#cli-life-arrow)" />
+<rect class="d-pill" x="14" y="340" width="140" height="34" rx="17" /><text x="84" y="354" text-anchor="middle">a server</text><text class="d-small" x="84" y="367" text-anchor="middle">reads HOST and PORT</text>
+<rect class="d-pill" x="166" y="340" width="140" height="34" rx="17" /><text x="236" y="354" text-anchor="middle">a static host</text><text class="d-small" x="236" y="367" text-anchor="middle">serves the same files</text>
+</svg>
+<figcaption>A project's life through the commands. <code>collage new</code> scaffolds it once. While you work on it, <code>add</code>, <code>dev</code>, <code>check</code>, <code>plugin add</code> and <code>del</code>, and <code>inspect</code> all act on the project in the current directory. To ship it, <code>collage build</code> compiles one binary for a server, which listens on <code>HOST</code> and <code>PORT</code>, and <code>-i</code> writes an image file and a service unit beside it. Or <code>collage export</code> renders <code>dist/</code>, which <code>collage serve</code> shows as a static host would before you upload it. <code>collage plugin check</code> is not in the picture: it runs in a plugin's own repository.</figcaption>
+</figure>
+
 ### Exit codes
 
 | Code | Meaning |
@@ -89,13 +128,18 @@ more than one, is a usage error. A target directory that exists and is not empty
 is refused unless you pass `-force` — and with `-force`, files the scaffold writes
 replace files of the same name.
 
-**Every project** gets `go.mod`, a `main.go` holding the configuration, the static
-mount, the CLI contract described [below](#the-contract-with-maingo) and the
-dispatch of [plugin commands](#plugin-commands), a `routes.go` registering every
-route, a layout that names the site with `WithTitle` and declares no slots (so a
-page's own title replaces the site's), a home page that hands its template the
-project's name with `collage.Value` — static without saying `Static()`, because
-nothing in it fetches — `static/`, a `.gitignore` and a README.
+**Every project** gets:
+
+- `go.mod`;
+- a `main.go` holding the configuration, the static mount, the CLI contract
+  described [below](#the-contract-with-maingo) and the dispatch of
+  [plugin commands](#plugin-commands);
+- a `routes.go` registering every route;
+- a layout that names the site with `WithTitle` and declares no slots (so a
+  page's own title replaces the site's);
+- a home page that hands its template the project's name with `collage.Value` —
+  static without saying `Static()`, because nothing in it fetches;
+- `static/`, a `.gitignore` and a README.
 
 **`--template demo`** adds a page of live demos — an action answering
 JSON, a form posting to its own page, a fragment with its own URL, a JSON
@@ -221,23 +265,30 @@ answer.
 Since v0.34.0 `collage dev` answers only a request whose `Host` names this machine
 — `localhost` or a name under it, an IP address, a reserved name such as
 `example.com` or `*.test` (since v0.56.0) — or the `HOST` it was started with, or a
-name in `COLLAGE_DEV_HOST`, and refuses anything else with a `403`. A page on another site can make its
+name in `COLLAGE_DEV_HOST`, and refuses anything else with a `403`.
+
+A page on another site can make its
 own name resolve to `127.0.0.1` (DNS rebinding) and would then be same-origin with
 `collage dev`: it could read your pages, the development error pages with their
 stacks, and the program's output. The `Host` it sends is its own name, which it
-cannot change. To reach `collage dev` under another name, start it with `HOST` set
+cannot change.
+
+To reach `collage dev` under another name, start it with `HOST` set
 to it, or list the name in `COLLAGE_DEV_HOST`, a comma-separated list such as
 `app,mybox.lan` for a docker-compose service and a LAN name. `collage dev` reads it
 from the shell or the environment file, applies it to its proxy, and starts the
 program with the list plus its own `HOST`, since the program listens on loopback but
 sees the browser's `Host`; the program applies the same rule in development mode.
+
 Since v0.56.0 `collage dev` also logs a Warn when its own proxy is bound anywhere
 but loopback, since the development pages are then reachable from other machines.
 See [Deployment](/docs/deployment#development-mode-stays-on-this-machine).
 
 What the program prints still reaches the terminal, as the program printed it —
 with one change: its own address is replaced by `collage dev`'s, so its
-`collage: listening` line names the address to open (since v0.32.0). On a colour
+`collage: listening` line names the address to open (since v0.32.0).
+
+On a colour
 terminal the program is started with `FORCE_COLOR=1`, which the
 [default logger](/docs/configuration#logger) honours, so its lines keep their time,
 coloured markers and dimmed attributes although its output reaches `collage dev`
@@ -558,7 +609,9 @@ go run . collage-inspect
 it to a plugin: it prints the application's description as indented JSON. That JSON
 is the contract; the Go types behind it (`App.Inspect`, `collage.Inspection`,
 `collage.InspectCommand`) left the public API in v0.60.0, and the output is
-byte-for-byte what it was. The name is prefixed so that no plugin's
+byte-for-byte what it was.
+
+The name is prefixed so that no plugin's
 command is taken. The scaffolded `main.go` hands the word after its flags to
 `DispatchCommands` (see [Plugin commands](#plugin-commands)), so a scaffolded
 project on collage v0.27.0 or later needs nothing more. A program that does not
@@ -607,18 +660,24 @@ complete `{{.` and check a field name the way registration does — see
 - **`types`** holds every named type reachable from some fragment's data type —
   through fields, element and key types, and method results — keyed by its Go
   name, with its exported fields (promoted ones included) and the exported methods
-  of it and its pointer that return something. An exported embedded field is a
-  field too — a template reaches it as `{{.Base}}` — and carries
-  `"embedded": true`; the fields it promotes are listed beside it as usual (since
-  v0.51.1). A named pointer, slice, array, map or chan carries `elem`, the type
-  it holds, and a map also `key` (since v0.51.1). A type is listed once and named
-  everywhere else, so a recursive type ends. An unnamed struct is listed under its
-  Go spelling; other unnamed composites are written inline in a type string
-  (`[]blog.Comment`). Standard library types such as `time.Time` and
-  `template.HTML` are named, not described. `types` is left out when no fragment
-  has a known data type. A key two different types share (`models.User` from two
-  packages named `models`) is written as `{"kind": "struct", "ambiguous": true}`
-  with no fields or methods, and an editor treats it as unknown (since v0.51.2).
+  of it and its pointer that return something.
+  - An exported embedded field is a
+    field too — a template reaches it as `{{.Base}}` — and carries
+    `"embedded": true`; the fields it promotes are listed beside it as usual (since
+    v0.51.1).
+  - A named pointer, slice, array, map or chan carries `elem`, the type
+    it holds, and a map also `key` (since v0.51.1).
+  - A type is listed once and named
+    everywhere else, so a recursive type ends. An unnamed struct is listed under its
+    Go spelling; other unnamed composites are written inline in a type string
+    (`[]blog.Comment`).
+  - Standard library types such as `time.Time` and
+    `template.HTML` are named, not described.
+  - `types` is left out when no fragment
+    has a known data type.
+  - A key two different types share (`models.User` from two
+    packages named `models`) is written as `{"kind": "struct", "ambiguous": true}`
+    with no fields or methods, and an editor treats it as unknown (since v0.51.2).
 
 These are additions: the output's `version` is still `1`.
 
@@ -855,6 +914,145 @@ With no argument it lists every command and exits `0`. With a command name it
 prints that command's usage; an unknown name prints
 `collage: unknown command: "nope"` and exits `2`.
 
+## Example: from a new project to a first deploy
+
+The commands above, in the order a site meets them: a project called `myblog`,
+written on a laptop and deployed to a server of another platform. Times, sizes, hashes
+and cache directories in the output differ on your machine.
+
+**1. Scaffold it.**
+
+```sh
+collage new myblog
+cd myblog
+go mod tidy
+```
+
+`new` writes the [minimal project](#collage-new) and prints the next steps:
+
+```text
+Scaffolded "myblog" in myblog
+
+Next steps:
+  cd myblog
+  go mod tidy
+  collage dev
+```
+
+The scaffolded `go.mod` names only the module and the Go version; `go mod tidy`
+adds collage to it.
+
+**2. Run it.**
+
+```sh
+collage dev
+```
+
+```text
+01:13:17 • collage dev: serving http://localhost:6060
+01:13:18 • collage: dev mode is rendering templates from disk, not the embedded copy  root=templates
+01:13:18 • collage: dev mode, using an in-memory cache instead of the configured disk cache
+01:13:18 • collage: listening  addr=localhost:6060
+```
+
+`http://localhost:6060` shows `Hello from myblog`. Leave it running: the next
+step adds Go files, and it rebuilds when they appear.
+
+**3. Add a page, and check the links.** In a second terminal:
+
+```sh
+collage add page about
+```
+
+```text
+wrote  fragments/pages/about.go
+wrote  pages/about.go
+edited routes.go
+locale en, from the default; main.go sets no Locale.Default literal, --locale changes it
+page "about" at /about
+```
+
+`collage dev` rebuilds, and `/about` answers. Then:
+
+```sh
+collage check
+```
+
+```text
+01:14:05 • collage: caching to disk  dir=.cache/6ba57471adaf48bf  version=19be6c1c06fea3dcff022e9dab873f1f
+collage: check: nothing found
+```
+
+The first line is the program's own, since `check` starts it. The second is the
+verdict, and the exit code is `0`; in CI, this is the step before `collage build`.
+
+**4. Build for the server.** The laptop is not the server, so name the server's
+platform, and ask for the two extra files with `-i`:
+
+```sh
+collage build -i -os linux -arch amd64
+```
+
+```text
+Building myblog for linux/amd64.
+
+  Write a Dockerfile? [y/N]: y
+  Write a systemd unit? [y/N]: y
+
+
+✓ bin/myblog
+    linux/amd64 · 10.3 MB
+    wrote bin/Dockerfile    docker build -f bin/Dockerfile .
+    wrote bin/myblog.service
+
+10.3 MB · linux/amd64 · 6.7s
+```
+
+The scaffold's `.gitignore` ignores `bin/myblog` by name and not the two files
+beside it: those are yours to edit and commit. Run the command again and
+both questions are skipped, since the files are there.
+
+**5. Put it on the server.** The two files are two ways to run it, and only one
+of them uses `bin/myblog`:
+
+- **The service unit** runs the binary you built. Copy `bin/myblog` to
+  `/usr/local/bin/myblog` on the server, adjust the unit's `User` and
+  `WorkingDirectory` — the file cannot know them — and install it where its first
+  comment says. It listens on `127.0.0.1:8080`, for a reverse proxy in front.
+- **The image file** builds its own binary: its first stage compiles the project
+  from source with the same flags, and its second stage holds the result. Build
+  it from the project root, as the report says. It listens on `0.0.0.0:8080`.
+
+The `8080` is those files' own setting, written as `PORT=8080`. The binary run
+with no `HOST` or `PORT` listens on `localhost:6060`, the scaffold's default; see
+[Deployment](/docs/deployment#environment). Both files also carry a commented-out
+`COLLAGE_CSRF_KEY`: set it to at least 32 random bytes, or a key is generated per
+process and every form submitted before a restart is refused after it.
+
+Add plugins before `-i`. The image file copies `plugins-config.json` only when the
+project has one as the file is written, and `-i` never rewrites the file; a
+plugin added afterwards means adding that `COPY` line by hand.
+
+**Or export it.** For a host that serves files, `collage export -clean` renders
+`dist/` instead, and its report leaves the new page out:
+
+```text
+✓ 3 files written
+    dist/index.html
+    dist/static/app.css
+    dist/static/app.f106e88ebb47f51d.css
+
+▲ 1 skipped
+    about  page uses the dynamic render strategy, which cannot be built statically
+
+3 written · 1 skipped · 0 failed · 1.5ms
+```
+
+`collage add` gave `about` a `collage.Load` handler and no strategy, so it is
+dynamic. Add `.Static()` to its builder in `pages/about.go` and the next export
+writes `dist/about/index.html` too. `collage serve` then shows `dist/` on
+`localhost:4000`, as a static host would serve it.
+
 ## The contract with main.go
 
 `dev`, `export` and `inspect` depend on three things your `main.go` does, and the
@@ -977,16 +1175,24 @@ go run . pages
 ./bin/myblog -port 4000 pages
 ```
 
-The exit code follows the CLI's: `0` for success; `1` for a startup failure, a
-command that ran and failed, or a command with no `Run`; `2` for a nil app, no
-arguments, or a word no plugin registered (`ErrUnknownCommand`). An
+The exit code follows the CLI's:
+
+| Code | When |
+| --- | --- |
+| `0` | success |
+| `1` | a startup failure, a command that ran and failed, or a command with no `Run` |
+| `2` | a nil app, no arguments, or a word no plugin registered (`ErrUnknownCommand`) |
+
+An
 unclaimed word is a usage error rather than a server started by accident. One word
 no plugin registers is answered all the same: `collage-inspect`, which
 [`collage inspect`](#collage-inspect) runs. A
 program that would rather serve when no command matches can check
 `errors.Is(err, collage.ErrUnknownCommand)` and carry on instead of exiting.
 `app.Commands()` lists what the plugins registered, if you want to print your own
-usage. Dispatching starts the application, which closes registration, and a later
+usage.
+
+Dispatching starts the application, which closes registration, and a later
 `ListenAndServe` reuses that start. `DispatchCommands` does not shut the
 application down, since a program may go on to serve it: once a command has run,
 call `app.Shutdown` yourself, as above, so that every plugin's `Shutdown` runs.
