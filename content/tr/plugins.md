@@ -35,13 +35,18 @@ verilen bir yetenekten geçer. Bu ikisiyle bir plugin şunları yapabilir:
   olabilir. Plugin, bir page'in
   [fragment path'lerini](/docs/forms-and-actions#a-fragment-at-its-own-url) render
   edip bu bağlantı üzerinden gönderebilir (v0.18.0'dan beri).
-- **Bir cache yazımını ayarlayabilir.** Yazılan kaydın ömrünü ya da tag'lerini
-  değiştirebilir veya yazımı tamamen atlayabilir. Invalidation'lardan da haberdar
-  olur.
+- **Invalidation'lardan haberdar olabilir.** Cache'teki page'leri az önce
+  invalidate edilen tag'leri alır; böylece bir CDN'deki kopyaları temizleyebilir
+  ya da güncel bir fragment gönderebilir.
 - **Hataları gözlemleyebilir.** Her hatayı, pipeline'ın hangi aşamasında oluştuğu
   bilgisiyle birlikte alır.
-- **Her request'i sarmalayabilir.** Bunu, uygulamanınkinden sonra gelen kendi
-  middleware'iyle yapar (v0.21.0'dan beri).
+- **Her request'i sarmalayabilir.** Bunu kendi middleware'iyle yapar
+  (v0.21.0'dan beri). `Config.Plugins` içindeki bir plugin'in middleware'i,
+  `app.Use`'un eklediği her şeyin dışındadır ve listedeki sırayla çalışır; böylece
+  sizin middleware'iniz onun request context'ine koyduğunu okur. `RegisterPlugin`
+  ile register edilen bir plugin'in middleware'i ise kendisinden önce eklenen
+  middleware'in içinde kalır. Bkz.
+  [Middleware ve kendi API'niz](/docs/middleware-and-apis#plugins-middleware-and-yours).
 - **Çıktıyı denetleyip finding raporlayabilir.** Finding'ler development'ta page'in
   üzerinde gösterilir, static build'in raporunda listelenir ve error seviyesinde
   build'i başarısız kılar (v0.21.0'dan beri).
@@ -49,8 +54,48 @@ verilen bir yetenekten geçer. Bu ikisiyle bir plugin şunları yapabilir:
   bir projede bunlar `go run . <command>` ile çalışır. Bkz.
   [collage CLI](/docs/cli#plugin-commands).
 
+Aşağıda bu hook'ların bir page request'inin izlediği yolda nerede durduğunu ve
+request dışında çalışan iki hook'u görebilirsiniz:
+
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 558" role="img" aria-labelledby="plugin-hooks-title">
+<title id="plugin-hooks-title">Request önce plugin middleware'inden, sonra app.Use'dan, sonra router'dan geçer. Cache'te bulunan bir page doğrudan OnPersonalise'a gider. Bulunmazsa OnBeforeRender çalışır, page render edilir, OnAfterRender HTML'i değiştirebilir, sonuç tag'leriyle cache'e yazılır ve OnPersonalise onu her okuyucu için yeniden yazar. Request dışında InvalidateTags OnCacheInvalidate'i, tamamlanan bir static build de OnBuildFinished'ı tetikler.</title>
+<defs><marker id="plugin-hooks-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker><marker id="plugin-hooks-hit" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head-hit" d="M0 0 8 4 0 8z" /></marker></defs>
+<rect class="d-pill" x="110" y="8" width="100" height="26" rx="13" /><text x="160" y="25" text-anchor="middle">request</text>
+<line class="d-flow" x1="160" y1="34" x2="160" y2="50" marker-end="url(#plugin-hooks-arrow)" />
+<rect class="d-frame" x="50" y="54" width="220" height="28" rx="6" /><text x="160" y="72" text-anchor="middle">plugin middleware'i</text>
+<rect class="d-frame" x="50" y="88" width="220" height="28" rx="6" /><text x="160" y="106" text-anchor="middle">app.Use</text>
+<line class="d-flow" x1="160" y1="116" x2="160" y2="132" marker-end="url(#plugin-hooks-arrow)" />
+<rect class="d-cmd" x="110" y="136" width="100" height="26" rx="13" /><text class="d-cmd-text" x="160" y="153" text-anchor="middle">router</text>
+<line class="d-flow" x1="160" y1="162" x2="160" y2="178" marker-end="url(#plugin-hooks-arrow)" />
+<rect class="d-chip-hit" x="100" y="182" width="120" height="24" rx="12" /><text class="d-hit-text d-small" x="160" y="198" text-anchor="middle">page cache'te mi?</text>
+<path class="d-hitline" d="M220 194H296V410H274" marker-end="url(#plugin-hooks-hit)" />
+<text class="d-hit-text d-small" x="258" y="189" text-anchor="middle">hit</text>
+<line class="d-flow" x1="160" y1="206" x2="160" y2="222" marker-end="url(#plugin-hooks-arrow)" />
+<text class="d-small" x="166" y="218">miss</text>
+<rect class="d-a" x="50" y="226" width="220" height="28" rx="5" /><text class="d-on-a" x="160" y="244" text-anchor="middle">OnBeforeRender</text>
+<line class="d-flow" x1="160" y1="254" x2="160" y2="264" marker-end="url(#plugin-hooks-arrow)" />
+<rect class="d-soft-a" x="50" y="268" width="220" height="28" rx="6" /><text x="160" y="286" text-anchor="middle">render: fragment'ler veri çeker</text>
+<line class="d-flow" x1="160" y1="296" x2="160" y2="306" marker-end="url(#plugin-hooks-arrow)" />
+<rect class="d-a" x="50" y="310" width="220" height="28" rx="5" /><text class="d-on-a" x="160" y="328" text-anchor="middle">OnAfterRender · ev.HTML</text>
+<line class="d-flow" x1="160" y1="338" x2="160" y2="348" marker-end="url(#plugin-hooks-arrow)" />
+<rect class="d-chip-hit" x="90" y="352" width="140" height="24" rx="12" /><text class="d-hit-text d-small" x="160" y="368" text-anchor="middle">cache'e yazım · tag'ler</text>
+<line class="d-flow" x1="160" y1="376" x2="160" y2="392" marker-end="url(#plugin-hooks-arrow)" />
+<rect class="d-b" x="50" y="396" width="220" height="28" rx="5" /><text class="d-on-b" x="160" y="414" text-anchor="middle">OnPersonalise · her okuyucu</text>
+<line class="d-flow" x1="160" y1="424" x2="160" y2="440" marker-end="url(#plugin-hooks-arrow)" />
+<rect class="d-pill" x="110" y="444" width="100" height="26" rx="13" /><text x="160" y="461" text-anchor="middle">response</text>
+<line class="d-rule" x1="6" y1="484" x2="314" y2="484" />
+<text class="d-small" x="160" y="500" text-anchor="middle">kendi başına</text>
+<rect class="d-c" x="6" y="510" width="150" height="40" rx="5" /><text class="d-on-c d-small" x="81" y="526" text-anchor="middle">Invalidate/PurgeTags</text><text class="d-on-c d-small" x="81" y="540" text-anchor="middle">→ OnCacheInvalidate</text>
+<rect class="d-frame" x="164" y="510" width="150" height="40" rx="5" /><text class="d-small" x="239" y="526" text-anchor="middle">static build yazıldı</text><text class="d-small" x="239" y="540" text-anchor="middle">→ OnBuildFinished</text>
+</svg>
+<figcaption>Config.Plugins'teki plugin'lerin middleware'i, request'i uygulamanın kendi middleware'inin dışından sarar. Cache'te bulunan bir page render hook'larını atlayıp doğrudan OnPersonalise'a gider; yani cache'e yazılan, OnAfterRender'ın değiştirdiği hâlidir. Yeni bir render önce OnBeforeRender'ı, sonra OnAfterRender'ı çalıştırır; OnAfterRender HTML'i, tag'leriyle cache'e yazılmadan önce değiştirebilir. Hiç cache'lenmeyen bir page'de cache'e bakılmaz ve yazılmaz: request router'dan doğrudan OnBeforeRender'a gider. Page'iyle cevap veren bir action da OnBeforeRender'ı ve OnAfterRender'ı çalıştırır, ama cache'lemez. Tag'leri invalidate ya da purge etmek, nereden çağrılırsa çağrılsın, ve bir static build'i bitirmek kendi hook'larını tetikler.</figcaption>
+</figure>
+
 Bunların her birinin plugin tarafından nasıl göründüğünü
-[Plugin yazmak](/docs/writing-plugins) sayfasında bulabilirsiniz. `collage plugin add` ile kurulabilen bir plugin yazmak için [repository sözleşmesine](/docs/plugin-authors) bakın.
+[Plugin yazmak](/docs/writing-plugins) sayfasında bulabilirsiniz.
+`collage plugin add` ile kurulabilen bir plugin yazmak için
+[repository sözleşmesine](/docs/plugin-authors) bakın.
 
 ## Bir plugin'i register etmek
 
@@ -64,7 +109,9 @@ collage plugin add elagoht/minimizer
 indirir, import'u ve constructor çağrısını plugin'in istediği yere `plugins.go`'ya
 yazar, `plugins-config.json`'a da boş bir `"elagoht/minimizer": {}` bölümü ekler:
 yani varsayılanlar. Bu plugin'in ihtiyaç duyduğu başka bir plugin varsa onu önce
-ekler. Bir hata olursa her dosya olduğu gibi kalır. Kaldırmak da aynı şekilde, tersi
+ekler.
+
+Bir hata olursa her dosya olduğu gibi kalır. Kaldırmak da aynı şekilde, tersi
 yönde yapılır. Bölümde ayar varsa kaybolmasın diye yazdırılır:
 
 ```sh
@@ -106,6 +153,7 @@ Dosya sizindir: sırayı değiştirebilir ya da bir plugin'e seçeneklerini Go i
 verebilirsiniz (`sitemap.New(sitemap.Options{...})`). `add` ve `del` yalnızca
 girdileri bütün olarak ekler ve çıkarır. Eski bir proje bu dosyayı ilk `add`'inde
 alır. Komut da `main.go`'ya konacak `Plugins: plugins(),` satırını yazdırır.
+
 Başkasının plugin'i de aynı şekilde, module path'iyle eklenir:
 `collage plugin add gitlab.com/you/stamp`. Bir repository'nin eklenebilmesi için
 neye sahip olması gerektiği [plugin yazarlarının sayfasında](/docs/plugin-authors),
@@ -145,8 +193,10 @@ girmesi gerekir. Örneğin bir template fonksiyonu eklemek ya da mount edilen do
 sistemlerini sarmalamak için. Bu işler `New` içinde yapılır. Böyle bir plugin,
 isteğe bağlı bir `Configure` aşaması implement eder. `RegisterPlugin` bu plugin'i kabul
 edip asıl önemli kısmı sessizce atlamaz. Onun yerine plugin'i adıyla belirterek
-`collage.ErrConfigurerRegisteredLate` ile reddeder. `Config.Plugins` ise her plugin
-için çalışır, bu yüzden varsayılan olarak onu kullanın.
+`collage.ErrConfigurerRegisteredLate` ile reddeder.
+
+`Config.Plugins` ise her plugin için çalışır, bu yüzden varsayılan olarak onu
+kullanın.
 
 `RegisterPlugin` şu durumlarda da reddeder:
 
@@ -167,6 +217,7 @@ slice'taki sırayla, ardından `RegisterPlugin` ile eklenenler çağrı sırası
 çalışır. Çıktıyı değiştiren hook'larda her plugin, kendinden önceki plugin'in
 ürettiği çıktıyı görür. Page'e bir şey ekleyen plugin, genellikle çıktıyı sıkıştıran
 plugin'den önce gelmelidir. Böylece eklenen içerik de sıkıştırılır.
+
 Yayımlanmış dört plugin nerede duracağını söyler:
 [elagoht/compress](#elagohtcompress) response body'lerini yeniden yazan her
 plugin'den önce, [elagoht/health](#elagohthealth) bir request'i reddedebilen ya da
@@ -269,9 +320,21 @@ kurmanız için yeterlidir.
 
 [Plugin olmayan library'ler](#libraries-that-are-not-plugins) grupların ardından listelenir.
 
+Çoğu site bir gruptan değil, ne olduğundan yola çıkar. Aşağıda sık görülen üç
+başlangıç noktası vardır; her plugin aşağıdaki kendi bölümüne bağlanır:
+
+| Ne kuruyorsunuz | Başlangıç | Size ne sağlarlar |
+| --- | --- | --- |
+| Bir blog | [markdown](#elagohtmarkdown), [highlight](#elagohthighlight), [toc](#elagohttoc), [feed](#elagohtfeed), [sitemap](#elagohtsitemap), [robots](#elagohtrobots), [meta](#elagohtmeta), [jsonld](#elagohtjsonld), [ogimage](#elagohtogimage), [search](#elagohtsearch) | Markdown ile yazılan, kodu renklendirilmiş ve içindekiler tablosu olan yazılar, okuyucular için bir feed, arama motorlarının ve link preview'larının okuduğu bilgiler ve static olarak build edilen sitede arama. `@blog`, search dışındakilerin hepsini tek komutla ekler. |
+| Bir ürün kataloğu | [jsonld](#elagohtjsonld), [meta](#elagohtmeta), [sitemap](#elagohtsitemap), [opti-image](#elagohtopti-image), [i18n](#elagohti18n), [cdnpurge](#elagohtcdnpurge), [compress](#elagohtcompress), [minimizer](#elagohtminimizer) | `Product` structured data, plugin'in kendi mount'undan sunulan yeniden boyutlandırılmış ürün görselleri, her locale için çeviriler ve bir ürünün tag'leri invalidate edildiğinde CDN'deki kopyaların temizlenmesi. |
+| Rolleri olan çok kullanıcılı bir web uygulaması | [session](#elagohtsession), [oauth](#elagohtoauth), [validate](#elagohtvalidate), [flash](#elagohtflash), [honeypot](#elagohthoneypot), [uploads](#elagohtuploads), [secure](#elagohtsecure), [ratelimit](#elagohtratelimit), [fail2ban](#elagohtfail2ban), [live](#elagohtlive) | Bir kimlik sağlayıcısıyla giriş, session'da tutulan giriş yapmış kullanıcı, denetlenip cevaplanan form'lar, içeriğine göre denetlenen upload'lar, sınırlanan ya da ban'lenen kötüye kullanım ve page'in güncel tutulan kısımları. Roller sizindir: `app.Use` ile eklenen bir middleware, plugin'in request context'ine koyduğu session'ı okur; [Plugin'lerin middleware'i ve sizinki](/docs/middleware-and-apis#plugins-middleware-and-yours) bunu gösterir. |
+
+`@prod`, bunlardan herhangi birinin production'da istediği her şeyi ekler.
+Paketler [CLI referansında](/docs/cli#bundles) listelenir.
+
 ### SEO ve keşfedilebilirlik
 
-Bir arama motorunun, bir feed okuyucunun ya da bir link önizlemesinin okudukları:
+Bir arama motorunun, bir feed okuyucunun ya da bir link preview'ının okudukları:
 structured data, bir page'in paylaşılırken okunan tag'leri, sitemap ve
 `robots.txt`, feed'ler, eski adresler ve nereye gittikleri, arama motorlarına neyin
 değiştiğini bildirmek.
@@ -2870,11 +2933,12 @@ stylesheet'lerini aynı mekanizmayla ekler. Hoist edilen içerik, yalnızca layo
 **Bu marker olmadan hiçbir şey görünmez.** Plugin register edilir, çalışır ve
 bloğunu tanımlar, ama bloğun yerleşeceği bir yer yoktur. Bu bilinçli bir tercihtir.
 HTML içinde `</head>`'i arayıp kendini araya ekleyen bir plugin, layout'unuzu
-ilgilendiren bir kararı sizin yerinize vermiş olurdu. `collage new` ile oluşturulan
-layout'larda marker zaten vardır. Elle yazdığınız bir layout'ta olmayabilir.
-Hoist mekanizmasının genel anlatımı için [Head ve SEO](/docs/head-and-seo) sayfasına
-bakın. Yayımlanmış plugin'lerden jsonld, meta, ogimage, feed, favicon ve analytics head'e bu
-yolla yazar.
+ilgilendiren bir kararı sizin yerinize vermiş olurdu.
+
+`collage new` ile oluşturulan layout'larda marker zaten vardır. Elle yazdığınız
+bir layout'ta olmayabilir. Hoist mekanizmasının genel anlatımı için
+[Head ve SEO](/docs/head-and-seo) sayfasına bakın. Yayımlanmış plugin'lerden
+jsonld, meta, ogimage, feed, favicon ve analytics head'e bu yolla yazar.
 
 ## Plugin'ler nerede çalışır
 

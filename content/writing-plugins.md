@@ -475,8 +475,8 @@ type AfterRenderEvent struct {
 
 Fires after a page render succeeded, for pages, error pages, a page an action
 answers with through `RenderPage`, and static builds.
-Replace `ev.HTML` to post-process; what you leave there is what is served, and —
-unless a cache-write hook skips it — what is cached. Later plugins see what earlier
+Replace `ev.HTML` to post-process; what you leave there is what is served, and
+what is cached. Later plugins see what earlier
 ones produced.
 
 `ev.Values` (a `*collage.RenderValues`) are the values the page's fragments

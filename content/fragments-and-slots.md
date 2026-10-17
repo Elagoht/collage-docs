@@ -5,10 +5,44 @@ reference: NewFragment, NewInlineFragment, InlineHTML, FragmentBuilder, Fragment
 
 # Fragments and slots
 
-A **fragment** is the unit a page is made of: a template, an optional data handler
-that fetches what the template renders, and named **slots** where other fragments
-go. A layout is a fragment. So is the content of a page, a sidebar, an author card,
+A **fragment** is the unit a page is made of. It has three parts:
+
+- a template;
+- an optional data handler that fetches what the template renders;
+- named **slots** where other fragments go.
+
+A layout is a fragment. So is the content of a page, a sidebar, an author card,
 a comment list. A page is a tree of them, with the layout at the root.
+
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 250" role="img" aria-labelledby="fs-tree-title">
+<title id="fs-tree-title">A product page as a tree: the layout's content slot holds the product fragment, which is required. The product fragment has two slots: stock holds the stock box, with no failure policy, and similar holds the similar products, with a fallback. If the product fails the page fails with 500 or 404; if the stock box fails it is left out; if the similar products fail the fallback renders. In both of those cases the page answers 200.</title>
+<rect class="d-frame" x="4" y="4" width="312" height="242" rx="8" />
+<text x="14" y="21">layout</text>
+<rect class="d-bar" x="70" y="12" width="236" height="10" rx="3" />
+<rect class="d-slot d-slot-a" x="14" y="30" width="292" height="206" rx="5" />
+<text class="d-slot-text-a d-small" x="24" y="44">slot "content"</text>
+<rect class="d-frame d-frame-a" x="24" y="52" width="272" height="174" rx="6" />
+<text class="d-slot-text-a" x="34" y="69">product</text>
+<text class="d-small" x="86" y="69">fails: 500 / 404</text>
+<rect class="d-chip-hit" x="196" y="57" width="90" height="18" rx="9" /><text class="d-hit-text d-small" x="241" y="69" text-anchor="middle">Required()</text>
+<rect class="d-bar" x="34" y="80" width="160" height="6" rx="3" />
+<rect class="d-bar" x="34" y="90" width="110" height="6" rx="3" />
+<rect class="d-slot d-slot-b" x="34" y="102" width="122" height="116" rx="4" />
+<text class="d-small" x="95" y="116" text-anchor="middle">slot "stock"</text>
+<rect class="d-b" x="44" y="124" width="102" height="30" rx="4" /><text class="d-on-b" x="95" y="143" text-anchor="middle">stock</text>
+<rect class="d-chip" x="44" y="162" width="102" height="18" rx="9" /><text class="d-small" x="95" y="174" text-anchor="middle">no policy</text>
+<text class="d-small" x="95" y="196" text-anchor="middle">fails: left out</text>
+<text class="d-small" x="95" y="209" text-anchor="middle">page: 200</text>
+<rect class="d-slot d-slot-c" x="164" y="102" width="122" height="116" rx="4" />
+<text class="d-small" x="225" y="116" text-anchor="middle">slot "similar"</text>
+<rect class="d-c" x="174" y="124" width="102" height="30" rx="4" /><text class="d-on-c" x="225" y="143" text-anchor="middle">similar</text>
+<rect class="d-chip" x="174" y="162" width="102" height="18" rx="9" /><text class="d-small" x="225" y="174" text-anchor="middle">WithFallback</text>
+<text class="d-small" x="225" y="196" text-anchor="middle">fails: fallback</text>
+<text class="d-small" x="225" y="209" text-anchor="middle">page: 200</text>
+</svg>
+<figcaption>A product page is a tree. The layout's <code>content</code> slot holds the product, and the product's template calls two slots of its own. Each fragment has its own failure policy: the product is required, so its failure fails the page; the stock box has none, so it is left out; the similar products have a fallback. The whole page is built in <a href="#example-a-product-page">Example: a product page</a>.</figcaption>
+</figure>
 
 ```go
 author := collage.NewFragment("author", "fragments/author.html").
@@ -51,25 +85,33 @@ Everything else is optional:
 | `Shared()` | Its data handler returns the same for every reader at one moment, though not over time, so its render may be sent to many readers; the page's strategy is left alone. Since v0.19.0 |
 
 Like the page builder, the fragment builder records mistakes rather than stopping
-the chain, and `BuildErr()` returns them. What it recorded stays on the fragment it
-built, so every one of them — a slot constrained twice, a second child bound into a
-slot limited to one, a negative timeout — stops any page whose tree contains the
-fragment at registration, whether or not anyone called `BuildErr()`. Call it when
-you want the error at the line that caused it rather than at `RegisterPage`; see
+the chain, and `BuildErr()` returns them.
+
+What it recorded stays on the fragment it built. So every one of them — a slot
+constrained twice, a second child bound into a slot limited to one, a negative
+timeout — stops any page whose tree contains the fragment at registration, whether
+or not anyone called `BuildErr()`. Call it when you want the error at the line
+that caused it rather than at `RegisterPage`; see
 [Pages and layouts](/docs/pages-and-layouts#building-a-page).
 
 A fragment with no data handler renders its template with no data, or with the
 value `collage.Value(v)` hands it on every render. That is right for markup that never
 changes — a footer, a static notice, a list of links — and for a layout whose only
-job is to arrange slots. It also keeps the page cacheable: a page that declares no
-strategy is static unless something it renders has a data handler or a slot
-resolver — see [Caching](/docs/caching#a-page-that-declares-none). A fragment
-whose handler reads only the path's parameters and the locale says `Static()`,
-and its handler no longer counts. One whose handler is the same for every reader
-but not over time — a measurement — says `Shared()`, which implies nothing about
-the page and still counts; a handler that breaks either promise sends one reader's
-data to another. Setting a fragment's data
-twice is `ErrConflictingData` at registration.
+job is to arrange slots.
+
+It also keeps the page cacheable: a page that declares no strategy is static
+unless something it renders has a data handler or a slot resolver — see
+[Caching](/docs/caching#a-page-that-declares-none). Two promises change how a
+handler counts:
+
+- A fragment whose handler reads only the path's parameters and the locale says
+  `Static()`, and its handler no longer counts.
+- One whose handler is the same for every reader but not over time — a
+  measurement — says `Shared()`, which implies nothing about the page and still
+  counts.
+
+A handler that breaks either promise sends one reader's data to another. Setting
+a fragment's data twice is `ErrConflictingData` at registration.
 
 ### Inline templates
 
@@ -89,10 +131,11 @@ row := collage.NewInlineFragment("post-row", `
 
 It renders as a file template does — slots, `hoist`, every
 [template function](/docs/template-functions), `{{template}}` calls into the
-template directory — and registration parses and checks it like one: a parse error
-or a slot it never calls stops startup, naming the page and the fragment. Two
-fragments may share a name and still carry different templates; each renders its
-own. The development error panel names it as `inline template of fragment
+template directory. Registration parses and checks it like one: a parse error
+or a slot it never calls stops startup, naming the page and the fragment.
+
+Two fragments may share a name and still carry different templates; each renders
+its own. The development error panel names it as `inline template of fragment
 "post-row"`.
 
 A longer template can be a constant of its own, declared as `collage.InlineHTML`
@@ -116,7 +159,9 @@ read better as files.
 The template is code, so it must be a constant. Never build it from data —
 `NewInlineFragment("row", "<p>"+post.Title+"</p>")` runs whatever `{{…}}` the
 title holds, and each distinct string becomes a template the program keeps until
-it exits. This matters most in a [slot resolver](#slots-filled-per-render), which
+it exits.
+
+This matters most in a [slot resolver](#slots-filled-per-render), which
 builds fragments per request: its fragments can be inline, but their templates are
 fixed, and the data reaches them through `collage.Value` or a data handler.
 
@@ -189,8 +234,9 @@ not escaped again: the children escaped their own values when they rendered.
 A **typo on either side of a binding** — `WithSlotFragment("sidbar", ...)` against
 `{{slot "sidebar"}}` — fails registration with `ErrUnknownSlot`, naming the slot
 and the slots the template does call: a fragment bound into a slot its template
-never calls could never render. Calls in a template it includes, or a block it
-defines, count. A template that names a slot by anything but a literal,
+never calls could never render.
+
+Calls in a template it includes, or a block it defines, count. A template that names a slot by anything but a literal,
 `{{slot .Which}}`, may call any of them, so its fragment's bindings are not
 checked.
 
@@ -213,10 +259,13 @@ children, into its own slot is refused at registration with `ErrFragmentCycle`.
 
 ## When a fragment fails
 
-A fragment fails when its data handler returns an error, when its template fails
-to execute, when a required slot is empty, or when either panics — a panic in a
-data handler or a template function is recovered into a `*collage.PanicError` and
-treated as a failure, not a crashed process.
+A fragment fails when:
+
+- its data handler returns an error;
+- its template fails to execute;
+- a required slot is empty;
+- either panics — a panic in a data handler or a template function is recovered
+  into a `*collage.PanicError` and treated as a failure, not a crashed process.
 
 What happens next is the fragment's **failure policy**, and there are three.
 
@@ -255,28 +304,36 @@ sent to the reader but never cached, so the next request tries again rather than
 serving the failure for a TTL. A static export does not write a degraded page
 unless it is told to.
 
-In development a failure is never quiet. A failed fragment that renders nothing
-leaves an HTML comment with its name and error where its output would have been,
-and the page carries a panel naming every fragment that failed, with the error —
-for a template, the file and line — even when a fallback covered for it. When a
-required fragment fails the whole page, the development error page names that
-fragment — where the failure started, not the layout it travelled up through.
+In development a failure is never quiet:
+
+- A failed fragment that renders nothing leaves an HTML comment with its name and
+  error where its output would have been.
+- The page carries a panel naming every fragment that failed, with the error — for
+  a template, the file and line — even when a fallback covered for it.
+- When a required fragment fails the whole page, the development error page names
+  that fragment — where the failure started, not the layout it travelled up
+  through.
+
 Outside development there is neither.
 
 In every mode, since v0.36.0, a failure the page is served without is logged as a
 warning through [`Config.Logger`](/docs/configuration):
 `collage: fragment failed; the page is served without it`, with the page, the
-fragment, the locale, whether a fallback covered for it, and the error. Such a
-page still answers 200, so in production the log is where a missing form shows.
+fragment, the locale, whether a fallback covered for it, and the error.
+
+Such a page still answers 200, so in production the log is where a missing form
+shows.
 
 ### A slot the template skips
 
 A fragment's children start fetching before its template runs, so that they fetch
-at the same time rather than one after another. That means a fragment in a slot
-the template decides not to render — `{{if .ShowComments}}{{slot "comments"}}{{end}}`
-— still had its handler started. Its context is cancelled as soon as the template
-is done, and its failure is discarded: a fragment that was never rendered cannot
-fail the page, even if it is `Required()`.
+at the same time rather than one after another.
+
+That means a fragment in a slot the template decides not to render —
+`{{if .ShowComments}}{{slot "comments"}}{{end}}` — still had its handler started.
+Its context is cancelled as soon as the template is done, and its failure is
+discarded: a fragment that was never rendered cannot fail the page, even if it is
+`Required()`.
 
 ## Timeouts
 
@@ -299,13 +356,155 @@ The timeout bounds the **context** the handler receives, not the handler: a
 handler that ignores `ctx` runs as long as it likes. Pass `ctx` to every call that
 can wait — see [Data handlers](/docs/data-handlers#timeouts-and-the-context).
 
+## Example: a product page
+
+A shop's product page shows three things, and they matter differently:
+
+| Part | Comes from | When it fails |
+| --- | --- | --- |
+| The product: name, price, description | The catalogue | The page has nothing to show: `Required()` |
+| A stock box: "12 in stock" | A stock service that is sometimes down | Leave the box out; no policy |
+| "Similar products" | The catalogue | Show a link to the catalogue instead: `WithFallback` |
+
+The handlers read the product's id from the path. The catalogue and inventory
+packages stand for your own data layer:
+
+```go
+type product struct {
+	ID    string
+	Name  string
+	Price string
+}
+
+type stockLevel struct {
+	Count int
+}
+
+func loadProduct(ctx context.Context, rc *collage.RenderContext) (product, []string, error) {
+	id := rc.Param("id")
+	p, err := catalog.Product(ctx, id)
+	if errors.Is(err, catalog.ErrNoProduct) {
+		return product{}, nil, fmt.Errorf("catalog: no product %q: %w", id, collage.ErrNotFound)
+	}
+	if err != nil {
+		return product{}, nil, err
+	}
+	return p, []string{"product:" + id}, nil
+}
+
+func loadStock(ctx context.Context, rc *collage.RenderContext) (stockLevel, error) {
+	n, err := inventory.Count(ctx, rc.Param("id"))
+	if err != nil {
+		return stockLevel{}, err
+	}
+	return stockLevel{Count: n}, nil
+}
+
+func loadSimilar(ctx context.Context, rc *collage.RenderContext) ([]product, []string, error) {
+	list, err := catalog.Similar(ctx, rc.Param("id"))
+	if err != nil {
+		return nil, nil, err
+	}
+	return list, []string{"catalog"}, nil
+}
+```
+
+Each part is a fragment with its own policy, and the product binds the other two
+into its slots:
+
+```go
+stock := collage.NewFragment("product-stock", "fragments/stock.html").
+	WithData(collage.Load(loadStock)).
+	WithTimeout(300 * time.Millisecond).
+	Build()
+
+similar := collage.NewFragment("similar-products", "fragments/similar.html").
+	WithData(collage.LoadTagged(loadSimilar)).
+	WithFallback(collage.NewFragment("browse-catalogue", "fragments/browse-catalogue.html").Build()).
+	Build()
+
+content := collage.NewFragment("product", "pages/product.html").
+	WithData(collage.LoadTagged(loadProduct)).
+	WithSlotFragment("stock", stock).
+	WithSlotFragment("similar", similar).
+	Required().
+	Build()
+
+page := collage.NewPage("product").
+	WithLayouts(layout).
+	WithContent(content).
+	WithPath("en", "/products/{id}").
+	Build()
+```
+
+```html
+<!-- templates/pages/product.html -->
+<article>
+  <h1>{{.Name}}</h1>
+  <p class="price">{{.Price}}</p>
+  {{slot "stock"}}
+</article>
+<aside>{{slot "similar"}}</aside>
+```
+
+When a request for `/products/42` comes in:
+
+1. The product's handler runs.
+2. Once it returns, the stock and similar handlers start together, and the
+   product's template starts writing.
+3. The template reaches `{{slot "stock"}}` and waits for the stock box; then
+   `{{slot "similar"}}`, whose handler has usually finished by then.
+
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 216" role="img" aria-labelledby="fs-time-title">
+<title id="fs-time-title">The product handler runs first. When it returns, the stock and similar handlers start together. The stock handler fails after 300 milliseconds; the similar handler finishes. The product's template writes the product, nothing for the stock box, and the similar products, in that order, and the page answers 200 without the stock box.</title>
+<defs><marker id="fs-time-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
+<text x="8" y="37">product</text>
+<rect class="d-a" x="84" y="24" width="64" height="18" rx="4" /><text class="d-on-a d-small" x="116" y="36" text-anchor="middle">handler</text>
+<text x="8" y="65">stock</text>
+<rect class="d-b" x="150" y="52" width="74" height="18" rx="4" /><text class="d-on-b d-small" x="187" y="64" text-anchor="middle">300 ms: fails</text>
+<text x="8" y="93">similar</text>
+<rect class="d-c" x="150" y="80" width="70" height="18" rx="4" /><text class="d-on-c d-small" x="185" y="92" text-anchor="middle">handler</text>
+<line class="d-rule" x1="149" y1="18" x2="149" y2="104" />
+<line class="d-flow" x1="84" y1="108" x2="306" y2="108" marker-end="url(#fs-time-arrow)" />
+<text class="d-small" x="149" y="122" text-anchor="middle">start together</text>
+<text class="d-small" x="310" y="122" text-anchor="end">time</text>
+<text x="8" y="153">written</text>
+<rect class="d-a" x="150" y="136" width="50" height="26" rx="4" /><text class="d-on-a d-small" x="175" y="153" text-anchor="middle">product</text>
+<g class="d-dropped"><rect class="d-frame" x="228" y="136" width="40" height="26" rx="4" /><text class="d-small" x="248" y="153" text-anchor="middle">nothing</text></g>
+<rect class="d-c" x="272" y="136" width="42" height="26" rx="4" /><text class="d-on-c d-small" x="293" y="153" text-anchor="middle">similar</text>
+<line class="d-flow" x1="248" y1="162" x2="248" y2="180" marker-end="url(#fs-time-arrow)" />
+<rect class="d-chip-hit" x="164" y="184" width="150" height="24" rx="12" /><text class="d-hit-text d-small" x="239" y="200" text-anchor="middle">200 · page without stock</text>
+</svg>
+<figcaption>The stock service is down. Its handler passes <code>ctx</code> on, so it gives up when the 300 millisecond timeout cancels that context, and the stock box, with no failure policy, renders nothing. The similar products were fetched at the same time, so the failure cost the page 300 milliseconds and one box, not a 500.</figcaption>
+</figure>
+
+What each failure does to this page:
+
+- **The stock service is down or slow.** The box renders nothing, the page answers
+  200, and the failure is logged as a warning. In development an HTML comment marks
+  where the box would have been.
+- **The similar-products call fails.** `browse-catalogue` renders in their place,
+  and the page answers 200.
+- **There is no product 42.** The error wraps `collage.ErrNotFound` on a required
+  fragment, so the reader gets the not-found page with a 404.
+- **The catalogue itself fails.** The product is required, so the page's error page
+  is served with a 500.
+
+A page served without its stock box is degraded, so it is never cached: had the
+page declared `Incremental(ttl)`, the next request would still ask the stock
+service again rather than keep the page without the box for a TTL. With no
+strategy declared, the handlers make it dynamic — see
+[Caching](/docs/caching#a-page-that-declares-none).
+
 ## Slots filled per render
 
 Everything above binds children when the program starts. Some pages are arranged
 by their content instead: a landing page whose sections an editor picks and orders
-in a CMS, a dashboard of widgets a user chose. Binding those at startup would mean
-a restart for every change, and code that has to agree with the data about what
-goes where.
+in a CMS, a dashboard of widgets a user chose.
+
+Binding those at startup would mean a restart for every change, and code that has
+to agree with the data about what goes where.
 
 `WithSlotResolver` fills a slot per render. The resolver receives the render's
 context and its `RenderContext` (the context since v0.60.0), and returns the fragments the slot holds this time:
