@@ -241,6 +241,9 @@ These are available in every template, alongside `html/template`'s own (`printf`
 | `pageURL "name" "param" value …` | The URL of a registered page or document, in this render's locale |
 | `pageURLIn "locale" "name" …` | The same, in exactly the locale given |
 | `localeURL "locale"` | This page in another locale, or empty when it has no path there |
+| `actionURL "name" …` | An action's URL, in this render's locale |
+| `fragmentURL "page" "fragment" …` | A fragment path's URL, in this render's locale |
+| `fragmentURLIn "locale" "page" "fragment" …` | The same, in exactly the locale given |
 | `asset "/static/app.css"` | A mounted file's content-addressed URL |
 | `stylesheet "/static/app.css"` | Declares a stylesheet for the page's `<head>` |
 | `hoist "head"` | Where declarations for an area of the page land |
