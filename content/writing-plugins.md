@@ -1077,12 +1077,15 @@ Every template can then call `{{readingTime .Words}}`. The function is any value
   fails if your `Configure` returns it, as it does when you pass the error on. The
   application cannot resolve it with `Template.Funcs`: the conflict is between
   plugins, and one of them has to give way.
-- **The application wins** otherwise. An entry in `Config.Template.Funcs` under a
-  name a plugin added replaces the plugin's function: the application can see both
-  and decide.
+- **The application wins** otherwise, for a function added with `AddTemplateFunc`.
+  An entry in `Config.Template.Funcs` under a name a plugin added replaces the
+  plugin's function: the application can see both and decide. A function added
+  with `AddRenderFunc` is the exception: it is bound again on every render, after
+  the application's functions, so it is the one that runs.
 - A plugin function under a built-in name replaces the built-in — except the
-  functions bound per render (`slot`, `hoist`, `asset`, `stylesheet`, `csrfToken`,
-  `pageURL`, `pageURLIn`, `localeURL`), which the render engine rebinds every time.
+  eleven functions bound per render (`slot`, `hoist`, `asset`, `stylesheet`,
+  `csrfToken`, `pageURL`, `pageURLIn`, `localeURL`, `actionURL`, `fragmentURL`,
+  `fragmentURLIn`), which the render engine rebinds every time.
   See [Template functions](/docs/template-functions).
 - It must be called from `Configure`. There is no way to add one later, because a
   function added after parsing is one no template can call.
@@ -1102,7 +1105,10 @@ host.AddRenderFunc("nonce", func(rc *collage.RenderContext) any {
 ```
 
 It follows `AddTemplateFunc`'s rules: it is called from `Configure`, and a name
-another plugin added is `ErrDuplicateTemplateFunc`.
+another plugin added is `ErrDuplicateTemplateFunc`. It also refuses every
+built-in name, the twenty listed on
+[Template functions](/docs/template-functions), with the same error: a render
+function cannot replace one of the framework's own.
 
 ## Wrapping mounts
 
