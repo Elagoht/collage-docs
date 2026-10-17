@@ -619,6 +619,8 @@ sayfasına bakın.
 
 ## Sırada ne var
 
+- [Page'in bir kısmını güncellemek](/docs/update-part-of-a-page) — sıradaki
+  rehber: kendi URL'sinde bir fragment, bir form ve birkaç satır JavaScript.
 - [Page'ler ve layout'lar](/docs/pages-and-layouts) — path'ler, stratejiler, error
   page'leri ve register işleminin bir page'e ne yaptığı.
 - [Fragment'ler ve slot'lar](/docs/fragments-and-slots) — slot'lar, hata politikası

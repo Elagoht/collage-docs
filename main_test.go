@@ -161,11 +161,51 @@ func TestIntroPositioning(t *testing.T) {
 
 // The example project the tutorial builds passes its own tests: it is a module of
 // its own, so the root's go test does not reach it.
+//
+// Every file of the example is read here, so go test counts them as this test's
+// inputs and runs it again when one changes, rather than reusing a cached pass.
 func TestExampleShoppingList(t *testing.T) {
-	cmd := exec.Command("go", "test", "./...")
-	cmd.Dir = filepath.Join("examples", "shopping-list")
+	dir := filepath.Join("examples", "shopping-list")
+	err := filepath.WalkDir(dir, func(path string, entry os.DirEntry, err error) error {
+		if err != nil || entry.IsDir() {
+			return err
+		}
+		_, err = os.ReadFile(path)
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("go", "test", "-count=1", "./...")
+	cmd.Dir = dir
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("go test in %s: %v\n%s", cmd.Dir, err, out)
+	}
+}
+
+// Every file the tutorial shows is the example project's file as it is, in every
+// language: a block marked <!-- file: path --> is that file, byte for byte.
+func TestTutorialShowsTheExample(t *testing.T) {
+	marked := regexp.MustCompile("(?s)<!-- file: ([^ ]+) -->\n+```[a-z]*\n(.*?)```")
+	for _, page := range []string{"content/update-part-of-a-page.md", "content/tr/update-part-of-a-page.md"} {
+		source, err := os.ReadFile(page)
+		if err != nil {
+			t.Fatal(err)
+		}
+		blocks := marked.FindAllStringSubmatch(string(source), -1)
+		if len(blocks) < 7 {
+			t.Errorf("%s shows %d files of the example, want at least 7", page, len(blocks))
+		}
+		for _, block := range blocks {
+			file, err := os.ReadFile(filepath.Join("examples", "shopping-list", block[1]))
+			if err != nil {
+				t.Errorf("%s shows %s: %v", page, block[1], err)
+				continue
+			}
+			if block[2] != string(file) {
+				t.Errorf("%s shows %s, but the example's file differs", page, block[1])
+			}
+		}
 	}
 }
 
