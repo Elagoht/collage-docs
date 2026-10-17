@@ -19,10 +19,53 @@ cevaplanır.
 beri bunlardan birini bildiren bir action register etmek `collage.ErrInvalidActionMethod`
 ile başarısız olur. Hata, action'ın ve method'un adını verir. Action'ın nasıl
 oluşturulduğu fark etmez: `NewAction(...).WithMethods`, bir page'in `WithAction`'ı ya da
-`WithActionFor`'u aynı sonucu verir. `OPTIONS`'a router kendisi cevap verir. Forgery
-kontrolü de `OPTIONS`'ı `GET` gibi güvenli bir method sayar. Bu yüzden onu sahiplenen
-bir action, hiçbir token kontrol edilmeden state değiştirirdi. CORS preflight'ı bir
-middleware'in işidir ve router'dan önce cevaplanır.
+`WithActionFor`'u aynı sonucu verir.
+
+`OPTIONS`'a router kendisi cevap verir. Forgery kontrolü de `OPTIONS`'ı `GET` gibi
+güvenli bir method sayar. Bu yüzden onu sahiplenen bir action, hiçbir token kontrol
+edilmeden state değiştirirdi. CORS preflight'ı bir middleware'in işidir ve
+router'dan önce cevaplanır.
+
+Bir form post'u her seferinde aynı kontrollerden, aynı sırayla geçer. Her biri
+handler'ınız çalışmadan önce cevap verebilir. Handler çalıştıktan sonra ise
+response'u onun döndürdüğü şey belirler:
+
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 404" role="img" aria-labelledby="fsub-title">
+<title id="fsub-title">Bir form post'u önce page'in guard'larına, sonra 413 ile cevap veren body limitine, ardından 403 ile cevap veren origin ve token kontrolüne uğrar. Sonra action'ın handler'ı çalışır. Geçersiz bir gönderime page ve 422 ile cevap verilir. Collage-Fetch header'ını gönderen bir script'ten gelen geçerli bir gönderime bir fragment ve 200 ile cevap verilebilir. SeeOther ile cevaplanan geçerli bir gönderim, Location taşıyan bir 303'tür; request Collage-Fetch taşıyorsa Collage-Location taşıyan bir 204'tür.</title>
+<defs><marker id="fsub-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
+<rect class="d-pill" x="55" y="8" width="120" height="24" rx="12" /><text x="115" y="24" text-anchor="middle">form POST</text>
+<line class="d-flow" x1="115" y1="32" x2="115" y2="48" marker-end="url(#fsub-arrow)" />
+<rect class="d-frame" x="30" y="52" width="170" height="26" rx="6" /><text x="115" y="69" text-anchor="middle">page guard'ları</text>
+<line class="d-flow" x1="200" y1="65" x2="221" y2="65" marker-end="url(#fsub-arrow)" />
+<rect class="d-chip" x="225" y="54" width="93" height="22" rx="11" /><text class="d-small" x="271.5" y="68" text-anchor="middle">guard'ın cevabı</text>
+<line class="d-flow" x1="115" y1="78" x2="115" y2="94" marker-end="url(#fsub-arrow)" />
+<rect class="d-frame" x="30" y="98" width="170" height="26" rx="6" /><text x="115" y="115" text-anchor="middle">body limiti</text>
+<line class="d-flow" x1="200" y1="111" x2="221" y2="111" marker-end="url(#fsub-arrow)" />
+<rect class="d-chip" x="225" y="100" width="93" height="22" rx="11" /><text class="d-small" x="271.5" y="114" text-anchor="middle">413 · çok büyük</text>
+<line class="d-flow" x1="115" y1="124" x2="115" y2="140" marker-end="url(#fsub-arrow)" />
+<rect class="d-frame" x="30" y="144" width="170" height="36" rx="6" /><text x="115" y="160" text-anchor="middle">origin, sonra token</text><text class="d-small" x="115" y="173" text-anchor="middle">yalnızca unsafe method'lar</text>
+<line class="d-flow" x1="200" y1="162" x2="221" y2="162" marker-end="url(#fsub-arrow)" />
+<rect class="d-chip" x="225" y="151" width="93" height="22" rx="11" /><text class="d-small" x="271.5" y="165" text-anchor="middle">403 · ret</text>
+<line class="d-flow" x1="115" y1="180" x2="115" y2="196" marker-end="url(#fsub-arrow)" />
+<rect class="d-c" x="30" y="200" width="170" height="26" rx="6" /><text class="d-on-c" x="115" y="217" text-anchor="middle">handler'ınız</text>
+<path class="d-flow" d="M95 226C95 244 50 240 50 258" marker-end="url(#fsub-arrow)" />
+<path class="d-flow" d="M115 226C115 244 150 240 150 258" marker-end="url(#fsub-arrow)" />
+<path class="d-flow" d="M135 226C135 244 260 240 260 258" marker-end="url(#fsub-arrow)" />
+<rect class="d-a" x="4" y="262" width="92" height="42" rx="5" /><text class="d-on-a" x="50" y="279" text-anchor="middle">geçersiz</text><text class="d-on-a d-small" x="50" y="295" text-anchor="middle">Page · 422</text>
+<rect class="d-b" x="100" y="262" width="100" height="42" rx="5" /><text class="d-on-b" x="150" y="279" text-anchor="middle">geçerli, fetch</text><text class="d-on-b d-small" x="150" y="295" text-anchor="middle">RenderFragment</text>
+<rect class="d-frame" x="204" y="262" width="112" height="42" rx="5" /><text x="260" y="279" text-anchor="middle">geçerli</text><text class="d-small" x="260" y="295" text-anchor="middle">SeeOther</text>
+<line class="d-flow" x1="50" y1="304" x2="50" y2="318" marker-end="url(#fsub-arrow)" />
+<rect class="d-chip" x="4" y="322" width="92" height="34" rx="6" /><text class="d-small" x="50" y="336" text-anchor="middle">422</text><text class="d-small" x="50" y="349" text-anchor="middle">form + hatalar</text>
+<line class="d-flow" x1="150" y1="304" x2="150" y2="318" marker-end="url(#fsub-arrow)" />
+<rect class="d-chip" x="100" y="322" width="100" height="34" rx="6" /><text class="d-small" x="150" y="336" text-anchor="middle">200</text><text class="d-small" x="150" y="349" text-anchor="middle">yalnızca o kısım</text>
+<line class="d-flow" x1="240" y1="304" x2="240" y2="318" marker-end="url(#fsub-arrow)" />
+<rect class="d-chip" x="204" y="322" width="98" height="34" rx="6" /><text class="d-small" x="253" y="336" text-anchor="middle">Collage-Fetch yok</text><text class="d-small" x="253" y="349" text-anchor="middle">303 · Location</text>
+<line class="d-flow" x1="309" y1="304" x2="309" y2="358" marker-end="url(#fsub-arrow)" />
+<rect class="d-chip-hit" x="204" y="362" width="112" height="34" rx="6" /><text class="d-hit-text d-small" x="260" y="376" text-anchor="middle">Collage-Fetch: 204</text><text class="d-hit-text d-small" x="260" y="389" text-anchor="middle">Collage-Location</text>
+</svg>
+<figcaption>Guard'lar, body limiti ve forgery kontrolü handler çalışmadan önce, bu sırayla cevap verebilir; forgery kontrolü token'a bakmadan önce request'in nereden geldiğine bakar. Handler'dan sonra reddedilen bir gönderim 422 ile yine page'dir. Geçerli bir gönderim bir redirect'tir; collage bunu Collage-Fetch taşıyan bir request için Collage-Location taşıyan bir 204'e çevirir. Handler isterse cevap yalnızca değişen fragment da olabilir.</figcaption>
+</figure>
 
 ## Page üzerinde bir action
 
@@ -117,7 +160,8 @@ birine cevap veren bir action, `collage.ErrDuplicateRoute` ile reddedilir. İkis
 hangi sırayla register edildiği fark etmez. Önceden böyle bir action önce eşleşir ve
 page'i tek kelime söylemeden gizlerdi. İki action da aynı path'te aynı method'a
 cevap veremez.
-`RegisterAction`; adı, path'i, method'u ya da handler'ı olmayan bir action'ı
+
+`RegisterAction`; adı, path'i, method'u ya da handler'ı olmayan bir action'ı da
 reddeder. Daha önce alınmış bir adla gelen ikinci bir action'ı da reddeder. Her
 birinin kendi hatası vardır ve hepsi [Hatalar](/docs/errors#actions) sayfasında
 listelenir.
@@ -142,11 +186,16 @@ oldu.
 Struct'ı kendiniz de doldurabilirsiniz. Struct'ın body üretmek için dört alanı
 vardır: `Location`, `Fragment`, `Page` ve `Body`. Bunlardan birini set edersiniz:
 v0.60.0'dan beri ikisini ya da daha fazlasını set eden bir result, birinin sessizce
-kazanması yerine `collage.ErrAmbiguousActionResult` olarak bildirilen bir `500`'dür. `Status`, her birinin seçeceği status'un yerine geçer. `Header`
-response'a yazılır; `Set-Cookie` için doğru yer burasıdır. `ContentType` ise
-`Body` ile birlikte kullanılır. Boş bir `ContentType`, `application/octet-stream`
-anlamına gelir; byte'lara bakılarak asla tahmin edilmez. `nil` bir result `204`
-demektir.
+kazanması yerine `collage.ErrAmbiguousActionResult` olarak bildirilen bir `500`'dür.
+Diğer alanlar bunlarla birlikte kullanılır:
+
+- `Status`, her birinin seçeceği status'un yerine geçer.
+- `Header` response'a yazılır; `Set-Cookie` için doğru yer burasıdır.
+- `ContentType`, `Body` ile birlikte kullanılır. Boş bir `ContentType`,
+  `application/octet-stream` anlamına gelir; byte'lara bakılarak asla tahmin
+  edilmez.
+
+`nil` bir result `204` demektir.
 
 ```go
 func like(ctx context.Context, rc *collage.RenderContext) (*collage.ActionResult, error) {
@@ -159,7 +208,9 @@ func like(ctx context.Context, rc *collage.RenderContext) (*collage.ActionResult
 ```
 
 Handler'ın döndürdüğü bir hata `500` olur. Hata `collage.ErrNotFound`'u wrap
-ediyorsa `404` olur. Header'ı kendiniz set etmediğiniz sürece action'ın response'u
+ediyorsa `404` olur.
+
+Header'ı kendiniz set etmediğiniz sürece action'ın response'u
 `Cache-Control: no-store` ile gönderilir ve asla page cache'e girmez. Çünkü bu
 response tek bir gönderimden, onu gönderen kişi için üretilmiştir.
 
@@ -183,13 +234,19 @@ yenilemek onu ikinci kez yapmamalıdır. Redirect edilen page'de "kaydedildi" de
 için [elagoht/flash](/docs/plugins#elagohtflash), tek seferlik bir mesajı redirect'in
 öbür tarafına taşır.
 
-Bir script'in `fetch` ile gönderdiği bir form da redirect'i izlerdi. Yönlendirdiği
-page'i indirir, sonra oraya gider ve page'i ikinci kez render ettirirdi. v0.20.0'dan
-beri `Collage-Fetch` header'ını (`collage.FetchHeader`) taşıyan bir request'e
-redirect yerine `204 No Content` ile cevap verilir ve hedef `Collage-Location`
-(`collage.LocationHeader`) içinde gönderilir. Script de yalnızca bir kez gider.
-Action eskisi gibi `SeeOther` döndürür. collage-live'ın form'ları bu header'ı
-gönderir.
+Bir script'in `fetch` ile gönderdiği bir form da redirect'i izlerdi. Redirect'in
+gösterdiği page'i indirir, sonra oraya gider ve page ikinci kez render edilirdi.
+
+v0.20.0'dan beri `Collage-Fetch` header'ını (`collage.FetchHeader`) taşıyan bir
+request'e redirect yerine `204 No Content` ile cevap verilir ve hedef
+`Collage-Location` (`collage.LocationHeader`) içinde gönderilir. Script de
+yalnızca bir kez gider. Action eskisi gibi `SeeOther` döndürür. collage-live'ın
+form'ları bu header'ı gönderir.
+
+Header yalnızca bir redirect'i değiştirir. Cevap bir page ya da fragment ise header
+olsa da olmasa da aynıdır. Bir script'e page'den daha azıyla cevap vermek isteyen
+handler, [aşağıdaki iş listesinin](#example-a-team-task-list)
+yaptığı gibi header'ı kendisi okur.
 
 ### Validation için yeniden render
 
@@ -263,11 +320,13 @@ render edilirdi. collage böyle bir page'i, page'in adını vererek
 Bir page'in URL'sindeki action'da `rc.Page`, o page'in register edilmiş değeridir
 (v0.33.0'dan beri). Bu yüzden yukarıdaki action'a hiçbir şey verilmesi gerekmez;
 bir closure'ın yakalayacağı `var page` de yoktur. Öncesinde bu iş böyle
-yapılıyordu. Kendi URL'sinde register edilmiş bir action'ın orada page'i yoktur ve
-`rc.Page`'i `nil`'dir. Böyle bir action, istediği page'in action'dan önce
-oluşturulmuş register edilmiş değeriyle cevap verir. Dev mode'da gövdesiz bir
-`422` ile cevaplanan form post'u uyarı olarak log'lanır, çünkü okuyucu boş bir
-sayfa görür ve bunun genel sebebi `nil` bir `rc.Page`'dir.
+yapılıyordu.
+
+Kendi URL'sinde register edilmiş bir action'ın orada page'i yoktur ve
+`rc.Page`'i `nil`'dir. Böyle bir action, istediği page'in register edilmiş
+değeriyle cevap verir; bu page action'dan önce oluşturulur. Dev mode'da body'siz
+bir `422` ile cevaplanan form post'u uyarı olarak log'lanır. Çünkü okuyucu boş bir
+sayfa görür ve bunun olağan sebebi `nil` bir `rc.Page`'dir.
 
 Bir page'e path yerine adıyla redirect etmek için
 [`rc.URL`](/docs/links-and-locales#links-from-go) kullanın (v0.37.0'dan beri).
@@ -287,23 +346,29 @@ return &collage.ActionResult{
 `next=https://evil.example` `/`'de biter. Bkz.
 [Redirect'ler sitede kalır](/docs/security#redirects-stay-on-the-site).
 
-Bir form'un bunun etrafında genellikle ihtiyaç duyduklarını üç plugin karşılar.
-[elagoht/validate](/docs/plugins#elagohtvalidate) alanları kontrol eder ve
-reddedilen bir gönderime page ve 422 ile cevap verir; okuyucunun girdisi ve her
-alanın mesajı page'de yer alır. [elagoht/honeypot](/docs/plugins#elagohthoneypot)
-spam'i CAPTCHA olmadan reddeder. [elagoht/session](/docs/plugins#elagohtsession) ise
-kimin giriş yaptığını imzalı bir cookie'de tutar.
+Bir form'un bunun etrafında genellikle ihtiyaç duyduklarını üç plugin karşılar:
+
+- [elagoht/validate](/docs/plugins#elagohtvalidate) alanları kontrol eder ve
+  reddedilen bir gönderime page ve 422 ile cevap verir; okuyucunun girdisi ve her
+  alanın mesajı page'de yer alır.
+- [elagoht/honeypot](/docs/plugins#elagohthoneypot) spam'i CAPTCHA olmadan
+  reddeder.
+- [elagoht/session](/docs/plugins#elagohtsession) kimin giriş yaptığını imzalı bir
+  cookie'de tutar.
 
 ## Forgery koruması
 
 Unsafe bir method ile (`GET`, `HEAD` ve `OPTIONS` dışındaki her şey) bir action'a
 gelen her request, handler çalışmadan önce bir forgery token'ı için kontrol edilir.
 Geçerli bir token taşımayan request `403` alır ve handler onu hiç görmez. Error
-hook'ları nedenini de görür. Token ya da cookie yoksa `collage.ErrCSRFMissing`
-gelir. Token cookie'deki ile eşleşmiyorsa `collage.ErrCSRFMismatch`, token'ı bu
-uygulama imzalamamışsa `collage.ErrCSRFInvalid` gelir. v0.34.0'dan beri, tarayıcının
-başka bir origin'den geldiğini söylediği bir gönderim için de
-`collage.ErrCSRFCrossOrigin` gelir.
+hook'ları nedenini de görür:
+
+| Hata | Neden |
+| --- | --- |
+| `collage.ErrCSRFMissing` | Token ya da cookie yok |
+| `collage.ErrCSRFMismatch` | Token cookie'deki ile eşleşmiyor |
+| `collage.ErrCSRFInvalid` | Token'ı bu uygulama imzalamamış |
+| `collage.ErrCSRFCrossOrigin` | Tarayıcı, gönderimin başka bir origin'den geldiğini söylüyor (v0.34.0'dan beri) |
 
 ### Form içinde
 
@@ -328,9 +393,10 @@ store yoktur, instance'lar arasında paylaşılan hiçbir şey yoktur.
 onu yükleyen herkese bir token verir. Domain'iniz için cookie yazabilen biri (kardeş
 bir subdomain, düz HTTP üzerinde bir man-in-the-middle) bir ziyaretçinin
 tarayıcısına kendi token'ını yerleştirip onu gönderebilir. Bu yüzden v0.34.0'dan
-beri token tek başına kontrol edilmez. Tarayıcı bir request'in nereden geldiğini
-`Sec-Fetch-Site`'ta, eski bir tarayıcıysa `Origin`'de (`Host` ile karşılaştırılarak)
-söyler. Tarayıcının başka bir origin'den geldiğini işaretlediği bir request, ne
+beri token tek başına kontrol edilmez.
+
+Tarayıcı bir request'in nereden geldiğini `Sec-Fetch-Site`'ta, eski bir
+tarayıcıysa `Origin`'de (`Host` ile karşılaştırılarak) söyler. Tarayıcının başka bir origin'den geldiğini işaretlediği bir request, ne
 taşırsa taşısın `403` ile reddedilir. Kardeş bir subdomain de başka bir origin
 sayılır, çünkü cookie'yi yerleştirebilecek olan tam da odur. İki header'ı da
 taşımayan bir request tarayıcıdan gelmemiştir ve token kontrolüne geçer.
@@ -377,12 +443,14 @@ Boş bırakırsanız başlangıçta bir key üretilir. Uygulamada unsafe bir met
 eden ve token doğrulayan bir action varsa collage bunu bildirir: production'da bir
 uyarı, development'ta düz bir log satırı olarak. Böyle bir action'ı olmayan ya da bu
 tür action'larının hepsi `WithoutCSRF` ile muaf tutulmuş bir uygulama hiçbir token'ı
-kontrol etmez ve key hakkında uyarılmaz. Üretilen key ilk çalıştırma için sorun
-değildir, ama deploy için yanlıştır. Üretilen key her process'te farklıdır. Bu yüzden
-restart'tan önce yüklenen bir form restart'tan sonra reddedilir. Bir instance'ın
-sunduğu form da bir sonraki instance tarafından reddedilir. Form içeren ve daha önceki
-bir key ile saklanmış cache'lenmiş bir page, hiçbir şeyin doğrulayamayacağı bir token
-ile sunulmaz, yeniden render edilir. Bkz.
+kontrol etmez ve key hakkında uyarılmaz.
+
+Üretilen key ilk çalıştırma için sorun değildir, ama deploy için yanlıştır.
+Üretilen key her process'te farklıdır. Bu yüzden restart'tan önce yüklenen bir form
+restart'tan sonra reddedilir. Bir instance'ın sunduğu form da bir sonraki instance
+tarafından reddedilir. Form içeren ve daha önceki bir key ile saklanmış cache'lenmiş
+bir page, hiçbir şeyin doğrulayamayacağı bir token ile sunulmaz, yeniden render
+edilir. Bkz.
 [disk cache'inin namespace'i](/docs/caching#the-namespace).
 
 ### fetch ile
@@ -455,10 +523,11 @@ uygulamanın tamamı için `Server.MaxBodyBytes` ile, tek bir action için
 
 Limiti handler'ınız uygulamaz, limit handler'ınız çalışmadan önce uygulanır.
 v0.34.0'dan beri [middleware](/docs/middleware-and-apis)'inizden de önce, request'in
-yönlendirildiği action'ın limitiyle uygulanır. Body'yi okuyan ya da parse eden bir
-middleware onu sınırlı olarak okur. Body'si limitine zaten ulaşmış bir action ise
-çalışmadan `413` ile cevap verir. `app.Handle` ile mount edilmiş bir handler'a
-dokunulmaz.
+yönlendirildiği action'ın limitiyle uygulanır.
+
+- Body'yi okuyan ya da parse eden bir middleware onu sınırlı olarak okur.
+- Body'si limitine zaten ulaşmış bir action çalışmadan `413` ile cevap verir.
+- `app.Handle` ile mount edilmiş bir handler'a dokunulmaz.
 
 Her handler'ın hatırlaması gereken bir limit, unutan handler'da yoktur.
 Anonim bir kullanıcının bulacağı handler da tam olarak o handler'dır. Limitin ötesini
@@ -636,17 +705,26 @@ gibi çalışır ve `collage.Cached` ile saklanan değerlere de ulaşır.
 Page'ler de, onları oluşturan `collage.Cached` değerleri de stale olarak
 işaretlenir. İkisi de tutulur (page'ler v0.63.0'dan beri). v0.64.0'dan beri
 invalidate edilen page'ler ardından [warm edilir](/docs/caching#warming-after-an-invalidation)
-ve önce redirect'in kendi page'i gelir. `Location` aynı origin'deyse onun varyantı,
-redirect yazılmadan önce taze veriyle yeniden render edilir. Burada varyant,
-query'sinin cache key'deki hâli ve page'in her `Vary` header varyantı demektir. Böylece redirect yeni page'e, taze bir `HIT`'e varır. Form'u gönderenin
+ve önce redirect'in kendi page'i gelir.
+
+`Location` aynı origin'deyse onun varyantı, redirect yazılmadan önce taze veriyle
+yeniden render edilir. Burada varyant, query'sinin cache key'deki hâli ve page'in
+her `Vary` header varyantı demektir. Böylece redirect yeni page'e, taze bir
+`HIT`'e varır. Form'u gönderenin
 varacağı varyant, yani `Vary` değerlerini onun request'inin bildirdiği varyant, önce
-gelir ve son warm'ından beri kimse okumamış olsa bile warm edilir. Bunu yalnızca bu
-action'ın response'u bekler. Bekleme şu üçünden en kısası kadar sürer: 5 saniye,
-request'in deadline'ı ve response'un write deadline'ından kalan süre eksi
-redirect'i yazmak için yarım saniye. Write deadline, action kendi
-`WithBodyTimeout`'unu ayarlıyorsa odur, ayarlamıyorsa request'in geldiği andan
-itibaren `Server.WriteTimeout`'tur. Hiç süre kalmadıysa response hiç beklemez. O
-ana kadar warm edilmeyen key'ler arka plandaki turda kalır.
+gelir ve son warm'ından beri kimse okumamış olsa bile warm edilir.
+
+Bunu yalnızca bu action'ın response'u bekler. Bekleme şu üçünden en kısası kadar
+sürer:
+
+- 5 saniye;
+- request'in deadline'ı;
+- response'un write deadline'ından kalan süre, eksi redirect'i yazmak için yarım
+  saniye. Write deadline, action kendi `WithBodyTimeout`'unu ayarlıyorsa odur,
+  ayarlamıyorsa request'in geldiği andan itibaren `Server.WriteTimeout`'tur.
+
+Hiç süre kalmadıysa response hiç beklemez. O ana kadar warm edilmeyen key'ler
+arka plandaki turda kalır.
 
 Bunu yalnızca `ActionResult.InvalidateTags` yapar. `app.InvalidateTags`'i (ya da
 `PurgeTags`'i) handler'ının içinde kendisi çağıran bir action'ın page'leri de, her
@@ -659,7 +737,9 @@ Page yalnızca render zamanında bitemediğinde stale olarak sunulur
 kapalıdır, bekleme süresi dolmuştur ya da render başarısız olmuştur. Redirect o
 zaman da gönderilir ve bir `Cached` değerinin yerini alacak çekme işlemi arka
 planda çalışır. Upstream'i kapalıyken de cevap vermeyi sürdüren bir site'ın bedeli
-budur. Bir action ne olursa olsun kendi değişikliğini hemen göstermek zorundaysa,
+budur.
+
+Bir action ne olursa olsun kendi değişikliğini hemen göstermek zorundaysa,
 bunun yerine handler'dan o tag'ler için `app.PurgeTags` çağırın. Bu durumda hiçbir
 şey tutulmaz, bu yüzden başarısız bir çekme işlemi page'i de başarısız kılar.
 
@@ -708,15 +788,17 @@ input.addEventListener("input", async () => {
 ```
 
 Tanımlanmamış hiçbir şeye erişilemez. Her fragment'i otomatik olarak dışarı açan bir
-framework, her page'in her iç parçasını public web'e açmış olurdu.
+framework, her page'in her iç kısmını public web'e açmış olurdu.
 
-Bir fragment path, onu açan page'in bir parçasıdır. v0.34.0'dan beri önce page'in
+Bir fragment path, onu açan page'in bir kısmıdır. v0.34.0'dan beri önce page'in
 [guard](/docs/pages-and-layouts#private-pages-guards)'larından geçer: en dıştaki
 layout'tan içe doğru, ardından content fragment'inin guard'ı. Sonra fragment'in kendi
-guard'ı çalışır. Private bir page'in fragment path'i de private'tır. v0.34.0'dan önce
-yalnızca fragment'in kendi guard'ı çalışıyordu. Bu yüzden içeriği kendi URL'sinde
-açılmış guard'lı bir layout, o içeriği herkese sunuyordu. Bir fragment, page'den daha
-sıkı olması gereken bir parça için hâlâ kendi guard'ını taşıyabilir:
+guard'ı çalışır. Private bir page'in fragment path'i de private'tır.
+
+v0.34.0'dan önce yalnızca fragment'in kendi guard'ı çalışıyordu. Bu yüzden
+içeriği kendi URL'sinde açılmış guard'lı bir layout, o içeriği herkese sunuyordu.
+Bir fragment, page'den daha sıkı olması gereken bir kısım için hâlâ kendi
+guard'ını taşıyabilir:
 
 ```go
 results := collage.NewFragment("results", "fragments/results.html").
@@ -732,7 +814,7 @@ hangi sırayla geldiği fark etmez. Aksi hâlde page'i tek kelime söylemeden gi
 
 **Her fragment path'i kendi başına bir render'dır.** Bir page içinde aynı yavaş
 değere ihtiyaç duyan fragment'ler onu `collage.Once` ile paylaşır: render başına tek
-bir fetch. Parça parça yenilenen bir page ise birkaç render'dır ve `Once` bunlar
+bir fetch. Kısım kısım yenilenen bir page ise birkaç render'dır ve `Once` bunlar
 arasında hiçbir şey paylaşmaz. Aynı veriyi okuyan fragment'ler için
 `collage.Cached` kullanın. `Cached` değeri TTL'i boyunca ya da tag'lerinden biri
 invalidate edilene kadar render'lar arasında saklar:
@@ -746,7 +828,7 @@ stats, err := collage.Cached(rc, statsKey, time.Second, nil,
 
 Bu örnekteki gibi bir ölçüme tag verilmez: onu TTL'i güncel tutar, onu okuyan her
 fragment de kendi tag'ini döner. Tag verilirse her fragment bütün tag'lere bağlı
-olur ve bir parçayı invalidate etmek hepsini yeniden render eder.
+olur ve bir kısmı invalidate etmek hepsini yeniden render eder.
 
 `RenderFragment` ile cevap veren bir action ile birleştirildiğinde bir form post
 edilebilir ve sadece değişen kısımla cevaplanabilir:
@@ -820,7 +902,7 @@ protokol bu bölümdür. Bu yüzden htmx ya da kendi yazdığınız bir script d
 sunucuyla çalışır.
 
 `fetch` ile gönderdiği bir form, [yukarıdaki kuralı](#failure-renders-success-redirects)
-parça parça izler: cevap form'un hedefine yalnızca başarı durumunda ya da `422`
+kısım kısım izler: cevap form'un hedefine yalnızca başarı durumunda ya da `422`
 geldiğinde yerleştirilir. Bu yüzden bir action, bir gönderimin validation'dan
 geçmediğini form'un fragment'ini hatalarla birlikte yeniden ve 422 status'uyla
 döndürerek söyler (collage-live v0.2.0'dan beri):
@@ -843,3 +925,156 @@ beri). Form [`Collage-Fetch`](#failure-renders-success-redirects) gönderir, col
 da redirect yerine action'ın nereye redirect ettiğiyle cevap verir. Aksi halde
 `fetch` redirect'i izler ve page'i indirirdi, ardından sayfaya gidildiğinde page
 yeniden çekilirdi.
+
+## Örnek: bir ekibin iş listesi
+
+Çok kullanıcılı bir web uygulaması her ekip için `/teams/{team}/tasks` adresinde
+bir iş listesi tutar. Listenin altında bir "görev ekle" form'u vardır. Form üç
+şekilde çalışmalıdır:
+
+| Gönderim | Cevap |
+| --- | --- |
+| Boş ya da fazla uzun bir başlık | `422` ve form yeniden; içinde hata ve yazılan değer |
+| Düz bir form post'undan gelen geçerli bir görev | Listeye geri `303`; böylece sayfayı yenilemek hiçbir şeyi iki kez eklemez |
+| `Collage-Fetch` gönderen bir script'ten gelen geçerli bir görev | `200` ve yalnızca liste fragment'i; yerinde değiştirilir |
+
+Liste iki yerde kullanılan tek bir fragment'tir: page'in slot'unda ve
+`WithFragmentPath` ile kendi URL'sinde. Data handler'ı okuduğu veriyi ekibe göre
+tag'ler.
+Böylece bir görev eklemek o tag'i invalidate eder ve ekibin her üyesi yeni görevi
+bir sonraki yüklemede görür.
+
+```go
+// Tag is the dependency tag of one team's task list.
+func Tag(team string) string { return "tasks:" + team }
+
+type newTask struct {
+	Team  string
+	Error string
+	Title string
+}
+
+var newTaskKey = collage.NewKey[newTask]("tasks:new")
+
+func TasksPage() *collage.Page {
+	list := collage.NewFragment("task-list", "fragments/task-list.html").
+		WithData(collage.LoadTagged(func(ctx context.Context, rc *collage.RenderContext) ([]store.Task, []string, error) {
+			team := rc.Param("team")
+			tasks, err := store.Tasks(ctx, team)
+			return tasks, []string{Tag(team)}, err
+		})).
+		Build()
+	form := collage.NewFragment("task-form", "fragments/task-form.html").
+		WithData(collage.Load(func(_ context.Context, rc *collage.RenderContext) (newTask, error) {
+			// Set by the action when this render is its answer; empty on a GET.
+			view, _ := newTaskKey.Get(rc)
+			view.Team = rc.Param("team")
+			return view, nil
+		})).
+		Build()
+	content := collage.NewFragment("tasks", "pages/tasks.html").
+		WithSlotFragment("list", list).
+		WithSlotFragment("form", form).
+		Build()
+
+	return collage.NewPage("tasks").
+		WithLayouts(layouts.Master()).
+		WithContent(content).
+		WithPath("en", "/teams/{team}/tasks").
+		WithFragmentPath("en", "/teams/{team}/tasks/list", list).
+		Incremental(time.Hour).
+		WithAction("POST", func(ctx context.Context, rc *collage.RenderContext) (*collage.ActionResult, error) {
+			team := rc.Param("team")
+			fetched := rc.Request.Header.Get(collage.FetchHeader) != ""
+
+			title := strings.TrimSpace(rc.Request.PostFormValue("title"))
+			if title == "" || utf8.RuneCountInString(title) > 200 {
+				newTaskKey.Set(rc, newTask{Error: "A title is 1 to 200 characters.", Title: title})
+				if fetched {
+					// A script swaps the form alone.
+					result := collage.RenderFragment(form)
+					result.Status = http.StatusUnprocessableEntity
+					return result, nil
+				}
+				// A browser gets the whole page back, its input in the form.
+				return &collage.ActionResult{Status: http.StatusUnprocessableEntity, Page: rc.Page}, nil
+			}
+
+			if err := store.AddTask(ctx, team, title); err != nil {
+				return nil, err
+			}
+
+			result := collage.RenderFragment(list)
+			if !fetched {
+				back, err := rc.URL("tasks", map[string]string{"team": team})
+				if err != nil {
+					return nil, err
+				}
+				result = collage.SeeOther(back)
+			}
+			// The team's cached page renders again, for every member.
+			result.InvalidateTags = []string{Tag(team)}
+			return result, nil
+		}).
+		Build()
+}
+```
+
+Form fragment'i `<form>`'un tamamıdır, bu yüzden bir script onu `422`'nin geri
+gönderdiğiyle değiştirebilir. Liste fragment'i de `<ul>`'un tamamıdır:
+
+```html
+<form id="task-form" method="post" action="{{pageURL "tasks" "team" .Team}}">
+  {{csrfToken}}
+  {{with .Error}}<p class="error">{{.}}</p>{{end}}
+  <input name="title" value="{{.Title}}">
+  <button type="submit">Add</button>
+</form>
+```
+
+```html
+<ul id="task-list">
+  {{range .}}<li>{{.Title}}</li>{{else}}<li>No tasks yet.</li>{{end}}
+</ul>
+```
+
+Birkaç satırlık bir script form'u `Collage-Fetch` ile post eder. Listener
+document üzerindedir, bu yüzden bir `422` form'u değiştirdikten sonra da çalışmaya
+devam eder:
+
+```js
+document.addEventListener("submit", async (event) => {
+  const form = event.target;
+  if (form.id !== "task-form") return;
+  event.preventDefault();
+  const response = await fetch(form.action, {
+    method: "POST",
+    headers: { "Collage-Fetch": "1" },
+    body: new FormData(form),
+  });
+  if (response.status === 200) {
+    document.querySelector("#task-list").outerHTML = await response.text();
+    form.reset();
+  } else if (response.status === 422) {
+    form.outerHTML = await response.text();
+  }
+});
+```
+
+Örneğin dayandığı noktalar şunlardır; her biri yukarıda anlatıldı:
+
+- **Forgery token'ı form'la birlikte gider.** `new FormData(form)`,
+  `{{csrfToken}}`'ın render ettiği hidden input'u taşır. Bir `422`'den sonra
+  cevap olarak verilen fragment de yeni bir token render eder.
+- **Page cache'lenir, form yine çalışır.** `Incremental(time.Hour)` page'i içindeki
+  token marker'ıyla cache'ler; her okuyucu kendi token'ını alır.
+- **Önce invalidation gelir.** Tag, response yazılmadan önce invalidate edilir.
+  Böylece redirect yeni listeye varır.
+- **Kimin post edebileceğine page karar verir.** Yalnızca ekibin üyelerini içeri
+  alan bir [guard](/docs/pages-and-layouts#private-pages-guards) page'i, action'ını
+  ve `/teams/{team}/tasks/list`'i aynı şekilde kapsar.
+
+Script kapalıyken aynı form yine post edilir, redirect edilir ve liste yeniden
+yüklenir.
+[Page'in bir kısmını güncellemek](/docs/update-part-of-a-page) rehberi bu yapıda
+bir projeyi adım adım kurar; orada liste kendini de yeniler.

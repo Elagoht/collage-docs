@@ -17,9 +17,52 @@ page rendered as if nothing had happened, and error hooks see it as
 v0.56.0, registering an action that declares one fails with
 `collage.ErrInvalidActionMethod`, naming the action and the method, however the
 action was built: `NewAction(...).WithMethods`, or a page's `WithAction` or
-`WithActionFor`. The router answers `OPTIONS` itself, and the forgery check counts
-it as a safe method like `GET`, so an action claiming it would change state with no
-token checked. A CORS preflight is a middleware's job, answered before the router.
+`WithActionFor`.
+
+The router answers `OPTIONS` itself, and the forgery check counts it as a safe
+method like `GET`, so an action claiming it would change state with no token
+checked. A CORS preflight is a middleware's job, answered before the router.
+
+A form post passes the same checks, in the same order, every time. Each one can
+answer before your handler runs; once the handler has run, what it returns decides
+the response:
+
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 404" role="img" aria-labelledby="fsub-title">
+<title id="fsub-title">A form post meets the page's guards, then the body limit, which answers 413, then the origin and token check, which answers 403. Then the action's handler runs. An invalid submission is answered with the page and 422. A valid one sent by a script with the Collage-Fetch header can be answered with a fragment and 200. A valid one answered with SeeOther is a 303 with a Location, or, when the request carries Collage-Fetch, a 204 with Collage-Location.</title>
+<defs><marker id="fsub-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
+<rect class="d-pill" x="55" y="8" width="120" height="24" rx="12" /><text x="115" y="24" text-anchor="middle">form POST</text>
+<line class="d-flow" x1="115" y1="32" x2="115" y2="48" marker-end="url(#fsub-arrow)" />
+<rect class="d-frame" x="30" y="52" width="170" height="26" rx="6" /><text x="115" y="69" text-anchor="middle">page guards</text>
+<line class="d-flow" x1="200" y1="65" x2="221" y2="65" marker-end="url(#fsub-arrow)" />
+<rect class="d-chip" x="225" y="54" width="93" height="22" rx="11" /><text class="d-small" x="271.5" y="68" text-anchor="middle">guard's answer</text>
+<line class="d-flow" x1="115" y1="78" x2="115" y2="94" marker-end="url(#fsub-arrow)" />
+<rect class="d-frame" x="30" y="98" width="170" height="26" rx="6" /><text x="115" y="115" text-anchor="middle">body limit</text>
+<line class="d-flow" x1="200" y1="111" x2="221" y2="111" marker-end="url(#fsub-arrow)" />
+<rect class="d-chip" x="225" y="100" width="93" height="22" rx="11" /><text class="d-small" x="271.5" y="114" text-anchor="middle">413 · too large</text>
+<line class="d-flow" x1="115" y1="124" x2="115" y2="140" marker-end="url(#fsub-arrow)" />
+<rect class="d-frame" x="30" y="144" width="170" height="36" rx="6" /><text x="115" y="160" text-anchor="middle">origin, then token</text><text class="d-small" x="115" y="173" text-anchor="middle">unsafe methods only</text>
+<line class="d-flow" x1="200" y1="162" x2="221" y2="162" marker-end="url(#fsub-arrow)" />
+<rect class="d-chip" x="225" y="151" width="93" height="22" rx="11" /><text class="d-small" x="271.5" y="165" text-anchor="middle">403 · refused</text>
+<line class="d-flow" x1="115" y1="180" x2="115" y2="196" marker-end="url(#fsub-arrow)" />
+<rect class="d-c" x="30" y="200" width="170" height="26" rx="6" /><text class="d-on-c" x="115" y="217" text-anchor="middle">your handler</text>
+<path class="d-flow" d="M95 226C95 244 50 240 50 258" marker-end="url(#fsub-arrow)" />
+<path class="d-flow" d="M115 226C115 244 150 240 150 258" marker-end="url(#fsub-arrow)" />
+<path class="d-flow" d="M135 226C135 244 260 240 260 258" marker-end="url(#fsub-arrow)" />
+<rect class="d-a" x="4" y="262" width="92" height="42" rx="5" /><text class="d-on-a" x="50" y="279" text-anchor="middle">invalid</text><text class="d-on-a d-small" x="50" y="295" text-anchor="middle">Page · 422</text>
+<rect class="d-b" x="100" y="262" width="100" height="42" rx="5" /><text class="d-on-b" x="150" y="279" text-anchor="middle">valid, fetch</text><text class="d-on-b d-small" x="150" y="295" text-anchor="middle">RenderFragment</text>
+<rect class="d-frame" x="204" y="262" width="112" height="42" rx="5" /><text x="260" y="279" text-anchor="middle">valid</text><text class="d-small" x="260" y="295" text-anchor="middle">SeeOther</text>
+<line class="d-flow" x1="50" y1="304" x2="50" y2="318" marker-end="url(#fsub-arrow)" />
+<rect class="d-chip" x="4" y="322" width="92" height="34" rx="6" /><text class="d-small" x="50" y="336" text-anchor="middle">422</text><text class="d-small" x="50" y="349" text-anchor="middle">form + errors</text>
+<line class="d-flow" x1="150" y1="304" x2="150" y2="318" marker-end="url(#fsub-arrow)" />
+<rect class="d-chip" x="100" y="322" width="100" height="34" rx="6" /><text class="d-small" x="150" y="336" text-anchor="middle">200</text><text class="d-small" x="150" y="349" text-anchor="middle">the part alone</text>
+<line class="d-flow" x1="240" y1="304" x2="240" y2="318" marker-end="url(#fsub-arrow)" />
+<rect class="d-chip" x="204" y="322" width="98" height="34" rx="6" /><text class="d-small" x="253" y="336" text-anchor="middle">no Collage-Fetch</text><text class="d-small" x="253" y="349" text-anchor="middle">303 · Location</text>
+<line class="d-flow" x1="309" y1="304" x2="309" y2="358" marker-end="url(#fsub-arrow)" />
+<rect class="d-chip-hit" x="204" y="362" width="112" height="34" rx="6" /><text class="d-hit-text d-small" x="260" y="376" text-anchor="middle">Collage-Fetch: 204</text><text class="d-hit-text d-small" x="260" y="389" text-anchor="middle">Collage-Location</text>
+</svg>
+<figcaption>The guards, the body limit and the forgery check each answer before the handler runs, in that order; the forgery check looks at where the request came from before it looks at the token. After the handler, a refused submission is the page again with 422. A valid one is a redirect, which collage turns into a 204 with Collage-Location for a request carrying Collage-Fetch, or, when the handler chooses to, the changed fragment alone.</figcaption>
+</figure>
 
 ## An action on a page
 
@@ -110,10 +153,11 @@ but not for `GET` or `HEAD`, which the page answers. Since v0.18.0 an action
 answering either on the path of a page or a document is refused with
 `collage.ErrDuplicateRoute`, in whichever order the two are registered; before, it
 was matched first and hid the page without a word. Nor may two actions answer the
-same method at the same path. An action with no
-name, no path, no method or no handler is refused by `RegisterAction`, and so is a
-second action under a name already taken — each with its own error, listed in
-[Errors](/docs/errors#actions).
+same method at the same path.
+
+`RegisterAction` also refuses an action with no name, no path, no method or no
+handler, and a second action under a name already taken — each with its own
+error, listed in [Errors](/docs/errors#actions).
 
 ## What an action answers with
 
@@ -134,11 +178,14 @@ Before v0.60.0 `collage.JSON` took the encoded bytes and `JSONOf` took the value
 Or fill the struct yourself. It has four ways to produce a body — `Location`,
 `Fragment`, `Page` and `Body` — and it sets one of them: since v0.60.0 a result
 that sets two or more is a `500`, reported as `collage.ErrAmbiguousActionResult`,
-rather than one silently winning. `Status`
-overrides the status each of them would choose, `Header` is written onto the
-response (the place for a `Set-Cookie`), and `ContentType` goes with `Body`. An
-empty `ContentType` is `application/octet-stream`, never guessed from the bytes. A
-`nil` result is a `204`.
+rather than one silently winning. The other fields go with them:
+
+- `Status` overrides the status each of them would choose.
+- `Header` is written onto the response (the place for a `Set-Cookie`).
+- `ContentType` goes with `Body`. An empty `ContentType` is
+  `application/octet-stream`, never guessed from the bytes.
+
+A `nil` result is a `204`.
 
 ```go
 func like(ctx context.Context, rc *collage.RenderContext) (*collage.ActionResult, error) {
@@ -151,6 +198,7 @@ func like(ctx context.Context, rc *collage.RenderContext) (*collage.ActionResult
 ```
 
 An error from the handler is a `500`, or a `404` if it wraps `collage.ErrNotFound`.
+
 An action's response is sent `Cache-Control: no-store` unless you set the header
 yourself, and it never enters the page cache: it was produced from one submission,
 for whoever sent it.
@@ -175,11 +223,17 @@ must not do it twice. To say "saved" on the page it redirects to,
 redirect.
 
 A form a script submits with `fetch` would follow the redirect too, downloading the
-page it leads to, and then navigate there and have it rendered a second time. Since
-v0.20.0 a request carrying the header `Collage-Fetch` (`collage.FetchHeader`) is
-answered `204 No Content` with the destination in `Collage-Location`
+page it leads to, and then navigate there and have it rendered a second time.
+
+Since v0.20.0 a request carrying the header `Collage-Fetch` (`collage.FetchHeader`)
+is answered `204 No Content` with the destination in `Collage-Location`
 (`collage.LocationHeader`) instead of a redirect, and the script navigates once.
 The action returns `SeeOther` as before. collage-live's forms send the header.
+
+The header changes only a redirect. A page or a fragment is answered the same way
+with it or without it; a handler that wants to answer a script with less than the
+page reads the header itself, as [the task list below](#example-a-team-task-list)
+does.
 
 ### The validation re-render
 
@@ -250,9 +304,10 @@ refuses it with `collage.ErrUnregisteredPage`, naming the page.
 
 In an action on a page's URL, `rc.Page` is that page, the registered value (since
 v0.33.0). So the action above needs nothing handed to it, and there is no
-`var page` for a closure to capture — the shape this took before. An action
-registered at a URL of its own has no page there and a `nil` `rc.Page`; it
-answers with the registered page it wants, built before the action. In dev mode a
+`var page` for a closure to capture — the shape this took before.
+
+An action registered at a URL of its own has no page there and a `nil` `rc.Page`;
+it answers with the registered page it wants, built before the action. In dev mode a
 form post answered `422` with no body is logged as a warning, because the reader
 gets a blank page and a `nil` `rc.Page` is the usual cause.
 
@@ -275,22 +330,28 @@ It returns `next` when that is a path on this site, and the fallback otherwise, 
 [Redirects stay on the site](/docs/security#redirects-stay-on-the-site).
 
 Three plugins cover what a form usually needs around this:
-[elagoht/validate](/docs/plugins#elagohtvalidate) checks the fields and answers a
-refused submission with the page and a 422, the reader's input and each field's
-message in it; [elagoht/honeypot](/docs/plugins#elagohthoneypot) refuses spam
-without a CAPTCHA; and [elagoht/session](/docs/plugins#elagohtsession) keeps who is
-signed in, in a signed cookie.
+
+- [elagoht/validate](/docs/plugins#elagohtvalidate) checks the fields and answers
+  a refused submission with the page and a 422, the reader's input and each
+  field's message in it.
+- [elagoht/honeypot](/docs/plugins#elagohthoneypot) refuses spam without a
+  CAPTCHA.
+- [elagoht/session](/docs/plugins#elagohtsession) keeps who is signed in, in a
+  signed cookie.
 
 ## Forgery protection
 
 Every request to an action with an unsafe method (anything but `GET`, `HEAD` and
 `OPTIONS`) is checked for a forgery token before the handler runs. A
 request without a valid one is a `403`, and the handler never sees it. Error hooks
-see why: `collage.ErrCSRFMissing` for no token or no cookie,
-`collage.ErrCSRFMismatch` for a token that is not the cookie's,
-`collage.ErrCSRFInvalid` for one this application did not sign, and — since
-v0.34.0 — `collage.ErrCSRFCrossOrigin` for a submission the browser says came
-from another origin.
+see why:
+
+| Error | Why |
+| --- | --- |
+| `collage.ErrCSRFMissing` | No token, or no cookie |
+| `collage.ErrCSRFMismatch` | A token that is not the cookie's |
+| `collage.ErrCSRFInvalid` | One this application did not sign |
+| `collage.ErrCSRFCrossOrigin` | A submission the browser says came from another origin (since v0.34.0) |
 
 ### In a form
 
@@ -315,6 +376,7 @@ A signed token is not a secret from an attacker: any page with a form hands one 
 whoever loads it. Someone who can write a cookie for your domain — a sibling
 subdomain, a man-in-the-middle on plain HTTP — could plant their own token in a
 visitor's browser and submit it. So since v0.34.0 the token is not checked alone.
+
 The browser says where a request came from in `Sec-Fetch-Site`, or in `Origin`
 (compared with `Host`) when it is an older one, and a request it marks as coming
 from another origin is refused with a `403` whatever it carries. A sibling
@@ -361,9 +423,11 @@ Leave it empty and one is generated at startup. collage says so — a warning in
 production, a plain log line in development — once the application has an action
 that accepts an unsafe method and verifies tokens; an application without one, or
 whose only such actions are exempted with `WithoutCSRF`, never checks a token and
-is not told about the key. That is fine for a first run and wrong to deploy: a generated key is
-different in every process, so a form loaded before a restart is refused after it,
-and one served by one instance is refused by the next. A cached page with a form,
+is not told about the key.
+
+That is fine for a first run and wrong to deploy: a generated key is different in
+every process, so a form loaded before a restart is refused after it, and one
+served by one instance is refused by the next. A cached page with a form,
 stored under an earlier key, is rendered again rather than served with a token
 nothing can verify — see [the disk cache's namespace](/docs/caching#the-namespace).
 
@@ -435,9 +499,11 @@ application with `Server.MaxBodyBytes`, or for one action with
 
 The limit is applied before your handler runs, not by it — and since v0.34.0
 before your [middleware](/docs/middleware-and-apis) runs too, at the limit of the
-action the request routes to. A middleware that reads or parses the body reads it
-bounded, and an action whose body already ran into its limit answers `413` without
-running. A handler mounted with `app.Handle` is left alone.
+action the request routes to.
+
+- A middleware that reads or parses the body reads it bounded.
+- An action whose body already ran into its limit answers `413` without running.
+- A handler mounted with `app.Handle` is left alone.
 
 A limit every handler has to remember is a limit the one that forgot does not
 have — and that is the one an anonymous caller will find. A handler that reads past it gets an
@@ -604,18 +670,26 @@ stored with `collage.Cached` too.
 The pages are marked stale, and so are the `collage.Cached` values they were
 built from: both are kept (pages since v0.63.0). Since v0.64.0 the invalidated
 pages are then [warmed](/docs/caching#warming-after-an-invalidation), and the
-redirect's own page first: when `Location` is on the same origin, its variant (its
-query varied as the cache key varies it, and every `Vary` header variant of it) is
-rendered again with fresh data before the redirect is written, so the redirect
-lands on the new page, a fresh `HIT`. The variant the submitter lands on, the one
-whose `Vary` values their request declared, goes first, and is warmed even if
-nobody read it since its last warm. Only this action's response waits for that,
-and for no longer than the shortest of 5 seconds, the request's deadline, and
-what is left of the response's write deadline less half a second to write the
-redirect in. The write deadline is the action's own `WithBodyTimeout` when it sets
-one, and otherwise `Server.WriteTimeout` from when the request arrived. With no
-time left the response does not wait at all. The keys not warmed by then stay in
-the background run.
+redirect's own page first.
+
+When `Location` is on the same origin, its variant (its query varied as the cache
+key varies it, and every `Vary` header variant of it) is rendered again with fresh
+data before the redirect is written, so the redirect lands on the new page, a
+fresh `HIT`. The variant the submitter lands on, the one whose `Vary` values their
+request declared, goes first, and is warmed even if nobody read it since its last
+warm.
+
+Only this action's response waits for that, and for no longer than the shortest
+of:
+
+- 5 seconds;
+- the request's deadline;
+- what is left of the response's write deadline, less half a second to write the
+  redirect in. The write deadline is the action's own `WithBodyTimeout` when it
+  sets one, and otherwise `Server.WriteTimeout` from when the request arrived.
+
+With no time left the response does not wait at all. The keys not warmed by then
+stay in the background run.
 
 Only `ActionResult.InvalidateTags` does this. An action that calls
 `app.InvalidateTags` (or `PurgeTags`) itself, inside its handler, has those pages
@@ -627,7 +701,9 @@ The page is served stale (`X-Collage-Cache: STALE`, `Cache-Control: no-store`)
 only when the render cannot finish in time: the upstream is slow or down, the
 budget is spent, or the render failed. The redirect still goes out then, and the
 fetch that replaces a `Cached` value runs in the background. That is the price of
-a site that keeps answering while its upstream is down. When an action must show
+a site that keeps answering while its upstream is down.
+
+When an action must show
 its own change at once whatever happens, call `app.PurgeTags` from the handler for
 those tags instead. Nothing is then kept, so a failed fetch fails the page.
 
@@ -680,7 +756,9 @@ web.
 A fragment path is a part of the page that opened it, and since v0.34.0 it meets
 the page's [guards](/docs/pages-and-layouts#private-pages-guards) first —
 outermost layout inwards, then the content fragment's — and then the fragment's
-own. A private page's fragment path is private too. Before v0.34.0 it ran only the
+own. A private page's fragment path is private too.
+
+Before v0.34.0 it ran only the
 fragment's own guard, so a guarded layout whose content was opened at a URL of its
 own served that content to anyone. A fragment may still carry a guard of its own,
 for a part stricter than the page:
@@ -804,3 +882,152 @@ v0.2.1): the form sends [`Collage-Fetch`](#failure-renders-success-redirects), a
 collage answers with where the action redirects instead of the redirect, which
 `fetch` would otherwise follow and download before the navigation fetched the page
 again.
+
+## Example: a team task list
+
+A multi-user web app keeps one task list per team at `/teams/{team}/tasks`. Under
+the list sits an "add a task" form. It has to work three ways:
+
+| The submission | The answer |
+| --- | --- |
+| A title that is empty or too long | `422` and the form again, the error and what was typed in it |
+| A valid task, from a plain form post | `303` back to the list, so a reload adds nothing twice |
+| A valid task, from a script sending `Collage-Fetch` | `200` and the list fragment alone, swapped in place |
+
+The list is one fragment, used twice: in the page's slot, and at its own URL with
+`WithFragmentPath`. Its data handler tags what it read with the team, so adding a
+task invalidates that tag and every member of the team sees the new task on their
+next load.
+
+```go
+// Tag is the dependency tag of one team's task list.
+func Tag(team string) string { return "tasks:" + team }
+
+type newTask struct {
+	Team  string
+	Error string
+	Title string
+}
+
+var newTaskKey = collage.NewKey[newTask]("tasks:new")
+
+func TasksPage() *collage.Page {
+	list := collage.NewFragment("task-list", "fragments/task-list.html").
+		WithData(collage.LoadTagged(func(ctx context.Context, rc *collage.RenderContext) ([]store.Task, []string, error) {
+			team := rc.Param("team")
+			tasks, err := store.Tasks(ctx, team)
+			return tasks, []string{Tag(team)}, err
+		})).
+		Build()
+	form := collage.NewFragment("task-form", "fragments/task-form.html").
+		WithData(collage.Load(func(_ context.Context, rc *collage.RenderContext) (newTask, error) {
+			// Set by the action when this render is its answer; empty on a GET.
+			view, _ := newTaskKey.Get(rc)
+			view.Team = rc.Param("team")
+			return view, nil
+		})).
+		Build()
+	content := collage.NewFragment("tasks", "pages/tasks.html").
+		WithSlotFragment("list", list).
+		WithSlotFragment("form", form).
+		Build()
+
+	return collage.NewPage("tasks").
+		WithLayouts(layouts.Master()).
+		WithContent(content).
+		WithPath("en", "/teams/{team}/tasks").
+		WithFragmentPath("en", "/teams/{team}/tasks/list", list).
+		Incremental(time.Hour).
+		WithAction("POST", func(ctx context.Context, rc *collage.RenderContext) (*collage.ActionResult, error) {
+			team := rc.Param("team")
+			fetched := rc.Request.Header.Get(collage.FetchHeader) != ""
+
+			title := strings.TrimSpace(rc.Request.PostFormValue("title"))
+			if title == "" || utf8.RuneCountInString(title) > 200 {
+				newTaskKey.Set(rc, newTask{Error: "A title is 1 to 200 characters.", Title: title})
+				if fetched {
+					// A script swaps the form alone.
+					result := collage.RenderFragment(form)
+					result.Status = http.StatusUnprocessableEntity
+					return result, nil
+				}
+				// A browser gets the whole page back, its input in the form.
+				return &collage.ActionResult{Status: http.StatusUnprocessableEntity, Page: rc.Page}, nil
+			}
+
+			if err := store.AddTask(ctx, team, title); err != nil {
+				return nil, err
+			}
+
+			result := collage.RenderFragment(list)
+			if !fetched {
+				back, err := rc.URL("tasks", map[string]string{"team": team})
+				if err != nil {
+					return nil, err
+				}
+				result = collage.SeeOther(back)
+			}
+			// The team's cached page renders again, for every member.
+			result.InvalidateTags = []string{Tag(team)}
+			return result, nil
+		}).
+		Build()
+}
+```
+
+The form fragment is the whole `<form>`, so a script can replace it with what a
+`422` sends back, and the list fragment is the whole `<ul>`:
+
+```html
+<form id="task-form" method="post" action="{{pageURL "tasks" "team" .Team}}">
+  {{csrfToken}}
+  {{with .Error}}<p class="error">{{.}}</p>{{end}}
+  <input name="title" value="{{.Title}}">
+  <button type="submit">Add</button>
+</form>
+```
+
+```html
+<ul id="task-list">
+  {{range .}}<li>{{.Title}}</li>{{else}}<li>No tasks yet.</li>{{end}}
+</ul>
+```
+
+A few lines of script post the form with `Collage-Fetch`. The listener is on the
+document, so it keeps working after a `422` has replaced the form:
+
+```js
+document.addEventListener("submit", async (event) => {
+  const form = event.target;
+  if (form.id !== "task-form") return;
+  event.preventDefault();
+  const response = await fetch(form.action, {
+    method: "POST",
+    headers: { "Collage-Fetch": "1" },
+    body: new FormData(form),
+  });
+  if (response.status === 200) {
+    document.querySelector("#task-list").outerHTML = await response.text();
+    form.reset();
+  } else if (response.status === 422) {
+    form.outerHTML = await response.text();
+  }
+});
+```
+
+What the example leans on, each covered above:
+
+- **The forgery token travels with the form.** `new FormData(form)` carries the
+  hidden input `{{csrfToken}}` rendered, and a fragment answered after a `422`
+  renders a fresh one.
+- **The page is cached, the form still works.** `Incremental(time.Hour)` caches
+  the page with the token marker in it; each reader gets their own token.
+- **The invalidation comes first.** The tag is invalidated before the response is
+  written, so the redirect lands on the new list.
+- **Who may post is the page's question.** A [guard](/docs/pages-and-layouts#private-pages-guards)
+  that lets in only the team's members covers the page, its action and
+  `/teams/{team}/tasks/list` alike.
+
+With the script off, the same form posts, redirects and reloads the list. The
+tutorial [Update part of a page](/docs/update-part-of-a-page) builds a project of
+this shape step by step, with a list that also refreshes itself.
