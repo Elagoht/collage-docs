@@ -159,6 +159,16 @@ func TestIntroPositioning(t *testing.T) {
 	}
 }
 
+// The example project the tutorial builds passes its own tests: it is a module of
+// its own, so the root's go test does not reach it.
+func TestExampleShoppingList(t *testing.T) {
+	cmd := exec.Command("go", "test", "./...")
+	cmd.Dir = filepath.Join("examples", "shopping-list")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("go test in %s: %v\n%s", cmd.Dir, err, out)
+	}
+}
+
 // load is the documentation in every language, as the site loads it.
 func load(t *testing.T) *site.Set {
 	t.Helper()

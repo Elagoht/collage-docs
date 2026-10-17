@@ -10,5 +10,6 @@ import (
 func register(app *collage.App) error {
 	return app.Register(
 		pages.Home(),
+		pages.List(),
 	)
 }

@@ -1,0 +1,5 @@
+<ul id="items" data-src="{{fragmentURL "list" "items"}}">
+  {{range .}}<li>{{.Name}}</li>
+  {{else}}<li>Nothing to buy.</li>
+  {{end}}
+</ul>
