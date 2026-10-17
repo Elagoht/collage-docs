@@ -574,13 +574,14 @@ What each failure does to this page:
 - **The catalogue or the pricing service fails.** The product is required, so the
   page's error page is served with a 500.
 - **The brand lookup fails.** With no brand stored yet, that is a 500 too. With
-  one stored, `Cached` serves it stale instead, and the page, built from stale
+  a stale one stored, `Cached` serves it instead, and the page, built from stale
   data, is not cached.
 - **The reviews service is down, or slower than 500 milliseconds.** Its one call
   fails, and both fragments get that error: the reviews box renders nothing, no
   description is declared, and the page answers 200 without them. A page served
   with a failed fragment is degraded and never cached, so the next request asks
-  the reviews service again.
+  the reviews service again — unless the page cache still holds an older copy,
+  which is then served marked `STALE`.
 
 With the cache on, none of this runs while the page is fresh: a cached page is
 not rendered, so the next reader of `/products/42` within ten minutes costs no call

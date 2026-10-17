@@ -291,7 +291,9 @@ Guard'ın kapsadıkları:
   okuyucuyu redirect ederdi.
 
 Guard'ın izin verdiği okuyucular page'in cache'ini paylaşır; bu cache sunucunun
-kendi cache'idir. Sunucunun önündeki bir CDN ya da proxy guard çalıştırmaz. Bu
+kendi cache'idir. Bir şey onlar için cache'i atlamadıkça böyledir:
+[elagoht/session](/docs/plugins#elagohtsession) session'ı olan her okuyucu için
+cache'i atlar. Sunucunun önündeki bir CDN ya da proxy guard çalıştırmaz. Bu
 yüzden guard'lı bir page, stratejisi ne derse desin `Cache-Control: private,
 no-cache` ile gönderilir.
 
@@ -832,7 +834,8 @@ Her okuyucunun aldığı cevap:
 
 | Request | Okuyucu | Cevap |
 | --- | --- | --- |
-| `/blog/hello` | herkes | Yazı; cache açıksa on dakika geçene kadar cache'ten |
+| `/blog/hello` | giriş yapmamış | Yazı; cache açıksa on dakika geçene kadar cache'ten |
+| `/blog/hello` | giriş yapmış | Yazı, yeniden render edilir: session plugin'i session'ı olan okuyucu için cache'i atlar |
 | `/blog/no-such-post` | herkes | `404` ve sitenin not-found page'i, iskeletin içinde |
 | `/account` | giriş yapmamış | `/login?next=%2Faccount`'a `303` |
 | `/admin/users` | giriş yapmamış | `/login?next=%2Fadmin%2Fusers`'a `303`: önce account guard'ı cevap verir, rol hiç kontrol edilmez |

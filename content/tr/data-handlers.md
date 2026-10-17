@@ -599,14 +599,15 @@ Her hatanın bu page'e etkisi:
 - **Katalog ya da fiyat servisi başarısız olur.** Ürün required olduğu için
   page'in error page'i 500 ile sunulur.
 - **Marka sorgusu başarısız olur.** Henüz saklanmış bir marka yoksa bu da 500'dür.
-  Saklanmış bir marka varsa `Cached` onu stale olarak sunar ve stale veriden
+  Stale bir marka saklanmışsa `Cached` onu sunar ve stale veriden
   oluşturulan page cache'lenmez.
 - **Yorum servisi çökmüştür ya da 500 milisaniyeden yavaştır.** Servise yapılan
   tek çağrı başarısız olur ve iki fragment de aynı hatayı alır: yorum kutusu
   hiçbir şey render etmez, description tanımlanmaz ve page onlarsız 200 ile cevap
   verir.
   Başarısız bir fragment'le sunulan page degraded'dır ve hiç cache'lenmez. Bu
-  yüzden sonraki request yorum servisine yeniden sorar.
+  yüzden sonraki request yorum servisine yeniden sorar. Page cache'te daha eski
+  bir kopya duruyorsa ise o kopya `STALE` olarak işaretlenip sunulur.
 
 Cache açıkken page taze olduğu sürece bunların hiçbiri çalışmaz: cache'lenmiş bir
 page render edilmez. Bu yüzden `/products/42`'nin on dakika içindeki sonraki

@@ -280,7 +280,9 @@ What the guard covers:
   error pages — a private error page would otherwise redirect the reader who hit
   the error.
 
-Readers the guard allows share the page's cache, which is the server's own. A CDN
+Readers the guard allows share the page's cache, which is the server's own —
+unless something skips it for them, as [elagoht/session](/docs/plugins#elagohtsession)
+does for every reader with a session. A CDN
 or proxy in front of the server runs no guard, so a guarded page goes out with
 `Cache-Control: private, no-cache` whatever its strategy says.
 
@@ -793,7 +795,8 @@ What each reader gets:
 
 | Request | Reader | Answer |
 | --- | --- | --- |
-| `/blog/hello` | anyone | The post; with caching on, from the cache until ten minutes have passed |
+| `/blog/hello` | signed out | The post; with caching on, from the cache until ten minutes have passed |
+| `/blog/hello` | signed in | The post, rendered fresh: the session plugin skips the cache for a reader with a session |
 | `/blog/no-such-post` | anyone | `404` and the site's not-found page, in the shell |
 | `/account` | signed out | `303` to `/login?next=%2Faccount` |
 | `/admin/users` | signed out | `303` to `/login?next=%2Fadmin%2Fusers`: the account guard answers first, and the role is never checked |

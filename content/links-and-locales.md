@@ -538,7 +538,7 @@ names its stock box's URL:
 <p class="stock">{{.}}</p>
 ```
 
-On the Turkish pages, every link comes out Turkish:
+On `/tr/urunler/42`, the links come out as:
 
 | In the template | Becomes |
 | --- | --- |

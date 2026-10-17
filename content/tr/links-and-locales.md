@@ -559,7 +559,7 @@ adıyla belirtir:
 <p class="stock">{{.}}</p>
 ```
 
-Türkçe page'lerde bütün link'ler Türkçe çıkar:
+`/tr/urunler/42`'de link'ler şöyle çıkar:
 
 | Template'te | Sonuç |
 | --- | --- |
