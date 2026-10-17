@@ -36,7 +36,7 @@ func TestLogin(t *testing.T) {
 
 <figure class="diagram-figure" data-search-ignore>
 <svg class="diagram" viewBox="0 0 320 300" role="img" aria-labelledby="tst-flow-title">
-<title id="tst-flow-title">Login testinin request'leri adım adım: bir collagetest.Client ile app.Handler() arasında, sunucu ve port olmadan. GET /login, form ile 200 döner ve bir cookie set eder; client'ın jar'ı onu saklar. Submit, form'u gizli alanları ve cookie ile post eder. Cevap olan /panel'e 303 teste döner, takip edilmez. Follow, cookie'lerle /panel'e bir GET gönderir ve page 200 döner. Her request tek bir ServeHTTP çağrısıdır.</title>
+<title id="tst-flow-title">Login testinin request'leri adım adım: bir collagetest.Client ile app.Handler() arasında, sunucu ve port olmadan. GET /login, form ile 200 döner ve bir cookie set eder; client'ın jar'ı onu saklar. Submit, form'u gizli alanları ve cookie ile post eder. Cevap, /panel'e bir 303'tür; teste döner, takip edilmez. Follow, cookie'lerle /panel'e bir GET gönderir ve page 200 döner. Her request tek bir ServeHTTP çağrısıdır.</title>
 <defs><marker id="tst-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
 <rect class="d-frame" x="4" y="8" width="128" height="36" rx="6" /><text x="68" y="23" text-anchor="middle">collagetest.Client</text><text class="d-small" x="68" y="37" text-anchor="middle">cookie jar</text>
 <rect class="d-c" x="188" y="8" width="128" height="36" rx="6" /><text class="d-on-c" x="252" y="23" text-anchor="middle">app.Handler()</text><text class="d-on-c d-small" x="252" y="37" text-anchor="middle">sunucu yok · port yok</text>
@@ -206,10 +206,11 @@ var cacheDir = ".cache"
 Development mode kapalıyken uygulama disk cache'ini kullanır. Aynı dizini ve aynı
 build'i kullanan her şey bu disk cache'ini paylaşır.
 
-`cacheDir = t.TempDir()` satırı olmasaydı, bir teste önceki bir testin render ettiği bir page sunulabilirdi. Cache
-process bittikten sonra da kaldığı için bu page önceki bir çalıştırmadan da
-gelebilirdi. Test de kodla hiçbir ilgisi olmayan nedenlerle geçer ya da kalırdı.
-Ayrıca package'ınızın içinde bir `.cache` dizini bırakırdı.
+`cacheDir = t.TempDir()` satırı olmasaydı, bir teste önceki bir testin render
+ettiği bir page sunulabilirdi. Cache process bittikten sonra da kaldığı için bu page
+önceki bir çalıştırmadan da gelebilirdi. Test de kodla hiçbir ilgisi olmayan
+nedenlerle geçer ya da kalırdı. Ayrıca package'ınızın içinde bir `.cache` dizini
+bırakırdı.
 
 Uygulamayı, `client`'ın yaptığı gibi, onu oluşturduktan sonra register ettiğiniz bir
 `t.Cleanup` içinde kapatın. Data cache o dizine arka planda yazar ve `App.Shutdown`
@@ -347,8 +348,8 @@ func TestNotFoundPage(t *testing.T) {
 testlerde de çalışır. Bir preview'ı ya da bir `collage.Vary` boyutunu test etmek
 için `c.Do`'dan önce bir `c.Request`'e cookie'yi ya da header'ı ekleyin.
 
-Client bir kolaylıktır, zorunluluk değildir: `app.Handler()`, diğer her handler gibi bir
-`net/http/httptest` recorder'ı ile de çalışır.
+Client bir kolaylıktır, zorunluluk değildir: `app.Handler()`, diğer her handler
+gibi bir `net/http/httptest` recorder'ı ile de çalışır.
 
 ## Her page render edilir
 
@@ -517,13 +518,13 @@ layout'un içine koyun ([Page'ler ve layout'lar](/docs/pages-and-layouts#private
 sayfasındaki `requireUser` gibi). Siteye de action'ı session cookie'sini set eden
 ve `next`'e redirect eden bir `/login` form'u ekleyin.
 
-Testleri, bir okuyucunun yapabildiği her şey için bir tane:
+Bir okuyucunun yapabildiği her şey için bir test vardır:
 
 | Test | Neyi yakalar |
 | --- | --- |
 | `TestAMemberAddsATask` | Form'un, token'ının ya da listeye dönen `303`'ün bozulmasını |
 | `TestAnEmptyTitleIsRefused` | Hatalı bir başlığa `422` ve hatasıyla form dışında bir cevap verilmesini |
-| `TestAFetchGetsTheListAlone` | Bir script'in post'una bütün page'le ya da eski bir listeyle cevap verilmesini |
+| `TestAFetchGetsTheListAlone` | Bir script'in post'una bütün page'le ya da stale bir listeyle cevap verilmesini |
 | `TestASignedOutReaderSignsInFirst` | Page'in, fragment path'inin ya da action'ının açık kalmasını |
 | `TestTheCachedListChangesWithATask` | Eksik bir `InvalidateTags`'i: cache'teki page eski listeyi göstermeye devam eder |
 
@@ -564,7 +565,7 @@ func TestAMemberAddsATask(t *testing.T) {
 ```
 
 Boş bir başlık reddedilir. Bir tarayıcının post'u `422` ile bütün page'i geri alır.
-İçindeki form'da hata da vardır:
+İçindeki form hatayı da gösterir:
 
 ```go
 func TestAnEmptyTitleIsRefused(t *testing.T) {
@@ -585,7 +586,7 @@ func TestAnEmptyTitleIsRefused(t *testing.T) {
 Bir script aynı form'u `Collage-Fetch` ile post eder ve token'ı page'den alır.
 [O sayfadaki script](/docs/forms-and-actions#example-a-team-task-list) de bunu
 `new FormData(form)` ile yapar. Cevap yalnızca liste fragment'idir.
-`/teams/{team}/tasks/list` de öyledir:
+`/teams/{team}/tasks/list`'in cevabı da öyledir:
 
 ```go
 func TestAFetchGetsTheListAlone(t *testing.T) {
@@ -612,10 +613,10 @@ func TestAFetchGetsTheListAlone(t *testing.T) {
 }
 ```
 
-Giriş yapmamış bir okuyucu page'den ve page'in guard'larından geçen fragment
+Giriş yapmamış bir okuyucu page'den ve page'in guard'larıyla karşılaşan fragment
 path'inden redirect edilir. Bir post guard'a forgery kontrolünden önce takılır. Bu
-yüzden cevap bir `403` değil, aynı redirect'tir. Ardından giriş form'unun gizli
-`next` alanıyla baştan sona içeri girilir:
+yüzden cevap bir `403` değil, aynı redirect'tir. Test ardından giriş form'unun gizli
+`next` alanıyla baştan sona içeri girer:
 
 ```go
 func TestASignedOutReaderSignsInFirst(t *testing.T) {
@@ -674,14 +675,15 @@ func TestTheCachedListChangesWithATask(t *testing.T) {
 }
 ```
 
-Test `MISS`'i `WaitWarmed` ya da `WarmLimit: -1` olmadan doğrular. Çünkü page
-guard'lıdır ve guard'lı bir page
+Test `MISS`'i `WaitWarmed` ya da `WarmLimit: -1` olmadan doğrular. Bunun sebebi
+page'in guard'lı olmasıdır. Guard'lı bir page
 [warm edilmez](/docs/caching#warming-after-an-invalidation): değişiklikten sonraki
-ilk okuyucusu onu render eder. Guard'ı olmayan bir page'i warmer daha önce render
-etmiş olabilir. Böyle bir page'de `HIT`'i bir
+ilk okuyucusu onu render eder. Guard'ı olmayan bir page'i ise warmer daha önce
+render etmiş olabilir. Böyle bir page'de `HIT`'i bir
 [`collagetest.Site`](#test-a-plugin-with-a-site-of-its-own) üzerinde
-`WaitWarmed()`'dan sonra doğrulayın ya da `MISS`'i doğrulamak için `WarmLimit: -1` ayarlayın.
-[Invalidation ve warming](#invalidation-and-warming) bölümü bunu anlatır.
+`WaitWarmed()`'dan sonra doğrulayın ya da `MISS`'i doğrulamak için
+`WarmLimit: -1` ayarlayın. [Invalidation ve warming](#invalidation-and-warming)
+bölümü bunu anlatır.
 
 ## Testleri çalıştırmak
 

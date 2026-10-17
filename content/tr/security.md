@@ -190,7 +190,7 @@ Development overlay'i ve reload kanalı yalnızca development'ta vardır. `colla
 de yalnızca bu makineyi adlandıran bir `Host`'a cevap verir. Bu yüzden başka bir
 sitedeki bir page, DNS rebinding yoluyla onları okuyamaz.
 
-Bir log satırındaki request path'i control character içerdiğinde tırnak içine
+Bir log satırındaki request path'i kontrol karakteri içerdiğinde tırnak içine
 alınır. Böylece sahte bir satır oluşturamaz ya da terminalinizi yeniden yazamaz.
 
 ## Security header'ları
@@ -205,8 +205,8 @@ olduğu gibi gönderilir. `Security.DisableNoSniff` ise nosniff'i kapatır (v0.6
 
 Tam bir `Content-Security-Policy`, HSTS ve geri kalanını
 [elagoht/secure](/docs/plugins#elagohtsecure) plugin'i ekler ve onun header'ları
-bunları geçersiz kılar. Production'daki bir page hiçbir framework script'i taşımadığı
-için sıkı bir policy nonce gerektirmez.
+bunların yerine geçer. Production'daki bir page hiçbir framework script'i
+taşımadığı için sıkı bir policy nonce gerektirmez.
 
 ## Size kalanlar
 
@@ -236,15 +236,15 @@ sayfalarındaki ekip iş listesi yayına girmek üzere:
   form'u taşır;
 - ekibin komut satırı aracı için bir JSON API `app.Handle` ile mount edilmiştir.
 
-Aşağıdaki her riski ya collage, ya uygulamanın eklediği bir plugin, ya da
+Aşağıdaki her riski ya collage, ya uygulamanın eklediği bir plugin ya da
 uygulamanın kendisi karşılar:
 
-| Risk | collage, yerleşik | Plugin | Hâlâ uygulamanın işi |
+| Risk | collage, built-in | Plugin | Hâlâ uygulamanın işi |
 | --- | --- | --- | --- |
-| Başka bir site "görev ekle" form'unu post eder | Unsafe method'lu her action'da önce origin, sonra token | — | Form'da `{{csrfToken}}`; `Security.CSRFKey`'in ayarlanması |
+| Başka bir site "görev ekle" form'unu post eder | Unsafe method'lu her action'da önce origin, sonra token | — | Form'da `{{csrfToken}}`; ayarlanmış bir `Security.CSRFKey` |
 | Kimin giriş yaptığı | — | elagoht/session: imzalı, `HttpOnly`, `SameSite=Lax` bir cookie; `Encrypt` ile şifreli | Giriş action'ı; okuyucu giriş yaptığında `Regenerate` |
 | Giriş yapmamış bir okuyucu listede | Guard'lar cache'ten önce çalışır: page, action'ları ve fragment path'leri için | Guard olarak `session.RequireUser("/login")` | Guard'lı layout'u her private page'e koymak |
-| Bir üyenin başka bir üyenin ya da başka bir ekibin görevini değiştirmesi | — | — | Rol ve ekip kontrolü, verinin olduğu yerde: `requireRole` gibi bir guard, action ve API |
+| Bir üyenin başka bir üyenin ya da başka bir ekibin görevini değiştirmesi | — | — | Rol ve ekip kontrolü, verinin olduğu yerde: `requireRole` gibi bir guard, ayrıca action ve API |
 | Girişten sonraki `next` okuyucuyu siteden çıkarır | `collage.SafeRedirect` | `RequireUser`, `next`'i URL'ye koyar | `next`'i `SafeRedirect`'ten geçirmek |
 | `/x/../admin`'in bir path kontrolünü atlatması | Path middleware'den önce temizlenir | — | — |
 | Bir üyenin page'inin başka birine sunulması | Guard'lı bir page `private, no-cache`'tir; cache key'i cookie içermez | elagoht/session: session'ı olan bir request taze render edilir, `private, no-store` | — |
@@ -256,9 +256,9 @@ uygulamanın kendisi karşılar:
 | Çalınmış bir session cookie'si | — | elagoht/session: bir session iptal edilemez, cookie'de yaşar | Kısa bir `maxAge` ya da `idleTimeout` |
 
 Plugin'ler `Config.Plugins`'e girer: elagoht/secure ve elagoht/honeypot template
-fonksiyonları ekler (`{{cspNonce}}`, `{{honeypot}}`). Bir plugin'in key'i,
-`KeyEnv`'inin adlandırdığı environment variable'dan okunur, hiçbir zaman
-`plugins-config.json`'dan değil:
+fonksiyonları ekler (`{{cspNonce}}`, `{{honeypot}}`). Bir plugin'in key'i hiçbir
+zaman `plugins-config.json`'dan değil, `KeyEnv`'inin adlandırdığı ortam değişkeninden
+okunur:
 
 ```go
 app, err := collage.New(&collage.Config{
@@ -284,10 +284,10 @@ app, err := collage.New(&collage.Config{
 })
 ```
 
-İkinci kuralın ne path'i ne de method'u vardır. Bu yüzden skip listesi dışındaki her yerde `GET`, `HEAD` ve
-`OPTIONS` dışındaki her method'u sayar. API'nin `PATCH`'i de buna dahildir, çünkü bir
-plugin'in middleware'i, `app.Handle` ile mount edilmiş bir path eşleşmeden önce
-çalışır.
+İkinci kuralın ne path'i ne de method'u vardır. Bu yüzden kendi skip listesi
+dışındaki her yerde `GET`, `HEAD` ve `OPTIONS` dışındaki her method'u sayar. API'nin
+`PATCH`'i de buna dahildir, çünkü bir plugin'in middleware'i, `app.Handle` ile
+mount edilmiş bir path eşleşmeden önce çalışır.
 
 Roller uygulamanın işi olarak kalır. Yalnızca admin'leri geçiren guard,
 [Örnek: private bir bölümü olan bir blog](/docs/pages-and-layouts#example-a-blog-with-a-private-area)
