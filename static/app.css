@@ -300,8 +300,19 @@ a:hover {
   text-decoration: none;
 }
 
+/* The whole result is the link: the title's link is stretched over the box, so
+   a click on the snippet follows it too, rather than taking the focus away and
+   closing the results before the click lands. */
 .search-results li {
+  position: relative;
   border-radius: 8px;
+}
+
+.search-results li a::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
 }
 
 .search-results li:hover,
