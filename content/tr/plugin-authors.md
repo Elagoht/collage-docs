@@ -23,7 +23,7 @@ collage plugin del you/stamp
 
 <figure class="diagram-figure" data-search-ignore>
 <svg class="diagram" viewBox="0 0 320 520" role="img" aria-labelledby="pa-contract-title">
-<title id="pa-contract-title">Bir plugin'in repository'sinden kurulu bir plugin'e. github.com/you/collage-stamp repository'sinde module path'i yazan go.mod, plugin'e you/stamp adını veren collage.json, func New'u Options alan kök package stamp ve HEAD'de bir v0.1.0 release tag'i bulunur. collage plugin check collage.json'ı, kök package'ı ve New'un biçimini okur; -release ile HEAD'de bir release tag'i ister, -run ile New'u çağırır ve Name()'i manifest'teki adla karşılaştırır. Ardından bir kullanıcının projesinde collage plugin add you/stamp modülü go get ile çeker, aynı kuralları kontrol eder, you/stamp adını ve pseudo-version olmayan bir sürüm ister ve gerektirdiği plugin'leri önce ekler. plugins.go'ya order'ın gösterdiği yere stamp.New(stamp.Options{}) çağrısını, plugins-config.json'a boş bir you/stamp bölümünü yazar ve varsa setup notunu yazdırır.</title>
+<title id="pa-contract-title">Bir plugin'in repository'sinden kurulu bir plugin'e. github.com/you/collage-stamp repository'sinde module path'i yazan go.mod, plugin'e you/stamp adını veren collage.json, New'u Options alan kök package stamp ve HEAD'de bir v0.1.0 release tag'i bulunur. collage plugin check collage.json'ı, kök package'ı ve New'un biçimini okur; -release ile HEAD'de bir release tag'i ister, -run ile New'u çağırır ve Name()'i manifest'teki adla karşılaştırır. Ardından bir kullanıcının projesinde collage plugin add you/stamp modülü go get ile çeker, aynı kuralları kontrol eder, you/stamp adını ve pseudo-version olmayan bir sürüm ister ve gerektirdiği plugin'leri önce ekler. plugins.go'ya order'ın gösterdiği yere stamp.New(stamp.Options{}) çağrısını, plugins-config.json'a boş bir you/stamp bölümünü yazar ve varsa setup notunu yazdırır.</title>
 <defs><marker id="pa-contract-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
 <rect class="d-frame" x="4" y="8" width="312" height="144" rx="8" />
 <text x="14" y="25">plugin'in repository'si</text>
@@ -73,13 +73,14 @@ her kısım küçük harf, rakam ve tireden oluşur:
 }
 ```
 
-Bu ad, plugin'inizin `Name()` değeri ve `plugins-config.json`'daki bölümünün
-anahtarıdır. Kısa bir referansta manifest'teki ad, yazılanla aynı olmalıdır:
-`collage plugin add you/stamp` için `"name": "you/stamp"` gerekir.
+Bu ad aynı zamanda plugin'inizin `Name()` metodunun döndürdüğü değer ve
+`plugins-config.json`'daki bölümünün key'idir. Kısa bir referansta manifest'teki
+ad, yazılanla aynı olmalıdır: `collage plugin add you/stamp` için
+`"name": "you/stamp"` gerekir.
 
-Manifest katı biçimde okunur: şemanın tanımadığı bir anahtar reddedilir. Şema,
+Manifest katı biçimde okunur: şemanın tanımadığı bir key reddedilir. Şema,
 [editör extension'ı](/docs/installation#editor-support) ile birlikte gelir. Extension
-anahtarları tamamlar ve siz yazarken dosyayı kontrol eder.
+key'leri tamamlar ve siz yazarken dosyayı kontrol eder.
 
 ### Plugin modülün köküdür
 
@@ -100,7 +101,7 @@ fonksiyon olmalıdır. Kabul edilen biçimler:
 | package'ınızın tek bir struct tipi | `stamp.New(stamp.Options{})` |
 | tek bir pointer, interface, slice, map ya da func | `stamp.New(nil)` |
 
-Tam olarak bir değer döndürür: bir `collage.Plugin`. Reddedilenler:
+`New` tam olarak bir değer döndürür: bir `collage.Plugin`. Reddedilenler:
 
 - iki ya da daha fazla parametre;
 - `string` gibi temel bir tip;
@@ -110,8 +111,8 @@ Tam olarak bir değer döndürür: bir `collage.Plugin`. Reddedilenler:
 
 Çağrı başarılı olmalıdır. Sıfır değerin ne anlama geldiğine siz karar verirsiniz:
 varsayılanlarıyla çalışan bir plugin olmalıdır. Makul bir varsayılanı olmayan bir
-ayar ise ayrı bir durumdur, [aşağıda](#a-required-setting-fails-in-init)
-anlatılıyor.
+ayar ise ayrı bir durumdur ve [aşağıda](#a-required-setting-fails-in-init)
+anlatılır.
 
 ### Bir release tag'i vardır
 
@@ -124,15 +125,17 @@ reddedilir: sabitlenecek kararlı bir şey olmaz.
 Üç alan, plugin'inizin nereye ve nasıl yerleşeceğini `add`'e anlatır.
 
 **`requires`**, projede ayrıca bulunması gereken plugin adlarının listesidir. `add`
-eksik olanların her birini önce ekler. `del` ise başka bir plugin gerektirirken
-onu kaldırmayı reddeder. Websocket plugin'i `["elagoht/live"]` ister.
+eksik olanların her birini önce ekler. `del` ise bir plugin'i, başka bir plugin
+onu gerektirdiği sürece kaldırmayı reddeder. Websocket plugin'i
+`["elagoht/live"]` gerektirir.
 
 **`order`**, girdinin `plugins.go`'da nereye gideceğini söyleyen bir tam sayıdır
 (yoksa 0). Küçük olan daha erken gelir, `Config.Plugins`'te daha erken olan da daha
 dıştaki middleware'dir.
 
-`add`, yeni girdiyi order'ı daha büyük olan ilk girdinin önüne koyar ve zaten var
-olan hiçbir girdiyi yerinden oynatmaz. Kendine yer isteyen yayımlanmış plugin'ler:
+`add`, yeni girdiyi mevcut girdiler arasında order'ı daha büyük olan ilkinin önüne
+koyar ve zaten var olan hiçbir girdiyi yerinden oynatmaz. Kendine yer isteyen
+yayımlanmış plugin'ler:
 
 | Plugin | Order | Neden |
 | --- | --- | --- |
@@ -140,7 +143,7 @@ olan hiçbir girdiyi yerinden oynatmaz. Kendine yer isteyen yayımlanmış plugi
 | elagoht/fail2ban | −25 | health'in hemen ardından |
 | elagoht/compress | −20 | response body'lerini yeniden yazan her plugin'den önce |
 | elagoht/websocket | −1 | elagoht/live'dan önce configure edilir |
-| elagoht/devtoolbar | 100 | en sonda, diğer plugin'lerin finding'lerini görür |
+| elagoht/devtoolbar | 100 | en sonda, böylece diğer plugin'lerin finding'lerini görür |
 
 Diğer bütün plugin'lerin order'ı 0'dır. Konum önemli değilse alanı yazmayın.
 
@@ -157,7 +160,7 @@ kodunun verebileceği şeyleri anlatır. Feed plugin'i, feed'lerin `plugins.go`'
 }
 ```
 
-## Zorunlu bir ayar Init'te reddedilir
+## Zorunlu bir ayar Init'te başarısız olur
 
 `add`, `plugins-config.json`'a `"you/stamp": {}` bölümünü yazar: yani varsayılanları.
 Plugin'iniz bir ayar olmadan çalışamıyorsa (bir API anahtarı, bir site URL'si gibi)
@@ -192,12 +195,12 @@ if !ok {
 }
 ```
 
-Listedeki her plugin'i, o plugin henüz configure ya da initialise edilmiş olsun
-olmasın görür. Sonra diğer plugin'in adını `requires`'a yazın ki `add` onu da
-getirsin. Websocket plugin'i tam olarak bunu yapar, `New(nil)` onun için bu yüzden
-çalışır.
+`FindPlugin` listedeki her plugin'i, o plugin henüz configure ya da initialize
+edilmiş olsun olmasın görür. Sonra diğer plugin'in adını `requires`'a yazın ki
+`add` onu da getirsin. Websocket plugin'i tam olarak bunu yapar; `New(nil)`'in onun
+için çalışmasının nedeni de budur.
 
-## Etiketlemeden önce kontrol edin
+## Tag koymadan önce kontrol edin
 
 Repository'nizin içinde çalıştırın:
 
@@ -208,8 +211,8 @@ collage plugin check -run         # ayrıca: çağrıyı derle ve çalıştır
 collage plugin check -release -run ./path/to/repo
 ```
 
-Flag'siz hâli repository'yi okur ve manifest'i, adı, package'ı ve `New`'un biçimini
-kontrol eder. `-release`, `HEAD`'de bir release tag'i ister.
+Flag verilmezse repository'yi okur ve manifest'i, adı, package'ı ve `New`'un
+biçimini kontrol eder. `-release`, `HEAD`'de bir release tag'i ister.
 
 `-run` bir adım daha ileri gider:
 
@@ -237,14 +240,14 @@ CI'ınızda aynısını yapın. Geçen bir plugin'i herkes tek satırla ekleyebi
 
 ## Örnek: okuma süresi plugin'i yayımlamak
 
-Bir blog, her yazının başlığının altında "3 min read" göstermek istiyor. Aşağıda bu
-özelliği bir plugin, `you/readtime` olarak, boş bir repository'den birinin
-`plugins.go` dosyasındaki bir satıra kadar izliyoruz.
+Bir blog, her yazının başlığının altında "3 min read" göstermek istiyor. Bu bölüm o
+özelliği `you/readtime` adlı bir plugin olarak ele alır ve boş bir repository'den
+birinin `plugins.go` dosyasındaki bir satıra kadar götürür.
 
 ### Repository
 
-Repository'nin adı `collage-readtime`'dır, böylece `you/readtime` kısa referansı onu
-bulur. Her şey modülün kökünde durur:
+Repository'nin adı `collage-readtime`'dır; bu sayede `you/readtime` kısa referansı
+onu bulur. Her şey modülün kökünde durur:
 
 ```text
 collage-readtime/
@@ -255,7 +258,7 @@ collage-readtime/
 ```
 
 Manifest plugin'e adını verir. Bu ad, `Name()`'in döndürdüğü değer ve bölümünün
-anahtarıdır:
+key'idir:
 
 ```json
 {
@@ -347,7 +350,7 @@ you/readtime: meets the contract
 collage: plugin check: no release tag at HEAD; add rule 5 with git tag vX.Y.Z
 ```
 
-Commit'i etiketleyin, sonra `New` da dahil bütün kontrolleri çalıştırın:
+Commit'e tag koyun, sonra `New` da dahil bütün kontrolleri çalıştırın:
 
 ```text
 $ git tag v0.1.0
@@ -372,7 +375,7 @@ added you/readtime v0.1.0
   plugins-config.json  "you/readtime": {}
 ```
 
-`plugins.go` import'u ve girdiyi kazanır:
+`plugins.go`'ya import ve girdi eklenir:
 
 ```go
 import (
@@ -401,6 +404,6 @@ yazı template'i de fonksiyonu çağırır:
 <p>{{readTime .Body}} min read</p>
 ```
 
-Buradaki `.Body`, yazının data handler'ı ona ne ad veriyorsa, yazının metnini
-temsil eder. `collage plugin del you/readtime` girdiyi, import'u ve bölümü yeniden
-kaldırır.
+Buradaki `.Body` yazının metnini temsil eder; yazının data handler'ı ona hangi adı
+veriyorsa odur. `collage plugin del you/readtime` girdiyi, import'u ve bölümü
+yeniden kaldırır.
