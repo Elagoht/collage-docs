@@ -105,9 +105,9 @@ raporda adıyla listelenir ya da page olmadığı için hiç ele alınmaz.
 <line class="d-flow" x1="150" y1="243" x2="166" y2="243" marker-end="url(#export-routes-arrow)" />
 <rect class="d-folder" x="170" y="230" width="144" height="26" rx="4" /><text class="d-small" x="242" y="247" text-anchor="middle">index.html: /en/ kopyası</text>
 <rect class="d-frame" x="6" y="272" width="144" height="26" rx="5" /><text class="d-small" x="78" y="289" text-anchor="middle">Dynamic page/document</text>
-<rect class="d-frame" x="6" y="304" width="144" height="26" rx="5" /><text class="d-small d-small" x="78" y="321" text-anchor="middle">{param}, StaticParams yok</text>
+<rect class="d-frame" x="6" y="304" width="144" height="26" rx="5" /><text class="d-small" x="78" y="321" text-anchor="middle">{param}, StaticParams yok</text>
 <rect class="d-frame" x="6" y="336" width="144" height="26" rx="5" /><text class="d-small" x="78" y="353" text-anchor="middle">guard'lı page</text>
-<rect class="d-frame" x="6" y="368" width="144" height="26" rx="5" /><text class="d-small d-small" x="78" y="385" text-anchor="middle">{{csrfToken}} içeren page</text>
+<rect class="d-frame" x="6" y="368" width="144" height="26" rx="5" /><text class="d-small" x="78" y="385" text-anchor="middle">{{csrfToken}} içeren page</text>
 <line class="d-flow" x1="150" y1="285" x2="166" y2="285" marker-end="url(#export-routes-arrow)" />
 <line class="d-flow" x1="150" y1="317" x2="166" y2="317" marker-end="url(#export-routes-arrow)" />
 <line class="d-flow" x1="150" y1="349" x2="166" y2="349" marker-end="url(#export-routes-arrow)" />
