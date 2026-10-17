@@ -5,9 +5,9 @@ reference: RenderContext, FragmentBuilder.WithTitle, Effect, ErrNoPathInLocale
 
 # Head ve SEO
 
-Bir page'in title'ını bilen fragment, `<head>`'i yazan fragment nadiren olur. Post
+Bir page'in title'ını bilen fragment, `<head>`'i yazan fragment'le nadiren aynıdır. Post
 kendi title'ını ve özetini bilir. Gallery, `gallery.css`'e ihtiyacı olduğunu bilir.
-Layout ise `<head>`'i ikisi de render edilmeden önce yazmıştır ve ikisini de bilmez.
+Layout ise `<head>`'i bunlar render edilmeden önce yazmıştır; ikisini de bilmez.
 
 collage bu sorunu **hoisting** ile çözer. Fragment, page içinde nerede durursa
 dursun head'e neyin gireceğini *tanımlar*. Tanımların nereye yerleşeceğini
@@ -123,9 +123,9 @@ func loadPost(ctx context.Context, rc *collage.RenderContext) (*Post, []string, 
 Her helper kendisine verilen değeri escape eder. Bu yüzden bir post'un adından
 oluşturulan title, post'un adı ne olursa olsun güvenlidir.
 
-`HoistStylesheet`, dosyanın mount edilmiş path'ini alır. O dosya hiçbir mount'ta yoksa hata döner.
-Var olmayan bir stylesheet'e link veren page bozuk bir page'dir ve bunu açıkça
-söylemesi gerekir.
+`HoistStylesheet`, dosyanın mount edilmiş path'ini alır. O dosya hiçbir mount'ta
+yoksa hata döndürür. Var olmayan bir stylesheet'e link veren page bozuk bir page'dir
+ve bunu açıkça söylemesi gerekir.
 
 Bu helper'ları senkron olarak, data handler'ın kendi goroutine'inden çağırın.
 Handler'ın başlattığı başka bir goroutine'den yapılan tanımın page içinde bir
@@ -221,7 +221,7 @@ Aynı key kuralları burada da geçerlidir. Bu yüzden eklediğiniz şeyin ne ol
 anlatan bir key seçin. Bir kez görünmesi gereken her şey için tek bir key kullanın.
 Biriken şeyler için ise her değere ayrı bir key verin.
 
-Area herhangi bir isim olabilir ve bir layout'ta birden fazla marker bulunabilir.
+Alanın adı serbesttir ve bir layout'ta birden fazla marker bulunabilir.
 Örneğin fragment'lerin ihtiyaç duyduğu script'ler için `</body>`'den önce bir `{{hoist
 "scripts"}}` koyabilirsiniz:
 
@@ -231,9 +231,9 @@ rc.Hoist("scripts", "script:map", template.HTML(`<script src="`+mapJS+`" defer><
 
 ## Canonical ve alternate link'ler
 
-Aynı içeriğe birden fazla URL ile ulaşılabiliyorsa, örneğin tracking query'siyle ve
-onsuz, canonical link arama motorlarına hangisinin asıl URL olduğunu söyler. Bu link'e
-mutlak bir URL verin. collage origin değil path üretir. Bu yüzden sitenizin
+Canonical link, aynı içeriğe birden fazla URL ulaştığında (örneğin tracking
+query'siyle ve onsuz) arama motorlarına hangisinin asıl URL olduğunu söyler. Bu
+link'e mutlak bir URL verin. collage origin değil path üretir. Bu yüzden sitenizin
 origin'ini kendi config'inizde tutun ve ikisini birleştirin:
 
 ```go
@@ -271,9 +271,9 @@ Bazı page'lerin çevirisi farklı bir slug kullanır ve bunu yalnızca o page'i
 bilir. Böyle bir page, o dil için kendi `rc.HoistAlternate` çağrısını yapar. Daha
 içte olduğu için de layout'un tanımının yerine geçer.
 
-Handler'ı olmayan bir layout için (böyle bir layout, strateji tanımlamayan page'leri static bırakır)
-template'teki karşılığı
-[`localeURL`](/docs/links-and-locales#a-language-switcher) fonksiyonudur. Page'in var
+Handler'ı olmayan bir layout için template'teki karşılığı
+[`localeURL`](/docs/links-and-locales#a-language-switcher) fonksiyonudur. Böyle bir
+layout, strateji tanımlamayan page'leri static bırakır. `localeURL`, page'in var
 olmadığı bir dil için boş döner:
 
 ```html
@@ -304,17 +304,18 @@ func loadPost(ctx context.Context, rc *collage.RenderContext) (*Post, []string, 
 }
 ```
 
-`jsonld.Emit`, `"head"` area'sına hoist eder. Bu yüzden bu sayfada anlatılan diğer
+`jsonld.Emit`, `"head"` alanına hoist eder. Bu yüzden bu sayfada anlatılan diğer
 her şeyle aynı marker'a ihtiyaç duyar ve aynı kurallara uyar: her schema.org tipi ve
 node'un `Key`'i için bir key vardır ve en içteki kazanır.
 
-Plugin'i register ettiğinizde (`Config.Plugins` içinde `jsonld.New(jsonld.Options{})`),
-bir site adıyla yapılandırılmışsa site genelinde bir `WebSite` node'u ekler. Page'e
+Plugin'i register ettiğinizde (`Config.Plugins` içinde
+`jsonld.New(jsonld.Options{})`), plugin bir site adıyla yapılandırılmışsa site
+genelinde bir `WebSite` node'u ekler. Page'e
 özel veri ise her zaman data handler'larınızdan gelir. Çünkü page'in ne hakkında
 olduğunu yalnızca onlar bilir.
 
 Crawler'lara ve arama motorlarına söylenenlerin geri kalanını altı plugin daha
-karşılar. İlk üçü, bir crawler'ın head dışında okuduklarıdır:
+karşılar. İlk üçü, bir crawler'ın head dışında okuduklarıyla ilgilidir:
 
 | Plugin | Ne yapar |
 | --- | --- |
@@ -322,7 +323,7 @@ karşılar. İlk üçü, bir crawler'ın head dışında okuduklarıdır:
 | [elagoht/robots](/docs/plugins#elagohtrobots) | `/robots.txt`'yi sunar |
 | [elagoht/feed](/docs/plugins#elagohtfeed) | RSS ve Atom feed'leri sunar ve bunları her page'in head'inde duyurur |
 | [elagoht/meta](/docs/plugins#elagohtmeta) | Bu sayfada anlatılan Open Graph ve Twitter tag'lerini, canonical URL'yi ve `hreflang` link'lerini site genelindeki varsayılanlardan ve her page'in söylediklerinden yazar |
-| [elagoht/redirects](/docs/plugins#elagohtredirects) | Bir taşımanın eski adreslerini bir dosyadan sunar ve static bir build'e verir |
+| [elagoht/redirects](/docs/plugins#elagohtredirects) | Bir taşımadan kalan eski adresleri bir dosyadan okuyup sunar ve bunları static build'e aktarır |
 | [elagoht/indexnow](/docs/plugins#elagohtindexnow) | Bir invalidation'ın hangi URL'leri değiştirdiğini arama motorlarına bildirir |
 
 ## Hoisting ve collage'ın geri kalanı
@@ -333,7 +334,7 @@ karşılar. İlk üçü, bir crawler'ın head dışında okuduklarıdır:
 - **Kendi URL'sinde sunulan bir fragment'in head'i yoktur.**
   [`WithFragmentPath`](/docs/forms-and-actions#a-fragment-at-its-own-url) ile sunulan
   bir fragment'in layout'u yoktur. v0.18.0'dan beri marker koymadığı bir alana
-  hoist ettiği şeyler markup'ından önce, her item için etkisiz bir
+  hoist ettiği şeyler markup'ından önce, her öğe için etkisiz bir
   `<template data-collage-hoist>` olarak gelir. Bir script bunları page'e ekleyebilir.
   Bkz. [Hoist ettikleri](/docs/forms-and-actions#what-it-hoists).
 - **Hoist işlemini `rc.Page` üzerinden değil, data handler'lardan yapın.** `rc.Page`
@@ -344,7 +345,7 @@ karşılar. İlk üçü, bir crawler'ın head dışında okuduklarıdır:
 
 Bir mağazanın `/products/{id}` adresindeki ürün page'i, yani
 [Fragment'ler ve slot'lar](/docs/fragments-and-slots#example-a-product-page) sayfasında
-kurulanın küçük bir sürümü, bir arama motorunun ve bir link önizlemesinin
+kurulanın küçük bir sürümü, bir arama motorunun ve bir link preview'ının
 okuyabileceği bir head'e ihtiyaç duyar. Head'deki her şeyi, onu bilen fragment
 tanımlar:
 
@@ -358,8 +359,8 @@ tanımlar:
 | `stock.css` | Stok kutusunun template'i, `{{stylesheet}}` ile | `stylesheet:/static/stock.css` |
 
 Layout'un template'i, [bu sayfanın başındaki](#where-it-lands) template'tir. Layout,
-kendisi hakkında hiçbir şey söylemeyen her page için mağazanın adını verir ve onu
-tanımlar:
+kendisi hakkında hiçbir şey söylemeyen her page için mağazanın adını ve kısa bir
+açıklamasını verir:
 
 ```go
 layout := collage.NewFragment("layout", "layouts/default.html").
@@ -372,7 +373,7 @@ layout := collage.NewFragment("layout", "layouts/default.html").
 ```
 
 Ürünün handler'ı, hangi ürün olduğunu öğrenir öğrenmez geri kalanını tanımlar.
-catalog ve inventory paketleri sizin kendi veri katmanınızı temsil eder:
+Örnekteki catalog ve inventory paketleri sizin kendi veri katmanınızı temsil eder:
 
 ```go
 const siteOrigin = "https://shop.example"
@@ -472,8 +473,9 @@ Burada her element ayrı bir satırda; collage ise hoist edilenleri yan yana yaz
 </head>
 ```
 
-- **Hoist edilenler arasında title ve description en başta durur.** Layout'un onları tanımladığı yerdedirler
-  ama ürünün değerlerini taşırlar: konum ilk tanımın, değer en içteki tanımındır.
+- **Hoist edilenler arasında title ve description en başta durur.** Layout'un onları
+  tanımladığı yerdedirler ama ürünün değerlerini taşırlar: konum ilk tanımın, değer
+  en içteki tanımındır.
 - **Özetteki kesme işareti escape edilir.** Her helper kendisine verileni escape
   eder.
 - **İki stylesheet de content-addressed URL'leriyle link'lenir.** Page onları hangi
@@ -493,8 +495,8 @@ markup'ından önce gelir:
 <p class="stock">12 in stock</p>
 ```
 
-Kutuyla birlikte yalnızca kendi tanımları gelir. Ürünün handler'ı bu render'ın bir
-kısmı değildir. Bu yüzden burada ne title ne de bir Open Graph tag'i vardır;
+Kutuyla birlikte yalnızca kendi tanımları gelir. Ürünün handler'ı bu render'a
+dahil değildir. Bu yüzden burada ne title ne de bir Open Graph tag'i vardır;
 kutuyu çeken page kendi head'ini korur.
 
 Stylesheet, page'in head'inin onu tekilleştirdiği key'i taşır. Bu page `stock.css`'i

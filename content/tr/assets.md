@@ -131,20 +131,20 @@ birine bugünün HTML'iyle birlikte dünün stylesheet'ini verir.
 Üç ayrıntı:
 
 - **Var olmayan bir dosya URL üretmez, hata üretir.** `{{asset
-  "/static/typo.css"}}`, fragment'in `collage.ErrUnknownAsset` ile başarısız olmasına
-  yol açar. Aksi hâlde page "başarıyla" render edilir, ama 404 dönen bir
+  "/static/typo.css"}}`, fragment'i `collage.ErrUnknownAsset` ile başarısız
+  kılar. Aksi hâlde page "başarıyla" render edilir, ama 404 dönen bir
   stylesheet'e link verir.
 - **Request'teki hash kontrol edilir.** Hash'i dosyanın güncel hash'iyle
   eşleşmeyen bir URL, dosyayı değil 404 döner. O dosyayı sunmak, shared cache'in
   arkasındaki herkese bir yıl boyunca yanlış bir cevabı sabitlemek olurdu.
 - **Düz adlar da çalışır.** `/static/app.css` de sunulur, ama mount'un kendi, daha
   kısa `Cache-Control` değeriyle. URL'nin sabit kalması gereken yerlerde bunu
-  kullanın. Örneğin site dışından referans verilen bir favicon ya da bir
-  e-postadan link verilen bir dosya için.
+  kullanın. Site dışından referans verilen bir favicon ya da bir e-postadan link
+  verilen bir dosya buna örnektir.
 
 <figure class="diagram-figure" data-search-ignore>
 <svg class="diagram" viewBox="0 0 320 264" role="img" aria-labelledby="assets-mount-title">
-<title id="assets-mount-title">Kodunuz app.Mount'a bir dosya sistemi verir: binary'ye derlenmiş bir embed.FS ya da development'ta os.OpenRoot ile açılmış, diskteki static dizini. Mount ardından /static/ altında üç tür ada cevap verir. asset fonksiyonunun linklediği hash'li ad app.hash.css, bir yıl cache'lenen ve immutable olan bir 200'dür. Düz ad app.css, mount'un kendi max-age=3600 değeriyle bir 200'dür. Geri kalan her şey, yani eski ya da yanlış bir hash veya olmayan bir dosya, no-store ile düz metin bir 404'tür. DevMode açıkken hash her request'te yeniden hesaplanır ve her 200 no-store olur.</title>
+<title id="assets-mount-title">Kodunuz app.Mount'a bir dosya sistemi verir: binary'ye derlenmiş bir embed.FS ya da development'ta os.OpenRoot ile açılmış, diskteki static dizini. Mount ardından /static/ altında üç tür ada cevap verir. asset fonksiyonunun link verdiği hash'li ad app.hash.css, bir yıl cache'lenen ve immutable olan bir 200'dür. Düz ad app.css, mount'un kendi max-age=3600 değeriyle bir 200'dür. Geri kalan her şey, yani eski ya da yanlış bir hash veya olmayan bir dosya, no-store ile düz metin bir 404'tür. DevMode açıkken hash her request'te yeniden hesaplanır ve her 200 no-store olur.</title>
 <defs><marker id="assets-mount-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
 <rect class="d-frame" x="6" y="8" width="150" height="40" rx="6" /><text x="81" y="24" text-anchor="middle">embed.FS</text><text class="d-small" x="81" y="39" text-anchor="middle">binary'nin içinde</text>
 <rect class="d-frame" x="164" y="8" width="150" height="40" rx="6" /><text x="239" y="24" text-anchor="middle">os.OpenRoot</text><text class="d-small" x="239" y="39" text-anchor="middle">dev: diskteki static/</text>
@@ -163,9 +163,9 @@ birine bugünün HTML'iyle birlikte dünün stylesheet'ini verir.
 <rect class="d-b" x="6" y="194" width="100" height="40" rx="5" /><text class="d-on-b" x="56" y="210" text-anchor="middle">200 immutable</text><text class="d-on-b d-small" x="56" y="225" text-anchor="middle">max-age=31536000</text>
 <rect class="d-soft-a" x="110" y="194" width="100" height="40" rx="5" /><text x="160" y="210" text-anchor="middle">200</text><text class="d-small" x="160" y="225" text-anchor="middle">max-age=3600</text>
 <g class="d-dropped"><rect class="d-frame" x="214" y="194" width="100" height="40" rx="5" /><text x="264" y="210" text-anchor="middle">404 no-store</text><text class="d-small" x="264" y="225" text-anchor="middle">düz metin</text></g>
-<text class="d-small" x="160" y="254" text-anchor="middle">DevMode: her request'te hash, her 200 no-store</text>
+<text class="d-small" x="160" y="254" text-anchor="middle">DevMode: her request'te yeni hash, her 200 no-store</text>
 </svg>
-<figcaption>Mount'un hangi dosya sistemini sunacağını kodunuz seçer: production'da gömülü kopyayı, development'ta diskteki dizini. Prefix altında mount üç tür ada cevap verir. <code>{{asset}}</code>'in linklediği hash'li ad bir yıl boyunca, <code>immutable</code> ile sunulur. Düz ad, mount'un kendi <code>Cache-Control</code> değeriyle sunulur; <code>WithCacheControl</code> başka bir değer vermedikçe bu <code>public, max-age=3600</code>'dür. Dosyanın güncel hash'i olmayan bir hash ya da var olmayan bir dosya, <code>no-store</code> ile düz metin bir 404'tür. <code>DevMode</code> açıkken hash her request'te yeniden hesaplanır ve hiçbir şey cache'lenebilir değildir.</figcaption>
+<figcaption>Mount'un hangi dosya sistemini sunacağını kodunuz seçer: production'da gömülü kopyayı, development'ta diskteki dizini. Prefix altında mount üç tür ada cevap verir. <code>{{asset}}</code>'in link verdiği hash'li ad bir yıl boyunca, <code>immutable</code> ile sunulur. Düz ad, mount'un kendi <code>Cache-Control</code> değeriyle sunulur; <code>WithCacheControl</code> başka bir değer vermedikçe bu <code>public, max-age=3600</code>'dür. Dosyanın güncel hash'i olmayan bir hash ya da var olmayan bir dosya, <code>no-store</code> ile düz metin bir 404'tür. <code>DevMode</code> açıkken hash her request'te yeniden hesaplanır ve hiçbir şey cache'lenebilir değildir.</figcaption>
 </figure>
 
 ### Go'dan
@@ -181,10 +181,10 @@ if err != nil {
 rc.HoistProperty("og:image", siteOrigin+cover)
 ```
 
-`rc.Asset`, `{{asset}}`'in render ettiği değerin aynısını döner. Hiçbir mount'un
-sunmadığı bir path için `collage.ErrUnknownAsset` döner. v0.10.0'dan beri bir
-[document'ın](/docs/documents#the-handler) handler'ında da çalışır; örneğin bir web
-manifest'indeki icon URL'si için. Stylesheet'ler için `rc.HoistStylesheet` ve
+`rc.Asset`, `{{asset}}`'in render ettiği değerin aynısını döndürür. Hiçbir
+mount'un sunmadığı bir path için `collage.ErrUnknownAsset` döndürür. v0.10.0'dan
+beri bir [document'ın](/docs/documents#the-handler) handler'ında da çalışır;
+örneğin bir web manifest'indeki ikon URL'si için. Stylesheet'ler için `rc.HoistStylesheet` ve
 `{{stylesheet}}`, lookup'ı ve `<link>`'i tek adımda yapar. Ayrıntılar için
 [Head ve SEO](/docs/head-and-seo) sayfasına bakın.
 
@@ -254,20 +254,21 @@ document'ın ya da redirect'in zaten cevap verdiği bir URL'yi gölgeleyecek bir
 prefix reddedilir. Locale prefix'li URL'ler de buna dahildir. Örneğin Türkçe
 page'leri olan bir sitede `/tr/` altındaki bir mount başarısız olur
 (`collage.ErrMountShadowsRoute`). Prefix'leri çakışan iki mount da reddedilir
-(`collage.ErrMountConflict`). İki kontrol de register aşaması kapandığında çalışır. Bu
-yüzden `Mount` ve `RegisterPage`'i hangi sırayla çağırdığınızın bir önemi yoktur.
+(`collage.ErrMountConflict`). İki kontrol de register aşaması kapandığında
+çalışır. Bu yüzden `Mount` ve `RegisterPage`'i hangi sırayla çağırdığınızın bir
+önemi yoktur.
 
-Bu kontrol prefix'leri register edilmiş pattern'lerle karşılaştırır. Bu yüzden prefix'in
-üst seviyesindeki bir catch-all'u göremez. Örneğin `/{rest...}` adresindeki bir
-page `/static/…` ile de eşleşirdi, ama bu URL'leri mount alır. Bir prefix'i
-sahiplenmenin bedeli budur.
+Bu kontrol prefix'leri register edilmiş pattern'lerle karşılaştırır. Bu yüzden
+prefix'in üst seviyesindeki bir catch-all'u göremez. Örneğin `/{rest...}`
+adresindeki bir page `/static/…` ile de eşleşirdi, ama bu URL'leri mount alır. Bir
+prefix'i sahiplenmenin bedeli budur.
 
 ## Development'ta
 
 Content-addressed bir URL ile düzenlemekte olduğunuz bir dosya birbiriyle çelişir.
 Development dışında hash bir kez hesaplanır ve hatırlanır, URL için de bir yıllık
-söz verilir. Çalışan bir process'in altında dosyayı düzenlerseniz page eski ada
-link vermeye devam ederdi. Oysa tarayıcıya o adın hiç değişmeyeceği söylenmiştir.
+söz verilir. Process çalışırken dosyayı düzenlerseniz page eski ada link vermeye
+devam eder. Oysa tarayıcıya o adın hiç değişmeyeceği söylenmiştir.
 
 Bu yüzden `DevMode` açıkken her mount, bir dosyanın hash'ini her request'te
 yeniden hesaplar ve her şeyi `no-store` ile sunar. Düzenlenen bir dosya yeni bir URL
@@ -299,7 +300,7 @@ medya dizini, hiçbir page'in kullanmadığı adlar için ikiye katlanmaz.
 | --- | --- | --- |
 | `static/app.css` | Layout'tan, her page'de | Bir yeniden tasarımla |
 | `static/app.js` | Layout'tan, her page'de | Nadiren |
-| `static/img/harbour.jpg` | Bir yazının template'inden | Yayımlandıktan sonra hiç |
+| `static/img/harbour.jpg` | Bir yazının template'inden | Yayımlandıktan sonra hiçbir zaman |
 
 ### Mount etmek
 
@@ -379,9 +380,9 @@ binary deploy edilir. Ardından:
    boyunca tutar.
 3. Eski `app.b988912693d9423d.css` o tarayıcının cache'inde kullanılmadan kalır,
    çünkü artık hiçbir page ona link vermez.
-4. Eski ad istendiğinde yeni process `404`, `no-store` ile cevap verir. Ne artık
-   elinde olmayan eski byte'ları sunar ne de yeni byte'ları, onları tarif etmeyen
-   bir adın altında.
+4. Eski ad istendiğinde yeni process `404`, `no-store` ile cevap verir. Artık
+   elinde olmayan eski byte'ları sunmaz. Yeni byte'ları da onları tarif etmeyen bir
+   adın altında sunmaz.
 
 Hiçbir şeyin purge edilmesi gerekmedi ve hiçbir okura yeni HTML eski stylesheet'le
 birlikte gösterilmedi.

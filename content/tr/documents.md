@@ -70,14 +70,14 @@ Bu yüzden document hiçbir şey render etmez. Body'yi formatı bilen bir encode
 | --- | --- |
 | `collage.NewDocument(name, contentType)` | Builder'ı başlatır. İki argüman da zorunludur. |
 | `AtRoot(pattern)` | Document'a bütün locale'lerin dışından ulaşan URL pattern'i. Locale config'i ne olursa olsun prefix almaz. Sitenin kendi dosyaları içindir: `/robots.txt`, `/llms.txt`. v0.14.1'den beri vardır. |
-| `WithPath(locale, pattern)` | Document'a `locale` içinde ulaşan URL pattern'i. Placeholder'lar page'lerdeki gibi çalışır, etraflarında metin de olabilir (v0.41.0'dan beri): `/feeds/{category}.xml` ya da `/blog/{slug}` sayfasının yanında `/blog/{slug}.md`. Bkz. [placeholder'ın etrafında metin](/docs/pages-and-layouts#text-around-a-placeholder). |
+| `WithPath(locale, pattern)` | Document'a `locale` içinde ulaşan URL pattern'i. Placeholder'lar page'lerdeki gibi çalışır, etraflarında metin de olabilir (v0.41.0'dan beri): `/feeds/{category}.xml` ya da `/blog/{slug}` page'inin yanında `/blog/{slug}.md`. Bkz. [placeholder'ın etrafında metin](/docs/pages-and-layouts#text-around-a-placeholder). |
 | `WithHandler(fn)` | Body'yi üreten fonksiyon. |
 | `WithBody(b)` | Handler yerine, program başlarken sabitlenen bir body. Document'ın fallback olarak kullanabileceği bir template'i olmadığı için ikisinden biri gerekir, ikisi birden olamaz. v0.16.0'dan beri vardır. |
 | `Dynamic()` | Handler'ı her request'te çalıştırır. Handler'ı olan ve strateji tanımlamayan bir document'ın stratejisi budur. |
 | `Static()` | Handler'ı bir kez çalıştırır, bir tag invalidate edene kadar cache'ten sunar. |
 | `Incremental(ttl)` | Cache'ten sunar, `ttl` dolduktan sonra handler'ı yeniden çalıştırır. |
 | `WithCacheParams(names...)` | Page'lerde olduğu gibi, hangi query parametrelerinin cache key'ine girdiğini belirler. |
-| `WithStaticParams(fn)` | Static build'in bir `{param}` pattern'i için hangi placeholder değerlerini yazacağı; bkz. [aşağıdaki bölüm](#documents-in-a-static-export). v0.16.0'dan beri vardır. |
+| `WithStaticParams(fn)` | Static build'in bir `{param}` pattern'ini yazacağı placeholder değerleri; bkz. [aşağıdaki bölüm](#documents-in-a-static-export). v0.16.0'dan beri vardır. |
 | `WithDependencyTags(tags...)` | Bu document'ın her response'unun taşıdığı tag'ler. |
 | `WithTimeout(d)` | Handler'ı sınırlar; sıfır, yani varsayılan, `Config.Template.Timeout` demektir (v0.61.0'dan beri). |
 | `WithRedirect(from, to, status)` / `WithPermanentRedirect(from, to)` | Buraya redirect eden eski path'ler. |
@@ -86,9 +86,9 @@ Bu yüzden document hiçbir şey render etmez. Body'yi formatı bilen bir encode
 Ne handler ne de body set edilmişse `Build`, `collage.ErrNoDocumentHandler`
 hatasını kaydeder. İkisi birden set edilmiş bir document'ı ise `RegisterDocument`
 `collage.ErrConflictingData` ile reddeder. Builder'ın kaydettiği hatalar
-document'ın üzerinde kalır. `BuildErr`'i çağırsanız da
-çağırmasanız da `RegisterDocument` bu document'ı adını belirterek reddeder. Bu yüzden
-hatayı kendiniz kontrol etmeniz isteğe bağlıdır.
+document'ın üzerinde kalır. `BuildErr`'i çağırsanız da çağırmasanız da
+`RegisterDocument` bu document'ı adını belirterek reddeder. Bu yüzden hatayı
+kendiniz kontrol etmeniz isteğe bağlıdır.
 
 ### Sabit bir body
 
@@ -107,8 +107,8 @@ process'in durumunu bildiren bir health check, dışarıdan bakıldığında byt
 aynı türden birer fonksiyondur.
 
 - **İkisini de static saymak** health check'i cache'lerdi. Cache'ten sunulan bir
-  health check ise `ok` artık doğru olmaktan çıktıktan çok sonra da `ok` cevabını
-  verir.
+  health check ise, durum değiştikten çok sonra da `ok` cevabını vermeye devam
+  eder.
 - **İkisini de dynamic saymanın** bedeli ise siz ne olduğunu söyleyene kadar
   sitemap'in her request'te render edilmesidir. Sonuç daha yavaş bir sitemap'tir,
   yanlış bir cevap değil.
@@ -144,12 +144,12 @@ verir. Örneğin bir web manifest'indeki ikon için bunu kullanabilirsiniz.
 
 Döndüğünüz tag'ler, document'ın `WithDependencyTags` tag'leriyle birleştirilir. Data
 handler'da olduğu gibi, bir hata da dönseniz bu tag'ler okunur. Böylece neye bağlı
-olduğunu öğrendikten sonra hata veren bir handler, kendisini neyin stale yapacağını
+olduğunu öğrendikten sonra başarısız olan bir handler, kendisini neyin stale yapacağını
 yine de bildirmiş olur.
 
 Bilmeye değer üç kural var:
 
-- **nil hatayla dönen boş bir body başarısızlık sayılır.** 500 ile cevaplanır ve
+- **Boş bir body'nin nil hatayla dönmesi başarısızlık sayılır.** 500 ile cevaplanır ve
   `collage.ErrEmptyDocumentBody` olarak raporlanır, çünkü body'yi doldurmayı unutmuş
   bir handler'dan ayırt edilemez. Gerçekten boş olan bir document tek bir newline
   döner.
@@ -162,8 +162,8 @@ beri) handler'ı onun altında çalışır; belirlemediğinde `Config.Template.T
 altında çalışır (varsayılanı beş saniyedir). Bu, fragment'ler için varsayılan data
 handler timeout'u olan ayarın aynısıdır.
 
-Büyük bir katalogu dolaşan bir sitemap, böylece her fragment'in ve her feed'in süresini değil yalnızca kendi süresini
-uzatır:
+Büyük bir katalogu dolaşan bir sitemap, her fragment'in ve her feed'in süresini
+değil, yalnızca kendi süresini uzatır:
 
 ```go
 collage.NewDocument("sitemap", "application/xml").
@@ -179,12 +179,12 @@ demektir; negatif bir değer `collage.ErrInvalidTimeout` kaydeder. Sınır size 
 
 ### Hatalar düz metindir
 
-Hata veren bir document hiçbir zaman HTML bir error page ile cevap vermez.
-`sitemap.xml` isteyen bir crawler'ın böyle bir sayfayla işi yoktur. Document'ın cevap
+Başarısız olan bir document hiçbir zaman HTML bir error page ile cevap vermez.
+`sitemap.xml` isteyen bir crawler'ın onunla bir işi olmaz. Document'ın cevap
 vermediği bir method için dönen `405` de buna dahildir (v0.11.0'dan beri düz metin).
 
-Crawler, doğru status ile `text/plain` ve `Cache-Control: no-store` alır. Body
-moda göre değişir:
+Cevap, doğru status ile `text/plain` ve `Cache-Control: no-store` olarak döner.
+Body moda göre değişir:
 
 | Mod | Body |
 | --- | --- |
@@ -192,7 +192,8 @@ moda göre değişir:
 | Development | Route adı ve hata zincirinin tamamı |
 
 Formata özgü bir hata istiyorsanız, örneğin bir JSON `{"error": "..."}`, hatayı
-handler'ın içinde yakalayın ve o body'yi kendiniz dönün. Handler ne dönerse o sunulur.
+handler'ın içinde yakalayın ve o body'yi kendiniz dönün. Handler ne dönerse o
+sunulur.
 
 ## Caching
 
@@ -223,7 +224,7 @@ olmadıysa bir sonraki request'te render edilir.
 
 v0.63.0'dan beri o zamana kadar stale olarak tutulur. Bu render başarısız olursa
 stale bir page gibi sunulur: `Cache-Control: no-store` ve `X-Collage-Cache: STALE`
-ile. 404 dönen bir render onu düşürür. Bkz.
+ile. 404 dönen bir render onu cache'ten çıkarır. Bkz.
 [Caching](/docs/caching#stale-pages-and-x-collage-cache).
 
 ## Örnek: sitemap
@@ -445,7 +446,7 @@ Sitemap: https://example.com/tr/sitemap.xml
 
 `AtRoot` ile build edilen bir document hiçbir locale'e ait değildir. Her config'te
 prefix'siz path'inde durur ve her dildeki bir page'den adıyla ona link verilebilir.
-`rc.Locale` varsayılan locale'e set edilmiş olarak render edilir.
+Render edilirken `rc.Locale` varsayılan locale'e set edilir.
 
 ## Static export'ta document'lar
 
@@ -502,13 +503,13 @@ gerekir.
 
 ## Örnek: bir katalogun ürün feed'i ve sitemap'leri
 
-Bir mağaza İngilizce ve Türkçe satış yapıyor. Ürün sayfası,
+Bir mağaza İngilizce ve Türkçe satış yapar. Ürün page'i,
 [iki dilli katalogdaki](/docs/links-and-locales#example-a-bilingual-product-catalogue)
 `/products/{id}` ve `/urunler/{id}` pattern'lerine sahip `product` page'idir.
 Mağaza bunun yanında üç document sunar:
 
-- **Her dil için bir JSON ürün feed'i**, mağazanın ürünlerini listeleyen
-  partner'lar için.
+- **Her dil için bir JSON ürün feed'i.** Mağazanın ürünlerini listeleyen
+  partner'lar içindir.
 - **Her dil için bir sitemap.**
 - **Tek bir `robots.txt`.** Hiçbir dile ait değildir ve iki sitemap'i de belirtir.
 
@@ -576,8 +577,8 @@ func ProductFeedDocument(app *collage.App) *collage.Document {
 }
 ```
 
-`encoding/json`, içinde tırnak ya da `<` geçen bir ürün adını doğru escape eder. Page'in
-HTML escape kuralları bunu yanlış yapardı. Sitemap de aynı şekilde, sitemap
+`encoding/json`, içinde tırnak ya da `<` geçen bir ürün adını doğru escape eder.
+Page'in HTML escape kuralları bunu yanlış yapardı. Sitemap de aynı şekilde, sitemap
 örneğindeki `urlSet` ve `sitemapURL` tipleriyle kurulur ve iki locale'de de tek bir
 pattern'i vardır:
 
@@ -665,7 +666,7 @@ ise prefix'siz tek adresinde kalır:
 | `sitemap`, `tr` | `/tr/sitemap.xml` | `tr/sitemap.xml` |
 | `robots` | `/robots.txt` | `robots.txt` |
 
-Diğer yazımlar sizin yerinize ele alınır:
+Adreslerin diğer yazılışları sizin yerinize ele alınır:
 
 - `/products.json` ve `/sitemap.xml`, `301` ile `/en/` adreslerine redirect eder.
 - `/en/robots.txt`, `/robots.txt`'ye redirect eder.
@@ -715,7 +716,7 @@ if err := app.InvalidateTags(ctx, "catalog"); err != nil {
 <rect class="d-frame" x="164" y="56" width="148" height="96" rx="6" /><text x="238" y="72" text-anchor="middle">tr</text>
 <rect class="d-b" x="174" y="80" width="128" height="26" rx="4" /><text class="d-on-b" x="238" y="97" text-anchor="middle">/tr/urunler.json</text>
 <rect class="d-b" x="174" y="114" width="128" height="26" rx="4" /><text class="d-on-b" x="238" y="131" text-anchor="middle">/tr/sitemap.xml</text>
-<text class="d-small" x="160" y="170" text-anchor="middle">stale · warm edilir ya da sonraki request'te</text>
+<text class="d-small" x="160" y="170" text-anchor="middle">stale · warm ya da sonraki request'te render</text>
 <rect class="d-frame" x="8" y="184" width="304" height="34" rx="6" /><text x="160" y="198" text-anchor="middle">/robots.txt</text><text class="d-small" x="160" y="211" text-anchor="middle">AtRoot · tag yok · dokunulmaz</text>
 </svg>
 <figcaption><code>product:42</code>'yi invalidate etmek, ürün 42'yi listeleyen bütün cache'lenmiş document'lara ulaşır: İngilizce ve Türkçe ürün feed'leri ile İngilizce ve Türkçe sitemap'ler. Locale cache key'ine girdiği için her biri ayrı cache'lenir. Her biri stale olarak tutulur ve arka planda ya da bir sonraki request'te yeniden render edilir. Kökte duran ve tag'i olmayan <code>robots.txt</code> olduğu gibi cache'te kalır.</figcaption>
@@ -723,17 +724,17 @@ if err := app.InvalidateTags(ctx, "catalog"); err != nil {
 
 Bir ziyaretçinin okuduğu document'lar, page'ler gibi warm edilir. Bkz.
 [Caching](/docs/caching#warming-after-an-invalidation). Aynı çağrı cache'lenmiş
-page'lere de ulaşır: handler'ı `catalog` dönen bir page,
+page'lere de ulaşır.
 [Link'ler ve locale'ler](/docs/links-and-locales#example-a-bilingual-product-catalogue)
-sayfasındaki katalog page'i gibi, cache'lendiği her durumda feed'ler ve
-sitemap'lerle birlikte invalidate edilir.
+sayfasındaki katalog page'inde olduğu gibi handler'ı `catalog` dönen bir page,
+cache'lenmişse feed'ler ve sitemap'lerle birlikte invalidate edilir.
 
 ## Document'ların yapmadıkları
 
 - **Template, fragment ya da slot yok.** Document'ların varlık nedeni zaten budur.
 - **`Range` request'leri yok.** Body bellekte oluşturulur ve bütün olarak sunulur.
-  Ses, video ve büyük indirme dosyaları mount edilmiş bir dosya sisteminde durmalıdır.
-  Bkz. [Static asset'ler](/docs/assets).
+  Ses, video ve büyük indirme dosyaları mount edilmiş bir dosya sisteminde
+  durmalıdır. Bkz. [Static asset'ler](/docs/assets).
 - **Büyük hiçbir şey yok.** Cache'lenebilen bir document page cache'te tutulur. Page
   cache byte ile değil entry sayısıyla sınırlıdır. Bu yüzden 50 MB'lık tek bir
   document, binlerce page kadar yer kaplar.
