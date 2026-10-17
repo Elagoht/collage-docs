@@ -12,6 +12,45 @@ interface for the hook you want, and the framework finds it by type assertion.
 This page is the reference for that surface. [Using plugins](/docs/plugins) is the
 other side of it: how an application registers and configures what you write. To have `collage plugin add` install your plugin, meet [the repository contract](/docs/plugin-authors).
 
+A plugin's life runs from the value an application constructs to its `Shutdown`.
+Each stage below has a section of its own, and [Lifecycle](#lifecycle) lists them
+in order.
+
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 506" role="img" aria-labelledby="wp-life-title">
+<title id="wp-life-title">The application constructs the plugin with New(Options) and puts it in Config.Plugins. collage.New runs Configure with a ConfigHost, in registration order: configuration, logger, template functions, mount wrappers. The application registers its pages, then the first Handler, Start or build runs Init with a Host, in registration order: it reads configuration and pages and adds documents, mounts, handlers, middleware and commands. While serving, ListenAndServe calls OnServe, every request passes the plugin's middleware and hooks, and invalidation and static builds fire OnCacheInvalidate and OnBuildFinished. Stopping calls OnDrain, then CloseStreams, then Shutdown in reverse order, only for plugins whose Init succeeded.</title>
+<defs><marker id="wp-life-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
+<rect class="d-pill" x="95" y="8" width="130" height="26" rx="13" /><text x="160" y="25" text-anchor="middle">New(Options{})</text>
+<line class="d-flow" x1="160" y1="34" x2="160" y2="50" marker-end="url(#wp-life-arrow)" />
+<text class="d-small" x="168" y="46">Config.Plugins</text>
+<rect class="d-slot d-slot-a" x="6" y="54" width="308" height="74" rx="8" />
+<text class="d-slot-text-a d-small" x="18" y="70">inside collage.New</text><text class="d-small" x="302" y="70" text-anchor="end">registration order</text>
+<rect class="d-a" x="18" y="78" width="284" height="40" rx="5" /><text class="d-on-a" x="160" y="94" text-anchor="middle">Configure(ctx, ConfigHost)</text><text class="d-on-a d-small" x="160" y="109" text-anchor="middle">config · logger · template funcs · WrapMount</text>
+<line class="d-flow" x1="160" y1="128" x2="160" y2="144" marker-end="url(#wp-life-arrow)" />
+<text class="d-small" x="166" y="140">app registers its pages</text>
+<rect class="d-slot d-slot-b" x="6" y="148" width="308" height="88" rx="8" />
+<text class="d-slot-text-a d-small" x="18" y="164">first Handler, Start, build</text><text class="d-small" x="302" y="164" text-anchor="end">registration order</text>
+<rect class="d-a" x="18" y="172" width="284" height="54" rx="5" /><text class="d-on-a" x="160" y="189" text-anchor="middle">Init(ctx, Host)</text><text class="d-on-a d-small" x="160" y="204" text-anchor="middle">config · logger · reads pages and URLs</text><text class="d-on-a d-small" x="160" y="217" text-anchor="middle">adds documents · mounts · Handle · Use · commands</text>
+<line class="d-flow" x1="160" y1="236" x2="160" y2="252" marker-end="url(#wp-life-arrow)" />
+<rect class="d-slot d-slot-c" x="6" y="256" width="308" height="130" rx="8" />
+<text class="d-slot-text-a d-small" x="18" y="272">serving</text><text class="d-small" x="302" y="272" text-anchor="end">hooks in registration order</text>
+<rect class="d-frame" x="18" y="280" width="284" height="24" rx="5" /><text x="160" y="296" text-anchor="middle">OnServe · ListenAndServe only</text>
+<rect class="d-b" x="18" y="312" width="138" height="64" rx="5" /><text class="d-on-b" x="87" y="329" text-anchor="middle">each request</text><text class="d-on-b d-small" x="87" y="344" text-anchor="middle">OnRequest · middleware</text><text class="d-on-b d-small" x="87" y="357" text-anchor="middle">render · action hooks</text><text class="d-on-b d-small" x="87" y="370" text-anchor="middle">OnPersonalise · OnError</text>
+<rect class="d-c" x="164" y="312" width="138" height="64" rx="5" /><text class="d-on-c" x="233" y="329" text-anchor="middle">outside requests</text><text class="d-on-c d-small" x="233" y="348" text-anchor="middle">OnCacheInvalidate</text><text class="d-on-c d-small" x="233" y="364" text-anchor="middle">OnBuildFinished</text>
+<line class="d-flow" x1="160" y1="386" x2="160" y2="402" marker-end="url(#wp-life-arrow)" />
+<rect class="d-slot d-slot-a" x="6" y="406" width="308" height="92" rx="8" />
+<text class="d-slot-text-a d-small" x="18" y="422">stopping</text><text class="d-small" x="302" y="422" text-anchor="end">App.Shutdown</text>
+<rect class="d-frame" x="17" y="432" width="86" height="28" rx="5" /><text x="60" y="450" text-anchor="middle">OnDrain</text>
+<line class="d-flow" x1="103" y1="446" x2="115" y2="446" marker-end="url(#wp-life-arrow)" />
+<rect class="d-frame" x="117" y="432" width="86" height="28" rx="5" /><text x="160" y="450" text-anchor="middle">CloseStreams</text>
+<line class="d-flow" x1="203" y1="446" x2="215" y2="446" marker-end="url(#wp-life-arrow)" />
+<rect class="d-a" x="217" y="432" width="86" height="28" rx="5" /><text class="d-on-a" x="260" y="450" text-anchor="middle">Shutdown</text>
+<text class="d-small" x="160" y="476" text-anchor="middle">only plugins whose Init succeeded;</text>
+<text class="d-small" x="160" y="489" text-anchor="middle">Shutdown once the server stops, in reverse</text>
+</svg>
+<figcaption>Your code constructs the plugin with New(Options) and hands it to Config.Plugins. collage.New runs its Configure before the templates are parsed, the one moment a template function can be added. The application then registers its pages, and the first call that starts it — Handler, ListenAndServe, Start, RenderPath, a static build — runs Init, which reads the configuration and the pages and adds documents, mounts, handlers, middleware and commands. An Init that fails stops startup, and the plugins initialised before it are shut down in reverse order. While serving, ListenAndServe calls OnServe once, every request passes the plugin's middleware and hooks, and invalidating tags or finishing a static build fires a hook of its own. Stopping calls OnDrain, then CloseStreams, waits for the server's requests, and calls Shutdown in reverse registration order, each only for plugins whose Init succeeded.</figcaption>
+</figure>
+
 ## The contract
 
 ```go
@@ -63,7 +102,8 @@ yet, so there is no rollback.
 `Init` runs later, when the application starts — the first call to `Handler`,
 `ListenAndServe`, `Start`, `RenderPath`, `RenderDocumentPath` or `DispatchCommands`,
 which includes a static build, since the builder renders through `RenderPath`. By then the
-application has registered its pages, so a plugin can read them or add its own.
+application has registered its pages, so a plugin can read them and add documents
+and mounts of its own.
 
 A plugin that needs both implements both. **A plugin that implements `Configurer`
 must be supplied in `Config.Plugins`**: `RegisterPlugin` is called after `New` has
@@ -130,12 +170,16 @@ and `MultiOrigin`.
 
 What `Init` receives is not the `*App`. It is a narrow value that forwards these
 methods and nothing else, so a plugin cannot assert its way to `ListenAndServe`,
-`Shutdown`, the router, the cache or the template set. `Handle` and
+`Shutdown`, the router, the cache or the template set.
+
+`Handle` and
 `RenderFragment` were added in v0.18.0, and `Use`, `URL`, `Locales`
 and `PageURLs` in v0.21.0, with `AddRenderFunc` on `ConfigHost`, and `BuildID` and
 `ServeStatus` in v0.24.0. **Each of these is a breaking change for a test double:**
 one implementing `Host` or `ConfigHost` needs the new methods too — since v0.24.0,
-`BuildID` and `ServeStatus`. Since v0.50.0 both include `collage.ConfigReader`, whose
+`BuildID` and `ServeStatus`.
+
+Since v0.50.0 both include `collage.ConfigReader`, whose
 one method is unexported, so only collage's own hosts satisfy it; test a plugin
 through a real application instead — see [Testing a plugin](#testing-a-plugin).
 
@@ -144,7 +188,9 @@ through a real application instead — see [Testing a plugin](#testing-a-plugin)
 `DependencyTags` containers, so editing those does not touch the application's own
 page. The fragment pointers inside a copy are still shared, and the events below
 carry the *live* page, not a copy — copying a page and its fragment tree on every
-request would cost the hot path. Writing through an event's `Page` changes the page
+request would cost the hot path.
+
+Writing through an event's `Page` changes the page
 every concurrent request is reading: that is a data race, and `go test -race` will
 say so. Treat pages as read-only. Plugins are trusted code, not a sandbox.
 
@@ -225,7 +271,9 @@ and before `CloseStreams`, and even when `DrainDelay` is 0. It must not block �
 server goes on serving while the drain lasts, and a slow hook delays every step
 after it. A panic in it is contained and logged at Warn with the plugin's name.
 Like `Shutdown` and `CloseStreams`, it reaches only plugins whose `Init`
-succeeded (since v0.61.4). A `Shutdown` before `Start`, or after a `Start` that
+succeeded (since v0.61.4).
+
+A `Shutdown` before `Start`, or after a `Start` that
 failed, tells none of them: before v0.61.4 it called `OnDrain` and `CloseStreams`
 on plugins that never ran, so a plugin reused for a second start — as
 `collagetest.TrySite` followed by `NewSite` does with the same plugin value — began
@@ -250,10 +298,13 @@ restart.
 
 `ctx` derives from `context.Background()` and is cancelled when the drain starts,
 at the same moment `OnDrain` runs, whether the stop came from a signal or from
-`App.Shutdown(ctx)`. It means "start no new work"; finishing the work already
+`App.Shutdown(ctx)`.
+
+It means "start no new work"; finishing the work already
 running belongs in the plugin's `Shutdown`, which runs after the server stops and
 is bounded by the shutdown ctx. The ctx may already be done when `OnServe` is
 called — a drain that started a moment earlier — so check it before starting work.
+
 `OnServe` must not block: start goroutines and return. A panic in it is contained
 and logged at Warn with the plugin's name, and the server still serves.
 
@@ -271,6 +322,56 @@ and logged at Warn with the plugin's name, and the server still serves.
 | `OriginResolver` | `Origin` | the host, as a string | When `collage.BaseURL` or `Host.OriginFor` names a host's origin (since v0.42.0) | the origin returned |
 | `ErrorHook` | `OnError` | `ErrorEvent` | On a failure while serving a request | nothing |
 | `BuildFinishedHook` | `OnBuildFinished` | `BuildFinishedEvent` | Once, when a static build has written every file and captured its headers (since v0.21.0) | reports with `ev.Warn`, `ev.Error` |
+
+On a request, the hooks run in this order:
+
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 552" role="img" aria-labelledby="wp-req-title">
+<title id="wp-req-title">A request runs OnRequest, then the plugins' middleware, then app.Use, then the router. A page looks in the cache: a hit goes straight to OnPersonalise; a miss runs OnBeforeRender, the render and OnAfterRender, and a GET is written to the cache before OnPersonalise. An action passes its guards and forgery check, runs OnBeforeAction and its handler, and an answer with a page runs the render hooks without the cache before OnPersonalise. A failure reaches OnError, and a document runs OnDocumentRendered.</title>
+<defs><marker id="wp-req-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker><marker id="wp-req-hit" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head-hit" d="M0 0 8 4 0 8z" /></marker></defs>
+<rect class="d-pill" x="110" y="8" width="100" height="24" rx="12" /><text x="160" y="24" text-anchor="middle">request</text>
+<line class="d-flow" x1="160" y1="32" x2="160" y2="46" marker-end="url(#wp-req-arrow)" />
+<rect class="d-a" x="50" y="50" width="220" height="26" rx="5" /><text class="d-on-a" x="160" y="67" text-anchor="middle">OnRequest</text>
+<line class="d-flow" x1="160" y1="76" x2="160" y2="88" marker-end="url(#wp-req-arrow)" />
+<rect class="d-frame" x="50" y="92" width="220" height="26" rx="6" /><text x="160" y="109" text-anchor="middle">plugin middleware</text>
+<rect class="d-frame" x="50" y="122" width="220" height="26" rx="6" /><text x="160" y="139" text-anchor="middle">app.Use</text>
+<line class="d-flow" x1="160" y1="148" x2="160" y2="162" marker-end="url(#wp-req-arrow)" />
+<rect class="d-cmd" x="110" y="166" width="100" height="24" rx="12" /><text class="d-cmd-text" x="160" y="182" text-anchor="middle">router</text>
+<path class="d-flow" d="M135 190C135 206 84 206 84 222" marker-end="url(#wp-req-arrow)" />
+<path class="d-flow" d="M185 190C185 206 238 206 238 222" marker-end="url(#wp-req-arrow)" />
+<text class="d-small" x="88" y="204" text-anchor="end">page</text>
+<text class="d-small" x="232" y="204">action</text>
+<rect class="d-chip-hit" x="34" y="226" width="100" height="22" rx="11" /><text class="d-hit-text d-small" x="84" y="241" text-anchor="middle">cache lookup</text>
+<path class="d-hitline" d="M34 237H12V445H22" marker-end="url(#wp-req-hit)" />
+<text class="d-hit-text d-small" x="14" y="231">hit</text>
+<line class="d-flow" x1="84" y1="248" x2="84" y2="262" marker-end="url(#wp-req-arrow)" />
+<text class="d-small" x="90" y="259">miss</text>
+<rect class="d-a" x="24" y="266" width="120" height="26" rx="5" /><text class="d-on-a" x="84" y="283" text-anchor="middle">OnBeforeRender</text>
+<line class="d-flow" x1="84" y1="292" x2="84" y2="304" marker-end="url(#wp-req-arrow)" />
+<rect class="d-soft-a" x="24" y="308" width="120" height="26" rx="6" /><text x="84" y="325" text-anchor="middle">render</text>
+<line class="d-flow" x1="84" y1="334" x2="84" y2="346" marker-end="url(#wp-req-arrow)" />
+<rect class="d-a" x="24" y="350" width="120" height="26" rx="5" /><text class="d-on-a" x="84" y="367" text-anchor="middle">OnAfterRender</text>
+<line class="d-flow" x1="84" y1="376" x2="84" y2="388" marker-end="url(#wp-req-arrow)" />
+<rect class="d-chip-hit" x="29" y="392" width="110" height="22" rx="11" /><text class="d-hit-text d-small" x="84" y="407" text-anchor="middle">cache write · GET</text>
+<line class="d-flow" x1="84" y1="414" x2="84" y2="428" marker-end="url(#wp-req-arrow)" />
+<rect class="d-b" x="24" y="432" width="120" height="26" rx="5" /><text class="d-on-b" x="84" y="449" text-anchor="middle">OnPersonalise</text>
+<rect class="d-frame" x="170" y="226" width="136" height="22" rx="5" /><text class="d-small" x="238" y="241" text-anchor="middle">guards · forgery check</text>
+<line class="d-flow" x1="238" y1="248" x2="238" y2="262" marker-end="url(#wp-req-arrow)" />
+<rect class="d-a" x="170" y="266" width="136" height="26" rx="5" /><text class="d-on-a" x="238" y="283" text-anchor="middle">OnBeforeAction</text>
+<line class="d-flow" x1="238" y1="292" x2="238" y2="304" marker-end="url(#wp-req-arrow)" />
+<rect class="d-soft-a" x="170" y="308" width="136" height="26" rx="6" /><text x="238" y="325" text-anchor="middle">action handler</text>
+<line class="d-flow" x1="238" y1="334" x2="238" y2="346" marker-end="url(#wp-req-arrow)" />
+<rect class="d-frame" x="170" y="350" width="136" height="46" rx="5" /><text class="d-small" x="238" y="364" text-anchor="middle">answers with a page:</text><text class="d-small" x="238" y="376" text-anchor="middle">render hooks</text><text class="d-small" x="238" y="388" text-anchor="middle">without the cache</text>
+<line class="d-flow" x1="238" y1="396" x2="238" y2="428" marker-end="url(#wp-req-arrow)" />
+<rect class="d-b" x="170" y="432" width="136" height="26" rx="5" /><text class="d-on-b" x="238" y="449" text-anchor="middle">OnPersonalise</text>
+<path class="d-flow" d="M84 458C84 476 140 474 140 486" marker-end="url(#wp-req-arrow)" />
+<path class="d-flow" d="M238 458C238 476 180 474 180 486" marker-end="url(#wp-req-arrow)" />
+<rect class="d-pill" x="110" y="490" width="100" height="24" rx="12" /><text x="160" y="506" text-anchor="middle">response</text>
+<line class="d-rule" x1="6" y1="524" x2="314" y2="524" />
+<text class="d-small" x="160" y="542" text-anchor="middle">a failure: OnError · a document: OnDocumentRendered</text>
+</svg>
+<figcaption>OnRequest runs first, before collage's request span, then the middleware of the plugins in Config.Plugins, outside the application's app.Use. A page the cache holds, for GET or HEAD, skips the render hooks and goes straight to OnPersonalise. A fresh render runs OnBeforeRender and OnAfterRender, and is written to the cache by tag only for a GET whose render was not degraded; a page that is never cached has neither lookup nor write. An action runs OnBeforeAction after its guards, body limit and forgery check, and a plugin that sets ev.Result answers in the handler's place. An action that answers with its page runs the render hooks without the cache, and every HTML answer passes OnPersonalise; one that answers with a redirect reaches neither. A document runs OnDocumentRendered instead of the render hooks, and a failure while serving reaches OnError.</figcaption>
+</figure>
 
 Every hook method has the shape `func(ctx context.Context, ev *Event) error`, except
 `OnRequest`. v0.60.0 removed `PageResolvedHook` and `CacheWriteHook`, which nothing
@@ -316,7 +417,9 @@ its `Kind` — `collage.RouteKindPage`, `RouteKindDocument`, `RouteKindAction`,
 `Name`, the registered name or prefix: the page's, the document's or the action's
 name, the mount's or the handler's prefix. It is the zero `Route` while the request
 is unresolved, and for a request that resolved to nothing, such as a 404. (Before
-v0.60.0, `collage.RouteOf(ctx)` returned the kind and the name alone.) It reads the context collage serves the
+v0.60.0, `collage.RouteOf(ctx)` returned the kind and the name alone.)
+
+It reads the context collage serves the
 request under, which the finish function's context shares and
 `Metrics.HTTPResponse` receives, so a span or a metric can be labelled with the
 route rather than the raw path — a bounded set rather than one per URL.
@@ -333,7 +436,9 @@ panics is skipped, and the request is served under the context before it.
 Since v0.47.0 the hooks also see a request collage answers before routing: a path
 with an encoded slash (`/a%2f..%2fb`), answered with a 404, and a dirty path
 (`/a/../b`), redirected with 301 (308 for a method other than `GET` and `HEAD`).
-These are a scanner's probes more often than not. For such a request the finish
+These are a scanner's probes more often than not.
+
+For such a request the finish
 function is called with the status written (once, unless serving the request
 panics), `collage.RouteInfo` is the zero `Route`, and
 `r.URL` is the raw path. `collage.ClientIP(r)` works inside `OnRequest`, so a plugin
@@ -633,12 +738,16 @@ answer and an error page, never a document.
 
 `Personal` treats the response as a forgery token does: its ETag is recomputed
 from the body sent, a page answers `private, no-store`, and neither a page from
-the cache nor a fragment read is answered `304`, not even to `If-None-Match: *`. A fragment read answers `private, no-cache`
+the cache nor a fragment read is answered `304`, not even to `If-None-Match: *`.
+
+A fragment read answers `private, no-cache`
 with the recomputed ETag and an action's HTML `private, no-store`, overriding even
 a `Cache-Control` the handler set. A compressing middleware that keeps compressed
 bodies per ETag, such as elagoht/compress, gains nothing from a personal
 response: its ETag is new every time. elagoht/compress compresses it for each
-reader and keeps nothing (since v0.1.3). A body changed without `Personal`
+reader and keeps nothing (since v0.1.3).
+
+A body changed without `Personal`
 still gets an ETag naming the bytes sent. A hook that returns an error or panics is
 logged and the page, fragment or action answers 500; on an error page the built-in
 page for that status is sent instead. A site without such a plugin sends the same
@@ -691,7 +800,9 @@ an `InvalidateTags` entry was marked stale, not removed (since v0.63.0): it is n
 longer served as fresh, and is served again only, marked `STALE`, when its
 re-render fails or is degraded. A page that was not cached is never in it: nothing of it was
 reached. Nor is a page an earlier invalidation already marked stale, until it is
-rendered and stored again. Every cached entry also depends on the tag
+rendered and stored again.
+
+Every cached entry also depends on the tag
 `collage.PathTag(path)`, so a plugin that knows a path rather than a tag
 invalidates what is cached there with
 `host.InvalidateTags(ctx, collage.PathTag("/blog"))`. See
@@ -723,7 +834,9 @@ brackets (`::1`). The first plugin in registration order that returns `ok` wins.
 origin must be a bare `scheme://host[:port]` with scheme `http` or `https`, which
 `collage.ParseOrigin` checks and normalizes, and must name a host (`https://:8080`
 does not); an invalid one counts as not known, and dev mode logs it once per plugin
-and origin. A host no plugin knows gets `Config.BaseURL`, and a resolver that panics
+and origin.
+
+A host no plugin knows gets `Config.BaseURL`, and a resolver that panics
 is logged and skipped. Application code reads the result with `collage.BaseURL(rc)`,
 which is safe in a cached render because the host is in the cache key, and a static
 build, which has no request, gets `Config.BaseURL`. A site without a resolver sees no
@@ -762,15 +875,28 @@ or a handler registered with `App.Handle`. `Stage` names where it happened.
 `Page` is set only for a failure of a page that routing resolved. It is `nil` when
 no page was resolved, and also for a document, an action — including a page the
 action answers with through `RenderPage` — a mount and an `App.Handle` handler.
-Read `Path` to tell those apart, and guard every use of `Page`. The
-stages the framework uses are `"route"`, `"not_found"`, `"guard"` (since
-v0.28.0: a page's guard failed or answered with a decision it cannot write),
-`"before_render"`, `"before_action"`, `"render"`, `"after_render"`, `"cache_write"`, `"error_page"`,
-`"asset"`, `"plugin"`, `"handler"` and `"panic"`. Each has a constant (since
-v0.61.0) — `collage.StageRoute`, `StageNotFound`, `StageGuard`,
-`StageBeforeRender`, `StageBeforeAction`, `StageRender`, `StageAfterRender`,
-`StageCacheWrite`, `StageErrorPage`, `StageAsset`, `StagePlugin`, `StageHandler`,
-`StagePanic` — to compare against instead of the literal. The set is not a closed
+Read `Path` to tell those apart, and guard every use of `Page`.
+
+The stages the framework uses each have a constant (since v0.61.0), to compare
+against instead of the literal:
+
+| Stage | Constant |
+| --- | --- |
+| `"route"` | `collage.StageRoute` |
+| `"not_found"` | `collage.StageNotFound` |
+| `"guard"` (since v0.28.0: a page's guard failed or answered with a decision it cannot write) | `collage.StageGuard` |
+| `"before_render"` | `collage.StageBeforeRender` |
+| `"before_action"` | `collage.StageBeforeAction` |
+| `"render"` | `collage.StageRender` |
+| `"after_render"` | `collage.StageAfterRender` |
+| `"cache_write"` | `collage.StageCacheWrite` |
+| `"error_page"` | `collage.StageErrorPage` |
+| `"asset"` | `collage.StageAsset` |
+| `"plugin"` | `collage.StagePlugin` |
+| `"handler"` | `collage.StageHandler` |
+| `"panic"` | `collage.StagePanic` |
+
+The set is not a closed
 enum and may grow, so name the stages you handle rather than assuming you have seen
 them all.
 
@@ -800,7 +926,9 @@ render a stale page was served in place of (since v0.63.0). That one keeps the
 stage it failed in, `"render"` say, and reaches `OnError` once per failed render,
 however many readers were waiting on it and were served the stale page; see
 [Caching](/docs/caching#stale-pages-and-x-collage-cache). An
-`"error_page"` event always says 500. `Request` is the reader's live request, for
+`"error_page"` event always says 500.
+
+`Request` is the reader's live request, for
 reading only: its URL, method and headers, with a body that may already have been
 read. It is `nil` when the failure did not come from a request. Read what you need
 during `OnError`; do not keep it or hand it to another goroutine. Together they let
@@ -848,7 +976,9 @@ type BuiltRedirect struct {
 Fires once, when a static build has written every page, document and asset (since
 v0.21.0), for checks across pages. Read a file with `os.ReadFile` when its content
 is needed. `ev.Warn(path, rule, message)` and `ev.Error` report a finding against
-the page at `path`, or against the build as a whole with an empty one. An error
+the page at `path`, or against the build as a whole with an empty one.
+
+An error
 returned from the hook fails the build too, beside the files already written. It
 never fires on a server, and a build whose context ended is not handed to it.
 
@@ -859,7 +989,9 @@ handler for each file's path twice and puts the answer on the file: `Status` and
 CSP nonce. `Captured` is true for every file the build asked for, also one whose
 capture failed (`Status` 0), and false for the `404.html` pages, which the build
 makes itself. The root copy of the home page, under `PrefixDefault`, carries the
-home page's capture. The capture runs only when a
+home page's capture.
+
+The capture runs only when a
 `BuildFinishedHook` plugin is registered. What it finds is reported as warnings;
 see [Static export](/docs/static-export#headers-and-redirects).
 
@@ -894,7 +1026,9 @@ The build asks it once, after every file is written, and adds its rules to
 registered redirect is: `From` starts with one `/` and parses as a route pattern,
 and every placeholder in `To` is captured by it. Unlike a page's redirect, `To` may
 be an absolute `http` or `https` URL, and a `410` (a path that is gone) has no `To`;
-301, 302, 307 and 308 need one. Any other `Status` fails the build with
+301, 302, 307 and 308 need one.
+
+Any other `Status` fails the build with
 `collage.ErrInvalidRedirectStatus`, and a malformed rule, or one with a control
 character, with `collage.ErrInvalidRedirect`, naming the rule and the plugin. A
 plugin rule from the same path as another redirect, or over a written file, fails
@@ -998,7 +1132,9 @@ a plugin registers no pages: `Host.RegisterPage` is gone, and pages are the
 application's. `Host.Handle` serves a plain `http.Handler` under a prefix, for
 what is not a page — an event stream, a WebSocket. A prefix ending in `/` claims
 every path beneath it; since v0.24.0 one without, `/metrics`, is a single exact
-path. `Host.Use` (since v0.21.0) wraps
+path.
+
+`Host.Use` (since v0.21.0) wraps
 every request, as `App.Use` does, where the plugin was registered. Since v0.38.0 a
 plugin in `Config.Plugins` is outside the application's own middleware, so what it
 puts in the request's context, a session, is there for the application's
@@ -1024,7 +1160,9 @@ way.
 A plugin that answers a request itself — a page that is gone, a request it
 refuses — can answer with the site's own page rather than a line of text:
 `host.ServeStatus(w, r, http.StatusGone)` serves the not-found page for 404 and
-410, and the error page for any other status (since v0.24.0). A plugin versioning
+410, and the error page for any other status (since v0.24.0).
+
+A plugin versioning
 what a browser keeps across deploys — a service worker's caches, an asset's query
 string — reads `host.BuildID()`: `Config.Cache.Version` when it is set, or a
 fingerprint of the executable. `App.BuildID` and `App.ServeStatus` are the same,
@@ -1073,9 +1211,14 @@ log.Fatal(app.ListenAndServe())
 ```
 
 `DispatchCommands` starts the application first, because `Init` is what registers
-the commands. The exit codes are `0` for success; `1` for a startup failure, a
-command that ran and failed, or a command with no `Run`; and `2` for a nil app, no
-arguments, or an unclaimed name (`ErrUnknownCommand`). Say in your plugin's README that its commands
+the commands. The exit codes are:
+
+- `0` for success;
+- `1` for a startup failure, a command that ran and failed, or a command with no
+  `Run`;
+- `2` for a nil app, no arguments, or an unclaimed name (`ErrUnknownCommand`).
+
+Say in your plugin's README that its commands
 run through the application — a project scaffolded before v0.10.0 has to add that
 block itself. See [The collage CLI](/docs/cli#plugin-commands).
 
@@ -1138,10 +1281,14 @@ Document every key, its type and its default in your README. Take the same
 options in Go through one constructor, `func New(opts Options) *Plugin`, and decode
 the section over them: an application then configures you in Go, in JSON, or both,
 and `collage plugin add` writes `New(Options{})`, so the zero `Options` must be a
-working plugin (or fail in `Init` with a message that says what is missing). Call
+working plugin (or fail in `Init` with a message that says what is missing).
+
+Call
 the type `Options`, not `Config`, which reads as `collage.Config` at the call site.
 Booleans default to their zero value: an opt-out is a `noX` key rather than a key
-that defaults to true. A secret never goes in `plugins-config.json`: a `<x>Env`
+that defaults to true.
+
+A secret never goes in `plugins-config.json`: a `<x>Env`
 key names the environment variable that holds it, and a `json:"-"` field takes the
 value from Go.
 
@@ -1317,29 +1464,39 @@ app, err := collage.New(&collage.Config{
    calls it; its ctx is cancelled when the drain starts — see
    [Streams and shutdown](#streams-and-shutdown).
 5. **Shutdown**, from `App.Shutdown` — which `ListenAndServe` calls on `SIGINT` or
-   `SIGTERM` — in reverse registration order. Since v0.61.0 it calls `Shutdown`
-   **once, and only for a plugin whose `Init` succeeded**: a plugin whose `Init`
-   never ran or failed is not called, and one already shut down is not called
-   again. A start that fails *after* every `Init` succeeded — a mount that swallows
-   a page, an error page never registered — shuts the plugins down there and then,
-   as a failing `Init` rolls back the ones before it. A `Shutdown` before `Start`
-   initialises no plugin at all (since v0.61.1): `Start` then fails, and
-   `ListenAndServe` returns nil. A `Start` after `Shutdown` fails whether or not
-   plugins are registered (since v0.61.3). Every plugin gets its turn even if one fails, and
-   the errors are joined. A plugin implementing `StreamCloser` has its
-   `CloseStreams` called earlier, when shutdown begins, and a plugin implementing
-   `DrainHook` has its `OnDrain` called before that, when the drain starts — both
-   only for plugins whose `Init` succeeded (since v0.61.4); a `Shutdown` before
-   `Start` tells none — see
-   [Streams and shutdown](#streams-and-shutdown).
+   `SIGTERM` — in reverse registration order.
+
+   - Since v0.61.0 it calls `Shutdown`
+     **once, and only for a plugin whose `Init` succeeded**: a plugin whose `Init`
+     never ran or failed is not called, and one already shut down is not called
+     again.
+   - A start that fails *after* every `Init` succeeded — a mount that swallows
+     a page, an error page never registered — shuts the plugins down there and then,
+     as a failing `Init` rolls back the ones before it.
+   - A `Shutdown` before `Start`
+     initialises no plugin at all (since v0.61.1): `Start` then fails, and
+     `ListenAndServe` returns nil. A `Start` after `Shutdown` fails whether or not
+     plugins are registered (since v0.61.3).
+   - Every plugin gets its turn even if one fails, and
+     the errors are joined.
+   - A plugin implementing `StreamCloser` has its
+     `CloseStreams` called earlier, when shutdown begins, and a plugin implementing
+     `DrainHook` has its `OnDrain` called before that, when the drain starts — both
+     only for plugins whose `Init` succeeded (since v0.61.4); a `Shutdown` before
+     `Start` tells none — see
+     [Streams and shutdown](#streams-and-shutdown).
 
    With `ListenAndServe`, plugins are shut down after the drain's
    `Server.DrainDelay` and after the server has finished its requests, or once
    `Server.ShutdownTimeout` has passed if it has not — past the
-   deadline a request may still be running. With a server you own, the `App` knows
+   deadline a request may still be running.
+
+   With a server you own, the `App` knows
    of none: start `ServeHook` plugins yourself, stop your server first, then call
    `App.Shutdown`, or a plugin can be torn out from under an in-flight request (see
-   [Deployment](/docs/deployment#serving-with-your-own-server)). A static build or
+   [Deployment](/docs/deployment#serving-with-your-own-server)).
+
+   A static build or
    a plugin command serves nothing, so nothing calls `App.Shutdown` for it either:
    a scaffolded `main.go` calls it once the build or the command is done (since
    v0.55.0).
@@ -1351,7 +1508,9 @@ through its handler. `collagetest.NewSite` (since v0.61.0) builds one with the
 least configuration a test needs — a layout with `{{hoist "head"}}` and
 `{{slot "content"}}`, a `home` page at `/`, a debug-level logger whose records it
 keeps — puts your plugin in it, and starts it, so `Configure` and `Init` run at once
-and their errors fail the test. The application shuts down when the test ends. No
+and their errors fail the test.
+
+The application shuts down when the test ends. No
 server listens and no port is chosen.
 
 ```go
@@ -1432,6 +1591,7 @@ func TestStamp_RefusesLateRegistration(t *testing.T) {
 A `Site` is the started `App`, a `collagetest.Client` on its handler — so `Get`,
 `Submit`, `Follow` and every other [client](/docs/testing#the-client) method work on it — and
 `Logs`, every record the application wrote at debug level and above.
+
 `Logs.Has(level, parts...)` reports whether a record at that level or above
 contains every part, and it is safe to call while the application serves requests
 from other goroutines. A test adds what its plugin needs:
@@ -1450,7 +1610,9 @@ from other goroutines. A test adds what its plugin needs:
 fail — a plugin refusing a bad configuration — and returns the error instead of
 failing the test. When building the site fails — a `WithRegister` item, a
 `WithSetup` or `Start` — it shuts the application down first (since v0.61.3), so a
-plugin value can be used again for the next site. A `collagetest.Site` can be
+plugin value can be used again for the next site.
+
+A `collagetest.Site` can be
 copied (`s := *site`); `go vet`'s copylocks check no longer objects.
 
 A test that shuts the application down itself — to check what your `Shutdown`
@@ -1471,3 +1633,284 @@ A few things worth testing that are easy to forget:
 - **A static export**, if you produce files: `collage.Build(ctx, app, ...)` into a
   `t.TempDir()` shows whether the exported site has what the served one had. See
   [Testing](/docs/testing) and [Static export](/docs/static-export).
+
+## Example: a catalogue's referrer policy, from scratch
+
+A product catalogue links out to its suppliers, a payment provider and review
+sites. Its URLs say what a shopper was looking at —
+`/products/{slug}?colour=red&campaign=autumn` — and the team wants every page to
+tell the browser, in a `Referrer-Policy` header, how much of that it may pass on.
+The policy must be the same on the server and in the exported copy of the site,
+and the footer names the address to report a vulnerability to.
+
+`acme/policy` is a plugin written for that, small but complete:
+
+- **Options**, set in Go or in `plugins-config.json`: the policy and the contact.
+- **Middleware** added in `Init` with `Host.Use`, which sets the header on every
+  response.
+- **A template function**, `{{securityContact}}`, added in `Configure`.
+- **A build finding** from `OnBuildFinished`: a page the static build captured
+  without the configured header.
+
+A site that wants the whole set of security headers uses
+[elagoht/secure](/docs/plugins#elagohtsecure), which sends `Referrer-Policy` among
+them. This one stays small so that each part of a plugin shows.
+
+### The plugin
+
+```go
+// Package policy sends a Referrer-Policy header on every response, offers the
+// site's security contact to templates, and checks a static build for pages
+// that went out without the header.
+package policy
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"slices"
+
+	"github.com/Elagoht/collage/pkg/collage"
+)
+
+// Name is the plugin's name, and the key of its section in plugins-config.json.
+const Name = "acme/policy"
+
+// DefaultReferrerPolicy is what is sent when Options.ReferrerPolicy is empty.
+const DefaultReferrerPolicy = "strict-origin-when-cross-origin"
+
+// policies are the values a Referrer-Policy header may hold.
+var policies = []string{
+	"no-referrer", "no-referrer-when-downgrade", "origin", "origin-when-cross-origin",
+	"same-origin", "strict-origin", "strict-origin-when-cross-origin", "unsafe-url",
+}
+
+// Options is the plugin's configuration. The zero value is a working plugin.
+type Options struct {
+	// ReferrerPolicy is the header's value; DefaultReferrerPolicy when empty.
+	ReferrerPolicy string `json:"referrerPolicy"`
+	// Contact is where to report a vulnerability, offered as {{securityContact}}.
+	Contact string `json:"contact"`
+}
+
+// Plugin is the policy plugin. Construct it with New.
+type Plugin struct {
+	opts Options
+}
+
+// New returns the plugin. The application's plugins-config.json section is
+// decoded over opts.
+func New(opts Options) *Plugin { return &Plugin{opts: opts} }
+
+var (
+	_ collage.Plugin            = (*Plugin)(nil)
+	_ collage.Configurer        = (*Plugin)(nil)
+	_ collage.BuildFinishedHook = (*Plugin)(nil)
+)
+
+func (p *Plugin) Name() string    { return Name }
+func (p *Plugin) Version() string { return "0.1.0" }
+
+// Configure reads the options and adds the template function: it runs inside
+// collage.New, before the templates are parsed.
+func (p *Plugin) Configure(_ context.Context, host collage.ConfigHost) error {
+	opts, err := collage.PluginConfig(host, p.opts)
+	if err != nil {
+		return err
+	}
+	if opts.ReferrerPolicy == "" {
+		opts.ReferrerPolicy = DefaultReferrerPolicy
+	}
+	if !slices.Contains(policies, opts.ReferrerPolicy) {
+		return fmt.Errorf("%s: %q is not a referrer policy", Name, opts.ReferrerPolicy)
+	}
+	p.opts = opts
+	return host.AddTemplateFunc("securityContact", func() string { return p.opts.Contact })
+}
+
+// Init adds the middleware. A plugin in Config.Plugins wraps the application's
+// own middleware, so a header the application sets wins over this one.
+func (p *Plugin) Init(_ context.Context, host collage.Host) error {
+	return host.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Referrer-Policy", p.opts.ReferrerPolicy)
+			next.ServeHTTP(w, r)
+		})
+	})
+}
+
+func (p *Plugin) Shutdown(context.Context) error { return nil }
+
+// OnBuildFinished checks what a static host will be told to send: the build
+// asked the application for every file it wrote, and kept the headers.
+func (p *Plugin) OnBuildFinished(_ context.Context, ev *collage.BuildFinishedEvent) error {
+	if p.opts.Contact == "" {
+		ev.Warn("", "no-contact", "no security contact is configured; set contact in plugins-config.json")
+	}
+	for _, f := range ev.Files {
+		if f.Kind != collage.BuiltPage || f.Status < 200 || f.Status > 299 {
+			continue // not a page, or not captured with a 2xx
+		}
+		if got := f.Headers.Get("Referrer-Policy"); got != p.opts.ReferrerPolicy {
+			ev.Error(f.Path, "referrer-policy", fmt.Sprintf("Referrer-Policy is %q, want %q", got, p.opts.ReferrerPolicy))
+		}
+	}
+	return nil
+}
+```
+
+Where each part sits follows from the sections above:
+
+- **The options are checked in `Configure`.** A policy the header cannot hold
+  fails `collage.New`, as an unknown key does, rather than going out on every
+  response.
+- **The middleware sets the header before calling `next`.** A plugin in
+  `Config.Plugins` wraps the application's own middleware, so a header the
+  application's middleware or a handler sets afterwards replaces this one: the
+  application has the last word.
+- **The check reads `f.Headers`**, which a build fills in only because a
+  `BuildFinishedHook` plugin is registered, so it costs a server nothing. A file
+  the build did not capture, or that was not answered with a 2xx, is skipped.
+- **A missing contact is a warning, a wrong header an error.** The warning is
+  listed in the report; the error fails the build with `collage.ErrBuildFindings`,
+  and the pages are written either way.
+
+### Registered in the application
+
+The catalogue's `plugins-config.json`:
+
+```json
+{
+  "acme/policy": {
+    "referrerPolicy": "same-origin",
+    "contact": "security@catalogue.example"
+  }
+}
+```
+
+```go
+pluginConfig, err := collage.LoadPluginConfig("plugins-config.json")
+if err != nil {
+	log.Fatal(err)
+}
+app, err := collage.New(&collage.Config{
+	Template:     collage.TemplateConfig{Root: "templates"},
+	Plugins:      []collage.Plugin{policy.New(policy.Options{})},
+	PluginConfig: pluginConfig,
+})
+if err != nil {
+	log.Fatal(err)
+}
+```
+
+The footer template then shows the contact:
+
+```html
+<footer>Found a vulnerability? Write to {{securityContact}}.</footer>
+```
+
+### Its tests
+
+```go
+package policy_test
+
+import (
+	"context"
+	"errors"
+	"net/http"
+	"strings"
+	"testing"
+
+	"github.com/Elagoht/collage/pkg/collage"
+	"github.com/Elagoht/collage/pkg/collagetest"
+
+	"example.com/policy"
+)
+
+// newSite builds a one-page application with the plugin in it.
+func newSite(t *testing.T, options ...collagetest.SiteOption) *collagetest.Site {
+	t.Helper()
+	return collagetest.NewSite(t, append([]collagetest.SiteOption{
+		collagetest.WithPlugins(policy.New(policy.Options{})),
+		collagetest.WithTemplates(map[string]string{"home.html": `<footer>{{securityContact}}</footer>`}),
+	}, options...)...)
+}
+
+func TestPolicy_SendsTheDefault(t *testing.T) {
+	res := newSite(t).Get("/").WantStatus(http.StatusOK)
+	if got := res.Header.Get("Referrer-Policy"); got != policy.DefaultReferrerPolicy {
+		t.Errorf("Referrer-Policy = %q, want %q", got, policy.DefaultReferrerPolicy)
+	}
+}
+
+func TestPolicy_ReadsItsConfiguration(t *testing.T) {
+	site := newSite(t, collagetest.WithPluginConfig(policy.Name,
+		`{"referrerPolicy": "no-referrer", "contact": "security@example.com"}`))
+	res := site.Get("/").WantStatus(http.StatusOK)
+	if got := res.Header.Get("Referrer-Policy"); got != "no-referrer" {
+		t.Errorf("Referrer-Policy = %q, want no-referrer", got)
+	}
+	if !strings.Contains(res.Body, "<footer>security@example.com</footer>") {
+		t.Errorf("no contact in %s", res.Body)
+	}
+}
+
+func TestPolicy_RefusesAnUnknownPolicy(t *testing.T) {
+	_, err := collagetest.TrySite(t,
+		collagetest.WithPlugins(policy.New(policy.Options{})),
+		collagetest.WithPluginConfig(policy.Name, `{"referrerPolicy": "never"}`),
+	)
+	if err == nil || !strings.Contains(err.Error(), "not a referrer policy") {
+		t.Errorf("err = %v, want the policy refused", err)
+	}
+}
+
+func TestPolicy_BuildFindsAnOverriddenHeader(t *testing.T) {
+	site := newSite(t,
+		collagetest.WithPluginConfig(policy.Name, `{"contact": "security@example.com"}`),
+		// The application's own middleware runs inside the plugin's, so its
+		// header replaces the plugin's.
+		collagetest.WithSetup(func(app *collage.App) error {
+			return app.Use(func(next http.Handler) http.Handler {
+				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.Header().Set("Referrer-Policy", "unsafe-url")
+					next.ServeHTTP(w, r)
+				})
+			})
+		}),
+	)
+	report, err := collage.Build(context.Background(), site.App, collage.BuildOptions{OutDir: t.TempDir()})
+	if !errors.Is(err, collage.ErrBuildFindings) {
+		t.Fatalf("Build: err = %v, want ErrBuildFindings", err)
+	}
+	var found bool
+	for _, f := range report.Findings {
+		if f.Rule == "referrer-policy" && f.Path == "/" && f.Level == collage.FindingError {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("findings = %+v, want referrer-policy on /", report.Findings)
+	}
+}
+
+func TestPolicy_BuildWarnsWithoutAContact(t *testing.T) {
+	report, err := collage.Build(context.Background(), newSite(t).App, collage.BuildOptions{OutDir: t.TempDir()})
+	if err != nil {
+		t.Fatalf("Build: %v", err) // a warning fails nothing
+	}
+	if len(report.Findings) != 1 || report.Findings[0].Rule != "no-contact" || report.Findings[0].Level != collage.FindingWarning {
+		t.Errorf("findings = %+v, want one no-contact warning", report.Findings)
+	}
+}
+```
+
+Each test covers one promise of the plugin:
+
+| Test | What it shows |
+| --- | --- |
+| `SendsTheDefault` | The zero `Options` is a working plugin |
+| `ReadsItsConfiguration` | The section reaches both the header and the template function |
+| `RefusesAnUnknownPolicy` | A bad value fails `collage.New`, and `TrySite` returns the error |
+| `BuildFindsAnOverriddenHeader` | The application's own middleware, registered with `WithSetup`, runs inside the plugin's and wins; the build reports the page and fails with `ErrBuildFindings` |
+| `BuildWarnsWithoutAContact` | A warning about the whole build has an empty `Path` and fails nothing |
