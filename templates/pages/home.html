@@ -10,10 +10,10 @@
       </div>
     </div>
     <div class="hero-art">
-      <figure style="display: flex; align-items: center;">
-        <img src="{{asset "/static/favicon.svg"}}" alt="Collage Logo" height="128" width="128"/>
-        <span style="font-size: 128px; color: var(--tile-c); font-weight: bold;">ollage</span>
-      </figure>
+      <p class="wordmark" role="img" aria-label="collage">
+        <img src="{{asset "/static/favicon.svg"}}" alt="" width="128" height="128">
+        <span aria-hidden="true">ollage</span>
+      </p>
       <pre class="install"><code><span class="prompt">$</span> go install github.com/Elagoht/collage/cmd/collage@latest
 <span class="prompt">$</span> collage new &lt;project_name&gt;
 <span class="prompt">$</span> cd &lt;project_name&gt;
