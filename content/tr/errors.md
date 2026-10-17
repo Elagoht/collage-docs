@@ -19,10 +19,10 @@ Bunların çoğu **uygulama açılırken** bildirilir. `New` config'i doğrular 
 template'leri parse eder. Register işlemi her page'i doğrular. Uygulama başlarken de
 ancak kümenin tamamına bakınca görülebilecek sorunlar kontrol edilir.
 
-Böylece sitenin bir araya getirilişindeki bir hata, onu ilk bulan okuyucuda patlayan
-bir page olarak değil, hiç başlamayan bir program olarak ortaya çıkar. `collage dev`
-altında bu ret, programın yazdıklarını gösteren bir 503 page'i olarak tarayıcıda
-görünür. Bkz. [CLI](/docs/cli#collage-dev).
+Böylece sitenin bir araya getirilişindeki bir hata, onu ilk bulan okuyucuda
+başarısız olan bir page olarak değil, hiç başlamayan bir program olarak ortaya
+çıkar. `collage dev` altında bu ret, programın yazdıklarını gösteren bir 503
+page'i olarak tarayıcıda görünür. Bkz. [CLI](/docs/cli#collage-dev).
 
 <figure class="diagram-figure" data-search-ignore>
 <svg class="diagram" viewBox="0 0 320 384" role="img" aria-labelledby="errs-title">
@@ -50,10 +50,10 @@ görünür. Bkz. [CLI](/docs/cli#collage-dev).
 <line class="d-flow" x1="79" y1="244" x2="79" y2="256" marker-end="url(#errs-arrow)" />
 <line class="d-flow" x1="241" y1="244" x2="241" y2="256" marker-end="url(#errs-arrow)" />
 <rect class="d-chip" x="4" y="260" width="150" height="54" rx="6" /><text class="d-small" x="79" y="276" text-anchor="middle">404, 500 ya da fallback</text><text class="d-small" x="79" y="290" text-anchor="middle">OnError stage'i alır</text><text class="d-small" x="79" y="304" text-anchor="middle">production sebebi gizler</text>
-<rect class="d-chip" x="166" y="260" width="150" height="54" rx="6" /><text class="d-small" x="241" y="276" text-anchor="middle">Build döner ya da</text><text class="d-small" x="241" y="290" text-anchor="middle">report'a yazılır:</text><text class="d-small" x="241" y="304" text-anchor="middle">Errors, Skipped, Findings</text>
+<rect class="d-chip" x="166" y="260" width="150" height="54" rx="6" /><text class="d-small" x="241" y="276" text-anchor="middle">Build döner ya da</text><text class="d-small" x="241" y="290" text-anchor="middle">report'a yazar: Errors,</text><text class="d-small" x="241" y="304" text-anchor="middle">Skipped, Findings</text>
 <rect class="d-cmd" x="4" y="332" width="312" height="44" rx="6" /><text class="d-cmd-text" x="160" y="350" text-anchor="middle">errors.Is(err, collage.ErrUnknownSlot)</text><text class="d-cmd-text d-small" x="160" y="366" text-anchor="middle">wrap edilmiş olsa da her sentinel'e aynı test</text>
 </svg>
-<figcaption>Her tür hatanın size ne zaman ulaştığı. <code>New</code> hatalı bir config'i reddeder. Bir builder'ın kaydettiği hata, kurduğu değerin üzerinde kalır ve register bu değeri, validation'ın bulduklarıyla birlikte reddeder. Başlatma, ancak kümenin tamamında görülebileni kontrol eder: <code>Start</code> bu hatayı döner, <code>Handler</code> ise onu log'lar ve 503 ile cevap verir. Sonrasında bir request sırasındaki hata bir status'a, bir fallback'e ya da bir error page'e dönüşür ve error hook'larına ulaşır; production page'i sebep hakkında hiçbir şey söylemez. Static bir build ise hatasını döner ya da report'una kaydeder. Hangisi olursa olsun, onu <code>errors.Is</code> ile eşleştirin.</figcaption>
+<figcaption>Her tür hata size farklı bir anda ulaşır. <code>New</code> hatalı bir config'i reddeder. Bir builder'ın kaydettiği hata, kurduğu değerin üzerinde kalır ve register bu değeri, validation'ın bulduklarıyla birlikte reddeder. Başlatma, ancak kümenin tamamında görülebileni kontrol eder: <code>Start</code> bu hatayı döner, <code>Handler</code> ise onu log'lar ve 503 ile cevap verir. Sonrasında bir request sırasındaki hata bir status'a, bir fallback'e ya da bir error page'e dönüşür ve error hook'larına ulaşır; production page'i sebep hakkında hiçbir şey söylemez. Static bir build ise hatasını döner ya da report'una kaydeder. Hangisi olursa olsun, onu <code>errors.Is</code> ile eşleştirin.</figcaption>
 </figure>
 
 Aşağıdaki tablolar her hatanın nereden geldiğine göre gruplanmıştır. Mesaj,
@@ -73,8 +73,8 @@ ismi boş bir plugin ya da komut, tek sayıda argüman ya da string olmayan bir 
 almış bir `{{dict}}` çağrısı ve version'ı olmayan bir disk cache'i. Bunlar yine
 reddedilir; mesaj neyin yanlış olduğunu söyler.
 
-Birkaç sentinel de kalan sentinel'in
-ismini aldı: `ErrMissingTTL` artık `ErrInvalidTTL`, `ErrUnsupportedCache` artık
+Birkaç sentinel de kalan sentinel'in ismini aldı: `ErrMissingTTL` artık
+`ErrInvalidTTL`, `ErrUnsupportedCache` artık
 `ErrInvalidCacheType`, `ErrInvalidHandlerPrefix` artık `ErrInvalidPrefix`,
 `ErrInvalidBaseURL` artık `ErrInvalidOrigin`, `ErrNoMethods` artık
 `ErrNoActionMethods`, `ErrNilRenderer` artık `ErrNilApp`, `ErrInvalidOutDir` artık
@@ -117,8 +117,9 @@ Bu hataları iki yer bildirir. Birkaçını builder'lar zincir çalışırken ka
 `WithSlot`, `WithSlotResolver` ve `WithSlotFragment` `ErrDuplicateSlot` ve
 `ErrSlotResolved`'u kaydeder (`WithSlotFragment` ayrıca `ErrNilFragment` ve
 `ErrSlotOccupied` hatalarını da kaydeder). `WithTimeout` `ErrInvalidTimeout`'u,
-`WithPath` `ErrDuplicateLocalePath` ve `ErrInvalidLocale`'i, `WithLayouts` `ErrMissingLayout`, `ErrConflictingLayout`,
-`ErrNilFragment` ve `ErrFragmentCycle`'ı, bir page'in `Build`'i
+`WithPath` `ErrDuplicateLocalePath` ve `ErrInvalidLocale`'i, `WithLayouts`
+`ErrMissingLayout`, `ErrConflictingLayout`, `ErrNilFragment` ve
+`ErrFragmentCycle`'ı, bir page'in `Build`'i
 `ErrMissingContent`'i, bir document'ın `Build`'i de `ErrNoDocumentHandler`'ı
 kaydeder. Bunları `BuildErr()` ile okuyabilirsiniz.
 
@@ -256,9 +257,10 @@ yer alır. Production page'i değişmemiştir ve sebep hakkında hiçbir şey s�
 
 ## Link'ler ve URL'ler
 
-Bu hataları `App.URL`, `App.ActionURL` ve `App.FragmentURL` döner. `{{pageURL}}`, `{{actionURL}}`, `{{pageURLIn}}`,
-`{{localeURL}}`, `{{fragmentURL}}` ve `{{fragmentURLIn}}` ise başarısız olan
-render'larla bildirir. Bkz. [Link'ler ve locale'ler](/docs/links-and-locales).
+Bu hataları `App.URL`, `App.ActionURL` ve `App.FragmentURL` döner. `{{pageURL}}`,
+`{{actionURL}}`, `{{pageURLIn}}`, `{{localeURL}}`, `{{fragmentURL}}` ve
+`{{fragmentURLIn}}` ise başarısız olan render'larla bildirir. Bkz.
+[Link'ler ve locale'ler](/docs/links-and-locales).
 
 | Hata | Mesaj | Anlamı |
 | --- | --- | --- |
@@ -272,9 +274,9 @@ render'larla bildirir. Bkz. [Link'ler ve locale'ler](/docs/links-and-locales).
 ## Action'lar
 
 Bu hataları `RegisterAction` döner. `RegisterPage` de bir page'e eklenmiş action'ı
-kontrol eder: `ErrNilAction`, `ErrNoActionMethods` ve v0.10.0'dan beri `ErrNoActionHandler`
-ile `ErrDuplicateAction`. `nil` bir fragment path'ini ise `ErrNilFragmentPath` ile
-reddeder.
+kontrol eder: `ErrNilAction`, `ErrNoActionMethods` ve v0.10.0'dan beri
+`ErrNoActionHandler` ile `ErrDuplicateAction`. `nil` bir fragment path'ini ise
+`ErrNilFragmentPath` ile reddeder.
 
 v0.11.0'dan beri tek bir `ErrNoActionHandler` vardır; register sırasında
 ve request'te aynı değerdir. v0.60.0'dan beri kurulurken hata kaydetmiş bir action
@@ -363,13 +365,15 @@ geçmiştir) `400` ya da `408` ile cevaplanır ve hiçbir error hook'una ulaşma
 seviyesinde log'lanır. Bkz.
 [Streaming body'ler](/docs/forms-and-actions#streaming-bodies).
 
-Alarm kurmaya değer stage `"error_page"`'dir (`collage.StageErrorPage`; v0.61.0'dan beri her stage'in bir `Stage*` sabiti vardır). Hataları bildiren page'in kendisi başarısız
-olmuştur, ama okuyucu yine de makul görünen bir page görmüştür. Bu yüzden size bunu
-başka hiçbir şey söylemez.
+Alarm kurmaya değer stage `"error_page"`'dir (`collage.StageErrorPage`;
+v0.61.0'dan beri her stage'in bir `Stage*` sabiti vardır). Hataları bildiren
+page'in kendisi başarısız olmuştur, ama okuyucu yine de makul görünen bir page
+görmüştür. Bu yüzden size bunu başka hiçbir şey söylemez.
 
 ## Static build'ler
 
-Bu hataları `collage.Build` döner ya da döndüğü `BuildReport`'a kaydedilirler. Bkz. [Static export](/docs/static-export).
+Bu hataları `collage.Build` döner ya da döndüğü `BuildReport`'a kaydedilirler.
+Bkz. [Static export](/docs/static-export).
 
 | Hata | Mesaj | Nerede | Anlamı |
 | --- | --- | --- | --- |
@@ -402,14 +406,15 @@ Bu yüzden `Reason`'ı okumak yerine onu `errors.Is(skip.Err, …)` ile eşleşt
 
 Yeni bir proje page'lerini `routes.go`'da register eder. Scaffold edilen `main.go`
 ilk hatada durur ve onu saatin ve projenin isminin ardından yazar (aşağıda saat
-gösterilmez). Buradaki projenin ismi `blog`. `Register` reddettiği ilk öğede durur, bu yüzden bu hatalar her çalıştırmada
-birer birer gelir: düzeltin, yeniden çalıştırın, sıradakini okuyun.
+gösterilmez). Buradaki projenin ismi `blog`'dur. `Register` reddettiği ilk öğede
+durur, bu yüzden bu hatalar her çalıştırmada birer birer gelir: düzeltin, yeniden
+çalıştırın, sıradakini okuyun.
 
 Her satır dıştan içe okunur:
 
 - `blog:` önekini `main.go` ekler;
 - `register page "home":`, `Register`'ın reddettiği öğeyi adıyla belirtmesidir;
-- `collage: unknown slot`, sentinel'in mesajıdır, yukarıdaki tablolardaki mesajdır;
+- `collage: unknown slot`, sentinel'in yukarıdaki tablolarda da yer alan mesajıdır;
 - geri kalanı ayrıntıdır: page, fragment, template.
 
 ### Yazım hatalı bir slot ismi
@@ -471,12 +476,11 @@ taşımaz. Her bulgu bir `*collage.TemplateTypeError`'dır ve kendini şöyle ya
 page, fragment, template'in dosyası, satırı ve sütunu, ifade, ifadedeki sorun ve
 yakın bir isim varsa muhtemelen kastettiğiniz isim. `{{.Title}}` yazın.
 
-`errors.Is(err, collage.ErrTemplateType)` yine de onunla eşleşir. Page'in
-template'lerindeki bütün bulgular, her biri ayrı bir satırda olmak üzere tek seferde
-bildirilir; ancak page'de daha önce reddedilen başka bir şey yoksa. Eksik bir
-template ya da yanlış bir slot bağlaması, bulgular dönülmeden önce kontrolü
-durdurur.
-`errors.As` ilk bulgunun alanlarına ulaşır:
+`errors.Is(err, collage.ErrTemplateType)` yine de onunla eşleşir. Page'de daha
+önce reddedilen başka bir şey yoksa, page'in template'lerindeki bütün bulgular tek
+seferde, her biri ayrı bir satırda bildirilir. Eksik bir template ya da yanlış bir
+slot bağlaması, kontrolü bulgular döndürülmeden önce durdurur. `errors.As` ilk
+bulgunun alanlarına ulaşır:
 
 ```go
 var typeErr *collage.TemplateTypeError
@@ -487,8 +491,8 @@ if errors.As(err, &typeErr) {
 
 ### Page'inin path'indeki bir fragment path'i
 
-Search page'i, sonuçlarını bir script yenileyebilsin diye kendi URL'sinde açar ve
-onlara page'in path'ini verir:
+Search page'i, bir script sonuçları yenileyebilsin diye onları ayrı bir URL'de
+açar, ama onlara page'in kendi path'ini verir:
 
 ```go
 func Search() *collage.Page {

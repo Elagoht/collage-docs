@@ -11,7 +11,7 @@ dışında hiçbir şeye ihtiyaç duymaz.
 
 <figure class="diagram-figure" data-search-ignore>
 <svg class="diagram" viewBox="0 0 320 364" role="img" aria-labelledby="inst-flow-title">
-<title id="inst-flow-title">Sıfırdan çalışan bir projeye. go install, collage CLI'ını PATH'inize koyar. collage new mysite varsayılan olarak minimal projeyi yazar: tek bir page'i saran bir layout ve bir stylesheet. --template demo ile demoları, testlerini ve bir .env.example yazar. go mod tidy, go.mod'a collage'ı ekler ve go.sum'ı yazar. Ardından collage dev localhost:6060'ta serve eder ve her request'i, kendine ait loopback bir adreste çalışan programa iletir. Kaydedilen bir Go dosyası yeniden build edilip yeniden başlatılır, kaydedilen bir template ya da static dosya page'i yeniler.</title>
+<title id="inst-flow-title">Sıfırdan çalışan bir projeye böyle gelinir. go install, collage CLI'ını PATH'inize koyar. collage new mysite varsayılan olarak minimal projeyi yazar: tek bir page'i saran bir layout ve bir stylesheet. --template demo ile demoları, testlerini ve bir .env.example yazar. go mod tidy, go.mod'a collage'ı ekler ve go.sum'ı yazar. Ardından collage dev localhost:6060'ta serve eder ve her request'i, kendine ait loopback bir adreste çalışan programa iletir. Kaydedilen bir Go dosyası yeniden build edilip yeniden başlatılır, kaydedilen bir template ya da static dosya page'i yeniler.</title>
 <defs><marker id="inst-flow-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
 <rect class="d-cmd" x="50" y="8" width="220" height="24" rx="12" /><text class="d-cmd-text" x="160" y="24" text-anchor="middle">go install …/collage@latest</text>
 <line class="d-flow" x1="160" y1="32" x2="160" y2="46" marker-end="url(#inst-flow-arrow)" />
@@ -37,7 +37,7 @@ dışında hiçbir şeye ihtiyaç duymaz.
 <text class="d-small" x="22" y="328">template ya da static dosya: yenileme</text>
 <text class="d-small" x="22" y="344">program: kendine ait loopback adres</text>
 </svg>
-<figcaption>Sıfırdan çalışan bir projeye. <code>go install</code> CLI'ı <code>PATH</code>'inize koyar. <code>collage new</code>, siz <code>--template demo</code> istemedikçe minimal projeyi yazar. Demo template'i buna demoları, testlerini ve bir <code>.env.example</code> ekler. <code>go mod tidy</code> framework'ü indirir ve sürümünü <code>go.mod</code> ile <code>go.sum</code>'a kaydeder; <code>--with</code> bunu sizin yerinize yapar. <code>collage dev</code> varsayılan olarak 6060 portunda dinler ve her request'i, kendine ait loopback bir adreste çalıştırdığı programınıza iletir. Kaydedilen bir Go dosyası yeniden build edilip yeniden başlatılır, kaydedilen bir template ya da static dosya ise yalnızca page'i yeniler.</figcaption>
+<figcaption>Sıfırdan çalışan bir projeye böyle gelinir. <code>go install</code> CLI'ı <code>PATH</code>'inize koyar. <code>collage new</code>, siz <code>--template demo</code> istemedikçe minimal projeyi yazar. Demo template'i buna demoları, testlerini ve bir <code>.env.example</code> ekler. <code>go mod tidy</code> framework'ü çeker ve sürümünü <code>go.mod</code> ile <code>go.sum</code>'a kaydeder; <code>--with</code> bunu sizin yerinize yapar. <code>collage dev</code> varsayılan olarak 6060 portunda dinler ve her request'i, kendine ait loopback bir adreste çalıştırdığı programınıza iletir. Kaydedilen bir Go dosyası yeniden build edilip yeniden başlatılır, kaydedilen bir template ya da static dosya ise yalnızca page'i yeniler.</figcaption>
 </figure>
 
 ## Go'yu kurun
@@ -88,9 +88,9 @@ Next steps:
 Demo projesinde (aşağıda) bir de `.env.example` vardır, bu yüzden onun adımlarında
 `collage dev`'den önce `cp .env.example .env.development` satırı da yer alır.
 
-`go mod tidy` framework'ü indirir. Scaffold edilen `go.mod`
-yalnızca modülün adını ve Go sürümünü içerir. Bu yüzden projenin hangi collage
-sürümüyle build edildiğini kaydeden şey ilk `tidy` çalıştırmasıdır.
+`go mod tidy` framework'ü çeker. Scaffold edilen `go.mod` yalnızca modülün adını
+ve Go sürümünü içerir. Bu yüzden projenin hangi collage sürümüyle build edildiğini
+kaydeden şey ilk `tidy` çalıştırmasıdır.
 
 Birkaç flag, projenin nereye ve nasıl yazılacağını değiştirir. Flag'leri tek ya da
 çift tireyle yazabilirsiniz. Proje adından önce de gelebilirler, sonra da:
@@ -101,7 +101,7 @@ Birkaç flag, projenin nereye ve nasıl yazılacağını değiştirir. Flag'leri
 | `-dir path` | Projeyi `./<name>` yerine `path` içine scaffold eder |
 | `-module path` | `go.mod`'daki module path'i belirler, örneğin `github.com/you/mysite`. Varsayılan değer proje adıdır |
 | `-force` | Boş olmayan bir dizine de scaffold eder |
-| `--with plugins` | Proje yazıldıktan sonra plugin ekler: `@prod` gibi paketler ve `elagoht/session` gibi plugin'ler, virgülle ayrılmış (v0.59.0'dan beri). Plugin'ler indirildiği için `go mod tidy` artık bir sonraki adım değildir |
+| `--with plugins` | Proje yazıldıktan sonra plugin ekler: `@prod` gibi bundle'lar ve `elagoht/session` gibi plugin'ler, virgülle ayrılmış (v0.59.0'dan beri). Plugin'ler çekildiği için `go mod tidy` artık bir sonraki adım değildir |
 
 ```sh
 collage new mysite -module github.com/you/mysite
@@ -124,11 +124,11 @@ oluşturur. Bu demolar şunlardır:
 Bunların her birini çalışırken görmenin en hızlı yolu budur. Her birinin
 arkasındaki kod da tek oturuşta okunacak kadar kısadır.
 
-Varsayılan template olan `minimal` aynı `main.go`'yu ve aynı dizin yapısını oluşturur. İçinde
-yalnızca "hello" diyen tek bir page'i saran bir layout ve dark mode'u olan bir
-stylesheet bulunur. Silmeniz gereken hiçbir şey yoktur. Gerçek bir siteye
-başlarken bunu kullanın. [İlk page'iniz](/docs/your-first-page) rehberi de minimal
-bir projeden başlar.
+Varsayılan template olan `minimal` aynı `main.go`'yu ve aynı dizin yapısını
+oluşturur. İçinde yalnızca "hello" diyen tek bir page'i saran bir layout ve dark
+mode'u olan bir stylesheet bulunur. Silmeniz gereken hiçbir şey yoktur. Gerçek bir
+siteye başlarken bunu kullanın. [İlk page'iniz](/docs/your-first-page) rehberi de
+minimal bir projeden başlar.
 
 ## Scaffold'un içinde neler var
 
@@ -188,25 +188,26 @@ Demo projesi bunlara ek olarak şunları içerir:
   bir document, `data/count/` içinde bir sayaç ve bunların template'leri ile
   script'leri de gelir.
 
-Bu dosyalardan birkaçını değiştirmeden önce bazı şeyleri bilmekte fayda var.
+Scaffold'daki birkaç şeyi, değiştirmeden önce bilmekte fayda var.
 
 **`main.go` CLI ile bir sözleşmeye uyar.** `collage dev` programı, environment'ında
 `COLLAGE_DEV=1` ve dinleyeceği `HOST` ile `PORT` tanımlı olarak çalıştırır.
 `collage export` ise programı `-collage-build -out <dir>` ile çalıştırır.
 
-Scaffold edilen `main.go` bunların hepsine uyar. Değişken development mode'u açar, sunucu
-kendisine söylenen adreste dinler, flag ise siteyi serve etmek yerine dosyalara
-render eder.
+Scaffold edilen `main.go` bunların hepsine uyar. Değişken development mode'u açar,
+sunucu kendisine söylenen adreste dinler, flag ise siteyi serve etmek yerine
+dosyalara render eder.
 
 Flag'lerden sonra gelen bir kelime, yani `go run . <command>`, bir
 [plugin'in komutunu](/docs/plugins) çalıştırır. `main.go`'yu yeniden yazarsanız
-bunların hepsinin çalışmaya devam etmesini sağlayın. Aksi hâlde bu komutlar işe yarar
-hiçbir şey yapmaz. Ayrıntılar [CLI referansında](/docs/cli) yer alır.
+bunların hepsinin çalışmaya devam etmesini sağlayın. Aksi hâlde bu komutlar işe
+yarar hiçbir şey yapmaz. Ayrıntılar [CLI referansında](/docs/cli) yer alır.
 
-**`plugins.go` plugin listesidir.** Plugin'leri sırayla döndüren bir fonksiyondur,
-`plugins()`. `main.go` onu `Plugins: plugins()` ile bir kez verir. Başlangıçta boştur.
-`collage plugin add elagoht/sitemap` ona bir girdi yazar, `collage plugin del` bir girdiyi
-kaldırır. Bkz. [Plugin kullanmak](/docs/plugins#registering-a-plugin).
+**`plugins.go` plugin listesidir.** Bu dosyadaki `plugins()` fonksiyonu
+plugin'leri sırayla döndürür. `main.go` onu bir kez, `Plugins: plugins()` olarak
+verir. Liste başlangıçta boştur. `collage plugin add elagoht/sitemap` listeye bir
+girdi yazar, `collage plugin del` ise bir girdiyi kaldırır. Bkz.
+[Plugin kullanmak](/docs/plugins#registering-a-plugin).
 
 **`newApp`, `main`'den ayrıdır.** `newApp` bütün uygulamayı kurar: config'i,
 `routes.go`'daki route'ları ve `/static/` mount'unu. Sonra bir sunucu başlatmadan
@@ -236,7 +237,8 @@ zaman stale bir page'in arkasında kalmaz. [Caching](/docs/caching) sayfasına b
 
 ## Environment dosyası
 
-Demo projesi bir `.env.example` dosyasıyla gelir. Minimal projede dosyayı kendiniz yazın:
+Demo projesi bir `.env.example` dosyasıyla gelir. Minimal projede dosyayı kendiniz
+yazın:
 
 ```sh
 COLLAGE_CSRF_KEY=
@@ -279,10 +281,9 @@ boş bırakabilirsiniz. Bu durumda her process için yeni bir key üretilir. For
 içeren herhangi bir şeyi deploy etmeden önce bir key tanımlayın. Aksi hâlde restart
 öncesinde gönderilmiş her form, restart'tan sonra reddedilir.
 
-İçinde form olan
-cache'lenmiş bir page de key'e bağlıdır. Yeni bir key ile restart ettikten sonra o
-page, içinde eski key'in token'ı ile serve edilmez, baştan render edilir.
-[Caching](/docs/caching#the-namespace) sayfasına bakın. Bir key'i şöyle
+İçinde form olan cache'lenmiş bir page de key'e bağlıdır. Yeni bir key ile restart
+ettikten sonra o page, içinde eski key'in token'ı ile serve edilmez, baştan render
+edilir. [Caching](/docs/caching#the-namespace) sayfasına bakın. Bir key'i şöyle
 üretebilirsiniz:
 
 ```sh
@@ -295,17 +296,18 @@ openssl rand -hex 32
 collage dev
 ```
 
-Site [http://localhost:6060](http://localhost:6060) adresinde açılır (v0.32.0'dan önce port 3000'di). Bu adres
-`collage dev`'in kendisidir: `HOST` ve `PORT`'u programınızın okuyacağı şekilde
-okuyup orada dinler. Her request'i, loopback bir adreste çalıştırdığı programa
-iletir. Program başlarken gelen bir request, programı bekler.
+Site [http://localhost:6060](http://localhost:6060) adresinde açılır (v0.32.0'dan
+önce port 3000'di). Bu adres `collage dev`'in kendisidir: `HOST` ve `PORT`'u
+programınızın okuyacağı şekilde okuyup orada dinler. Her request'i, loopback bir
+adreste çalıştırdığı programa iletir. Program başlarken gelen bir request,
+programı bekler.
 
 `collage dev` çalışırken dört şey olur.
 
 ### Go değişikliklerinde yeniden build alınır
 
-`collage dev` projeyi `go build` ile build eder ve binary'yi çalıştırır. Programın
-parçası olan dosyaları izler: `.go` dosyalarını (testler hariç), `go.mod`, `go.sum`
+`collage dev` projeyi `go build` ile build eder ve binary'yi çalıştırır. Programı
+oluşturan dosyaları izler: `.go` dosyalarını (testler hariç), `go.mod`, `go.sum`
 ve environment dosyasını. Bunlardan biri değiştiğinde projeyi yeniden build eder.
 
 Önce yeni build alınır. Eski process ancak yeni build başarıyla derlendikten sonra
@@ -333,15 +335,13 @@ ya da static dosya değiştiğinde ve program bir rebuild'den sonra yeniden aya�
 kalktığında page'i yeniler. Bir dosyayı kaydedip tarayıcıya bakmanız yeterlidir,
 kurmanız gereken bir şey yoktur.
 
-Programınızın diskten kendisinin okuduğu içerik,
-örneğin Markdown ya da JSON, ne template ne de static dosyadır. Bu içerikteki
-değişikliklerin de page'i yenilemesini istiyorsanız dizinini
-[`Config.DevWatch`](/docs/configuration#devwatch) içinde belirtin (v0.10.0'dan
-itibaren).
+Programınızın diskten kendisinin okuduğu içerik, örneğin Markdown ya da JSON, ne
+template ne de static dosyadır. Bu içerikteki değişikliklerin de page'i
+yenilemesini istiyorsanız dizinini [`Config.DevWatch`](/docs/configuration#devwatch)
+içinde belirtin (v0.10.0'dan beri).
 
-Script hiçbir zaman production'daki bir page'e eklenmez. Bir form
-gönderiminin response'una da eklenmez, çünkü sayfayı yenilemek formu yeniden
-gönderirdi.
+Script hiçbir zaman production'daki bir page'e eklenmez. Bir form gönderiminin
+response'una da eklenmez, çünkü page'i yenilemek form'u yeniden gönderirdi.
 
 Script sunucuya açık bir stream tutar. Bir tarayıcı HTTP/1.1 üzerinden bir
 origin'e, tüm sekmeleri toplamında en fazla altı bağlantı açar. Açık her
@@ -349,32 +349,32 @@ development sekmesinde bir stream olunca, yan yana açık altı page altı bağl
 hepsini tutardı ve başka hiçbir şey yüklenmezdi: ne yedinci sekme yüklenirdi ne
 de bu page'lerin kendi fragment'leri.
 
-v0.20.0'dan beri her development sekmesi tek bir
-shared worker üzerinden dinler: `/_collage/reload-worker.js`. Bu worker, kaç page
-açık olursa olsun hepsi için tek bir stream tutar. Shared worker olmayan yerlerde
-her sekme kendi stream'ini tutar ve v0.18.1'den beri olduğu gibi gizliyken onu
-kapatır, yeniden görüldüğünde tekrar bağlanır. Gizliyken bir şey değiştiyse page o
-anda yenilenir.
+v0.20.0'dan beri her development sekmesi tek bir shared worker üzerinden dinler:
+`/_collage/reload-worker.js`. Bu worker, kaç page açık olursa olsun hepsi için tek
+bir stream tutar. Shared worker olmayan yerlerde her sekme kendi stream'ini tutar
+ve v0.18.1'den beri olduğu gibi gizliyken onu kapatır, yeniden görüldüğünde tekrar
+bağlanır. Gizliyken bir şey değiştiyse page o anda yenilenir.
 
 Hiç kapanmayan bir stream, yüklenmesi hiç bitmeyen bir page demektir. Bir ekran
 görüntüsü aracı ya da bir end-to-end test de tam olarak bunun bitmesini bekler.
 
-Playwright, Puppeteer ya da Selenium'un yönettiği bir tarayıcı `navigator.webdriver`'ı
-set eder ve script orada bağlanmaz (v0.18.0'dan beri). Bunu set etmeyen araçlar
-için, yani headless Chrome'un `--screenshot` ve `--dump-dom` seçenekleri için,
-URL'ye `?collage-reload=0` ekleyin. Page script olmadan serve edilir.
+Playwright, Puppeteer ya da Selenium'un yönettiği bir tarayıcı
+`navigator.webdriver`'ı set eder ve script orada bağlanmaz (v0.18.0'dan beri).
+Bunu set etmeyen araçlar için, yani headless Chrome'un `--screenshot` ve
+`--dump-dom` seçenekleri için, URL'ye `?collage-reload=0` ekleyin. Page script
+olmadan serve edilir.
 
 ### Hatalar page'in üzerinde görünür
 
-Development'ta hata veren bir fragment sessizce ortadan kaybolmaz. Page, üzerinde
-bir panel ile serve edilir. Bu panel fragment'in adını ve hatasını gösterir,
-template hatalarında dosya ve satırı da belirtir. Hatayı bir fallback kapatmış olsa
-bile panel yine görünür. Page'in tamamı hata verdiğinde, built-in error page önce
-nedeni gösterir: başarısız olan çağrının template'ini, satırını, sütununu ve
-çağrının ne döndüğünü. Ardından hatanın başladığı fragment'i söyler ve bir
-panic'in stack'i dahil bütün error zincirini gösterir. Kendi yazdığınız bir error
-page'in üstünde de aynı panel çıkar ve hangi page'in yerine gösterildiğini
-belirtir.
+Development'ta başarısız olan bir fragment sessizce ortadan kaybolmaz. Page,
+üzerinde bir panel ile serve edilir. Bu panel fragment'in adını ve hatasını
+gösterir, template hatalarında dosya ve satırı da belirtir. Hatayı bir fallback
+kapatmış olsa bile panel yine görünür. Page'in tamamı başarısız olduğunda,
+built-in error page önce nedeni gösterir: başarısız olan çağrının template'ini,
+satırını, sütununu ve çağrının ne döndüğünü. Ardından hatanın başladığı fragment'i
+söyler ve bir panic'in stack'i dahil bütün hata zincirini gösterir. Kendi
+yazdığınız bir error page'in üstünde de aynı panel çıkar ve hangi page'in yerine
+gösterildiğini belirtir.
 
 Cevap verecek bir program olmadığında (program başlarken kapandıysa ya da ilk
 build derlenmediyse) page, reddedilen bir bağlantı yerine programın ya da
@@ -391,11 +391,10 @@ response da tam olarak error page'dir. [Hatalar](/docs/errors) sayfasına bakın
 ## Örnek: bir ekip arkadaşı için proje kurmak
 
 Başka birinin de üzerinde çalışacağı bir projeye başlıyorsunuz: ekibin iş listesi
-uygulaması. Projeyi bir kez
-scaffold edip commit'lersiniz. Sonra her biriniz onu kendi makinesinde, kendi
-ayarlarıyla çalıştırır.
+uygulaması. Projeyi bir kez scaffold edip commit'lersiniz. Sonra her biriniz onu
+kendi makinesinde, kendi ayarlarıyla çalıştırır.
 
-Bir kez, kendi makinenizde:
+Kendi makinenizde şunları bir kez çalıştırın:
 
 ```sh
 collage new team --template demo -module github.com/you/team
@@ -404,7 +403,7 @@ go mod tidy
 ```
 
 Scaffold edilen `.gitignore`, paylaşılanla paylaşılmayanın arasındaki çizgiyi
-zaten çeker. Yorumları çıkarılmış kuralları:
+zaten çeker. Yorumları çıkarıldığında kuralları şunlardır:
 
 ```text
 /bin/team
@@ -420,15 +419,15 @@ zaten çeker. Yorumları çıkarılmış kuralları:
 | Yol | Commit'lenir mi | Neden |
 | --- | --- | --- |
 | `go.mod`, `go.sum` | evet | Herkesin build aldığı collage sürümünü sabitler |
-| `.env.example` | evet | Kopyalanacak değişkenler, içinde hiçbir secret olmadan |
+| `.env.example` | evet | Kopyalanacak değişkenleri tutar, içinde hiçbir secret yoktur |
 | `collage new`'in yazdığı diğer her şey | evet | Projenin kendisi |
 | `.env.development`, `.env` | hayır | Herkesin kendi değişkenleri |
 | `/bin/team` | hayır | `collage build`'in yazdığı dosya |
 | `/dist/` | hayır | `collage export`'un yazdıkları |
 | `/.cache/` | hayır | Restart'lar arasında saklanan render edilmiş page'ler |
 
-Ekip arkadaşınızın Go'ya ve CLI'a ihtiyacı vardır, yukarıda anlatıldığı gibi.
-Repository'yi clone'ladıktan sonra demo projesinin `README.md`'sinde yazan
+Ekip arkadaşınızın da yukarıda anlatıldığı gibi Go'ya ve CLI'a ihtiyacı vardır.
+Repository'yi clone'ladıktan sonra demo projesinin `README.md`'sinde listelenen
 adımları çalıştırır:
 
 ```sh
@@ -439,19 +438,19 @@ collage dev
 ```
 
 `go.mod` zaten bir collage sürümünü gerektirdiği için bu `go mod tidy` başka bir
-sürüm seçmez, o sürümü indirir. Minimal bir projede `.env.example` yoktur:
+sürüm seçmez, o sürümü çeker. Minimal bir projede `.env.example` yoktur:
 [environment dosyası](#the-environment-file) bölümündeki gibi bir tane yazın ve
 commit'leyin. `!/.env.example` satırı onu yok sayılan dosyaların dışında tutar.
 
-**Herkesin `.env.development` dosyası kendisinedir.** Orada `COLLAGE_CSRF_KEY`
+**Herkesin `.env.development` dosyası kendine aittir.** Orada `COLLAGE_CSRF_KEY`
 yukarıda anlatıldığı gibi boş kalabilir ya da o kişinin kendi key'ini tutabilir.
 Deploy edilen sitenin kullandığı key, production environment'ının
 secret'larına girer. Herkesin okuyabildiği `.env.example`'a asla girmez.
 
 **Portu değiştirmek.** 6060 portu dolu olan biri, kendi `.env.development`
 dosyasında başka bir port belirler. Demo projesinde `BASE_URL`'i de onunla
-birlikte değiştirin: `collage dev`'in serve ettiği adrestir ve bir sitemap'in,
-canonical bir link'in ya da bir feed'in bir path'in önüne koyduğu şeydir.
+birlikte değiştirin. Bu değişken `collage dev`'in serve ettiği adrestir. Bir
+sitemap, canonical bir link ya da bir feed de path'lerin önüne bu adresi koyar.
 
 ```sh
 PORT=6161
