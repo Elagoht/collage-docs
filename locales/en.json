@@ -22,10 +22,10 @@
   },
   "home": {
     "title": "collage — Go sites and web apps, no client framework",
-    "description": "A Go framework for server-rendered sites and web apps: HTML from fragments, cached by what it depends on, extended by plugins. No client framework.",
+    "description": "A Go framework for server-rendered sites and web apps: HTML from fragments, cached by what it depends on, extended by plugins, in one binary.",
     "eyebrow": "A Go framework for the server-rendered web",
-    "headline": "Your site doesn't need a <mark>client framework</mark>.",
-    "tagline": "HTML already does most of the work, and a few lines of plain JavaScript do the rest. collage renders pages on the server from fragments, sends only the part that changed when something does, and ships as one Go binary.",
+    "headline": "HTML from the server, <mark>one fragment at a time</mark>.",
+    "tagline": "collage is a Go framework for websites and web apps. Pages are built on the server from fragments that fetch their own data, cached by what they depend on, and updated one part at a time when something changes: HTML and a few lines of plain JavaScript, in one Go binary.",
     "readGuide": "Read the guide",
     "viewOnGitHub": "View on GitHub",
     "why": {
