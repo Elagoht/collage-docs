@@ -46,7 +46,7 @@ Middleware'in nerede çalıştığıyla ilgili iki nokta var:
 
 <figure class="diagram-figure" data-search-ignore>
 <svg class="diagram" viewBox="0 0 320 360" role="img" aria-labelledby="mw-layers-title">
-<title id="mw-layers-title">Bir request, collage'ın span, metric ve panic recovery'den oluşan koruması içinde önce Config.Plugins içindeki plugin'lerin middleware'lerinden liste sırasıyla, sonra app.Use middleware'lerinden register sırasıyla geçer. Routing önce static mount'lara ve app.Handle prefix'lerine bakar, geri kalan her şeyi router'a verir; router da bir page, bir document ya da bir action seçer.</title>
+<title id="mw-layers-title">Bir request, collage'ın span, metric ve panic recovery'den oluşan koruması içinde önce Config.Plugins içindeki plugin'lerin middleware'lerinden liste sırasıyla, sonra app.Use middleware'lerinden register sırasıyla geçer. Routing önce static mount'lara ve app.Handle prefix'lerine bakar, geri kalan her şeyi router'a verir; router da bir page, onun fragment path'lerinden birini, bir document ya da bir action seçer.</title>
 <defs><marker id="mw-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
 <rect class="d-pill" x="110" y="8" width="100" height="26" rx="13" /><text x="160" y="25" text-anchor="middle">tarayıcı</text>
 <line class="d-flow" x1="160" y1="34" x2="160" y2="52" marker-end="url(#mw-arrow)" />

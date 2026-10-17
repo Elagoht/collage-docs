@@ -44,7 +44,7 @@ Two things about where it runs:
 
 <figure class="diagram-figure" data-search-ignore>
 <svg class="diagram" viewBox="0 0 320 360" role="img" aria-labelledby="mw-layers-title">
-<title id="mw-layers-title">Inside collage's guard of span, metrics and panic recovery, a request passes the middleware of the plugins in Config.Plugins in list order, then the app.Use middleware in registration order. Routing then checks static mounts and app.Handle prefixes first, and hands everything else to the router, which picks a page, a document or an action.</title>
+<title id="mw-layers-title">Inside collage's guard of span, metrics and panic recovery, a request passes the middleware of the plugins in Config.Plugins in list order, then the app.Use middleware in registration order. Routing then checks static mounts and app.Handle prefixes first, and hands everything else to the router, which picks a page, one of its fragment paths, a document or an action.</title>
 <defs><marker id="mw-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
 <rect class="d-pill" x="110" y="8" width="100" height="26" rx="13" /><text x="160" y="25" text-anchor="middle">browser</text>
 <line class="d-flow" x1="160" y1="34" x2="160" y2="52" marker-end="url(#mw-arrow)" />

@@ -477,7 +477,7 @@ page := collage.NewPage("product").
 <text x="8" y="37">product</text>
 <rect class="d-a" x="84" y="24" width="64" height="18" rx="4" /><text class="d-on-a d-small" x="116" y="36" text-anchor="middle">handler</text>
 <text x="8" y="65">stock</text>
-<rect class="d-b" x="150" y="52" width="120" height="18" rx="4" /><text class="d-on-b d-small" x="210" y="64" text-anchor="middle">300 ms'de hata</text>
+<rect class="d-b" x="150" y="52" width="74" height="18" rx="4" /><text class="d-on-b d-small" x="187" y="64" text-anchor="middle">300 ms: hata</text>
 <text x="8" y="93">similar</text>
 <rect class="d-c" x="150" y="80" width="70" height="18" rx="4" /><text class="d-on-c d-small" x="185" y="92" text-anchor="middle">handler</text>
 <line class="d-rule" x1="149" y1="18" x2="149" y2="104" />
@@ -486,10 +486,10 @@ page := collage.NewPage("product").
 <text class="d-small" x="310" y="122" text-anchor="end">zaman</text>
 <text x="8" y="153">yazılan</text>
 <rect class="d-a" x="150" y="136" width="50" height="26" rx="4" /><text class="d-on-a d-small" x="175" y="153" text-anchor="middle">product</text>
-<g class="d-dropped"><rect class="d-frame" x="204" y="136" width="50" height="26" rx="4" /><text class="d-small" x="229" y="153" text-anchor="middle">boş</text></g>
-<rect class="d-c" x="258" y="136" width="52" height="26" rx="4" /><text class="d-on-c d-small" x="284" y="153" text-anchor="middle">similar</text>
-<line class="d-flow" x1="230" y1="162" x2="230" y2="180" marker-end="url(#fs-time-arrow)" />
-<rect class="d-chip-hit" x="155" y="184" width="150" height="24" rx="12" /><text class="d-hit-text d-small" x="230" y="200" text-anchor="middle">200 · stok kutusuz page</text>
+<g class="d-dropped"><rect class="d-frame" x="228" y="136" width="40" height="26" rx="4" /><text class="d-small" x="248" y="153" text-anchor="middle">boş</text></g>
+<rect class="d-c" x="272" y="136" width="42" height="26" rx="4" /><text class="d-on-c d-small" x="293" y="153" text-anchor="middle">similar</text>
+<line class="d-flow" x1="248" y1="162" x2="248" y2="180" marker-end="url(#fs-time-arrow)" />
+<rect class="d-chip-hit" x="164" y="184" width="150" height="24" rx="12" /><text class="d-hit-text d-small" x="239" y="200" text-anchor="middle">200 · stok kutusuz page</text>
 </svg>
 <figcaption>Stok servisi çökmüş. Handler'ı <code>ctx</code>'i aktardığı için 300 milisaniyelik timeout o context'i cancel edince vazgeçer. Failure policy'si olmayan stok kutusu hiçbir şey render etmez. Benzer ürünler aynı anda çekildiği için bu hata page'e bir 500'e değil, 300 milisaniyeye ve bir kutuya mal olur.</figcaption>
 </figure>

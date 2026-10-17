@@ -1171,8 +1171,9 @@ func cmsWebhook(app *collage.App) http.Handler {
 		case "author.updated":
 			err = app.InvalidateTags(r.Context(), tag)
 		case "author.deleted":
-			// The CMS has already deleted the author, so the pages warmed
-			// after the purge render as 404s instead of the old profile.
+			// The CMS has already deleted the author, so the author's page
+			// warms as a 404, and posts lose the card, instead of showing
+			// the old profile.
 			err = app.PurgeTags(r.Context(), tag)
 		default:
 			w.WriteHeader(http.StatusNoContent)
