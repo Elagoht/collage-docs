@@ -580,17 +580,9 @@ mark:hover {
   user-select: none;
 }
 
-/* The cards of the home page. Each takes one of the logo's colours, --c, for
-   its icon, the light along its top edge and the glow in its corner; they sit
-   on the pattern like frosted glass. */
-.points {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
-  gap: 1rem;
-  margin: 1rem 0 5rem;
-}
-
-.points article,
+/* The diagram cards of the home page. Each takes one of the logo's colours,
+   --c, for the light along its top edge and the glow in its corner; they sit on
+   the pattern like frosted glass. */
 .diagrams figure {
   --c: var(--tile-a);
   --ink: #1f1e1d;
@@ -606,24 +598,16 @@ mark:hover {
   transition: transform .3s ease, border-color .3s ease, box-shadow .3s ease;
 }
 
-.points article:nth-child(4n + 2),
 .diagrams figure:nth-child(3n + 3) {
   --c: var(--tile-b);
 }
 
-.points article:nth-child(4n + 3),
 .diagrams figure:nth-child(3n + 4) {
   --c: var(--tile-c);
   --ink: #f2f7f3;
 }
 
-.points article:nth-child(4n + 4) {
-  --c: var(--leaf);
-  --ink: var(--surface);
-}
-
 /* The light along the top edge, as on the buttons. */
-.points article::after,
 .diagrams figure::after {
   content: "";
   position: absolute;
@@ -636,7 +620,6 @@ mark:hover {
 }
 
 /* The glow in the corner. */
-.points article::before,
 .diagrams figure::before {
   content: "";
   position: absolute;
@@ -652,62 +635,204 @@ mark:hover {
   transition: opacity .3s ease, transform .3s ease;
 }
 
-.points article:hover,
 .diagrams figure:hover {
   transform: translateY(-3px);
   border-color: color-mix(in srgb, var(--c) 45%, var(--line));
   box-shadow: 0 18px 40px -20px color-mix(in srgb, var(--c) 60%, transparent);
 }
 
-.points article:hover::after,
 .diagrams figure:hover::after {
   left: 15%;
   right: 15%;
 }
 
-.points article:hover::before,
 .diagrams figure:hover::before {
   opacity: .28;
   transform: scale(1.3);
 }
 
-.points article {
-  padding: 1.5rem 1.5rem 1.6rem;
-}
-
-.point-icon {
+/* A section of the home page: what it says on one side, code or a diagram on
+   the other. One column on a narrow screen. */
+.feature {
   display: grid;
-  place-items: center;
-  width: 2.75rem;
-  height: 2.75rem;
-  margin-bottom: 1.1rem;
-  border-radius: 12px;
-  background: var(--c);
-  color: var(--ink);
-  box-shadow: 0 8px 20px -8px var(--c);
-  transform: rotate(-4deg);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 1.5rem clamp(2rem, 5vw, 4rem);
+  align-items: start;
+  margin: 0 0 5rem;
 }
 
-.points article:nth-child(even) .point-icon {
-  transform: rotate(3deg);
+.feature-text h2 {
+  margin: 0 0 1rem;
+  font-size: clamp(1.6rem, 3.5vw, 2.25rem);
+  line-height: 1.15;
+  letter-spacing: -.02em;
+  text-wrap: balance;
 }
 
-.point-icon .icon {
-  width: 1.4rem;
-  height: 1.4rem;
+.feature-text p {
+  margin: 0 0 1rem;
+  color: var(--muted);
+  font-size: 1.05rem;
 }
 
-.points h2 {
-  margin: 0 0 .5rem;
-  font-size: 1.1rem;
-  line-height: 1.3;
-  letter-spacing: -.01em;
+.feature-text code {
+  padding: .1em .35em;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font: .88em var(--mono);
+  color: var(--text);
 }
 
-.points p {
+.feature-art {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.feature pre {
   margin: 0;
+  padding: 1rem 1.2rem;
+  max-width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 40px rgb(0 0 0 / .06);
+  overflow-x: auto;
+  font: .82rem/1.7 var(--mono);
+}
+
+.feature pre code {
+  font: inherit;
+}
+
+.feature pre,
+.prose pre {
+  tab-size: 2;
+}
+
+/* On a wide screen the text stays in view beside a tall column of code. */
+@media (min-width: 60.01rem) {
+  .feature-text {
+    position: sticky;
+    top: calc(var(--header-h) + 1.5rem);
+  }
+}
+
+.feature-wide,
+.feature .scope {
+  grid-column: 1 / -1;
+}
+
+.how .diagrams {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+}
+
+.feature .diagrams {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.feature-figure {
+  margin: 0;
+  padding: clamp(.75rem, 3vw, 1.5rem);
+  background-color: var(--bg);
+  background-image: radial-gradient(color-mix(in srgb, var(--faint) 45%, transparent) 1px, transparent 1.4px);
+  background-size: 16px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+/* The published plugins, by what they are for, under the section's text. */
+.plugin-grid {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+  gap: 1rem 1.5rem;
+}
+
+.plugin-group h3 {
+  margin: 0 0 .5rem;
+  font-size: .8rem;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--leaf);
+}
+
+.plugin-group p {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+  margin: 0;
+}
+
+.plugin-group a {
+  padding: .15rem .55rem;
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font: .8rem/1.6 var(--mono);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.plugin-group a:hover {
+  border-color: var(--accent-bright);
+  color: var(--accent);
+}
+
+.plugin-all {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+/* What the core has, what a plugin adds, and what is left to you. */
+.scope {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: 1rem;
+}
+
+.scope-col {
+  padding: 1.1rem 1.25rem;
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--c);
+  border-radius: var(--radius);
+}
+
+.scope-in {
+  --c: var(--tile-c);
+}
+
+.scope-plugin {
+  --c: var(--tile-a);
+}
+
+.scope-out {
+  --c: var(--line-strong);
+}
+
+.scope-col h3 {
+  margin: 0 0 .6rem;
+  font-size: 1rem;
+}
+
+.scope-col ul {
+  margin: 0;
+  padding-left: 1.1rem;
   color: var(--muted);
   font-size: .95rem;
+}
+
+.scope-out ul {
+  list-style: "– ";
+}
+
+@media (max-width: 60rem) {
+  .feature {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .how {
@@ -1398,6 +1523,31 @@ text.d-kept {
   background: none;
   font: inherit;
   overflow-wrap: normal;
+}
+
+/* A diagram in a page of the documentation: drawn on the same canvas of dots as
+   the home page's, at a size its labels stay readable at. */
+.prose figure.diagram-figure {
+  margin: 0 0 1.6rem;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.prose figure.diagram-figure .diagram {
+  box-sizing: border-box;
+  padding: clamp(.5rem, 3vw, 1.5rem) max(.5rem, calc((100% - 30rem) / 2));
+  background-color: var(--bg);
+  background-image: radial-gradient(color-mix(in srgb, var(--faint) 45%, transparent) 1px, transparent 1.4px);
+  background-size: 16px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.prose figure.diagram-figure figcaption {
+  padding: .9rem 1.1rem;
+  color: var(--muted);
+  font-size: .9rem;
 }
 
 .prose blockquote {

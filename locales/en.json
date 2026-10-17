@@ -21,30 +21,82 @@
     "next": "Next"
   },
   "home": {
-    "title": "collage — server-rendered pages from cached fragments, in Go",
-    "description": "A Go framework for server-rendered pages composed from cached fragments. No dependencies.",
-    "eyebrow": "A Go framework",
-    "headline": "Pages composed from <mark>cached fragments</mark>.",
-    "tagline": "collage is a Go framework for server-rendered sites. A page is a layout around fragments; each fragment fetches its own data, and the page is cached and invalidated by what it was built from. No client framework, no JavaScript build step, no dependencies.",
+    "title": "collage — Go sites and web apps, no client framework",
+    "description": "A Go framework for server-rendered sites and web apps: HTML from fragments, cached by what it depends on, extended by plugins. No client framework.",
+    "eyebrow": "A Go framework for the server-rendered web",
+    "headline": "Your site doesn't need a <mark>client framework</mark>.",
+    "tagline": "HTML already does most of the work, and a few lines of plain JavaScript do the rest. collage renders pages on the server from fragments, sends only the part that changed when something does, and ships as one Go binary.",
     "readGuide": "Read the guide",
     "viewOnGitHub": "View on GitHub",
-    "whatYouGet": "What you get",
-    "points": {
-      "fragments": {
-        "title": "Fragments, not components",
-        "text": "A template, a data handler and the slots it exposes. Siblings fetch concurrently; the page is written in order."
+    "why": {
+      "title": "A landing page is not a single-page app",
+      "text": "A product page, a landing page, a site of a few pages with little to click: none of them needs a JavaScript server runtime, a client framework and a hydration step. Such a runtime is slower than Go and keeps more memory and disk busy on the server, and a client framework sends the browser a program to build the HTML it could have received. collage sends the HTML.",
+      "d": {
+        "label": "A typical stack — a JavaScript bundle, hydration, an SSR framework, a dependency tree and a JavaScript runtime — beside collage: HTML, a few lines of JavaScript and one Go binary.",
+        "typical": "a typical stack",
+        "bundle": "JS bundle",
+        "hydration": "hydration",
+        "framework": "SSR framework",
+        "modules": "dependency tree",
+        "runtime": "JS runtime",
+        "collage": "collage",
+        "html": "HTML",
+        "js": "a few lines of JS",
+        "binary": "one Go binary",
+        "deps": "no runtime to install"
+      }
+    },
+    "fragments": {
+      "title": "Fragments, not components",
+      "text": "A page is a layout around fragments. Each fragment is a template and a function that fetches its own data; siblings fetch at once, and the page still comes out in order. Open one at a URL of its own with <code>WithFragmentPath</code>, and three lines of <code>fetch</code> replace just that part of the page: the server's state, rendered on the server, one fragment at a time.",
+      "note": "fetch, XHR, server-sent events and WebSockets were made for exactly this. When you would rather not write the script, a plugin refreshes fragments on an interval or when the server pushes, and can morph them in place.",
+      "liveLink": "elagoht/live"
+    },
+    "cache": {
+      "title": "Cached by what it depends on",
+      "text": "Every page and every cached value carries the tags of what it was built from: <code>post:hello</code>, <code>author:ada</code>. <code>InvalidateTags</code> marks the pages that used a tag stale and renders them again in the background, keeping the old page to fall back on. <code>PurgeTags</code> removes them outright, for what must never be shown again. Everything else stays cached."
+    },
+    "plugins": {
+      "title": "Middleware and plugins, as many as you need",
+      "text": "Where a framework gives you one middleware file and every concern a request needs is chained inside it by hand, collage's <code>app.Use</code> takes any <code>func(http.Handler) http.Handler</code>, as many times as you like, and each plugin brings its own middleware, in the order you list them. The core stays small: sessions, spam protection, live updates, SEO and metrics are plugins. Forty-four are published, and one of your own is a Go type with the hooks it needs.",
+      "groups": {
+        "forms": "Forms and state",
+        "security": "Security",
+        "live": "Live updates",
+        "seo": "SEO and content",
+        "ops": "Delivery and operations"
       },
-      "cached": {
-        "title": "Cached by what it depends on",
-        "text": "Pages and data carry tags. Change an author and one call drops the author and every page that shows them."
+      "all": "Every plugin, and how to write one"
+    },
+    "go": {
+      "title": "Still Go",
+      "text": "There is no second language and no second process. Your data layer is your Go code: the database, the queue, the external API. An API or a service you already have mounts on collage's own mux with <code>app.Handle</code>, beside the pages and behind the same middleware. One project, one binary."
+    },
+    "apps": {
+      "title": "A small core, for sites and web apps",
+      "text": "collage is not batteries-included, and it says what it leaves to you. What it has is what a server-rendered front end needs, so a multi-user, role-based web app is as much at home as a landing page: sessions and roles, forms that cannot be forged, spam protection, parts of the page that update live.",
+      "in": {
+        "title": "In the core",
+        "fragments": "Fragments and fragment paths",
+        "actions": "Actions, with forgery protection",
+        "cache": "Cache, tags, invalidate and purge",
+        "guards": "Guards for private pages and roles",
+        "locales": "Locale URLs and links by name",
+        "export": "Static export"
       },
-      "forms": {
-        "title": "Forms without JavaScript",
-        "text": "Actions answer POST with forgery protection built in, and a cached page can still carry a form."
+      "plugin": {
+        "title": "With a plugin",
+        "session": "Sessions",
+        "honeypot": "Honeypot and validation",
+        "flash": "Flash messages",
+        "live": "Live fragments over SSE or WebSocket",
+        "auth": "OAuth, basic auth, rate limits"
       },
-      "served": {
-        "title": "Served or exported",
-        "text": "One program is a server and a static site generator. This site is the second."
+      "out": {
+        "title": "Not included",
+        "orm": "An ORM",
+        "migrations": "Migrations",
+        "db": "A database layer: that is your Go code"
       }
     },
     "howItWorks": "How it works",
@@ -53,13 +105,13 @@
         "title": "Layouts and slots",
         "text": "A layout leaves a slot for the page's content, and a fragment can leave slots of its own. Fill them with fragments and collage assembles the page."
       },
+      "invalidate": {
+        "title": "Invalidate by tag",
+        "text": "A page remembers what it was built from. Invalidate one tag and only the pages that used it are rendered again; the rest stay as they are."
+      },
       "fetch": {
         "title": "Fetch at once",
         "text": "Every fragment has its own data handler. Sibling fragments fetch together, and the HTML still comes out in order."
-      },
-      "invalidate": {
-        "title": "Invalidate by tag",
-        "text": "A page remembers what it was built from. Invalidate one tag and only the pages that used it are dropped."
       },
       "live": {
         "title": "Stream fragments live",
