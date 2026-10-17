@@ -8,9 +8,11 @@ reference: Build, BuildOptions, App
 A collage application is an `http.Handler`. `app.Handler()` returns it, with no
 server listening and no port to choose, so an ordinary Go test drives the whole
 site: routing, data handlers, templates, the cache, forms, documents, plugins and
-middleware, exactly as they run in production. `pkg/collagetest` (since v0.40.0)
-is the client that does it the way a browser does: it keeps the cookies a response
-sets, and submits a form with every hidden field the page put in it.
+middleware, exactly as they run in production.
+
+`pkg/collagetest` (since v0.40.0) is the client that does it the way a browser
+does: it keeps the cookies a response sets, and submits a form with every hidden
+field the page put in it.
 
 ```go
 import "github.com/Elagoht/collage/pkg/collagetest"
@@ -30,6 +32,33 @@ func TestLogin(t *testing.T) {
 	c.Follow(res).WantStatus(http.StatusOK) // the page the login's cookie opens
 }
 ```
+
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 300" role="img" aria-labelledby="tst-flow-title">
+<title id="tst-flow-title">The login test, request by request, between a collagetest.Client and app.Handler(), with no server and no port. GET /login answers 200 with the form and sets a cookie, which the client's jar keeps. Submit posts the form with its hidden fields and the cookie. The answer, a 303 to /panel, is returned to the test, not followed. Follow sends a GET for /panel with the cookies, and the page answers 200. Each request is one ServeHTTP call.</title>
+<defs><marker id="tst-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
+<rect class="d-frame" x="4" y="8" width="128" height="36" rx="6" /><text x="68" y="23" text-anchor="middle">collagetest.Client</text><text class="d-small" x="68" y="37" text-anchor="middle">cookie jar</text>
+<rect class="d-c" x="188" y="8" width="128" height="36" rx="6" /><text class="d-on-c" x="252" y="23" text-anchor="middle">app.Handler()</text><text class="d-on-c d-small" x="252" y="37" text-anchor="middle">no server · no port</text>
+<line class="d-rule" x1="68" y1="44" x2="68" y2="272" />
+<line class="d-rule" x1="252" y1="44" x2="252" y2="272" />
+<text class="d-small" x="160" y="64" text-anchor="middle">GET /login</text>
+<line class="d-flow" x1="68" y1="70" x2="248" y2="70" marker-end="url(#tst-arrow)" />
+<text class="d-small" x="160" y="92" text-anchor="middle">200 · the form, Set-Cookie</text>
+<line class="d-flow" x1="252" y1="98" x2="72" y2="98" marker-end="url(#tst-arrow)" />
+<rect class="d-chip" x="4" y="108" width="128" height="22" rx="11" /><text class="d-small" x="68" y="123" text-anchor="middle">the jar keeps it</text>
+<text class="d-small" x="160" y="152" text-anchor="middle">Submit · hidden fields + cookie</text>
+<line class="d-flow" x1="68" y1="158" x2="248" y2="158" marker-end="url(#tst-arrow)" />
+<text class="d-small" x="160" y="180" text-anchor="middle">303 · Location: /panel</text>
+<line class="d-flow" x1="252" y1="186" x2="72" y2="186" marker-end="url(#tst-arrow)" />
+<rect class="d-chip-hit" x="4" y="196" width="128" height="22" rx="11" /><text class="d-hit-text d-small" x="68" y="211" text-anchor="middle">returned, not followed</text>
+<text class="d-small" x="160" y="238" text-anchor="middle">Follow · GET /panel + cookies</text>
+<line class="d-flow" x1="68" y1="244" x2="248" y2="244" marker-end="url(#tst-arrow)" />
+<text class="d-small" x="160" y="262" text-anchor="middle">200 · the page</text>
+<line class="d-flow" x1="252" y1="268" x2="72" y2="268" marker-end="url(#tst-arrow)" />
+<text class="d-small" x="160" y="292" text-anchor="middle">each request: one ServeHTTP call</text>
+</svg>
+<figcaption>The test above, request by request. Nothing listens on a port: each request is one call to the handler <code>app.Handler()</code> returns, with a recorder for its answer. The jar keeps the cookies a response sets and sends them back. <code>Submit</code> posts the form with every hidden field it holds, the forgery token among them. A redirect comes back to the test as it is, and <code>Follow</code> is the separate <code>GET</code> that takes it.</figcaption>
+</figure>
 
 The demo project `collage new --template demo` scaffolds comes with a test file
 built this way. This page walks through its pattern.
@@ -95,9 +124,14 @@ Build a fresh client per test, as `client(t)` does. The first call to
 `app.Handler()` starts the application and closes registration, and each test then
 starts from an empty cache and an empty cookie jar. Two readers are two clients.
 
-If starting fails — a plugin's `Init` fails, a page names an unregistered error page,
-a mount shadows a route — `app.Handler()` answers every request with a 503 and logs
-why. Call `app.Start()` first when you want that failure as an error in the test:
+Starting can fail:
+
+- a plugin's `Init` fails;
+- a page names an unregistered error page;
+- a mount shadows a route.
+
+`app.Handler()` then answers every request with a 503 and logs why. Call
+`app.Start()` first when you want that failure as an error in the test:
 
 ```go
 if err := app.Start(); err != nil {
@@ -165,11 +199,12 @@ var cacheDir = ".cache"
 ```
 
 With development mode off, the application uses the disk cache, and a disk cache is
-shared by everything that uses the same directory and the same build. Without
-`cacheDir = t.TempDir()` a test could be served a page an earlier test rendered —
-or an earlier run, since the cache survives the process — and pass or fail for
-reasons that have nothing to do with the code. It would also leave a `.cache`
-directory in your package.
+shared by everything that uses the same directory and the same build.
+
+Without `cacheDir = t.TempDir()` a test could be served a page an earlier test
+rendered — or an earlier run, since the cache survives the process — and pass or
+fail for reasons that have nothing to do with the code. It would also leave a
+`.cache` directory in your package.
 
 Shut the application down in a `t.Cleanup` registered after it, as `client` does:
 the data cache writes to that directory in the background, and `App.Shutdown`
@@ -206,8 +241,10 @@ func TestHelloGreetsTheSubmittedName(t *testing.T) {
 `Submit` finds the form, carries across **every hidden input** it holds — the
 forgery token, and whatever a plugin stamps into a form, such as a honeypot's signed
 timestamp — and puts `values` on top: a name in `values` replaces a hidden input of
-the same name. Visible fields are the test's to fill; a trap field a bot would fill
-stays empty, so the submission is a reader's.
+the same name.
+
+Visible fields are the test's to fill. A trap field a bot would fill stays empty,
+so the submission is a reader's.
 
 - `action` is resolved against the page's URL and compared decoded, as is the
   form's: `"/login"`, `"login"` from a page beside it, an absolute URL, and
@@ -302,9 +339,10 @@ func TestNotFoundPage(t *testing.T) {
 
 Middleware registered with `app.Use` runs in these tests too, since it is part of
 the handler. To test a preview or a `collage.Vary` dimension, set the cookie or
-header on a `c.Request` before `c.Do`. The client is a convenience, not a
-requirement: `app.Handler()` takes a `net/http/httptest` recorder as well as any
-other handler does.
+header on a `c.Request` before `c.Do`.
+
+The client is a convenience, not a requirement: `app.Handler()` takes a
+`net/http/httptest` recorder as well as any other handler does.
 
 ## Every page renders
 
@@ -456,6 +494,183 @@ res := site.Get("/robots.txt").WantStatus(http.StatusOK)
 
 The options, `TrySite` for a start that is meant to fail, and `site.Shutdown` are
 in [Writing a plugin](/docs/writing-plugins#testing-a-plugin).
+
+## Example: a team task list
+
+The team task list from
+[Forms and actions](/docs/forms-and-actions#example-a-team-task-list) is a page at
+`/teams/{team}/tasks` with an "add a task" form, the list as a fragment of its
+own at `/teams/{team}/tasks/list`, and an action that answers in three ways. Put
+it behind a layout whose guard sends a signed-out reader to `/login?next=…`, like
+`requireUser` in [Pages and layouts](/docs/pages-and-layouts#private-pages-guards),
+and give the site a `/login` form whose action sets the session cookie and
+redirects to `next`.
+
+Its tests, one per thing a reader can do:
+
+| Test | What it catches |
+| --- | --- |
+| `TestAMemberAddsATask` | The form, its token or the `303` back to the list breaking |
+| `TestAnEmptyTitleIsRefused` | A bad title answered with anything but `422` and the form with its error |
+| `TestAFetchGetsTheListAlone` | A script's post answered with a whole page, or a stale list |
+| `TestASignedOutReaderSignsInFirst` | The page, its fragment path or its action left open |
+| `TestTheCachedListChangesWithATask` | A missing `InvalidateTags`: the cached page keeps the old list |
+
+They use `client(t)` from [above](#test-the-application-main-builds), and one
+helper that signs a client in. The cookie the sign-in sets stays in that client's
+jar, so every later request of the test is the member's:
+
+```go
+// signIn submits the sign-in form; the session cookie it sets stays in c's jar.
+func signIn(t *testing.T, c *collagetest.Client, email string) {
+	t.Helper()
+	c.Submit(c.Get("/login"), "/login", url.Values{
+		"email":    {email},
+		"password": {"correct horse"},
+	}).WantStatus(http.StatusSeeOther)
+}
+```
+
+A member adds a task with the form, as a browser posts it: `Submit` carries the
+hidden `_csrf` field, the answer is a `303` to the list, and `Follow` loads it:
+
+```go
+func TestAMemberAddsATask(t *testing.T) {
+	c := client(t)
+	signIn(t, c, "ada@example.com")
+
+	page := c.Get("/teams/blue/tasks").WantStatus(http.StatusOK)
+	res := c.Submit(page, "/teams/blue/tasks", url.Values{"title": {"Write the release notes"}}).
+		WantStatus(http.StatusSeeOther)
+	if res.Location() != "/teams/blue/tasks" {
+		t.Errorf("Location = %q, want the list", res.Location())
+	}
+	if list := c.Follow(res); !strings.Contains(list.Body, "Write the release notes") {
+		t.Errorf("the list does not show the new task:\n%s", list.Body)
+	}
+}
+```
+
+An empty title is refused. A browser's post gets the whole page back with `422`,
+the form in it with the error:
+
+```go
+func TestAnEmptyTitleIsRefused(t *testing.T) {
+	c := client(t)
+	signIn(t, c, "ada@example.com")
+
+	page := c.Get("/teams/blue/tasks").WantStatus(http.StatusOK)
+	res := c.Submit(page, "/teams/blue/tasks", url.Values{"title": {"   "}}).
+		WantStatus(http.StatusUnprocessableEntity)
+	for _, want := range []string{"<html", `id="task-form"`, "A title is 1 to 200 characters."} {
+		if !strings.Contains(res.Body, want) {
+			t.Errorf("the 422 has no %s:\n%s", want, res.Body)
+		}
+	}
+}
+```
+
+A script posts the same form with `Collage-Fetch` and takes the token from the
+page, as the
+[script on that page](/docs/forms-and-actions#example-a-team-task-list) does with
+`new FormData(form)`. The answer is the list fragment alone, and so is
+`/teams/{team}/tasks/list`:
+
+```go
+func TestAFetchGetsTheListAlone(t *testing.T) {
+	c := client(t)
+	signIn(t, c, "ada@example.com")
+	page := c.Get("/teams/blue/tasks").WantStatus(http.StatusOK)
+
+	body := url.Values{"_csrf": {page.CSRFToken()}, "title": {"Book the venue"}}
+	req := c.Request(http.MethodPost, "/teams/blue/tasks", strings.NewReader(body.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set(collage.FetchHeader, "1")
+	res := c.Do(req).WantStatus(http.StatusOK)
+
+	if strings.Contains(res.Body, "<html") || !strings.Contains(res.Body, `id="task-list"`) {
+		t.Errorf("a fetch was not answered with the list fragment alone:\n%s", res.Body)
+	}
+	if !strings.Contains(res.Body, "Book the venue") {
+		t.Errorf("the fragment does not show the new task:\n%s", res.Body)
+	}
+	list := c.Get("/teams/blue/tasks/list").WantStatus(http.StatusOK)
+	if strings.Contains(list.Body, "<html") || !strings.Contains(list.Body, "Book the venue") {
+		t.Errorf("/teams/blue/tasks/list is not the current list alone:\n%s", list.Body)
+	}
+}
+```
+
+A signed-out reader is redirected from the page and from its fragment path, which
+meets the page's guards. A post meets the guard before the forgery check, so it is
+the same redirect, not a `403`. Then the whole way in, through the hidden `next`
+field of the sign-in form:
+
+```go
+func TestASignedOutReaderSignsInFirst(t *testing.T) {
+	c := client(t)
+	for _, target := range []string{"/teams/blue/tasks", "/teams/blue/tasks/list"} {
+		res := c.Get(target).WantStatus(http.StatusSeeOther)
+		if !strings.HasPrefix(res.Location(), "/login?next=") {
+			t.Errorf("GET %s: Location = %q, want the sign-in page", target, res.Location())
+		}
+	}
+	// The guard answers before the forgery check: a redirect, not a 403.
+	req := c.Request(http.MethodPost, "/teams/blue/tasks", strings.NewReader("title=Sneak+in"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	c.Do(req).WantStatus(http.StatusSeeOther)
+
+	login := c.Follow(c.Get("/teams/blue/tasks")).WantStatus(http.StatusOK)
+	res := c.Submit(login, "/login", url.Values{
+		"email":    {"ada@example.com"},
+		"password": {"correct horse"},
+	}).WantStatus(http.StatusSeeOther)
+	if res.Location() != "/teams/blue/tasks" {
+		t.Errorf("after signing in, Location = %q, want the page asked for", res.Location())
+	}
+	c.Follow(res).WantStatus(http.StatusOK)
+}
+```
+
+The page is `Incremental(time.Hour)`, so its second load is a `HIT`. Adding a task
+invalidates the team's tag before the `303` is written, and the next load shows
+the task:
+
+```go
+func TestTheCachedListChangesWithATask(t *testing.T) {
+	c := client(t)
+	signIn(t, c, "ada@example.com")
+	cache := func(res *collagetest.Response) string { return res.Header.Get(collage.CacheStatusHeader) }
+
+	c.Get("/teams/green/tasks").WantStatus(http.StatusOK)
+	page := c.Get("/teams/green/tasks").WantStatus(http.StatusOK)
+	if cache(page) != "HIT" {
+		t.Fatalf("the second load is %q, want HIT", cache(page))
+	}
+
+	res := c.Submit(page, "/teams/green/tasks", url.Values{"title": {"Order the banners"}}).
+		WantStatus(http.StatusSeeOther)
+	after := c.Follow(res).WantStatus(http.StatusOK)
+	if !strings.Contains(after.Body, "Order the banners") {
+		t.Errorf("the cached page still shows the old list:\n%s", after.Body)
+	}
+	if cache(after) != "MISS" {
+		t.Errorf("the load after the change is %q, want MISS", cache(after))
+	}
+	if again := c.Get("/teams/green/tasks"); cache(again) != "HIT" {
+		t.Errorf("the next load is %q, want HIT", cache(again))
+	}
+}
+```
+
+The test asserts the `MISS` without `WaitWarmed` or `WarmLimit: -1`, because the
+page is guarded and a guarded page is
+[not warmed](/docs/caching#warming-after-an-invalidation): its first reader after
+the change renders it. On a page without a guard the warmer may have rendered it
+first, so assert the `HIT` after `WaitWarmed()` on a
+[`collagetest.Site`](#test-a-plugin-with-a-site-of-its-own), or set
+`WarmLimit: -1` to assert the `MISS`, as
+[Invalidation and warming](#invalidation-and-warming) describes.
 
 ## Running them
 
