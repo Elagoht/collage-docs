@@ -234,20 +234,20 @@ pages around them if you like.
 <svg class="diagram" viewBox="0 0 320 400" role="img" aria-labelledby="flow-title">
 <title id="flow-title">A request passes through plugin middleware and app.Use, and routing sends it to a page, a fragment path, an action or your own handler. Only a page is cached, by tag; a fragment path and an action render fresh each time. All of them read from your data layer. A request for your own handler skips the middleware unless the handler is mounted WithMiddleware.</title>
 <defs><marker id="flow-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
-<rect class="d-pill" x="110" y="8" width="100" height="26" rx="13" /><text x="160" y="25" text-anchor="middle">browser</text>
-<line class="d-flow" x1="160" y1="34" x2="160" y2="54" marker-end="url(#flow-arrow)" />
-<rect class="d-frame" x="50" y="58" width="220" height="28" rx="6" /><text x="160" y="76" text-anchor="middle">plugin middleware</text>
-<rect class="d-frame" x="50" y="92" width="220" height="28" rx="6" /><text x="160" y="110" text-anchor="middle">app.Use</text>
-<line class="d-flow" x1="160" y1="120" x2="160" y2="140" marker-end="url(#flow-arrow)" />
-<rect class="d-cmd" x="110" y="144" width="100" height="26" rx="13" /><text class="d-cmd-text" x="160" y="161" text-anchor="middle">routing</text>
-<path class="d-flow" d="M130 170C130 185 42 182 42 198" marker-end="url(#flow-arrow)" />
-<path class="d-flow" d="M150 170C150 185 118 182 118 198" marker-end="url(#flow-arrow)" />
-<path class="d-flow" d="M170 170C170 185 194 182 194 198" marker-end="url(#flow-arrow)" />
-<path class="d-flow" d="M190 170C190 185 270 182 270 198" marker-end="url(#flow-arrow)" />
+<rect class="d-pill" x="68" y="8" width="100" height="26" rx="13" /><text x="118" y="25" text-anchor="middle">browser</text>
+<line class="d-flow" x1="118" y1="34" x2="118" y2="54" marker-end="url(#flow-arrow)" />
+<path class="d-flow" d="M118 42H270V54" marker-end="url(#flow-arrow)" />
+<rect class="d-frame" x="6" y="58" width="224" height="28" rx="6" /><text x="118" y="76" text-anchor="middle">plugin middleware</text>
+<rect class="d-frame" x="6" y="92" width="224" height="28" rx="6" /><text x="118" y="110" text-anchor="middle">app.Use</text>
+<rect class="d-frame" x="234" y="58" width="72" height="62" rx="5" /><text class="d-small" x="270" y="86" text-anchor="middle">app.Handle</text><text class="d-small" x="270" y="99" text-anchor="middle">bare</text>
+<line class="d-flow" x1="118" y1="120" x2="118" y2="140" marker-end="url(#flow-arrow)" />
+<rect class="d-cmd" x="68" y="144" width="100" height="26" rx="13" /><text class="d-cmd-text" x="118" y="161" text-anchor="middle">routing</text>
+<path class="d-flow" d="M98 170C98 185 42 182 42 198" marker-end="url(#flow-arrow)" />
+<line class="d-flow" x1="118" y1="170" x2="118" y2="198" marker-end="url(#flow-arrow)" />
+<path class="d-flow" d="M138 170C138 185 194 182 194 198" marker-end="url(#flow-arrow)" />
 <rect class="d-a" x="6" y="202" width="72" height="34" rx="5" /><text class="d-on-a" x="42" y="223" text-anchor="middle">page</text>
 <rect class="d-b" x="82" y="202" width="72" height="34" rx="5" /><text class="d-on-b d-small" x="118" y="216" text-anchor="middle">fragment</text><text class="d-on-b d-small" x="118" y="228" text-anchor="middle">path</text>
 <rect class="d-c" x="158" y="202" width="72" height="34" rx="5" /><text class="d-on-c" x="194" y="223" text-anchor="middle">action</text>
-<rect class="d-frame" x="234" y="202" width="72" height="34" rx="5" /><text class="d-small" x="270" y="223" text-anchor="middle">app.Handle</text>
 <line class="d-flow" x1="42" y1="236" x2="42" y2="250" marker-end="url(#flow-arrow)" />
 <rect class="d-chip-hit" x="6" y="254" width="72" height="24" rx="12" /><text class="d-hit-text d-small" x="42" y="270" text-anchor="middle">cache · tags</text>
 <line class="d-flow" x1="42" y1="278" x2="42" y2="294" marker-end="url(#flow-arrow)" />
@@ -255,7 +255,7 @@ pages around them if you like.
 <line class="d-flow" x1="194" y1="236" x2="194" y2="294" marker-end="url(#flow-arrow)" />
 <rect class="d-soft-a" x="6" y="298" width="224" height="30" rx="6" /><text x="118" y="317" text-anchor="middle">render: fragments fetch at once</text>
 <line class="d-flow" x1="118" y1="328" x2="118" y2="346" marker-end="url(#flow-arrow)" />
-<line class="d-flow" x1="270" y1="236" x2="270" y2="346" marker-end="url(#flow-arrow)" />
+<line class="d-flow" x1="270" y1="120" x2="270" y2="346" marker-end="url(#flow-arrow)" />
 <rect class="d-frame" x="6" y="350" width="300" height="44" rx="6" /><text x="156" y="369" text-anchor="middle">your data layer, in Go</text><text class="d-small" x="156" y="384" text-anchor="middle">database · API · CMS · queue</text>
 </svg>
 <figcaption>Every request passes the middleware first, in the order it was registered; one for a handler of your own skips it unless that handler is mounted WithMiddleware. Routing then hands it to a page, one of a page's fragment paths, an action, or a handler of your own. A page is cached by the tags of what it was built from; a fragment path and an action render fresh each time. All of them read from your data layer, and your own handler talks to it directly.</figcaption>

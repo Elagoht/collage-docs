@@ -47,29 +47,31 @@ Two things about where it runs:
   any other.
 
 <figure class="diagram-figure" data-search-ignore>
-<svg class="diagram" viewBox="0 0 320 360" role="img" aria-labelledby="mw-layers-title">
+<svg class="diagram" viewBox="0 0 320 376" role="img" aria-labelledby="mw-layers-title">
 <title id="mw-layers-title">Inside collage's guard of span, metrics and panic recovery, a request passes the middleware of the plugins in Config.Plugins in list order, then the app.Use middleware in registration order. Routing then checks static mounts and the app.Handle prefixes mounted WithMiddleware first, and hands everything else to the router, which picks a page, one of its fragment paths, a document or an action. A handler mounted with plain app.Handle is matched before the middleware, inside the guard, and runs without it.</title>
 <defs><marker id="mw-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
-<rect class="d-pill" x="110" y="8" width="100" height="26" rx="13" /><text x="160" y="25" text-anchor="middle">browser</text>
-<line class="d-flow" x1="160" y1="34" x2="160" y2="52" marker-end="url(#mw-arrow)" />
-<rect class="d-slot d-slot-a" x="6" y="56" width="308" height="296" rx="8" />
+<rect class="d-pill" x="74" y="8" width="100" height="26" rx="13" /><text x="124" y="25" text-anchor="middle">browser</text>
+<rect class="d-slot d-slot-a" x="6" y="56" width="308" height="312" rx="8" />
+<line class="d-flow" x1="124" y1="34" x2="124" y2="96" marker-end="url(#mw-arrow)" />
 <text class="d-slot-text-a d-small" x="18" y="72">collage guard</text><text class="d-small" x="302" y="72" text-anchor="end">span · metrics · panic recovery</text>
-<rect class="d-frame" x="30" y="84" width="260" height="38" rx="6" /><text x="160" y="100" text-anchor="middle">plugin middleware</text><text class="d-small" x="160" y="114" text-anchor="middle">Config.Plugins, in list order</text>
-<line class="d-flow" x1="160" y1="122" x2="160" y2="136" marker-end="url(#mw-arrow)" />
-<rect class="d-frame" x="30" y="140" width="260" height="38" rx="6" /><text x="160" y="156" text-anchor="middle">app.Use middleware</text><text class="d-small" x="160" y="170" text-anchor="middle">in registration order</text>
-<line class="d-flow" x1="160" y1="178" x2="160" y2="192" marker-end="url(#mw-arrow)" />
-<rect class="d-cmd" x="110" y="196" width="100" height="26" rx="13" /><text class="d-cmd-text" x="160" y="213" text-anchor="middle">routing</text>
-<path class="d-flow" d="M135 222C135 234 61 230 61 242" marker-end="url(#mw-arrow)" />
-<line class="d-flow" x1="160" y1="222" x2="160" y2="242" marker-end="url(#mw-arrow)" />
-<path class="d-flow" d="M185 222C185 234 259 230 259 242" marker-end="url(#mw-arrow)" />
-<rect class="d-b" x="15" y="246" width="92" height="30" rx="5" /><text class="d-on-b d-small" x="61" y="265" text-anchor="middle">static mount</text>
-<rect class="d-frame" x="114" y="246" width="92" height="30" rx="5" /><text class="d-small" x="160" y="258" text-anchor="middle">app.Handle</text><text class="d-small" x="160" y="270" text-anchor="middle">WithMiddleware</text>
-<rect class="d-cmd" x="213" y="246" width="92" height="30" rx="15" /><text class="d-cmd-text" x="259" y="265" text-anchor="middle">router</text>
-<text class="d-small" x="110" y="292" text-anchor="middle">matched by prefix first</text>
-<path class="d-flow" d="M245 276C245 290 210 288 210 302" marker-end="url(#mw-arrow)" />
-<path class="d-flow" d="M273 276C273 290 279 288 279 302" marker-end="url(#mw-arrow)" />
-<rect class="d-a" x="176" y="306" width="68" height="34" rx="5" /><text class="d-on-a d-small" x="210" y="320" text-anchor="middle">page or</text><text class="d-on-a d-small" x="210" y="332" text-anchor="middle">document</text>
-<rect class="d-c" x="249" y="306" width="60" height="34" rx="5" /><text class="d-on-c" x="279" y="327" text-anchor="middle">action</text>
+<path class="d-flow" d="M124 86H271V96" marker-end="url(#mw-arrow)" />
+<rect class="d-frame" x="22" y="100" width="204" height="38" rx="6" /><text x="124" y="116" text-anchor="middle">plugin middleware</text><text class="d-small" x="124" y="130" text-anchor="middle">Config.Plugins, in list order</text>
+<line class="d-flow" x1="124" y1="138" x2="124" y2="152" marker-end="url(#mw-arrow)" />
+<rect class="d-frame" x="22" y="156" width="204" height="38" rx="6" /><text x="124" y="172" text-anchor="middle">app.Use middleware</text><text class="d-small" x="124" y="186" text-anchor="middle">in registration order</text>
+<rect class="d-frame" x="236" y="100" width="70" height="94" rx="6" /><text x="271" y="143" text-anchor="middle">app.Handle</text><text class="d-small" x="271" y="157" text-anchor="middle">bare</text>
+<path class="d-flow" d="M124 194C124 204 160 200 160 208" marker-end="url(#mw-arrow)" />
+<rect class="d-cmd" x="110" y="212" width="100" height="26" rx="13" /><text class="d-cmd-text" x="160" y="229" text-anchor="middle">routing</text>
+<path class="d-flow" d="M135 238C135 250 61 246 61 258" marker-end="url(#mw-arrow)" />
+<line class="d-flow" x1="160" y1="238" x2="160" y2="258" marker-end="url(#mw-arrow)" />
+<path class="d-flow" d="M185 238C185 250 259 246 259 258" marker-end="url(#mw-arrow)" />
+<rect class="d-b" x="15" y="262" width="92" height="30" rx="5" /><text class="d-on-b d-small" x="61" y="281" text-anchor="middle">static mount</text>
+<rect class="d-frame" x="114" y="262" width="92" height="30" rx="5" /><text class="d-small" x="160" y="274" text-anchor="middle">app.Handle</text><text class="d-small" x="160" y="286" text-anchor="middle">WithMiddleware</text>
+<rect class="d-cmd" x="213" y="262" width="92" height="30" rx="15" /><text class="d-cmd-text" x="259" y="281" text-anchor="middle">router</text>
+<text class="d-small" x="110" y="308" text-anchor="middle">matched by prefix first</text>
+<path class="d-flow" d="M245 292C245 306 210 304 210 318" marker-end="url(#mw-arrow)" />
+<path class="d-flow" d="M273 292C273 306 279 304 279 318" marker-end="url(#mw-arrow)" />
+<rect class="d-a" x="176" y="322" width="68" height="34" rx="5" /><text class="d-on-a d-small" x="210" y="336" text-anchor="middle">page or</text><text class="d-on-a d-small" x="210" y="348" text-anchor="middle">document</text>
+<rect class="d-c" x="249" y="322" width="60" height="34" rx="5" /><text class="d-on-c" x="279" y="343" text-anchor="middle">action</text>
 </svg>
 <figcaption>Every request runs inside collage's guard: its span, its metrics, and the panic recovery that turns a panic into a 500. Inside it, the middleware of the plugins in Config.Plugins comes first, in list order, then the app.Use middleware in the order it was registered; a plugin added with app.RegisterPlugin sits where the call was made. Any of them can answer by itself and stop the request there. What gets through is routed: a static mount or the prefix of an app.Handle mounted WithMiddleware is matched first, and the router takes the rest. A handler mounted with plain app.Handle is not in the chain at all: its requests are matched before the middleware, still inside the guard, and go straight to it.</figcaption>
 </figure>
