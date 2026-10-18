@@ -349,9 +349,8 @@ Sitenin middleware'ine gerçekten dayanan bir handler, onu
 `collage.WithMiddleware()` ile geri ister. Bu middleware, örneğin onu korumak için
 register ettiğiniz bir basicauth plugin'i, okuyucunun session'ı, zaten
 yapılandırdığınız bir rate limit ya da `app.Use` middleware'inizin context'e
-koyduğu bir değer olabilir. Bu
-handler, v0.67.0'dan önce her mount'un yaptığı gibi, zincirin içinde tam bir page
-gibi ve aynı sırayla çalışır:
+koyduğu bir değer olabilir. Bu handler, v0.67.0'dan önce her mount'un yaptığı
+gibi, zincirin içinde tam bir page gibi ve aynı sırayla çalışır:
 
 ```go
 if err := app.Handle("/admin/api/", adminAPI, collage.WithMiddleware()); err != nil {
@@ -365,8 +364,8 @@ Bunun için onu `WithMiddleware()` ile mount edin ya da mux'ınızın etrafına 
 middleware'inizi koyun. Özellikle:
 
 - elagoht/fail2ban düz bir mount'a gelen yoklamaları yine sayar, çünkü request
-  hook'u her request için çalışır. Ama banlı bir istemciye 403'ü bir middleware
-  verir. Bu yüzden o istemci, login brute force'unun genellikle yapıldığı yer olan
+  hook'u her request için çalışır. Ama ban'lı bir istemciye verdiği 403 cevabı bir
+  middleware'dir. Bu yüzden o istemci, login brute force'unun genellikle yapıldığı yer olan
   `/api/`'ye tam erişimini korur.
 - elagoht/basicauth ve elagoht/ratelimit onu korumaz, elagoht/session'ın session'ı
   da onun request'lerinde bulunmaz.

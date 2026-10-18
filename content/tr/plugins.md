@@ -1705,7 +1705,7 @@ Plugins: []collage.Plugin{f2b /* , diğerleri */},
   path'li bir request için collage'ın kendi `404`'ü ya da redirect'i yine de ona
   ulaşır.
 - **Ban bir middleware'dir.** collage v0.67.0'dan beri düz `app.Handle` ile mount
-  edilmiş bir handler hiçbir middleware çalıştırmaz. Bu yüzden banlı bir istemci,
+  edilmiş bir handler hiçbir middleware çalıştırmaz. Bu yüzden ban'lı bir istemci,
   `/api/`'ye yönelik login brute force'u dahil, ona tam erişimini korur;
   oradaki yoklamaları ise yine sayılır. Onu da kapsamak için handler'ı
   `collage.WithMiddleware()` ile mount edin. Bkz.
@@ -2034,8 +2034,8 @@ document.addEventListener("collage:swap", (event) => {
   [idiomorph](https://github.com/bigskysoftware/idiomorph) ile yerinde patch'lenir.
   Eşleşen element'ler korunur. Böylece yazı yazılan alan focus'unu, caret'ini ve
   içine yazılanları, korunan bir element de scroll pozisyonunu korur. Morph edilen
-  element'teki başka bir alan sunucunun değerini alır. Bu yüzden yarım doldurulmuş
-  bir form taşımayan bir parçayı morph edin ya da onu `replace` edin.
+  element'teki başka bir alan sunucunun değerini alır. Bu yüzden page'in yarım
+  doldurulmuş bir form taşımayan bir kısmını morph edin ya da onu `replace` edin.
 - İkisinden biri bittikten sonra yeni element'ten bir **`collage:swap`** event'i
   bubble eder. `detail`'i `{ url, mode }`'dir, `mode` da `"replace"` ya da
   `"morph"`'tur.
@@ -2049,7 +2049,7 @@ document.addEventListener("collage:swap", (event) => {
   bir element'te başlatılan `replace` ya da `morph`, eski çağrıyı iptal eder. Eski
   çağrı superseded olarak reject olur. Böylece yavaş bir cevap hiçbir zaman daha
   yeni bir cevabın üstüne düşmez.
-- **Bir hata page'i olduğu gibi bırakır.** Page'de olmayan bir target, ne `url` ne
+- **Başarısız bir çağrı page'i olduğu gibi bırakır.** Page'de olmayan bir target, ne `url` ne
   de `data-src` olması, başka bir origin, bir ağ hatası, 2xx olmayan ya da tek bir
   element olmayan bir cevap (düz metin bir hata body'si, bütün bir document, yan
   yana iki element), fetch sürerken page'den çıkarılan bir element ya da daha yeni
@@ -3108,7 +3108,7 @@ Plugin'ler, bir sunucunun render ettiği page'lerden fazlasını görür:
   `app.Handle` ile mount ettiği bir handler için, `collage.WithMiddleware()` ile
   mount edilmedikçe hiçbir plugin'in middleware'i çalışmaz: session, basicauth,
   rate limit, ban, access log, redirect ya da tenant yoktur. Request hook'ları onun
-  için de çalışır, bir plugin'in kendi `Host.Handle` endpoint'leri ise her zaman
+  için yine de çalışır, bir plugin'in kendi `Host.Handle` endpoint'leri ise her zaman
   middleware'in içinde çalışır. Bkz.
   [İstemedikçe middleware yok](/docs/middleware-and-apis#no-middleware-unless-you-ask).
 - **Yalnızca hizmet verirken çalışan iş** (bir scheduler, bir queue worker'ı)

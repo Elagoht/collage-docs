@@ -439,7 +439,7 @@ liste üzerinde daha yeni bir çağrı) listeyi olduğu gibi bırakır ve reject
 çevirir.
 
 Submit yarısı kendi `fetch`'ini korur: form'u post eder, `replace` ve `morph` ise
-`GET` ile çeker. Yalnızca element aramaları `collage.$` olur:
+`GET` ile çeker. Yalnızca element aramaları değişir ve `collage.$`'a geçer:
 
 ```js
 const form = collage.$("#add");
