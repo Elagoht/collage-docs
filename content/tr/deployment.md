@@ -533,7 +533,7 @@ eder. [Caching](/docs/caching#memory-in-front-of-the-disk) sayfasına bakın.
 v0.66.0'dan beri `Cache.Store`'daki, `collage.SharedCache`'i implement eden bir
 store, örneğin [collage-redis](/docs/plugins#elagohtredis), üçüncü çözümdür.
 Page'ler de [`collage.Cached`](/docs/caching#caching-data-across-pages) değerleri de
-onda durur ve önünde instance başına bir kopya yoktur. Bu yüzden A instance'ına
+onda tutulur ve önünde instance başına bir kopya yoktur. Bu yüzden A instance'ına
 ulaşan bir webhook, B'nin bir sonraki okumasına da ulaşır. B'nin, A'nın invalidate
 etmekte olduğu veriden başlattığı bir render da taze değil, stale olarak saklanır.
 Invalidation'ın ulaştığı page'ler, hangi instance yazmış olursa olsun, A'nın
@@ -542,16 +542,16 @@ plugin'lerine `CacheInvalidateEvent.Entries` içinde bildirilir (bir CDN purge'�
 Redis'in kapalı olması bir miss'tir, asla başarısız bir request değildir: site
 cache'siz render eder.
 
-collage-redis ile deploy günü iki şey değişir: her yeni binary boş bir namespace
-ile başlar, yani bir deploy cache boş başlar, ve `MaxAge` (yedi gün), stale bir
+collage-redis ile deploy günü iki şey değişir. Her yeni binary boş bir namespace
+ile başlar, yani bir deploy cache boşken başlar. `MaxAge` (yedi gün) de stale bir
 kopyanın başarısız bir render'ın yerine ne kadar süre geçebileceğini sınırlar.
 Bkz. [Bir filonun paylaştığı cache](/docs/caching#a-cache-a-fleet-shares).
 
-Yalnızca `collage.TaggedCache` ve `collage.StaleCache`'i implement eden paylaşımlı
+Yalnızca `collage.TaggedCache` ve `collage.StaleCache`'i implement eden paylaşılan
 bir store veriyi değil, page'leri tutar. `collage.Cached` ile tutulan değerler bu
-durumda her process'in kendi belleğinde yaşar ve bir invalidation yalnızca içinde
-çalıştığı instance'a ulaşır: webhook A instance'ına ulaştıktan sonra, paylaşımlı
-store page'i invalidate ettiği için B instance'ı page'i yeniden render eder, ama
+durumda her process'in kendi memory'sinde yaşar ve bir invalidation yalnızca içinde
+çalıştığı instance'a ulaşır. Webhook A instance'ına ulaştıktan sonra, paylaşılan
+store page'i invalidate ettiği için B instance'ı page'i yeniden render eder. Ama
 bunu hâlâ elinde tuttuğu eski değerle yapar. Bu değerlere katlanabileceğiniz kadar
 kısa bir TTL verin ya da invalidation'ı her instance'a gönderin.
 

@@ -463,7 +463,7 @@ Tag'lerinin restart sonrasında da çalışmaya devam etmesinin nedeni budur.
 
 [`collage.SharedCache`](#a-cache-a-fleet-shares) olan bir store (v0.66.0'dan
 beri) bu açığı tamamen kapatır: onun kendi tag index'i herhangi bir instance'ın
-yazdığı her page'i ve veri değerini adlandırır. Böylece sayı,
+yazdığı her page'i ve veri değerini listeler. Böylece sayı,
 `CacheInvalidateEvent.Entries` ve warming yalnızca bu process'in değil, filonun
 page'lerini kapsar.
 
@@ -945,7 +945,7 @@ page için bu, instance restart olana ya da kopyayı evict edene kadar sürer.
 ([yukarıya](#memory-in-front-of-the-disk) bakın).
 
 v0.66.0'dan beri `collage.SharedCache`'i implement eden bir store, filonun
-tamamı tarafından paylaşılır. Page'ler de `collage.Cached` verisi de onda durur ve
+tamamı tarafından paylaşılır. Page'ler de `collage.Cached` verisi de onda tutulur ve
 önünde instance başına hiçbir şey tutulmaz. Böylece herhangi bir instance'taki bir
 `InvalidateTags` ya da `PurgeTags`, her instance'taki bir sonraki okumaya ulaşır.
 
@@ -970,7 +970,7 @@ tamamı tarafından paylaşılır. Page'ler de `collage.Cached` verisi de onda d
 <rect class="d-soft-a" x="10" y="226" width="145" height="42" rx="6" /><text class="d-small" x="82" y="243" text-anchor="middle">A page'leri warm eder</text><text class="d-small" x="82" y="256" text-anchor="middle">kendi WarmLimit'i içinde</text>
 <rect class="d-frame" x="165" y="226" width="145" height="42" rx="6" /><text class="d-small" x="237" y="243" text-anchor="middle">B, C: sonraki okuma</text><text class="d-small" x="237" y="256" text-anchor="middle">invalidation'ı görür</text>
 </svg>
-<figcaption>Filo için tek bir store. Bir webhook'un ulaştığı instance tek bir <code>DropTags</code> çağrısı yapar. Bu çağrı, tag'lerin altındaki her page'i ve değeri, hangi instance yazmış olursa olsun stale olarak işaretler (purge'te ise siler) ve ulaştığı page'leri sayı, plugin event'i ve warming için adlandırır. Diğer her instance aynı store'u okur, bu yüzden sonraki okuması değişikliği görür. Yalnızca invalidate eden instance, kendi <code>WarmLimit</code>'i içinde warm eder.</figcaption>
+<figcaption>Filo için tek bir store. Bir webhook'un ulaştığı instance tek bir <code>DropTags</code> çağrısı yapar. Bu çağrı, tag'lerin altındaki her page'i ve değeri, hangi instance yazmış olursa olsun stale olarak işaretler (purge'te ise siler) ve ulaştığı page'leri sayı, plugin event'i ve warming için listeler. Diğer her instance aynı store'u okur, bu yüzden sonraki okuması değişikliği görür. Yalnızca invalidate eden instance, kendi <code>WarmLimit</code>'i içinde warm eder.</figcaption>
 </figure>
 
 ### collage-redis ile kurulum
@@ -1021,7 +1021,7 @@ olan bir komutu da sınırlaması için onda `ContextTimeoutEnabled`'ı açın v
 `MaxRetries`'i -1 yapın. Bir URL'nin tarif edemediği bir şeye, örneğin Sentinel'e,
 ulaşmanın yolu da bir `Client`'tır.
 
-Redis'i bunun için çalıştırmak:
+Bunun için Redis'i şöyle çalıştırın:
 
 - **`maxmemory-policy noeviction`**, yaklaşık `MaxAge` süresince yapılan yazmalara
   yetecek bellekle. Her key kendiliğinden expire olur; eviction yalnızca store'un hâlâ
@@ -1080,7 +1080,7 @@ Instance başına kalanlar:
   ve hiçbir şey sayılmaz.
 - **Her instance'ın page'lerine ulaşır.** `DropTags`'in döndüğü, herhangi bir
   instance'ın yazdığı page'ler sayılır, `CacheInvalidateEvent.Entries` içinde
-  adlandırılır (böylece [elagoht/cdnpurge](/docs/plugins#elagohtcdnpurge) B'nin
+  listelenir (böylece [elagoht/cdnpurge](/docs/plugins#elagohtcdnpurge) B'nin
   sunduğunu da purge eder) ve invalidate eden instance'ın `WarmLimit`'i içinde warm
   edilir. Bu sınırın ötesindeki bir page'i, bir sonraki ziyaretçisini alan instance
   render eder; bir kez `MISS` olur. Plugin event'i yine her entry'yi alır.
@@ -1111,11 +1111,11 @@ cevap verdiğinde bir kez info seviyesinde log'lar.
 - **`MaxAge` stale fallback'i sınırlar.** `MaxAge` (varsayılan yedi gün) içinde
   yeniden render edilmeyen bir page ya da değer, bir upstream kesintisi sırasında
   bile gider. Built-in store'larda böyle bir sınır yoktur.
-- **Key başına tek çekme işlemi instance başınadır**, yukarıdaki gibi: tek bir key'i
-  aynı anda kaçıran N instance upstream'e en fazla N çekme işlemi yapar.
+- **Key başına tek çekme işlemi instance başınadır.** Yukarıda olduğu gibi, tek bir
+  key'i aynı anda kaçıran N instance upstream'e en fazla N çekme işlemi yapar.
 - **Invalidate edilmiş ve henüz yeniden render edilmemiş bir page, store'un tag
   index'inde kalır.** Tag'lerinin o yeniden render'dan önce ikinci kez invalidate
-  edilmesi onu yeniden sayar, plugin event'inde yeniden adlandırır ve warming için
+  edilmesi onu yeniden sayar, plugin event'inde yine listeler ve warming için
   yeniden sunar.
 
 `SharedCache` olmayan bir store, memory cache ve `Type: "disk"` eskisi gibi
@@ -1123,7 +1123,7 @@ davranır.
 
 ### Kendi SharedCache'inizi yazmak
 
-Herhangi bir store bu olabilir. Framework, `TaggedCache` ve `StaleCache` için
+Her store bir SharedCache olabilir. Framework, `TaggedCache` ve `StaleCache` için
 yaptığı gibi bunun için de type assertion yapar ve interface ikisini de içerir:
 
 ```go
@@ -1148,7 +1148,7 @@ type SharedCache interface {
   edildiyse `collage.WriteSkipped`, invalidate edildiyse `collage.WriteStale`, aksi
   hâlde `collage.WriteFresh`.
 - `DropTags` epoch'u ilerletir, generation'ları kaydeder, tag'lerin altındaki her
-  page'i ve değeri stale olarak işaretler (`purge` ile siler) ve ulaştığı her page'i
+  page'i ve değeri stale olarak işaretler (ya da `purge` ile siler) ve ulaştığı her page'i
   bir `collage.Reached` olarak döner: key'i ve onunla yazıldığı meta. collage
   page'in host'unu ve path'ini bu meta'dan bilir.
 
@@ -1325,7 +1325,8 @@ yerine geçmeleri gereken eski yazar verisinden yeniden render edilir.
   stale olarak. Araya `PurgeTags` girmişse sonuç hiç saklanmaz. Invalidation'dan
   sonra başlayıp böyle bir çekme işlemine katılan bir render da değeri stale olarak
   alır (v0.66.0'dan beri, her store için; önceden taze olarak alırdı ve page'i,
-  invalidation'ın yerine koyduğu veriden taze olarak saklanabilirdi). Bu yüzden o
+  invalidation'ın yerine yenisini getirdiği eski veriden taze olarak
+  saklanabilirdi). Bu yüzden o
   render `no-store` ile sunulur ve saklanmaz. Bir warm render ise taze veriyi bekler
   ve taze bir page saklar; böyle bir çekme işlemine katılan warm render veriyi
   yeniden çeker.
@@ -1367,7 +1368,7 @@ yerine geçmeleri gereken eski yazar verisinden yeniden render edilir.
   Page'ler diskte cache'lense bile bu değişmez. Birden çok instance'lı bir deploy'da
   her instance kendi değerlerini tutar; `Cache.Store` bir
   [`collage.SharedCache`](#a-cache-a-fleet-shares) ise bu geçerli değildir: değerler
-  o store'da, page'lerin yanında durur ve hiçbir instance bir kopya tutmaz.
+  o store'da, page'lerin yanında tutulur ve hiçbir instance bir kopya tutmaz.
 
 ### Restart'tan sonra
 
@@ -1416,9 +1417,9 @@ Cache'lenmiş bir page render edilmez, bu yüzden veri çekme işlemlerinin hiç
 çalışmaz. `Once` için [Data handler'lar](/docs/data-handlers) sayfasına bakın.
 
 Page cache host başınadır; `collage.Cached` değildir. Store'u process başına (ya da
-filonun paylaşılan store'u olarak) tektir ve yalnızca verdiğiniz key ile key'lenir. Bu yüzden birden fazla müşteriye hizmet
-veren bir sitede (örneğin elagoht/tenant) `Cached(rc, postsKey, ...)` acme'nin
-yazılarını bir kez çeker ve globex'e de verir. Müşteriyi key'e ve tag'lere koyun;
+filonun paylaşılan store'u olarak) tektir ve yalnızca verdiğiniz key ile key'lenir.
+Bu yüzden birden fazla müşteriye hizmet veren bir sitede (örneğin elagoht/tenant)
+`Cached(rc, postsKey, ...)` acme'nin yazılarını bir kez çeker ve globex'e de verir. Müşteriyi key'e ve tag'lere koyun;
 böylece bir müşterinin verisini invalidate etmek ötekilere dokunmaz:
 
 ```go

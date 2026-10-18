@@ -2897,7 +2897,7 @@ if err := mail.Enqueue(r.Context(), Email{To: to}); err != nil {
 ## Plugin olmayan library'ler
 
 Yukarıdaki plugin'lerin hepsi `Config.Plugins` içinde register edilir. Library ise
-kendi kodunuzun, bir page'den ya da uygulamanın config'inde kullandığı bir
+kendi kodunuzun bir page'den ya da uygulamanın config'inden kullandığı bir
 modüldür. Bu yüzden register edilecek bir şey, `collage plugin add` ya da
 `plugins-config.json`'da bir bölüm yoktur ve kırk dört plugin'in arasında sayılmaz.
 
@@ -2919,7 +2919,7 @@ go get github.com/Elagoht/collage-paginate
 
 ### elagoht/redis
 
-Redis üzerinde çalışan bir [`collage.SharedCache`](/docs/caching#a-cache-a-fleet-shares).
+Redis tabanlı bir [`collage.SharedCache`](/docs/caching#a-cache-a-fleet-shares).
 Bir uygulamanın her instance'ı tek bir page cache ve tek bir `collage.Cached` data
 store'u ile çalışır. Böylece herhangi bir instance'taki invalidation'ı hepsi görür.
 `Cache.Store`'a verilir:
@@ -2947,10 +2947,11 @@ app, err := collage.New(&collage.Config{
   desteklenmez.
 - `New` Redis'e hiç bağlanmaz. Bu yüzden Redis kapalıyken de uygulama açılır ve
   cache'siz sunar. Bir Redis hatası bir miss'tir, asla başarısız bir request değildir.
-- Varsayılan olarak yeni bir binary'nin her deploy'u boş bir namespace ile başlar ve `MaxAge` (yedi
-  gün), stale fallback dahil her key'i sınırlar. Config'i ve bunun için Redis'in
-  nasıl çalıştırılacağı [Caching](/docs/caching#a-cache-a-fleet-shares) sayfasında
-  ve library'nin README'sinde.
+- Varsayılan olarak yeni bir binary'nin her deploy'u boş bir namespace ile başlar.
+  `MaxAge` (yedi gün), stale fallback dahil her key'i sınırlar. Config ve bunun
+  için Redis'in nasıl çalıştırılacağı
+  [Caching](/docs/caching#a-cache-a-fleet-shares) sayfasında ve library'nin
+  README'sinde anlatılır.
 
 ## Head'e yazan plugin'ler
 

@@ -847,8 +847,8 @@ entry yoktur. Daha önceki bir invalidation'ın stale olarak işaretlediği bir 
 de yeniden render edilip saklanana kadar burada yer almaz. Bir filonun paylaştığı
 bir store, yani bir [`collage.SharedCache`](/docs/caching#a-cache-a-fleet-shares)
 (v0.66.0'dan beri) bunun istisnasıdır: onun kendi tag index'i herhangi bir
-instance'ın yazdığı her page'i adlandırır ve invalidate edilip henüz yeniden render
-edilmemiş bir page'i de tutar. Bu yüzden ikinci bir invalidation o page'i yeniden
+instance'ın yazdığı her page'i listeler ve invalidate edilip henüz yeniden render
+edilmemiş bir page'i de tutar. Bu yüzden ikinci bir invalidation o page'i yine
 listeler.
 
 Cache'lenen her entry ayrıca
