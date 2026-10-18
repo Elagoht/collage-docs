@@ -125,9 +125,12 @@ func TestIntroDiagramAccessible(t *testing.T) {
 				t.Errorf("GET %s has no %s", path, want)
 			}
 		}
-		for _, bad := range []string{`fill="#`, `stroke="#`} {
-			if strings.Contains(body, bad) {
-				t.Errorf("GET %s sets a colour with %s", path, bad)
+		figures := regexp.MustCompile(`(?s)<figure class="diagram-figure".*?</figure>`).FindAllString(body, -1)
+		for _, figure := range figures {
+			for _, bad := range []string{`fill="#`, `stroke="#`} {
+				if strings.Contains(figure, bad) {
+					t.Errorf("GET %s: a diagram sets a colour with %s", path, bad)
+				}
 			}
 		}
 	}
@@ -205,6 +208,29 @@ func TestTutorialShowsTheExample(t *testing.T) {
 			if block[2] != string(file) {
 				t.Errorf("%s shows %s, but the example's file differs", page, block[1])
 			}
+		}
+	}
+}
+
+// The header offers every language by its flag: the one the page is in marked as
+// current, the others linked to this page in them.
+func TestLanguageSwitcher(t *testing.T) {
+	for path, other := range map[string]string{"/en/docs/caching/": "/tr/docs/caching/", "/tr/": "/en/"} {
+		body := get(t, path).Body.String()
+		start := strings.Index(body, `class="languages"`)
+		if start < 0 {
+			t.Fatalf("GET %s has no language switcher", path)
+		}
+		switcher := body[start:]
+		switcher = switcher[:strings.Index(switcher, "</div>")]
+		if n := strings.Count(switcher, `class="flag"`); n != 2 {
+			t.Errorf("GET %s: the switcher has %d flags, want 2", path, n)
+		}
+		if strings.Count(switcher, `aria-current="true"`) != 1 {
+			t.Errorf("GET %s: the switcher does not mark the current language once:\n%s", path, switcher)
+		}
+		if !strings.Contains(switcher, `href="`+other+`"`) {
+			t.Errorf("GET %s: the switcher does not link %s:\n%s", path, other, switcher)
 		}
 	}
 }

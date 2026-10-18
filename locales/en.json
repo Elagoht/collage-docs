@@ -65,11 +65,10 @@
         "live": "Live updates",
         "seo": "SEO and content",
         "ops": "Delivery and operations"
-      },
-      "all": "Every plugin, and how to write one"
+      }
     },
     "go": {
-      "title": "Still Go",
+      "title": "Still Writing Go",
       "text": "There is no second language and no second process. Your data layer is your Go code: the database, the queue, the external API. An API or a service you already have mounts on collage's own mux with <code>app.Handle</code>, beside the pages and behind the same middleware. One project, one binary."
     },
     "apps": {
@@ -94,6 +93,7 @@
       },
       "out": {
         "title": "Not included",
+        "backend": "A backend: business rules and services are your Go code",
         "orm": "An ORM",
         "migrations": "Migrations",
         "db": "A database layer: that is your Go code"

@@ -16,15 +16,17 @@ type layoutView struct {
 	// Section is the part of the site the page is in, for the navigation to mark:
 	// "docs" on a page of the documentation, "" elsewhere.
 	Section string
-	// Languages are the other languages the site is in, each linked to this page
-	// in it — or to its home page, where this page is not translated.
+	// Languages are the languages the site is in. The page's own is Current;
+	// each other one is linked to this page in it — or to its home page, where
+	// this page is not translated.
 	Languages []language
 }
 
 type language struct {
-	Code string
-	Name string
-	URL  string
+	Code    string
+	Name    string
+	URL     string
+	Current bool
 }
 
 // Layout is the frame of every page. The canonical link and the alternates of
@@ -43,6 +45,7 @@ func Layout(app *collage.App, docs func() (*site.Set, error)) *collage.Fragment 
 			}
 			for _, locale := range set.Locales() {
 				if locale == rc.Locale {
+					view.Languages = append(view.Languages, language{Code: locale, Name: site.LanguageNames[locale], Current: true})
 					continue
 				}
 				href, err := pageIn(app, set, rc, locale)

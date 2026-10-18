@@ -65,11 +65,10 @@
         "live": "Canlı güncellemeler",
         "seo": "SEO ve içerik",
         "ops": "Teslimat ve operasyon"
-      },
-      "all": "Tüm plugin'ler ve kendi plugin'inizi nasıl yazacağınız"
+      }
     },
     "go": {
-      "title": "Hâlâ Go",
+      "title": "Hâlâ Go yazıyorsunuz",
       "text": "İkinci bir dil de ikinci bir process de yok. Veri katmanınız Go kodunuzdur: veritabanı, kuyruk, dış API. Elinizdeki bir API'yi ya da servisi <code>app.Handle</code> ile collage'ın kendi mux'ına mount edersiniz. Page'lerin yanında, aynı middleware'lerin arkasında çalışır. Tek proje, tek binary."
     },
     "apps": {
@@ -94,6 +93,7 @@
       },
       "out": {
         "title": "Dahil değil",
+        "backend": "Backend: iş kuralları ve servisler sizin Go kodunuzdur",
         "orm": "ORM",
         "migrations": "Migration'lar",
         "db": "Veritabanı katmanı: o sizin Go kodunuz"
