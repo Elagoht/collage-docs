@@ -155,7 +155,7 @@ duyduğu şey bir plugin'dir:
 - **Güvenlik:** güvenlik header'ları, rate limit, basic auth, OAuth, fail2ban, bir
   consent banner'ı.
 - **Canlı güncelleme:** server-sent events ya da WebSocket üzerinden yenilenen
-  fragment'ler.
+  fragment'ler ve bir fragment'i yerine koyan küçük bir script.
 - **SEO ve içerik:** meta tag'ler, structured data, sitemap'ler, feed'ler, Open Graph
   görselleri, Markdown, syntax highlighting, arama, çeviriler.
 - **Dağıtım ve operasyon:** küçültme, sıkıştırma, görsel optimizasyonu, deploy
@@ -172,7 +172,7 @@ Bkz. [Plugin kullanmak](/docs/plugins), [Plugin yazmak](/docs/writing-plugins) v
 İkinci bir dil de ikinci bir process de yoktur. Veri katmanınız Go kodunuzdur
 (veritabanı, kuyruk, dış API) ve data handler'lardan ve action'lardan herhangi bir
 fonksiyon gibi çağrılır. Elinizdeki bir API ya da servis, collage'ın kendi
-mux'ına, page'lerin yanına ve aynı middleware'lerin arkasına mount edilir:
+mux'ına, page'lerin yanına mount edilir:
 
 ```go
 api := http.NewServeMux()
@@ -186,7 +186,9 @@ if err := app.Handle("/api/", api); err != nil {
 
 Herhangi bir `http.Handler` işinizi görür: bir `ServeMux`, halihazırda kullandığınız
 bir router, bir reverse proxy. Bir şeyi değiştirdiğinde cache'lenen page'leri invalidate
-edebilir ve siteyle aynı binary'de yer alır. Bkz.
+edebilir ve siteyle aynı binary'de yer alır. Kendi middleware'ini kendisi getirir:
+sitenin middleware'leri onun için yalnızca `collage.WithMiddleware()` ile mount
+edildiğinde çalışır. Bkz.
 [Kendi handler'ınız](/docs/middleware-and-apis#your-own-handler-apphandle).
 
 ## Siteler ve web uygulamaları
@@ -241,7 +243,7 @@ collage'ı kullanın.
 
 <figure class="diagram-figure" data-search-ignore>
 <svg class="diagram" viewBox="0 0 320 400" role="img" aria-labelledby="flow-title">
-<title id="flow-title">Bir request plugin middleware'lerinden ve app.Use'dan geçer, routing de onu bir page'e, bir fragment path'e, bir action'a ya da kendi handler'ınıza gönderir. Yalnızca page tag'lerle cache'lenir; fragment path ve action her seferinde yeniden render edilir. Hepsi veri katmanınızdan okur.</title>
+<title id="flow-title">Bir request plugin middleware'lerinden ve app.Use'dan geçer, routing de onu bir page'e, bir fragment path'e, bir action'a ya da kendi handler'ınıza gönderir. Yalnızca page tag'lerle cache'lenir; fragment path ve action her seferinde yeniden render edilir. Hepsi veri katmanınızdan okur. Kendi handler'ınıza gelen bir request, handler WithMiddleware ile mount edilmedikçe middleware'leri atlar.</title>
 <defs><marker id="flow-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
 <rect class="d-pill" x="110" y="8" width="100" height="26" rx="13" /><text x="160" y="25" text-anchor="middle">tarayıcı</text>
 <line class="d-flow" x1="160" y1="34" x2="160" y2="54" marker-end="url(#flow-arrow)" />
@@ -267,7 +269,7 @@ collage'ı kullanın.
 <line class="d-flow" x1="270" y1="236" x2="270" y2="346" marker-end="url(#flow-arrow)" />
 <rect class="d-frame" x="6" y="350" width="300" height="44" rx="6" /><text x="156" y="369" text-anchor="middle">Go ile yazılmış veri katmanınız</text><text class="d-small" x="156" y="384" text-anchor="middle">veritabanı · API · CMS · kuyruk</text>
 </svg>
-<figcaption>Her request önce, register edildikleri sırayla middleware'lerden geçer. Ardından routing onu bir page'e, bir page'in fragment path'lerinden birine, bir action'a ya da kendi handler'larınızdan birine verir. Bir page, oluşturulduğu içeriğin tag'leriyle cache'lenir; fragment path ve action ise her seferinde yeniden render edilir. Hepsi veri katmanınızdan okur, kendi handler'ınız da onunla doğrudan konuşur.</figcaption>
+<figcaption>Her request önce, register edildikleri sırayla middleware'lerden geçer; kendi handler'larınızdan birine gelen bir request ise o handler WithMiddleware ile mount edilmedikçe bunları atlar. Ardından routing onu bir page'e, bir page'in fragment path'lerinden birine, bir action'a ya da kendi handler'larınızdan birine verir. Bir page, oluşturulduğu içeriğin tag'leriyle cache'lenir; fragment path ve action ise her seferinde yeniden render edilir. Hepsi veri katmanınızdan okur, kendi handler'ınız da onunla doğrudan konuşur.</figcaption>
 </figure>
 
 ## Neler sunar

@@ -16,7 +16,7 @@ before what comes after it runs:
 
 <figure class="diagram-figure" data-search-ignore>
 <svg class="diagram" viewBox="0 0 320 490" role="img" aria-labelledby="sec-flow-title">
-<title id="sec-flow-title">A request first gets the security headers, then its path is cleaned: a dirty path is redirected, an encoded slash is a 404 and a malformed escape a 400. Then the middleware runs, yours and the plugins'. A path mounted with app.Handle is yours alone. A page, its actions and its fragment paths meet the page's guards before the cache; a guard's own answer is no-store. A page is served from the cache or rendered with a key that holds no cookie, and goes out private, no-cache if it is guarded. A fragment path is an action answering GET, never cached. An action meets the body limit, answering 413, then the origin and the token, answering 403 for an unsafe method, then your handler. In production any error page shows only the status.</title>
+<title id="sec-flow-title">A request first gets the security headers, then its path is cleaned: a dirty path is redirected, an encoded slash is a 404 and a malformed escape a 400. A path mounted with plain app.Handle is then yours alone, and no middleware runs for it. Everything else meets the middleware, yours and the plugins'. A page, its actions and its fragment paths meet the page's guards before the cache; a guard's own answer is no-store. A page is served from the cache or rendered with a key that holds no cookie, and goes out private, no-cache if it is guarded. A fragment path is an action answering GET, never cached. An action meets the body limit, answering 413, then the origin and the token, answering 403 for an unsafe method, then your handler. In production any error page shows only the status.</title>
 <defs><marker id="sec-flow-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
 <rect class="d-pill" x="55" y="8" width="120" height="24" rx="12" /><text x="115" y="24" text-anchor="middle">request</text>
 <line class="d-flow" x1="115" y1="32" x2="115" y2="48" marker-end="url(#sec-flow-arrow)" />
@@ -29,7 +29,7 @@ before what comes after it runs:
 <rect class="d-chip" x="222" y="94" width="96" height="34" rx="6" /><text class="d-small" x="270" y="108" text-anchor="middle">redirect</text><text class="d-small" x="270" y="121" text-anchor="middle">404 · 400</text>
 <line class="d-flow" x1="115" y1="124" x2="115" y2="140" marker-end="url(#sec-flow-arrow)" />
 <rect class="d-c" x="23" y="144" width="184" height="36" rx="6" /><text class="d-on-c" x="115" y="160" text-anchor="middle">middleware</text><text class="d-on-c d-small" x="115" y="173" text-anchor="middle">yours and plugins'</text>
-<line class="d-flow" x1="207" y1="162" x2="218" y2="162" marker-end="url(#sec-flow-arrow)" />
+<path class="d-flow" d="M115 132H270V140" marker-end="url(#sec-flow-arrow)" />
 <rect class="d-c" x="222" y="144" width="96" height="36" rx="6" /><text class="d-on-c" x="270" y="160" text-anchor="middle">app.Handle</text><text class="d-on-c d-small" x="270" y="173" text-anchor="middle">all yours</text>
 <line class="d-flow" x1="115" y1="180" x2="115" y2="196" marker-end="url(#sec-flow-arrow)" />
 <rect class="d-frame" x="23" y="200" width="184" height="36" rx="6" /><text x="115" y="216" text-anchor="middle">guards, before cache</text><text class="d-small" x="115" y="229" text-anchor="middle">page, actions, fragment paths</text>
@@ -52,7 +52,7 @@ before what comes after it runs:
 <rect class="d-frame" x="96" y="468" width="12" height="12" rx="2" /><text class="d-small" x="114" y="478">collage</text>
 <rect class="d-c" x="180" y="468" width="12" height="12" rx="2" /><text class="d-small" x="198" y="478">yours</text>
 </svg>
-<figcaption>collage's own steps are outlined, and what is yours is filled. Every request gets the security headers and a clean path before any middleware runs. After the middleware, a path mounted with app.Handle is yours alone: no guard, no forgery check, no body limit and no cache. A page, its actions and its fragment paths meet the page's guards before the cache. An action then meets the body limit (the body is bounded before any middleware runs; an action whose body is too large is refused here), then the origin and the token, before your handler; a fragment path is an action answering GET, and is never cached. In production, an error page shows the status and nothing else.</figcaption>
+<figcaption>collage's own steps are outlined, and what is yours is filled. Every request gets the security headers and a clean path before any middleware runs. A path mounted with plain app.Handle is then yours alone: no middleware, no guard, no forgery check, no body limit and no cache. Everything else meets the middleware, yours and the plugins'. A page, its actions and its fragment paths meet the page's guards before the cache. An action then meets the body limit (the body is bounded before any middleware runs; an action whose body is too large is refused here), then the origin and the token, before your handler; a fragment path is an action answering GET, and is never cached. In production, an error page shows the status and nothing else.</figcaption>
 </figure>
 
 ## Forms cannot be forged
@@ -201,7 +201,9 @@ nonce.
   See [Deployment](/docs/deployment#tls-behind-a-proxy).
 - **Rate limits** — [elagoht/ratelimit](/docs/plugins#elagohtratelimit).
 - **A handler mounted with `app.Handle`** is your own: no forgery check, no body
-  limit, no cache.
+  limit, no cache, and since v0.67.0 no middleware — no plugin's authentication, rate
+  limit, ban or access log covers it unless it is mounted `collage.WithMiddleware()`.
+  See [No middleware, unless you ask](/docs/middleware-and-apis#no-middleware-unless-you-ask).
 - **What a data handler reads.** On a cacheable page, a value middleware put in the
   request context is hidden from the shared render, so one reader's cannot reach
   another's page; declare it with `collage.Vary` and read it with `collage.Varied`.
@@ -219,7 +221,8 @@ to go live:
 - every member signs in, and has a role: an admin may change any task of the team,
   a member only the tasks assigned to them;
 - the team's list is a page at `/teams/{team}/tasks`, with an "add a task" form;
-- a JSON API for the team's command-line tool is mounted with `app.Handle`.
+- a JSON API for the team's command-line tool is mounted with `app.Handle`,
+  `WithMiddleware()`.
 
 Each risk below is covered by collage, by a plugin the application adds, or by
 the application itself:
@@ -269,8 +272,9 @@ app, err := collage.New(&collage.Config{
 ```
 
 The second rule has no path and no methods, so it counts every method but `GET`,
-`HEAD` and `OPTIONS` everywhere outside its skip list — the API's `PATCH` too, since a plugin's middleware
-runs before a path mounted with `app.Handle` is matched.
+`HEAD` and `OPTIONS` everywhere outside its skip list — the API's `PATCH` too, since the API is mounted
+`WithMiddleware()`. A plain `app.Handle` mount runs no middleware, so neither this
+rate limit nor any other plugin's middleware would cover it.
 
 The roles stay the application's. The guard that lets only admins through is the
 `requireRole` of

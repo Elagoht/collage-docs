@@ -405,6 +405,65 @@ gönderilir ve tarayıcı sunucu ne döndürdüyse onu gösterir. Script'in ikin
 sunucunun cevap vermediği turu atlar, listenin olmadığı bir page'de de hiçbir şey
 yapmaz.
 
+### Aynısı elagoht/client ile
+
+Yukarıdaki script mekanizmanın tamamıdır ve onu bir kez elle yazmaya değer. Bundan
+sonra [elagoht/client](/docs/plugins#elagohtclient) plugin'i sizi `fetch` ve
+`outerHTML` satırlarından kurtarabilir; bitmiş proje onu kullanmaz. Plugin'i
+ekleyin ve script'ini master layout'un `<head>`'ine koyun:
+
+```sh
+collage plugin add elagoht/client
+```
+
+```html
+<head>
+  {{clientjs}}
+</head>
+```
+
+Artık polling yarısı tek bir satırdır. `collage.replace("#items")`
+element'in `data-src`'sini çeker ve cevabı, `outerHTML` satırının yaptığı gibi,
+onun yerine koyar. `collage.morph("#items")` aynı request'i yapar, ama listeyi
+yerinde patch'ler. Böylece okuyucunun page'de yaptığı şeye dokunulmaz:
+
+```js
+// Every five seconds, the list as it is now, patched into the page in place.
+// collage.replace("#items") would put it in whole, as outerHTML did.
+setInterval(() => collage.morph("#items").catch(() => {}), 5000);
+```
+
+Başarısız olan bir çağrı (cevap gelmemesi, tek bir element olmayan bir cevap,
+liste üzerinde daha yeni bir çağrı) listeyi olduğu gibi bırakır ve reject olur.
+`.catch(() => {})` da onu, elle yazılan sürümde olduğu gibi, atlanan bir tura
+çevirir.
+
+Submit yarısı kendi `fetch`'ini korur: form'u post eder, `replace` ve `morph` ise
+`GET` ile çeker. Yalnızca element aramaları `collage.$` olur:
+
+```js
+const form = collage.$("#add");
+
+form.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  try {
+    const response = await fetch(form.action, {
+      method: "POST",
+      headers: { "Collage-Fetch": "1" },
+      body: new FormData(form),
+    });
+    const items = collage.$("#items");
+    if (!response.ok || !items) {
+      throw new Error(`answered ${response.status}`);
+    }
+    items.outerHTML = await response.text();
+    form.reset();
+  } catch {
+    form.submit();
+  }
+});
+```
+
 ## Listeyi güncel tutun
 
 Script'in ikinci yarısı her beş saniyede bir `/list/items`'ı ister. Böyle bir

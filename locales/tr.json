@@ -58,7 +58,7 @@
     },
     "plugins": {
       "title": "İstediğiniz kadar middleware ve plugin",
-      "text": "Bir framework size tek bir middleware dosyası verip bir request'in ihtiyaç duyduğu her şeyi onun içinde elle zincirletiyorsa, collage'da <code>app.Use</code>'u istediğiniz kadar çağırabilirsiniz; her çağrı herhangi bir <code>func(http.Handler) http.Handler</code> alır. Her plugin de kendi middleware'ini getirir ve bunlar plugin'leri listelediğiniz sırayla çalışır. Çekirdek küçük kalır: session, spam koruması, canlı güncelleme, SEO ve metrikler plugin'dir. Kırk dört plugin yayımlanmış durumda. Kendi plugin'iniz ise ihtiyaç duyduğu hook'lara sahip bir Go tipidir.",
+      "text": "Bir framework size tek bir middleware dosyası verip bir request'in ihtiyaç duyduğu her şeyi onun içinde elle zincirletiyorsa, collage'da <code>app.Use</code>'u istediğiniz kadar çağırabilirsiniz; her çağrı herhangi bir <code>func(http.Handler) http.Handler</code> alır. Her plugin de kendi middleware'ini getirir ve bunlar plugin'leri listelediğiniz sırayla çalışır. Çekirdek küçük kalır: session, spam koruması, canlı güncelleme, SEO ve metrikler plugin'dir. Kırk beş plugin yayımlanmış durumda. Kendi plugin'iniz ise ihtiyaç duyduğu hook'lara sahip bir Go tipidir.",
       "groups": {
         "forms": "Form'lar ve state",
         "security": "Güvenlik",

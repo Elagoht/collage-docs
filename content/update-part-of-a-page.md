@@ -396,6 +396,64 @@ or it is not the list, the form is submitted the ordinary way and the browser
 shows whatever the server says. The second half skips a tick the server does not
 answer, and does nothing on a page without the list.
 
+### The same with elagoht/client
+
+The script above is the whole mechanism, and it is worth writing once by hand.
+After that, the plugin [elagoht/client](/docs/plugins#elagohtclient) can save you
+the `fetch` and `outerHTML` lines; the finished project does not use it. Add it,
+and include its script in the master layout's `<head>`:
+
+```sh
+collage plugin add elagoht/client
+```
+
+```html
+<head>
+  {{clientjs}}
+</head>
+```
+
+The polling half is then one line. `collage.replace("#items")` fetches the
+element's `data-src` and puts the answer in its place, as the `outerHTML` line did.
+`collage.morph("#items")` makes the same request and patches the list in place
+instead, so what the reader is doing on the page is left as it is:
+
+```js
+// Every five seconds, the list as it is now, patched into the page in place.
+// collage.replace("#items") would put it in whole, as outerHTML did.
+setInterval(() => collage.morph("#items").catch(() => {}), 5000);
+```
+
+A call that fails — no answer, an answer that is not one element, a newer call on
+the list — leaves the list as it was and rejects, and `.catch(() => {})` makes it a
+skipped tick, as the hand-written version does.
+
+The submit half keeps its own `fetch`: it posts the form, and `replace` and `morph`
+fetch with `GET`. Only its lookups change, to `collage.$`:
+
+```js
+const form = collage.$("#add");
+
+form.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  try {
+    const response = await fetch(form.action, {
+      method: "POST",
+      headers: { "Collage-Fetch": "1" },
+      body: new FormData(form),
+    });
+    const items = collage.$("#items");
+    if (!response.ok || !items) {
+      throw new Error(`answered ${response.status}`);
+    }
+    items.outerHTML = await response.text();
+    form.reset();
+  } catch {
+    form.submit();
+  }
+});
+```
+
 ## Keep it current
 
 The second half of the script asks for `/list/items` every five seconds. That is

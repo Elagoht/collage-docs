@@ -3,7 +3,7 @@ module github.com/Elagoht/collage-docs
 go 1.26.0
 
 require (
-	github.com/Elagoht/collage v0.66.0
+	github.com/Elagoht/collage v0.67.0
 	github.com/Elagoht/collage-favicon v0.2.0
 	github.com/Elagoht/collage-highlight v0.3.0
 	github.com/Elagoht/collage-htmlcheck v0.2.0

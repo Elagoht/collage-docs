@@ -146,7 +146,8 @@ stays small on purpose; what a particular site needs is a plugin:
   sessions, uploads.
 - **Security:** security headers, rate limits, basic auth, OAuth, fail2ban, a
   consent banner.
-- **Live updates:** fragments refreshed over server-sent events or a WebSocket.
+- **Live updates:** fragments refreshed over server-sent events or a WebSocket, and
+  a small script that swaps one in.
 - **SEO and content:** meta tags, structured data, sitemaps, feeds, Open Graph
   images, Markdown, syntax highlighting, search, translations.
 - **Delivery and operations:** minifying, compression, image optimisation, deploy
@@ -162,7 +163,7 @@ your own is a Go type that implements the hooks it needs. See
 There is no second language and no second process. Your data layer is your Go
 code — the database, the queue, the external API — called from data handlers and
 actions like any other function. An API or a service you already have mounts on
-collage's own mux, beside the pages and behind the same middleware:
+collage's own mux, beside the pages:
 
 ```go
 api := http.NewServeMux()
@@ -176,7 +177,8 @@ if err := app.Handle("/api/", api); err != nil {
 
 Any `http.Handler` will do: a `ServeMux`, a router you already use, a reverse proxy. It
 can invalidate cached pages when it changes something, and it ships in the same
-binary as the site. See
+binary as the site. It brings its own middleware: the site's runs for it only when
+it is mounted with `collage.WithMiddleware()`. See
 [Your own handler](/docs/middleware-and-apis#your-own-handler-apphandle).
 
 ## Sites and web apps
@@ -230,7 +232,7 @@ pages around them if you like.
 
 <figure class="diagram-figure" data-search-ignore>
 <svg class="diagram" viewBox="0 0 320 400" role="img" aria-labelledby="flow-title">
-<title id="flow-title">A request passes through plugin middleware and app.Use, and routing sends it to a page, a fragment path, an action or your own handler. Only a page is cached, by tag; a fragment path and an action render fresh each time. All of them read from your data layer.</title>
+<title id="flow-title">A request passes through plugin middleware and app.Use, and routing sends it to a page, a fragment path, an action or your own handler. Only a page is cached, by tag; a fragment path and an action render fresh each time. All of them read from your data layer. A request for your own handler skips the middleware unless the handler is mounted WithMiddleware.</title>
 <defs><marker id="flow-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
 <rect class="d-pill" x="110" y="8" width="100" height="26" rx="13" /><text x="160" y="25" text-anchor="middle">browser</text>
 <line class="d-flow" x1="160" y1="34" x2="160" y2="54" marker-end="url(#flow-arrow)" />
@@ -256,7 +258,7 @@ pages around them if you like.
 <line class="d-flow" x1="270" y1="236" x2="270" y2="346" marker-end="url(#flow-arrow)" />
 <rect class="d-frame" x="6" y="350" width="300" height="44" rx="6" /><text x="156" y="369" text-anchor="middle">your data layer, in Go</text><text class="d-small" x="156" y="384" text-anchor="middle">database · API · CMS · queue</text>
 </svg>
-<figcaption>Every request passes the middleware first, in the order it was registered. Routing then hands it to a page, one of a page's fragment paths, an action, or a handler of your own. A page is cached by the tags of what it was built from; a fragment path and an action render fresh each time. All of them read from your data layer, and your own handler talks to it directly.</figcaption>
+<figcaption>Every request passes the middleware first, in the order it was registered; one for a handler of your own skips it unless that handler is mounted WithMiddleware. Routing then hands it to a page, one of a page's fragment paths, an action, or a handler of your own. A page is cached by the tags of what it was built from; a fragment path and an action render fresh each time. All of them read from your data layer, and your own handler talks to it directly.</figcaption>
 </figure>
 
 ## What you get

@@ -150,10 +150,10 @@ cache to reach.
 | `InvalidateTags(ctx, tags...) error` | Invalidates every cached page built from any of the tags — on the built-in stores marks it stale, kept for a re-render that fails or is degraded — and marks the `collage.Cached` values stale. |
 | `RegisterDocument(doc) error` | Registers a document the plugin contributes. |
 | `Mount(prefix, fsys, opts...) error` | Serves a filesystem under a URL prefix. |
-| `Handle(prefix, handler) error` | Serves an `http.Handler` under a URL prefix ending in `/`, or at one exact path without it (`/metrics`, since v0.24.0), as `App.Handle` does — an event stream, a WebSocket (since v0.18.0). |
+| `Handle(prefix, handler) error` | Serves an `http.Handler` under a URL prefix ending in `/`, or at one exact path without it (`/metrics`, since v0.24.0), as `App.Handle` does — an event stream, a WebSocket (since v0.18.0). Unlike a plain `App.Handle` mount since v0.67.0, it runs inside the middleware. |
 | `RenderFragment(r, req) (*collage.FragmentRender, error)` | Renders a fragment a page opened with `WithFragmentPath`, in parts — see [Pushing fragments](#pushing-fragments) (since v0.18.0). |
 | `RegisterCommand(cmd) error` | Contributes a command — see [Commands](#commands). |
-| `Use(middleware) error` | Wraps every request (since v0.21.0), where the plugin was registered: for one in `Config.Plugins`, outside the application's own middleware (since v0.38.0; inside it before). |
+| `Use(middleware) error` | Wraps every request (since v0.21.0), where the plugin was registered: for one in `Config.Plugins`, outside the application's own middleware (since v0.38.0; inside it before). Since v0.67.0 not a request for a handler the application mounted with plain `App.Handle`. |
 | `URL(name, locale, params) (string, error)` | The path of a page or document, as `App.URL` builds it (since v0.21.0). |
 | `BaseURL() string` | `Config.BaseURL`, without a trailing slash; empty when none is set. |
 | `OriginFor(ctx, host) string` | The public origin of a host: an `OriginResolver`'s, else `Config.BaseURL` — see [Which origin a host has](#which-origin-a-host-has-originresolver) (since v0.60.0). |
@@ -1141,7 +1141,9 @@ a plugin registers no pages: `Host.RegisterPage` is gone, and pages are the
 application's. `Host.Handle` serves a plain `http.Handler` under a prefix, for
 what is not a page — an event stream, a WebSocket. A prefix ending in `/` claims
 every path beneath it; since v0.24.0 one without, `/metrics`, is a single exact
-path.
+path. It always runs inside the middleware, the application's and every plugin's:
+it is part of the site, and may read the session or rely on a basicauth in front of
+it.
 
 `Host.Use` (since v0.21.0) wraps
 every request, as `App.Use` does, where the plugin was registered. Since v0.38.0 a
@@ -1149,7 +1151,10 @@ plugin in `Config.Plugins` is outside the application's own middleware, so what 
 puts in the request's context, a session, is there for the application's
 middleware to read, and its headers and cookies wrap what that middleware
 produced. One registered with `App.RegisterPlugin` sits among the application's
-middleware where the call was made.
+middleware where the call was made. Since v0.67.0 it does not run for a handler the
+application mounted with plain `App.Handle`, which brings its own middleware: a
+plugin that bans, limits, guards or logs cannot answer for such a mount. See
+[No middleware, unless you ask](/docs/middleware-and-apis#no-middleware-unless-you-ask).
 
 A plugin that links to pages asks where they live rather than guessing:
 `Host.URL` builds a path as `App.URL` does, `Host.Locales` returns the default locale and every supported one, and

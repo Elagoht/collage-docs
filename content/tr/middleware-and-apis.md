@@ -1,6 +1,6 @@
 ---
 description: app.Use ile standart net/http middleware'leri, collage.Vary ile bir header'a bağlı cache key'leri ve app.Handle ile kendi http.Handler'ınız.
-reference: Vary, SkipCache, ErrVaryTooLate, ErrMountShadowsRoute
+reference: Vary, SkipCache, ErrVaryTooLate, ErrMountShadowsRoute, WithMiddleware, HandleOption
 ---
 
 # Middleware ve kendi API'niz
@@ -9,8 +9,10 @@ collage page render eder. Bir Go programının HTTP üzerinden yaptığı diğer
 yani API'yi, authentication'ı, dil seçimini ve rate limiting'i her zamanki gibi
 kendiniz yazarsınız. Bu kodu iki noktadan birine bağlarsınız:
 
-- Her request'in etrafında çalışan **middleware**'e.
-- Bir prefix'in altındaki her request'e cevap veren **kendi handler'ınıza**.
+- Kendi handler'ınıza gelenler dışında her request'in etrafında çalışan
+  **middleware**'e.
+- Bir prefix'in altındaki her request'e cevap veren ve kendi middleware'ini
+  getiren **kendi handler'ınıza**.
 
 ## Middleware: `app.Use`
 
@@ -35,9 +37,12 @@ Uygulama başladıktan sonra `app.Use` `collage.ErrAppStarted` döner.
 Middleware'in nerede çalıştığıyla ilgili iki nokta var:
 
 - **Routing'den önce.** Middleware her request'i görür: page'leri, document'ları,
-  action'ları, mount edilmiş static dosyaları ve kendi handler'larınızı. 404 ile
-  biten request'ler de buna dahildir. Middleware bir request'e 401 ya da redirect
-  ile kendisi cevap verebilir. Bu durumda arkasındaki hiçbir şey çalışmaz.
+  action'ları, mount edilmiş static dosyaları, bir plugin'in handler'larını ve
+  `WithMiddleware` ile mount edilmiş bir handler'ı. 404 ile biten request'ler de
+  buna dahildir. Middleware bir request'e 401 ya da redirect ile kendisi cevap
+  verebilir. Bu durumda arkasındaki hiçbir şey çalışmaz. v0.67.0'dan beri düz
+  `app.Handle` ile mount edilmiş bir handler bunun istisnasıdır: ona hiçbir
+  middleware olmadan cevap verilir ([aşağıda](#no-middleware-unless-you-ask)).
 - **Framework'ün koruması içinde.** Middleware, collage'ın span'i, metric'leri ve
   panic recovery'si içinde çalışır. `app.Handler()`'ı kendi middleware'inizle
   sarmaktan farkı budur. Middleware'inizdeki bir panic bağlantıyı koparmaz, normal
@@ -46,7 +51,7 @@ Middleware'in nerede çalıştığıyla ilgili iki nokta var:
 
 <figure class="diagram-figure" data-search-ignore>
 <svg class="diagram" viewBox="0 0 320 360" role="img" aria-labelledby="mw-layers-title">
-<title id="mw-layers-title">Bir request, collage'ın span, metric ve panic recovery'den oluşan koruması içinde önce Config.Plugins içindeki plugin'lerin middleware'lerinden liste sırasıyla, sonra app.Use middleware'lerinden register sırasıyla geçer. Routing önce static mount'lara ve app.Handle prefix'lerine bakar, geri kalan her şeyi router'a verir; router da bir page, onun fragment path'lerinden birini, bir document ya da bir action seçer.</title>
+<title id="mw-layers-title">Bir request, collage'ın span, metric ve panic recovery'den oluşan koruması içinde önce Config.Plugins içindeki plugin'lerin middleware'lerinden liste sırasıyla, sonra app.Use middleware'lerinden register sırasıyla geçer. Routing önce static mount'lara ve WithMiddleware ile mount edilmiş app.Handle prefix'lerine bakar, geri kalan her şeyi router'a verir; router da bir page, onun fragment path'lerinden birini, bir document ya da bir action seçer. Düz app.Handle ile mount edilmiş bir handler middleware'den önce, korumanın içinde eşleşir ve middleware olmadan çalışır.</title>
 <defs><marker id="mw-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
 <rect class="d-pill" x="110" y="8" width="100" height="26" rx="13" /><text x="160" y="25" text-anchor="middle">tarayıcı</text>
 <line class="d-flow" x1="160" y1="34" x2="160" y2="52" marker-end="url(#mw-arrow)" />
@@ -61,7 +66,7 @@ Middleware'in nerede çalıştığıyla ilgili iki nokta var:
 <line class="d-flow" x1="160" y1="222" x2="160" y2="242" marker-end="url(#mw-arrow)" />
 <path class="d-flow" d="M185 222C185 234 259 230 259 242" marker-end="url(#mw-arrow)" />
 <rect class="d-b" x="15" y="246" width="92" height="30" rx="5" /><text class="d-on-b d-small" x="61" y="265" text-anchor="middle">static mount</text>
-<rect class="d-frame" x="114" y="246" width="92" height="30" rx="5" /><text class="d-small" x="160" y="265" text-anchor="middle">app.Handle</text>
+<rect class="d-frame" x="114" y="246" width="92" height="30" rx="5" /><text class="d-small" x="160" y="258" text-anchor="middle">app.Handle</text><text class="d-small" x="160" y="270" text-anchor="middle">WithMiddleware</text>
 <rect class="d-cmd" x="213" y="246" width="92" height="30" rx="15" /><text class="d-cmd-text" x="259" y="265" text-anchor="middle">router</text>
 <text class="d-small" x="110" y="292" text-anchor="middle">önce prefix ile eşleşir</text>
 <path class="d-flow" d="M245 276C245 290 210 288 210 302" marker-end="url(#mw-arrow)" />
@@ -69,7 +74,7 @@ Middleware'in nerede çalıştığıyla ilgili iki nokta var:
 <rect class="d-a" x="176" y="306" width="68" height="34" rx="5" /><text class="d-on-a d-small" x="210" y="320" text-anchor="middle">page ya da</text><text class="d-on-a d-small" x="210" y="332" text-anchor="middle">document</text>
 <rect class="d-c" x="249" y="306" width="60" height="34" rx="5" /><text class="d-on-c" x="279" y="327" text-anchor="middle">action</text>
 </svg>
-<figcaption>Her request collage'ın koruması içinde çalışır: span'i, metric'leri ve bir panic'i 500'e çeviren panic recovery. Bunun içinde önce Config.Plugins içindeki plugin'lerin middleware'leri liste sırasıyla, sonra app.Use middleware'leri register edildikleri sırayla çalışır; app.RegisterPlugin ile eklenen bir plugin, çağrının yapıldığı yerde durur. Bunlardan herhangi biri request'e kendisi cevap verip onu orada durdurabilir. Geçen request route edilir: önce bir static mount'a ya da bir app.Handle prefix'ine bakılır, gerisini router alır.</figcaption>
+<figcaption>Her request collage'ın koruması içinde çalışır: span'i, metric'leri ve bir panic'i 500'e çeviren panic recovery. Bunun içinde önce Config.Plugins içindeki plugin'lerin middleware'leri liste sırasıyla, sonra app.Use middleware'leri register edildikleri sırayla çalışır; app.RegisterPlugin ile eklenen bir plugin, çağrının yapıldığı yerde durur. Bunlardan herhangi biri request'e kendisi cevap verip onu orada durdurabilir. Geçen request route edilir: önce bir static mount'a ya da WithMiddleware ile mount edilmiş bir app.Handle'ın prefix'ine bakılır, gerisini router alır. Düz app.Handle ile mount edilmiş bir handler ise zincirin hiç içinde değildir: request'leri middleware'den önce, yine korumanın içinde eşleşir ve doğrudan ona gider.</figcaption>
 </figure>
 
 ### Plugin'lerin middleware'i ve sizinki
@@ -294,14 +299,102 @@ kadarını okuyacağına ve neyi cache'leyeceğine siz karar verirsiniz.
 
 | Handler'ın almadıkları | Handler'ın her request gibi aldıkları |
 | --- | --- |
-| request forgery kontrolü | span ve metric'ler |
-| body boyutu limiti | panic koruması |
-| cache | `app.Use` ile register edilen middleware'ler |
+| request forgery kontrolü | plugin'lerin request hook'ları |
+| body boyutu limiti | span ve metric'ler |
+| cache | panic koruması |
+| sizin ya da bir plugin'in middleware'i (`WithMiddleware()` ile mount edilmedikçe) | temiz path'e redirect ve encode edilmiş slash için 404 |
+| | temel `X-Content-Type-Options` ve `X-Frame-Options` header'ları |
 | | graceful shutdown sırasında bitmesinin beklenmesi |
 
 Handler'ın döndüğü bir 5xx, plugin'lerin error hook'larına
 `collage.ErrHandlerFailed` olarak bildirilir. 4xx cevapları ise handler'ın kendi
 sorumluluğundadır.
+
+### İstemedikçe middleware yok
+
+v0.67.0'dan beri `app.Handle` ile mount edilmiş bir handler için hiçbir middleware
+çalışmaz: ne `app.Use` ile eklenenler ne de herhangi bir plugin'inki. Session,
+flash, i18n, consent, secure, ratelimit, basicauth, fail2ban, accesslog,
+redirects, tenant, compress ve development toolbar'ı da buna dahildir.
+
+Handler sizin, middleware'i de sizin. Bir API'nin authentication konusunda kendi
+fikri vardır: sitenin session cookie'si değil, bir bearer token. Kendi rate
+limit'i ve kendi hata formatı da vardır. Sitenin consent banner'ı, development
+toolbar'ı ya da `Vary: Cookie` header'ı da onun istediği şeyler değildir. Bu
+yüzden handler'ı, collage olmadan da yapacağınız gibi, istediği middleware'lerle
+sarın:
+
+```go
+api := http.NewServeMux()
+api.HandleFunc("GET /api/users/{id}", getUser)
+
+// requireToken is yours, below; perClientLimit stands for any net/http rate
+// limiter — golang.org/x/time/rate behind a map, httprate, tollbooth.
+if err := app.Handle("/api/", requireToken(perClientLimit(api))); err != nil {
+	return err
+}
+
+func requireToken(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !validToken(r.Header.Get("Authorization")) {
+			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+```
+
+Sitenin middleware'ine gerçekten dayanan bir handler, onu
+`collage.WithMiddleware()` ile geri ister. Bu middleware, örneğin onu korumak için
+register ettiğiniz bir basicauth plugin'i, okuyucunun session'ı, zaten
+yapılandırdığınız bir rate limit ya da `app.Use` middleware'inizin context'e
+koyduğu bir değer olabilir. Bu
+handler, v0.67.0'dan önce her mount'un yaptığı gibi, zincirin içinde tam bir page
+gibi ve aynı sırayla çalışır:
+
+```go
+if err := app.Handle("/admin/api/", adminAPI, collage.WithMiddleware()); err != nil {
+	return err
+}
+```
+
+**Düz bir mount'un sorumluluğunu hiçbir plugin üstlenemez.** Bütün siteyi kapsayan
+bir ban, bir IP allowlist'i, bir bakım sayfası ya da bir access log onu kapsamaz.
+Bunun için onu `WithMiddleware()` ile mount edin ya da mux'ınızın etrafına kendi
+middleware'inizi koyun. Özellikle:
+
+- elagoht/fail2ban düz bir mount'a gelen yoklamaları yine sayar, çünkü request
+  hook'u her request için çalışır. Ama banlı bir istemciye 403'ü bir middleware
+  verir. Bu yüzden o istemci, login brute force'unun genellikle yapıldığı yer olan
+  `/api/`'ye tam erişimini korur.
+- elagoht/basicauth ve elagoht/ratelimit onu korumaz, elagoht/session'ın session'ı
+  da onun request'lerinde bulunmaz.
+- elagoht/accesslog onun trafiğini log'lamaz.
+- Prefix'inin altındaki bir elagoht/redirects kuralı çalışmaz.
+- elagoht/tenant'ın tenant'ı onun context'inde bulunmaz.
+
+v0.67.0'dan önce bir mount için bunlardan birine dayanan bir uygulama, bunu korumak
+için o çağrıya `collage.WithMiddleware()` ekler. Eklemezse, eskiden bir basicauth'un
+ya da bir rate limit'in koruduğu mount artık açıktır.
+
+Hangi request'lerin middleware'i atlayacağına, path
+[temizlendikten](#paths-are-cleaned-first) sonra, routing'in kullandığı eşleşmeyle
+karar verilir. Bu yüzden middleware'i atlayan bir request yalnızca o handler'a
+ulaşabilir. Path'leri yeniden yazan middleware'ler için bunun iki sonucu vardır:
+
+- Bir request'in path'ini düz bir mount'un prefix'inin *içine* yeniden yazan bir
+  middleware artık ona ulaşamaz: yeniden yazılan request, zincirin ilettiği her şey
+  gibi route edilir ve 404 olur. Hedefi `WithMiddleware()` ile mount edin.
+- Bir path'i düz bir mount'un prefix'inin *dışına* yeniden yazan bir middleware
+  (`/api/legacy`'yi bir page'e) artık onun için çalışmaz: mount request'i önce
+  sahiplenir. Bir middleware'in onun request'lerini görmesi gerekiyorsa onu
+  `WithMiddleware()` ile mount edin.
+
+Bir plugin'in kendi endpoint'leri (bir live-reload stream'i, bir OAuth callback'i,
+bir Prometheus `/metrics`'i, bir Open Graph görseli) `Host.Handle` ile mount edilir
+ve bunlar her zaman middleware'in içinde çalışır. Sitenin bir parçasıdırlar;
+session'ı okuyabilir ya da önlerindeki bir basicauth'a dayanabilirler.
 
 ### Prefix'ler ve çakışmalar
 
@@ -414,7 +507,7 @@ Page'ler ekibin görevlerini gösterir. Ekibin komut satırı aracının zaten k
 bir JSON API de olduğu gibi kalır. Bu sayfanın üç konusu burada buluşur:
 
 - kimin sorduğunu her request'te bir kez bulan tek bir middleware;
-- `app.Handle` ile mount edilen mevcut API;
+- middleware'in içinde, `app.Handle` ile mount edilen mevcut API;
 - API'nin, değiştirdiği listenin tag'ini invalidate etmesi.
 
 ### Kim soruyor, her request'te bir kez
@@ -475,7 +568,9 @@ func loadUser(users Users) func(http.Handler) http.Handler {
 
 Middleware routing'den önce çalıştığı için aynı sorgu bir page'e, bir action'a ve
 mount edilmiş API'ye aynı şekilde hizmet eder. Arkasındaki hiçbir şey okuyucunun
-kim olduğunu veritabanına yeniden sormaz.
+kim olduğunu veritabanına yeniden sormaz. API bunu yalnızca aşağıda
+`WithMiddleware()` ile mount edildiği için alır: düz bir `app.Handle` mount'unda
+hiçbir middleware çalışmaz ve `UserFrom` orada kimseyi bulamaz.
 
 ### Olduğu gibi mount edilen API
 
@@ -602,7 +697,14 @@ Hepsini bağlamak için iki çağrı yeter:
 if err := app.Use(loadUser(users)); err != nil {
 	return err
 }
-if err := app.Handle("/api/", taskAPI(app, tasks)); err != nil {
+if err := app.Handle("/api/", taskAPI(app, tasks), collage.WithMiddleware()); err != nil {
 	return err
 }
 ```
+
+`collage.WithMiddleware()` API'yi zincirin içine koyar. Böylece `loadUser` ve her
+plugin'in middleware'i onun için de çalışır:
+[Güvenlik](/docs/security#example-a-teams-task-list-before-it-goes-live)
+sayfasının eklediği rate limit, onun yazma request'lerini de sayar. O olmadan her
+çağrı `401 token required` ile cevaplanırdı, çünkü kullanıcıyı context'e koyan
+olmazdı.

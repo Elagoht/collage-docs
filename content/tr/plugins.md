@@ -1,5 +1,5 @@
 ---
-description: Bir plugin'in neler yapabildiği, bir plugin'in nasıl register edilip yapılandırıldığı ve ne işe yaradıklarına göre gruplanmış, yayımlanmış kırk dört plugin.
+description: Bir plugin'in neler yapabildiği, bir plugin'in nasıl register edilip yapılandırıldığı ve ne işe yaradıklarına göre gruplanmış, yayımlanmış kırk beş plugin.
 reference: Plugin, LoadPluginConfig, ErrUnknownPluginConfig, ErrAppStarted
 ---
 
@@ -45,7 +45,9 @@ verilen bir yetenekten geçer. Bu ikisiyle bir plugin şunları yapabilir:
   `app.Use`'un eklediği her şeyin dışındadır ve listedeki sırayla çalışır; böylece
   sizin middleware'iniz onun request context'ine koyduğunu okur. `RegisterPlugin`
   ile register edilen bir plugin'in middleware'i ise kendisinden önce eklenen
-  middleware'in içinde kalır. Bkz.
+  middleware'in içinde kalır. v0.67.0'dan beri uygulamanın düz `app.Handle` ile
+  mount ettiği bir handler bunun istisnasıdır: onun için hiçbir plugin'in
+  middleware'i çalışmaz. Bkz.
   [Middleware ve kendi API'niz](/docs/middleware-and-apis#plugins-middleware-and-yours).
 - **Çıktıyı denetleyip finding raporlayabilir.** Finding'ler development'ta page'in
   üzerinde gösterilir, static build'in raporunda listelenir ve error seviyesinde
@@ -303,7 +305,7 @@ mesaj, değeri decode edilemeyen key'in adını verir.
 
 ## Yayımlanmış plugin'ler
 
-Framework ile birlikte kırk dört plugin yayımlanmıştır. Aşağıda ne işe
+Framework ile birlikte kırk beş plugin yayımlanmıştır. Aşağıda ne işe
 yaradıklarına göre gruplanmışlardır. Her biri ayrı bir modüldür ve her birinin tam
 referans niteliğinde kendi README'si vardır. Aşağıdaki bilgiler bir plugin'i
 kurmanız için yeterlidir.
@@ -314,7 +316,7 @@ kurmanız için yeterlidir.
 | [İçerik](#content) | markdown, highlight, toc, search, i18n |
 | [Form'lar ve state](#forms-and-state) | validate, honeypot, flash, session, uploads |
 | [Güvenlik](#security) | secure, ratelimit, basicauth, oauth, fail2ban, consent |
-| [Canlı güncellemeler](#live-updates) | live, websocket |
+| [Canlı güncellemeler](#live-updates) | live, websocket, client |
 | [Asset'ler ve teslimat](#assets-and-delivery) | minimizer, opti-image, bundle, favicon, compress, cdnpurge, offline, deploy |
 | [Operasyon ve development](#operations-and-development) | htmlcheck, devtoolbar, accesslog, prometheus, otel, analytics, tenant, errortrack, health, jobs |
 
@@ -1327,6 +1329,9 @@ app.Handle("/uploads/", u.Handler())
 - v0.2.0, collage v0.61.0 ya da sonrasını gerektirir (v0.1.1, collage v0.58.0 için son sürümdü). Template fonksiyonu
   eklemediği için `RegisterPlugin` de onu kabul eder. Plugin'i bir değişkende
   tutun: action `u.Receive`'i çağırır, uygulama da `u.Handler()`'ı bağlar.
+  collage v0.67.0'dan beri bu mount hiçbir middleware olmadan çalışır. Dosyaları
+  bir basicauth'un, bir session kontrolünün ya da elagoht/compress'in kapsaması
+  gerekiyorsa `app.Handle` çağrısına `collage.WithMiddleware()` ekleyin.
 - **v0.2.0'da değişenler:** tek bir constructor var, `uploads.New(uploads.Options{…})`:
   `New(store)` artık `New(uploads.Options{Store: store})`, `NewWith(uploads.Config{Dir: d})`
   ise `New(uploads.Options{Dir: d})`'dir. `Handler` argüman almaz; `Cache-Control`
@@ -1699,6 +1704,12 @@ Plugins: []collage.Plugin{f2b /* , diğerleri */},
   `403 Forbidden` alır, sitenin error page'ini asla. Encoded slash'li ya da kirli
   path'li bir request için collage'ın kendi `404`'ü ya da redirect'i yine de ona
   ulaşır.
+- **Ban bir middleware'dir.** collage v0.67.0'dan beri düz `app.Handle` ile mount
+  edilmiş bir handler hiçbir middleware çalıştırmaz. Bu yüzden banlı bir istemci,
+  `/api/`'ye yönelik login brute force'u dahil, ona tam erişimini korur;
+  oradaki yoklamaları ise yine sayılır. Onu da kapsamak için handler'ı
+  `collage.WithMiddleware()` ile mount edin. Bkz.
+  [İstemedikçe middleware yok](/docs/middleware-and-apis#no-middleware-unless-you-ask).
 - Başarısız bir login'de `Report(r, "login")` çağırın. `Forgive(r, "login")`
   strike'ları siler, ama yalnızca başarı, şifresi tahmin edilen hesabın kendisi
   içinse güvenlidir: her başarıyı affetmek, kendi hesabı olan bir saldırganın
@@ -1969,6 +1980,96 @@ Plugins: []collage.Plugin{websocket.New(websocket.Options{}), live.New(live.Opti
   "elagoht/websocket": { "originPatterns": ["admin.example.com"] }
 }
 ```
+
+#### elagoht/client
+
+[github.com/Elagoht/collage-client](https://github.com/Elagoht/collage-client),
+bir page'in kendi yaptığı swap'ler için küçük bir client script'i sunar: element
+getter'ları ve kendi URL'sinden çekilip yerine konan bir fragment. Fragment,
+element'in yerine geçerek ya da element'e morph edilerek yerleşir. Geri kalan her
+şey düz JavaScript'e bırakılır.
+
+```go
+import client "github.com/Elagoht/collage-client"
+
+Plugins: []collage.Plugin{client.New()},
+```
+
+```html
+<head>
+  {{clientjs}}
+</head>
+
+<!-- the fragment's own template: its root is what is swapped -->
+<ul id="items" data-src="{{fragmentURL "list" "items"}}">
+  {{range .}}<li>{{.Name}}</li>{{end}}
+</ul>
+```
+
+```js
+const names = collage.$$("li", collage.$("#items")).map((li) => li.textContent);
+
+collage.replace("#items").catch(() => {}); // fetch data-src, put it in as outerHTML would
+collage.morph("#items").catch(() => {});   // the same fetch, the DOM patched in place
+
+document.addEventListener("collage:swap", (event) => {
+  console.log(event.target.id, event.detail.mode, event.detail.url);
+});
+```
+
+- v0.1.1, collage v0.67.0 ya da sonrasını gerektirir ve `Config.Plugins` içinde
+  olmalıdır: master layout'un `<head>`'inde bir kez çağırdığı `{{clientjs}}`'i
+  ekler. Yapılandırılacak bir şey yoktur.
+- **Script yalnızca `window.collage`'ı tanımlar.** `collage.$` `querySelector`'dır,
+  `collage.$$` ise Array olarak dönen `querySelectorAll`'dur. İkinci argüman olarak
+  bir root verilmedikçe ikisi de `document` üzerinde çalışır.
+- **`collage.replace(target, url?)`** bir fragment'i çeker ve onu, `outerHTML`'in
+  yapacağı gibi, `target`'ın yerine koyar. `target` bir selector ya da bir
+  Element'tir. `url`'in varsayılanı element'in `data-src`'sidir;
+  [`WithFragmentPath`](/docs/forms-and-actions#a-fragment-at-its-own-url) ile
+  açılmış bir page `{{fragmentURL}}`'i oraya koyar. Cevap element'in tamamının
+  yerine geçer. Bu yüzden element, fragment'in kendi root'u, yani template'inin en
+  dıştaki tag'idir. Promise yeni element ile resolve olur.
+- **`collage.morph(target, url?)`** aynı fetch'tir, ama DOM
+  [idiomorph](https://github.com/bigskysoftware/idiomorph) ile yerinde patch'lenir.
+  Eşleşen element'ler korunur. Böylece yazı yazılan alan focus'unu, caret'ini ve
+  içine yazılanları, korunan bir element de scroll pozisyonunu korur. Morph edilen
+  element'teki başka bir alan sunucunun değerini alır. Bu yüzden yarım doldurulmuş
+  bir form taşımayan bir parçayı morph edin ya da onu `replace` edin.
+- İkisinden biri bittikten sonra yeni element'ten bir **`collage:swap`** event'i
+  bubble eder. `detail`'i `{ url, mode }`'dir, `mode` da `"replace"` ya da
+  `"morph"`'tur.
+- **Request**, fragment path'lerin ve action'ların beklediği gibi `Collage-Fetch: 1`
+  (`collage.FetchHeader`) header'ını ve page'in cookie'lerini taşıyan bir `GET`'tir.
+  Cevap güvenilir markup olarak eklenir. Bu yüzden `url` page'in kendi origin'inde
+  olmalıdır: başka bir origin fetch'ten önce reddedilir, bir redirect'in başka bir
+  origin'den getirdiği cevap da öyle. `url`'i ya da `data-src`'yi asla ziyaretçi
+  girdisinden oluşturmayın.
+- **Bir element üzerindeki en yeni çağrı kazanır.** Üzerinde süren bir çağrı olan
+  bir element'te başlatılan `replace` ya da `morph`, eski çağrıyı iptal eder. Eski
+  çağrı superseded olarak reject olur. Böylece yavaş bir cevap hiçbir zaman daha
+  yeni bir cevabın üstüne düşmez.
+- **Bir hata page'i olduğu gibi bırakır.** Page'de olmayan bir target, ne `url` ne
+  de `data-src` olması, başka bir origin, bir ağ hatası, 2xx olmayan ya da tek bir
+  element olmayan bir cevap (düz metin bir hata body'si, bütün bir document, yan
+  yana iki element), fetch sürerken page'den çıkarılan bir element ya da daha yeni
+  bir çağrı: bunların hiçbiri event fire etmez ve hepsi hangisi olduğunu söyleyen
+  bir `Error` ile reject olur, örneğin
+  `collage: morph /list/items: answered 500`. Sessizce başarısız olabilecek bir
+  polling tick'i `.catch(() => {})` ile biter. Çekilen bir fragment'in içindeki
+  script'ler, `outerHTML`'de olduğu gibi çalışmaz.
+- **elagoht/secure'dan gelen bir Content-Security-Policy nonce'u** varsa onu verin:
+  `{{clientjs cspNonce}}`. `'self'`'e izin veren bir policy script'i nonce olmadan
+  da yükler. Yalnızca nonce'a izin veren ya da `'strict-dynamic'` kullanan bir
+  policy'de, nonce'u unutan bir layout `collage dev` altında yine çalışır, çünkü
+  orada policy yalnızca raporlar; production'da ise script'i yüklemeyi bırakır.
+- Script `/_client/client.<hash>.js` adresinde sunulur, `immutable` olarak bir yıl
+  cache'lenir ve `defer` ile yüklenir. idiomorph 0.8.0 (0BSD) dahil gzip'lenmiş
+  hâliyle yaklaşık 6 KB'tır ve hiçbir şeye bağımlı değildir.
+- Ne polling yapar, ne form post eder, ne de push alır: bunlar için
+  [elagoht/live](#elagohtlive) kullanın. Bir form'un post'u,
+  [Page'in bir kısmını güncellemek](/docs/update-part-of-a-page#swap-it-in-with-a-few-lines-of-javascript)
+  sayfasında gösterildiği gibi sizin kendi `fetch`'iniz olarak kalır.
 
 ### Asset'ler ve teslimat
 
@@ -2899,7 +3000,7 @@ if err := mail.Enqueue(r.Context(), Email{To: to}); err != nil {
 Yukarıdaki plugin'lerin hepsi `Config.Plugins` içinde register edilir. Library ise
 kendi kodunuzun bir page'den ya da uygulamanın config'inden kullandığı bir
 modüldür. Bu yüzden register edilecek bir şey, `collage plugin add` ya da
-`plugins-config.json`'da bir bölüm yoktur ve kırk dört plugin'in arasında sayılmaz.
+`plugins-config.json`'da bir bölüm yoktur ve kırk beş plugin'in arasında sayılmaz.
 
 ### elagoht/paginate
 
@@ -3003,6 +3104,13 @@ Plugin'ler, bir sunucunun render ettiği page'lerden fazlasını görür:
   Trafiği sayan ya da sınırlayan bir plugin bunları
   `collage.IsCapture(r.Context())` ile atlar. Bkz.
   [Static export](/docs/static-export#headers-and-redirects).
+- **Düz bir `app.Handle` mount'unun etrafında değil.** v0.67.0'dan beri uygulamanın
+  `app.Handle` ile mount ettiği bir handler için, `collage.WithMiddleware()` ile
+  mount edilmedikçe hiçbir plugin'in middleware'i çalışmaz: session, basicauth,
+  rate limit, ban, access log, redirect ya da tenant yoktur. Request hook'ları onun
+  için de çalışır, bir plugin'in kendi `Host.Handle` endpoint'leri ise her zaman
+  middleware'in içinde çalışır. Bkz.
+  [İstemedikçe middleware yok](/docs/middleware-and-apis#no-middleware-unless-you-ask).
 - **Yalnızca hizmet verirken çalışan iş** (bir scheduler, bir queue worker'ı)
   `OnServe`'de başlar (v0.55.0'dan beri). Onu yalnızca `ListenAndServe` çağırır:
   bir static export, bir plugin komutu ve `app.Handler()` onu hiçbir zaman

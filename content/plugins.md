@@ -1,5 +1,5 @@
 ---
-description: What a plugin can do, how to register and configure one, and the forty-four published plugins, grouped by what they are for.
+description: What a plugin can do, how to register and configure one, and the forty-five published plugins, grouped by what they are for.
 reference: Plugin, LoadPluginConfig, ErrUnknownPluginConfig, ErrAppStarted
 ---
 
@@ -36,7 +36,9 @@ handed at startup. Between them, a plugin can:
 - **wrap every request** with middleware of its own (since v0.21.0). A plugin in
   `Config.Plugins` is outside everything `app.Use` adds, in list order, so your
   middleware reads what it put in the request's context; one registered with
-  `RegisterPlugin` is inside the middleware added before it. See
+  `RegisterPlugin` is inside the middleware added before it. Since v0.67.0 a
+  handler the application mounts with plain `app.Handle` is the exception: no
+  plugin's middleware runs for it. See
   [Middleware and your own API](/docs/middleware-and-apis#plugins-middleware-and-yours).
 - **check the output** and report findings — shown over the page in development,
   listed in a static build's report, failing the build at error level (since
@@ -284,7 +286,7 @@ names the key whose value failed.
 
 ## The published plugins
 
-Forty-four plugins are published alongside the framework, grouped below by what
+Forty-five plugins are published alongside the framework, grouped below by what
 they are for. Each is its own module, with its own README that is the full
 reference; what follows is enough to set one up.
 
@@ -294,7 +296,7 @@ reference; what follows is enough to set one up.
 | [Content](#content) | markdown, highlight, toc, search, i18n |
 | [Forms and state](#forms-and-state) | validate, honeypot, flash, session, uploads |
 | [Security](#security) | secure, ratelimit, basicauth, oauth, fail2ban, consent |
-| [Live updates](#live-updates) | live, websocket |
+| [Live updates](#live-updates) | live, websocket, client |
 | [Assets and delivery](#assets-and-delivery) | minimizer, opti-image, bundle, favicon, compress, cdnpurge, offline, deploy |
 | [Operations and development](#operations-and-development) | htmlcheck, devtoolbar, accesslog, prometheus, otel, analytics, tenant, errortrack, health, jobs |
 
@@ -1273,7 +1275,10 @@ app.Handle("/uploads/", u.Handler())
 
 - v0.2.0 needs collage v0.61.0 or later (v0.1.1 was the last for v0.58.0). It adds no
   template function, so `RegisterPlugin` accepts it too. Keep it in a variable:
-  the action calls `u.Receive` and the application mounts `u.Handler()`.
+  the action calls `u.Receive` and the application mounts `u.Handler()`. Since
+  collage v0.67.0 that mount runs with no middleware; add
+  `collage.WithMiddleware()` to the `app.Handle` call if a basicauth, a session
+  check or elagoht/compress should cover the files.
 - **Changed in v0.2.0:** one constructor, `uploads.New(uploads.Options{…})`:
   `New(store)` is `New(uploads.Options{Store: store})` and `NewWith(uploads.Config{Dir: d})`
   is `New(uploads.Options{Dir: d})`. `Handler` takes no argument; its
@@ -1633,6 +1638,11 @@ Plugins: []collage.Plugin{f2b /* , the rest */},
 - A repeat ban doubles, up to `maxBanTime` (`24h`). A banned client gets a plain
   `403 Forbidden`, never the site's error page. Collage's own `404` or redirect for
   an encoded-slash or dirty-path request still reaches it.
+- **The ban is middleware.** Since collage v0.67.0 a handler mounted with plain
+  `app.Handle` runs none, so a banned client keeps full access to it, `/api/` login
+  brute force included, though its probes there still count. Mount it
+  `collage.WithMiddleware()` to cover it; see
+  [No middleware, unless you ask](/docs/middleware-and-apis#no-middleware-unless-you-ask).
 - Call `Report(r, "login")` on a failed login. `Forgive(r, "login")` clears the
   strikes, but is only safe when the success is for the account whose password was
   being guessed: forgiving any success lets an attacker with their own account guess
@@ -1890,6 +1900,91 @@ Plugins: []collage.Plugin{websocket.New(websocket.Options{}), live.New(live.Opti
   "elagoht/websocket": { "originPatterns": ["admin.example.com"] }
 }
 ```
+
+#### elagoht/client
+
+[github.com/Elagoht/collage-client](https://github.com/Elagoht/collage-client)
+serves a tiny client script for the swaps a page does itself: element getters, and
+a fragment fetched from its own URL and put in place, replacing the element or
+morphing it. Everything else is left to plain JavaScript.
+
+```go
+import client "github.com/Elagoht/collage-client"
+
+Plugins: []collage.Plugin{client.New()},
+```
+
+```html
+<head>
+  {{clientjs}}
+</head>
+
+<!-- the fragment's own template: its root is what is swapped -->
+<ul id="items" data-src="{{fragmentURL "list" "items"}}">
+  {{range .}}<li>{{.Name}}</li>{{end}}
+</ul>
+```
+
+```js
+const names = collage.$$("li", collage.$("#items")).map((li) => li.textContent);
+
+collage.replace("#items").catch(() => {}); // fetch data-src, put it in as outerHTML would
+collage.morph("#items").catch(() => {});   // the same fetch, the DOM patched in place
+
+document.addEventListener("collage:swap", (event) => {
+  console.log(event.target.id, event.detail.mode, event.detail.url);
+});
+```
+
+- v0.1.1 needs collage v0.67.0 or later, and must go in `Config.Plugins`: it adds
+  `{{clientjs}}`, which the master layout calls once, in its `<head>`. There is
+  nothing to configure.
+- **The script defines `window.collage` and nothing else.** `collage.$` is
+  `querySelector` and `collage.$$` is `querySelectorAll` returned as an Array, both
+  on `document` unless a root is given as the second argument.
+- **`collage.replace(target, url?)`** fetches a fragment and puts it in place of
+  `target`, a selector or an Element, as `outerHTML` would. `url` defaults to the
+  element's `data-src`, where a page opened with
+  [`WithFragmentPath`](/docs/forms-and-actions#a-fragment-at-its-own-url) puts
+  `{{fragmentURL}}`. The answer takes the place of the whole element, so the
+  element is the fragment's own root, its template's outermost tag. It resolves to
+  the new element.
+- **`collage.morph(target, url?)`** is the same fetch, with the DOM patched in place
+  by [idiomorph](https://github.com/bigskysoftware/idiomorph): elements that match
+  are kept, so the field being typed into keeps its focus, its caret and what is
+  typed in it, and a kept element keeps its scroll position. Another field of the
+  morphed element takes the server's value, so morph a part of the page that does
+  not hold a half-filled form, or `replace` it.
+- After either one, a **`collage:swap`** event bubbles from the new element, with
+  `detail: { url, mode }` and `mode` `"replace"` or `"morph"`.
+- **The request** is a `GET` with `Collage-Fetch: 1` (`collage.FetchHeader`) and the
+  page's cookies, as fragment paths and actions expect. The answer is inserted as
+  trusted markup, so `url` must be on the page's own origin: another origin is
+  refused before the fetch, and so is an answer a redirect brought from one. Never
+  build `url` or `data-src` from visitor input.
+- **The newest call on an element wins.** A `replace` or `morph` on an element that
+  already has one in flight aborts the older call, which rejects as superseded, so
+  a slow answer never lands on top of a newer one.
+- **A failure leaves the page as it was.** A target not in the page, no `url` and
+  no `data-src`, another origin, a network error, an answer that is not 2xx or not
+  a single element (a plain-text error body, a whole document, two elements side by
+  side), an element taken out of the page while it was fetched, or a newer call:
+  each fires no event and rejects with an `Error` that says which, such as
+  `collage: morph /list/items: answered 500`. A polling tick that may fail quietly
+  ends in `.catch(() => {})`. Scripts inside a fetched fragment do not run, as with
+  `outerHTML`.
+- **With a Content-Security-Policy nonce** from elagoht/secure, pass it:
+  `{{clientjs cspNonce}}`. A policy that allows `'self'` loads the script without
+  it. Under a nonce-only or `'strict-dynamic'` policy, a layout that forgot it still
+  works under `collage dev`, where the policy only reports, and stops loading the
+  script in production.
+- The script is served at `/_client/client.<hash>.js`, cached for a year as
+  `immutable`, and loaded with `defer`. It is about 6 KB gzipped, idiomorph 0.8.0
+  (0BSD) included, and depends on nothing.
+- It neither polls, nor posts forms, nor takes pushes: for those, use
+  [elagoht/live](#elagohtlive). A form's post stays your own `fetch`, as
+  [Update part of a page](/docs/update-part-of-a-page#swap-it-in-with-a-few-lines-of-javascript)
+  shows.
 
 ### Assets and delivery
 
@@ -2788,7 +2883,7 @@ if err := mail.Enqueue(r.Context(), Email{To: to}); err != nil {
 The plugins above are all registered in `Config.Plugins`. A library is a module
 your own code uses — from a page, or in the application's configuration — so there
 is nothing to register, no `collage plugin add` and no `plugins-config.json`
-section, and it is not counted among the forty-four plugins.
+section, and it is not counted among the forty-five plugins.
 
 ### elagoht/paginate
 
@@ -2886,6 +2981,12 @@ Plugins see more than the pages a server renders:
   the request hooks see a build's paths. A plugin that counts or limits traffic
   skips them with `collage.IsCapture(r.Context())`. See
   [Static export](/docs/static-export#headers-and-redirects).
+- **Not around a plain `app.Handle` mount.** Since v0.67.0 a handler the
+  application mounts with `app.Handle` runs no plugin's middleware — no session,
+  basicauth, rate limit, ban, access log, redirect or tenant — unless it is mounted
+  `collage.WithMiddleware()`. The request hooks still run for it, and a plugin's own
+  `Host.Handle` endpoints always run inside the middleware. See
+  [No middleware, unless you ask](/docs/middleware-and-apis#no-middleware-unless-you-ask).
 - **Work that runs only while serving** — a scheduler, a queue worker — starts in
   `OnServe` (since v0.55.0), which only `ListenAndServe` calls: a static export, a
   plugin command and `app.Handler()` never start it. See

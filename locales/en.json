@@ -58,7 +58,7 @@
     },
     "plugins": {
       "title": "Middleware and plugins, as many as you need",
-      "text": "Where a framework gives you one middleware file and every concern a request needs is chained inside it by hand, collage's <code>app.Use</code> takes any <code>func(http.Handler) http.Handler</code>, as many times as you like, and each plugin brings its own middleware, in the order you list them. The core stays small: sessions, spam protection, live updates, SEO and metrics are plugins. Forty-four are published, and one of your own is a Go type with the hooks it needs.",
+      "text": "Where a framework gives you one middleware file and every concern a request needs is chained inside it by hand, collage's <code>app.Use</code> takes any <code>func(http.Handler) http.Handler</code>, as many times as you like, and each plugin brings its own middleware, in the order you list them. The core stays small: sessions, spam protection, live updates, SEO and metrics are plugins. Forty-five are published, and one of your own is a Go type with the hooks it needs.",
       "groups": {
         "forms": "Forms and state",
         "security": "Security",

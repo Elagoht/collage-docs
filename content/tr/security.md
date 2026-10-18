@@ -16,7 +16,7 @@ kendisinden sonra gelen çalışmadan önce cevap verebilir:
 
 <figure class="diagram-figure" data-search-ignore>
 <svg class="diagram" viewBox="0 0 320 490" role="img" aria-labelledby="sec-flow-title">
-<title id="sec-flow-title">Bir request önce security header'larını alır, sonra path'i temizlenir: kirli bir path redirect edilir, encode edilmiş bir slash 404, bozuk bir escape 400 olur. Ardından middleware'ler çalışır: sizinkiler ve plugin'lerinki. app.Handle ile mount edilmiş bir path tamamen sizindir. Bir page, action'ları ve fragment path'leri cache'ten önce page'in guard'larıyla karşılaşır; bir guard'ın kendi cevabı no-store'dur. Bir page cache'ten sunulur ya da cookie içermeyen bir key ile render edilir; guard'lıysa private, no-cache ile gider. Bir fragment path, GET'e cevap veren bir action'dır ve hiçbir zaman cache'lenmez. Bir action önce body limitiyle (413), sonra unsafe bir method için origin ve token ile (403), sonra handler'ınızla karşılaşır. Production'da her error page yalnızca status'u gösterir.</title>
+<title id="sec-flow-title">Bir request önce security header'larını alır, sonra path'i temizlenir: kirli bir path redirect edilir, encode edilmiş bir slash 404, bozuk bir escape 400 olur. Ardından düz app.Handle ile mount edilmiş bir path tamamen sizindir ve onun için hiçbir middleware çalışmaz. Geri kalan her şey middleware'lerle karşılaşır: sizinkiler ve plugin'lerinki. Bir page, action'ları ve fragment path'leri cache'ten önce page'in guard'larıyla karşılaşır; bir guard'ın kendi cevabı no-store'dur. Bir page cache'ten sunulur ya da cookie içermeyen bir key ile render edilir; guard'lıysa private, no-cache ile gider. Bir fragment path, GET'e cevap veren bir action'dır ve hiçbir zaman cache'lenmez. Bir action önce body limitiyle (413), sonra unsafe bir method için origin ve token ile (403), sonra handler'ınızla karşılaşır. Production'da her error page yalnızca status'u gösterir.</title>
 <defs><marker id="sec-flow-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
 <rect class="d-pill" x="55" y="8" width="120" height="24" rx="12" /><text x="115" y="24" text-anchor="middle">request</text>
 <line class="d-flow" x1="115" y1="32" x2="115" y2="48" marker-end="url(#sec-flow-arrow)" />
@@ -29,7 +29,7 @@ kendisinden sonra gelen çalışmadan önce cevap verebilir:
 <rect class="d-chip" x="222" y="94" width="96" height="34" rx="6" /><text class="d-small" x="270" y="108" text-anchor="middle">redirect</text><text class="d-small" x="270" y="121" text-anchor="middle">404 · 400</text>
 <line class="d-flow" x1="115" y1="124" x2="115" y2="140" marker-end="url(#sec-flow-arrow)" />
 <rect class="d-c" x="23" y="144" width="184" height="36" rx="6" /><text class="d-on-c" x="115" y="160" text-anchor="middle">middleware</text><text class="d-on-c d-small" x="115" y="173" text-anchor="middle">sizin ve plugin'lerin</text>
-<line class="d-flow" x1="207" y1="162" x2="218" y2="162" marker-end="url(#sec-flow-arrow)" />
+<path class="d-flow" d="M115 132H270V140" marker-end="url(#sec-flow-arrow)" />
 <rect class="d-c" x="222" y="144" width="96" height="36" rx="6" /><text class="d-on-c" x="270" y="160" text-anchor="middle">app.Handle</text><text class="d-on-c d-small" x="270" y="173" text-anchor="middle">tamamen sizin</text>
 <line class="d-flow" x1="115" y1="180" x2="115" y2="196" marker-end="url(#sec-flow-arrow)" />
 <rect class="d-frame" x="23" y="200" width="184" height="36" rx="6" /><text x="115" y="216" text-anchor="middle">guard'lar, cache'ten önce</text><text class="d-small" x="115" y="229" text-anchor="middle">page, action, fragment path</text>
@@ -52,7 +52,7 @@ kendisinden sonra gelen çalışmadan önce cevap verebilir:
 <rect class="d-frame" x="96" y="468" width="12" height="12" rx="2" /><text class="d-small" x="114" y="478">collage</text>
 <rect class="d-c" x="180" y="468" width="12" height="12" rx="2" /><text class="d-small" x="198" y="478">sizin</text>
 </svg>
-<figcaption>collage'ın kendi adımları çerçeveli, size ait olanlar dolu çizilmiştir. Her request, herhangi bir middleware çalışmadan önce security header'larını ve temiz bir path'i alır. Middleware'lerden sonra app.Handle ile mount edilmiş bir path tamamen sizindir: guard, forgery kontrolü, body limiti ve cache yoktur. Bir page, action'ları ve fragment path'leri cache'ten önce page'in guard'larıyla karşılaşır. Ardından bir action, handler'ınızdan önce body limitiyle (body herhangi bir middleware çalışmadan önce sınırlanır; body'si çok büyük bir action burada reddedilir), sonra origin ve token ile karşılaşır; bir fragment path, GET'e cevap veren bir action'dır ve hiçbir zaman cache'lenmez. Production'da bir error page status'tan başka bir şey göstermez.</figcaption>
+<figcaption>collage'ın kendi adımları çerçeveli, size ait olanlar dolu çizilmiştir. Her request, herhangi bir middleware çalışmadan önce security header'larını ve temiz bir path'i alır. Ardından düz app.Handle ile mount edilmiş bir path tamamen sizindir: middleware, guard, forgery kontrolü, body limiti ve cache yoktur. Geri kalan her şey middleware'lerle karşılaşır: sizinkiler ve plugin'lerinki. Bir page, action'ları ve fragment path'leri cache'ten önce page'in guard'larıyla karşılaşır. Ardından bir action, handler'ınızdan önce body limitiyle (body herhangi bir middleware çalışmadan önce sınırlanır; body'si çok büyük bir action burada reddedilir), sonra origin ve token ile karşılaşır; bir fragment path, GET'e cevap veren bir action'dır ve hiçbir zaman cache'lenmez. Production'da bir error page status'tan başka bir şey göstermez.</figcaption>
 </figure>
 
 ## Form'lar sahte olarak gönderilemez
@@ -214,7 +214,11 @@ taşımadığı için sıkı bir policy nonce gerektirmez.
   Ayrıntılar için [Deployment](/docs/deployment#tls-behind-a-proxy) sayfasına bakın.
 - **Rate limit'ler**: [elagoht/ratelimit](/docs/plugins#elagohtratelimit).
 - **`app.Handle` ile mount edilmiş bir handler** tamamen sizindir: forgery kontrolü,
-  body limiti ve cache yoktur.
+  body limiti ve cache yoktur, v0.67.0'dan beri middleware de yoktur.
+  `collage.WithMiddleware()` ile mount edilmedikçe hiçbir plugin'in authentication'ı,
+  rate limit'i, ban'ı ya da access log'u onu kapsamaz. Ayrıntılar için
+  [İstemedikçe middleware yok](/docs/middleware-and-apis#no-middleware-unless-you-ask)
+  bölümüne bakın.
 - **Bir data handler'ın okudukları.** Cache'lenebilir bir page'de, middleware'in
   request context'ine koyduğu bir değer paylaşılan render'dan gizlenir, böylece bir
   okuyucunun değeri başka bir okuyucunun page'ine ulaşamaz. Bu değeri `collage.Vary`
@@ -234,7 +238,8 @@ sayfalarındaki ekip iş listesi yayına girmek üzere:
   ise yalnızca kendisine atanmış görevleri değiştirebilir;
 - ekibin listesi `/teams/{team}/tasks`'teki bir page'dir ve bir "görev ekle"
   form'u taşır;
-- ekibin komut satırı aracı için bir JSON API `app.Handle` ile mount edilmiştir.
+- ekibin komut satırı aracı için bir JSON API `app.Handle` ile, `WithMiddleware()`
+  kullanılarak mount edilmiştir.
 
 Aşağıdaki her riski ya collage, ya uygulamanın eklediği bir plugin ya da
 uygulamanın kendisi karşılar:
@@ -286,8 +291,9 @@ app, err := collage.New(&collage.Config{
 
 İkinci kuralın ne path'i ne de method'u vardır. Bu yüzden kendi skip listesi
 dışındaki her yerde `GET`, `HEAD` ve `OPTIONS` dışındaki her method'u sayar. API'nin
-`PATCH`'i de buna dahildir, çünkü bir plugin'in middleware'i, `app.Handle` ile
-mount edilmiş bir path eşleşmeden önce çalışır.
+`PATCH`'i de buna dahildir, çünkü API `WithMiddleware()` ile mount edilmiştir. Düz
+bir `app.Handle` mount'unda hiçbir middleware çalışmaz. Bu yüzden ne bu rate limit
+ne de başka bir plugin'in middleware'i onu kapsardı.
 
 Roller uygulamanın işi olarak kalır. Yalnızca admin'leri geçiren guard,
 [Örnek: private bir bölümü olan bir blog](/docs/pages-and-layouts#example-a-blog-with-a-private-area)

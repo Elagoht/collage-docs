@@ -156,10 +156,10 @@ ulaşabileceği bir cache olmazdı.
 | `InvalidateTags(ctx, tags...) error` | Bu tag'lerden herhangi biriyle oluşturulmuş bütün cache'lenmiş page'leri invalidate eder (built-in store'larda onları başarısız ya da degraded bir yeniden render için tutarak stale olarak işaretler) ve `collage.Cached` değerlerini stale olarak işaretler. |
 | `RegisterDocument(doc) error` | Plugin'in eklediği bir document'ı register eder. |
 | `Mount(prefix, fsys, opts...) error` | Bir dosya sistemini bir URL prefix'i altında sunar. |
-| `Handle(prefix, handler) error` | `App.Handle` gibi, bir `http.Handler`'ı `/` ile biten bir URL prefix'i altında ya da sonunda `/` olmayan tek bir tam path'te (`/metrics`, v0.24.0'dan beri) sunar. Örneğin bir event stream ya da bir WebSocket (v0.18.0'dan beri). |
+| `Handle(prefix, handler) error` | `App.Handle` gibi, bir `http.Handler`'ı `/` ile biten bir URL prefix'i altında ya da sonunda `/` olmayan tek bir tam path'te (`/metrics`, v0.24.0'dan beri) sunar. Örneğin bir event stream ya da bir WebSocket (v0.18.0'dan beri). v0.67.0'dan beri düz bir `App.Handle` mount'unun aksine middleware'in içinde çalışır. |
 | `RenderFragment(r, req) (*collage.FragmentRender, error)` | Bir page'in `WithFragmentPath` ile açtığı bir fragment'i kısımlar hâlinde render eder. Bkz. [Fragment göndermek](#pushing-fragments) (v0.18.0'dan beri). |
 | `RegisterCommand(cmd) error` | Bir komut ekler. Bkz. [Komutlar](#commands). |
-| `Use(middleware) error` | Her request'i sarmalar (v0.21.0'dan beri), plugin'in register edildiği yerde: `Config.Plugins` içindeki bir plugin için uygulamanın kendi middleware'inin dışında (v0.38.0'dan beri; önceden içindeydi). |
+| `Use(middleware) error` | Her request'i sarmalar (v0.21.0'dan beri), plugin'in register edildiği yerde: `Config.Plugins` içindeki bir plugin için uygulamanın kendi middleware'inin dışında (v0.38.0'dan beri; önceden içindeydi). v0.67.0'dan beri uygulamanın düz `App.Handle` ile mount ettiği bir handler'a gelen request'leri sarmalamaz. |
 | `URL(name, locale, params) (string, error)` | Bir page'in ya da document'ın path'ini `App.URL`'in oluşturduğu gibi döner (v0.21.0'dan beri). |
 | `BaseURL() string` | Sonunda slash olmadan `Config.BaseURL`'i döner; ayarlanmamışsa boştur. |
 | `OriginFor(ctx, host) string` | Bir host'un public origin'ini döner: bir `OriginResolver`'ınkini, yoksa `Config.BaseURL`'i. Bkz. [Bir host'un origin'i](#which-origin-a-host-has-originresolver) (v0.60.0'dan beri). |
@@ -1201,7 +1201,9 @@ etmez: `Host.RegisterPage` kaldırıldı, page'ler uygulamanındır. `Host.Handl
 page olmayan şeyler için, örneğin bir event stream ya da bir WebSocket için, bir
 prefix altında düz bir `http.Handler` sunar. `/` ile biten bir prefix, altındaki her
 path'i üstlenir. v0.24.0'dan beri sonunda `/` olmayan bir prefix, örneğin
-`/metrics`, tek bir tam path'tir.
+`/metrics`, tek bir tam path'tir. Her zaman middleware'in, yani uygulamanınkinin ve
+her plugin'inkinin içinde çalışır: sitenin bir parçasıdır, session'ı okuyabilir ya
+da önündeki bir basicauth'a dayanabilir.
 
 `Host.Use` (v0.21.0'dan beri),
 `App.Use` gibi her request'i, plugin'in register edildiği yerde sarmalar.
@@ -1210,7 +1212,11 @@ middleware'inin dışındadır. Böylece request context'ine koyduğu şey, örn
 session, uygulamanın middleware'i tarafından okunabilir; header'ları ve
 cookie'leri de o middleware'in ürettiğini sarar. `App.RegisterPlugin` ile
 register edilen bir plugin ise uygulamanın middleware'leri arasında, çağrının
-yapıldığı yerde durur.
+yapıldığı yerde durur. v0.67.0'dan beri uygulamanın düz `App.Handle` ile mount
+ettiği, kendi middleware'ini getiren bir handler için çalışmaz: ban'layan,
+sınırlayan, koruyan ya da log'layan bir plugin böyle bir mount'un sorumluluğunu
+üstlenemez. Bkz.
+[İstemedikçe middleware yok](/docs/middleware-and-apis#no-middleware-unless-you-ask).
 
 Page'lere link veren bir plugin, onların nerede olduğunu tahmin etmez, sorar.
 `Host.URL`, bir path'i `App.URL` gibi oluşturur. `Host.Locales` varsayılan

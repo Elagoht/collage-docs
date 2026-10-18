@@ -1,6 +1,6 @@
 ---
 description: Standard net/http middleware with app.Use, cache keys that depend on a header with collage.Vary, and your own http.Handler with app.Handle.
-reference: Vary, SkipCache, ErrVaryTooLate, ErrMountShadowsRoute
+reference: Vary, SkipCache, ErrVaryTooLate, ErrMountShadowsRoute, WithMiddleware, HandleOption
 ---
 
 # Middleware and your own API
@@ -9,8 +9,9 @@ collage renders pages. The rest of what a Go program does over HTTP — an API,
 authentication, language negotiation, rate limiting — you write the way you already
 would, and plug in at one of two points:
 
-- **Middleware**, which runs around every request.
-- **Your own handler**, which answers every request under a prefix.
+- **Middleware**, which runs around every request but those for your own handler.
+- **Your own handler**, which answers every request under a prefix, and brings its
+  own middleware.
 
 ## Middleware: `app.Use`
 
@@ -34,8 +35,11 @@ returns `collage.ErrAppStarted`.
 Two things about where it runs:
 
 - **Before routing.** It sees every request — pages, documents, actions, mounted
-  static files and your own handlers — including the ones that end in a 404. It can
-  answer a request by itself, with a 401 or a redirect, and nothing behind it runs.
+  static files, a plugin's handlers and a handler mounted `WithMiddleware` —
+  including the ones that end in a 404. It can answer a request by itself, with a
+  401 or a redirect, and nothing behind it runs. Since v0.67.0 a handler mounted
+  with plain `app.Handle` is the exception: it is answered without any middleware
+  ([below](#no-middleware-unless-you-ask)).
 - **Inside the framework's guard.** It runs within collage's span, metrics and panic
   recovery. That is the difference from wrapping `app.Handler()` in middleware of
   your own: a panic in your middleware is an ordinary 500 on the normal error path
@@ -44,7 +48,7 @@ Two things about where it runs:
 
 <figure class="diagram-figure" data-search-ignore>
 <svg class="diagram" viewBox="0 0 320 360" role="img" aria-labelledby="mw-layers-title">
-<title id="mw-layers-title">Inside collage's guard of span, metrics and panic recovery, a request passes the middleware of the plugins in Config.Plugins in list order, then the app.Use middleware in registration order. Routing then checks static mounts and app.Handle prefixes first, and hands everything else to the router, which picks a page, one of its fragment paths, a document or an action.</title>
+<title id="mw-layers-title">Inside collage's guard of span, metrics and panic recovery, a request passes the middleware of the plugins in Config.Plugins in list order, then the app.Use middleware in registration order. Routing then checks static mounts and the app.Handle prefixes mounted WithMiddleware first, and hands everything else to the router, which picks a page, one of its fragment paths, a document or an action. A handler mounted with plain app.Handle is matched before the middleware, inside the guard, and runs without it.</title>
 <defs><marker id="mw-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
 <rect class="d-pill" x="110" y="8" width="100" height="26" rx="13" /><text x="160" y="25" text-anchor="middle">browser</text>
 <line class="d-flow" x1="160" y1="34" x2="160" y2="52" marker-end="url(#mw-arrow)" />
@@ -59,7 +63,7 @@ Two things about where it runs:
 <line class="d-flow" x1="160" y1="222" x2="160" y2="242" marker-end="url(#mw-arrow)" />
 <path class="d-flow" d="M185 222C185 234 259 230 259 242" marker-end="url(#mw-arrow)" />
 <rect class="d-b" x="15" y="246" width="92" height="30" rx="5" /><text class="d-on-b d-small" x="61" y="265" text-anchor="middle">static mount</text>
-<rect class="d-frame" x="114" y="246" width="92" height="30" rx="5" /><text class="d-small" x="160" y="265" text-anchor="middle">app.Handle</text>
+<rect class="d-frame" x="114" y="246" width="92" height="30" rx="5" /><text class="d-small" x="160" y="258" text-anchor="middle">app.Handle</text><text class="d-small" x="160" y="270" text-anchor="middle">WithMiddleware</text>
 <rect class="d-cmd" x="213" y="246" width="92" height="30" rx="15" /><text class="d-cmd-text" x="259" y="265" text-anchor="middle">router</text>
 <text class="d-small" x="110" y="292" text-anchor="middle">matched by prefix first</text>
 <path class="d-flow" d="M245 276C245 290 210 288 210 302" marker-end="url(#mw-arrow)" />
@@ -67,7 +71,7 @@ Two things about where it runs:
 <rect class="d-a" x="176" y="306" width="68" height="34" rx="5" /><text class="d-on-a d-small" x="210" y="320" text-anchor="middle">page or</text><text class="d-on-a d-small" x="210" y="332" text-anchor="middle">document</text>
 <rect class="d-c" x="249" y="306" width="60" height="34" rx="5" /><text class="d-on-c" x="279" y="327" text-anchor="middle">action</text>
 </svg>
-<figcaption>Every request runs inside collage's guard: its span, its metrics, and the panic recovery that turns a panic into a 500. Inside it, the middleware of the plugins in Config.Plugins comes first, in list order, then the app.Use middleware in the order it was registered; a plugin added with app.RegisterPlugin sits where the call was made. Any of them can answer by itself and stop the request there. What gets through is routed: a static mount or an app.Handle prefix is matched first, and the router takes the rest.</figcaption>
+<figcaption>Every request runs inside collage's guard: its span, its metrics, and the panic recovery that turns a panic into a 500. Inside it, the middleware of the plugins in Config.Plugins comes first, in list order, then the app.Use middleware in the order it was registered; a plugin added with app.RegisterPlugin sits where the call was made. Any of them can answer by itself and stop the request there. What gets through is routed: a static mount or the prefix of an app.Handle mounted WithMiddleware is matched first, and the router takes the rest. A handler mounted with plain app.Handle is not in the chain at all: its requests are matched before the middleware, still inside the guard, and go straight to it.</figcaption>
 </figure>
 
 ### Plugins' middleware and yours
@@ -279,13 +283,96 @@ caches are yours to decide.
 
 | The handler does not get | The handler does get, like every request |
 | --- | --- |
-| a request-forgery check | the span and the metrics |
-| a body-size limit | the panic guard |
-| a cache | the middleware registered with `app.Use` |
+| a request-forgery check | the plugins' request hooks |
+| a body-size limit | the span and the metrics |
+| a cache | the panic guard |
+| middleware, yours or a plugin's — unless mounted `WithMiddleware()` | the clean-path redirect and the encoded-slash 404 |
+| | the baseline `X-Content-Type-Options` and `X-Frame-Options` headers |
 | | draining on graceful shutdown |
 
 A 5xx it answers with is reported to plugins' error hooks as
 `collage.ErrHandlerFailed`; its 4xx answers are its own business.
+
+### No middleware, unless you ask
+
+Since v0.67.0 no middleware runs for a handler mounted with `app.Handle`: neither
+what `app.Use` added nor any plugin's — session, flash, i18n, consent, secure,
+ratelimit, basicauth, fail2ban, accesslog, redirects, tenant, compress, the
+development toolbar.
+
+Your handler, your middleware. An API has its own idea of authentication — a bearer
+token, not the site's session cookie — its own rate limit and its own error format,
+and the site's consent banner, development toolbar or `Vary: Cookie` are nothing it
+asked for. So wrap the handler in what it wants, the way you would without collage:
+
+```go
+api := http.NewServeMux()
+api.HandleFunc("GET /api/users/{id}", getUser)
+
+// requireToken is yours, below; perClientLimit stands for any net/http rate
+// limiter — golang.org/x/time/rate behind a map, httprate, tollbooth.
+if err := app.Handle("/api/", requireToken(perClientLimit(api))); err != nil {
+	return err
+}
+
+func requireToken(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !validToken(r.Header.Get("Authorization")) {
+			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+```
+
+A handler that does rely on the site's middleware — a basicauth plugin you
+registered to guard it, the reader's session, a rate limit you already configured,
+a value your `app.Use` middleware puts in the context — asks for it back with
+`collage.WithMiddleware()`. It then runs inside the chain exactly as a page does, in
+the same order, as every mount did before v0.67.0:
+
+```go
+if err := app.Handle("/admin/api/", adminAPI, collage.WithMiddleware()); err != nil {
+	return err
+}
+```
+
+**No plugin can answer for a plain mount.** A ban, an IP allowlist, a maintenance
+page or an access log over the whole site does not cover it; mount it
+`WithMiddleware()` for that, or put your own middleware around your mux. In
+particular:
+
+- elagoht/fail2ban still counts a plain mount's probes — its request hook runs for
+  every request — but the 403 it answers a banned client with is middleware, so
+  that client keeps full access to `/api/`, which is where login brute force
+  usually happens.
+- elagoht/basicauth and elagoht/ratelimit do not guard it, and elagoht/session's
+  session is not in its requests.
+- elagoht/accesslog does not log its traffic.
+- An elagoht/redirects rule under its prefix does not fire.
+- elagoht/tenant's tenant is not in its context.
+
+An application that relied on one of these for a mount before v0.67.0 adds
+`collage.WithMiddleware()` to that call to keep it. Without it, a mount a basicauth
+or a rate limit used to guard is now open.
+
+Which requests skip the middleware is decided on the path once it is
+[cleaned](#paths-are-cleaned-first), by the same match routing uses, so a request
+that skips it can only reach that handler. Two consequences for middleware that
+rewrites paths:
+
+- One that rewrites a request's path *into* a plain mount's prefix no longer
+  reaches it: the rewritten request is routed like everything else the chain hands
+  on, to a 404. Mount the target `WithMiddleware()`.
+- One that rewrites a path *out of* a plain mount's prefix — `/api/legacy` to a page
+  — no longer runs for it: the mount claims the request first. Mount it
+  `WithMiddleware()` if a middleware should see its requests.
+
+A plugin's own endpoints — a live-reload stream, an OAuth callback, a Prometheus
+`/metrics`, an Open Graph image — are mounted with `Host.Handle`, and those always
+run inside the middleware: they are part of the site, and may read the session or
+rely on a basicauth in front of them.
 
 ### Prefixes and conflicts
 
@@ -393,7 +480,7 @@ team's tasks, and a JSON API that the team's command-line tool already talks to 
 kept as it is. Three pieces of this page meet here:
 
 - one middleware that finds out who is asking, once per request;
-- the existing API, mounted with `app.Handle`;
+- the existing API, mounted with `app.Handle` inside the middleware;
 - the API invalidating the tag of the list it changed.
 
 ### Who is asking, once per request
@@ -454,7 +541,8 @@ func loadUser(users Users) func(http.Handler) http.Handler {
 
 Because middleware runs before routing, the same lookup serves a page, an action
 and the mounted API alike; nothing behind it asks the database who the reader is
-again.
+again. The API gets it only because it is mounted `WithMiddleware()`, below: a plain
+`app.Handle` mount runs no middleware, and `UserFrom` would find no one there.
 
 ### The API, mounted as it is
 
@@ -580,7 +668,13 @@ Wiring it up is two calls:
 if err := app.Use(loadUser(users)); err != nil {
 	return err
 }
-if err := app.Handle("/api/", taskAPI(app, tasks)); err != nil {
+if err := app.Handle("/api/", taskAPI(app, tasks), collage.WithMiddleware()); err != nil {
 	return err
 }
 ```
+
+`collage.WithMiddleware()` puts the API inside the chain, so `loadUser` runs for it,
+and so does every plugin's middleware: the rate limit
+[Security](/docs/security#example-a-teams-task-list-before-it-goes-live) adds counts
+its writes too. Without it every call would be answered `401 token required`, since
+no one would have put the user in the context.
