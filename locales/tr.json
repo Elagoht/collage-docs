@@ -25,7 +25,7 @@
     "description": "Sunucuda render edilen siteler ve web uygulamaları için Go framework'ü: fragment'lerden HTML, neye bağlıysa ona göre cache, plugin'ler, tek binary.",
     "eyebrow": "Sunucuda render edilen web için bir Go framework'ü",
     "headline": "Sunucudan HTML, <mark>fragment fragment</mark>.",
-    "tagline": "collage, web siteleri ve web uygulamaları için bir Go framework'üdür. Page'ler sunucuda, kendi verisini çeken fragment'lerden kurulur, neye bağlıysa ona göre cache'lenir ve bir şey değiştiğinde yalnızca o kısım güncellenir. Hepsi HTML ve birkaç satır sade JavaScript ile, tek bir Go binary'sinde.",
+    "tagline": "Sunucuda fragment'lerden render edilen, neye bağlıysa ona göre cache'lenen ve kısım kısım güncellenen page'ler. Tek bir Go binary'sinde.",
     "readGuide": "Rehberi oku",
     "viewOnGitHub": "GitHub'da görüntüle",
     "why": {
