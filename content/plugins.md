@@ -2785,9 +2785,10 @@ if err := mail.Enqueue(r.Context(), Email{To: to}); err != nil {
 
 ## Libraries that are not plugins
 
-The plugins above are all registered in `Config.Plugins`. A library is a module a
-page uses in its own code, so there is nothing to register or configure, and it is
-not counted among the forty-four plugins.
+The plugins above are all registered in `Config.Plugins`. A library is a module
+your own code uses — from a page, or in the application's configuration — so there
+is nothing to register, no `collage plugin add` and no `plugins-config.json`
+section, and it is not counted among the forty-four plugins.
 
 ### elagoht/paginate
 
@@ -2803,6 +2804,40 @@ go get github.com/Elagoht/collage-paginate
 - v0.2.0 needs collage v0.61.0 or later. `FromPath(rc, last)` reads the path
   parameter `n`, the one `PathNamed` and `StaticParams` write, where v0.1 took the
   parameter's name; `paginate.Version` is gone.
+
+### elagoht/redis
+
+A Redis-backed [`collage.SharedCache`](/docs/caching#a-cache-a-fleet-shares): every
+instance of an application runs against one page cache and one `collage.Cached`
+data store, so an invalidation on any instance is seen by all of them. It is handed
+to `Cache.Store`:
+
+```sh
+go get github.com/Elagoht/collage-redis
+```
+
+```go
+import "github.com/Elagoht/collage-redis" // package redis
+
+store, err := redis.New(redis.Config{URL: os.Getenv("REDIS_URL")})
+if err != nil {
+	log.Fatal(err)
+}
+defer store.Close()
+
+app, err := collage.New(&collage.Config{
+	Cache: collage.CacheConfig{Enabled: true, Store: store},
+})
+```
+
+- v0.1.0 needs collage v0.66.0 or later and Redis 6 or later. A single node and
+  Sentinel (through `Config.Client`) are supported; Redis Cluster is not.
+- `New` never dials Redis, so an application starts, and serves uncached, while
+  Redis is down. A Redis error is a miss, never a failed request.
+- By default every deploy of a new binary starts with an empty namespace, and `MaxAge` (seven
+  days) bounds every key, the stale fallback included. The configuration, and how
+  to run Redis for it, are in [Caching](/docs/caching#a-cache-a-fleet-shares) and
+  the library's README.
 
 ## Plugins that write to the head
 

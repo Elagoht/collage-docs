@@ -366,7 +366,11 @@ Before v0.60.0 `Invalidate` was a method of `Cache` itself. A store that also
 implements `collage.StaleCache` (`GetStale`, `MarkStaleKey`, `MarkStale`, since
 v0.63.0) is asked to mark invalidated entries stale instead of removing them, and
 can then answer a failed re-render with the old page: see
-[Caching](/docs/caching#stale-pages-in-your-own-store). Leave the field unset rather than assigning a
+[Caching](/docs/caching#stale-pages-in-your-own-store). A store that implements
+`collage.SharedCache` (since v0.66.0), such as
+[collage-redis](/docs/plugins#elagohtredis), is shared by a fleet: pages and
+`collage.Cached` data live in it, and an invalidation on any instance reaches
+every one; see [Caching](/docs/caching#a-cache-a-fleet-shares). Leave the field unset rather than assigning a
 nil pointer of a concrete type, which is a non-nil interface that panics on the
 first lookup.
 

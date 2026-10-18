@@ -219,6 +219,30 @@ A test that is about caching can use this: make two requests with one client and
 check the second is served from the cache, or call `app.InvalidateTags` between
 them and check it is not.
 
+## A fleet on one shared cache
+
+An application that runs as several instances on a
+[shared cache](/docs/caching#a-cache-a-fleet-shares) is tested as two Apps on one
+store. `collagetest.NewSharedCache()` (since v0.66.0) is an in-memory
+`collage.SharedCache` standing in for Redis: a page one App renders is served by
+the other, and an invalidation one sends is seen by both.
+
+```go
+store := collagetest.NewSharedCache()
+shared := collagetest.WithConfig(func(c *collage.Config) {
+	c.Cache = collage.CacheConfig{Enabled: true, Store: store}
+})
+a := collagetest.NewSite(t, shared)
+b := collagetest.NewSite(t, shared)
+
+a.Get("/").WantStatus(http.StatusOK) // X-Collage-Cache: MISS, rendered by a
+b.Get("/").WantStatus(http.StatusOK) // X-Collage-Cache: HIT, from the store
+```
+
+A store of your own is checked with `collagetest.CacheSuite`, for the `Cache`,
+`TaggedCache` and `StaleCache` contracts, and `collagetest.SharedCacheSuite`, for
+`SharedCache`: see [Caching](/docs/caching#writing-your-own-sharedcache).
+
 ## Forms and the forgery token
 
 Every action behind an unsafe method — a form post, a `fetch()` — checks a

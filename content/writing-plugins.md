@@ -800,7 +800,10 @@ an `InvalidateTags` entry was marked stale, not removed (since v0.63.0): it is n
 longer served as fresh, and is served again only, marked `STALE`, when its
 re-render fails or is degraded. A page that was not cached is never in it: nothing of it was
 reached. Nor is a page an earlier invalidation already marked stale, until it is
-rendered and stored again.
+rendered and stored again — except with a store a fleet shares, a
+[`collage.SharedCache`](/docs/caching#a-cache-a-fleet-shares) (since v0.66.0): its
+own tag index names every page any instance wrote, and keeps a page invalidated
+and not yet re-rendered, so a second invalidation names it again.
 
 Every cached entry also depends on the tag
 `collage.PathTag(path)`, so a plugin that knows a path rather than a tag

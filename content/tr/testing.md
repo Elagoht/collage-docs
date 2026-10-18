@@ -225,6 +225,30 @@ Caching'i test eden bir test bu durumdan yararlanabilir. Aynı client ile iki re
 atın ve ikincisinin cache'ten sunulduğunu kontrol edin. Ya da iki request arasında
 `app.InvalidateTags`'i çağırın ve ikincisinin cache'ten sunulmadığını kontrol edin.
 
+## Paylaşılan tek bir cache üzerinde bir filo
+
+[Paylaşılan bir cache](/docs/caching#a-cache-a-fleet-shares) üzerinde birkaç
+instance olarak çalışan bir uygulama, tek bir store'u paylaşan iki App olarak test
+edilir. `collagetest.NewSharedCache()` (v0.66.0'dan beri), Redis'in yerine geçen
+memory'de bir `collage.SharedCache`'tir: bir App'in render ettiği page'i öteki sunar,
+birinin gönderdiği invalidation'ı ikisi de görür.
+
+```go
+store := collagetest.NewSharedCache()
+shared := collagetest.WithConfig(func(c *collage.Config) {
+	c.Cache = collage.CacheConfig{Enabled: true, Store: store}
+})
+a := collagetest.NewSite(t, shared)
+b := collagetest.NewSite(t, shared)
+
+a.Get("/").WantStatus(http.StatusOK) // X-Collage-Cache: MISS, rendered by a
+b.Get("/").WantStatus(http.StatusOK) // X-Collage-Cache: HIT, from the store
+```
+
+Kendi store'unuz, `Cache`, `TaggedCache` ve `StaleCache` sözleşmeleri için
+`collagetest.CacheSuite` ile, `SharedCache` için de `collagetest.SharedCacheSuite`
+ile kontrol edilir. Bkz. [Caching](/docs/caching#writing-your-own-sharedcache).
+
 ## Form'lar ve forgery token
 
 Güvenli olmayan bir HTTP method'unun arkasındaki her action, bir request forgery

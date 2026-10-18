@@ -1,6 +1,6 @@
 ---
 description: How collage caches rendered pages and the data they are made from, and how it knows what to throw away.
-reference: CacheConfig, Cached, App.PurgeTags, CacheStale, CacheWarm, Once, Key, TaggedCache, StaleCache, CacheStatusHeader, SkipCache, Vary, PageBuilder.Static, PageBuilder.Incremental, PageBuilder.Dynamic, FragmentBuilder.Static, FragmentBuilder.Shared, StrategyAuto, PathTag
+reference: CacheConfig, Cached, App.PurgeTags, CacheStale, CacheWarm, Once, Key, TaggedCache, StaleCache, CacheStatusHeader, SkipCache, Vary, PageBuilder.Static, PageBuilder.Incremental, PageBuilder.Dynamic, FragmentBuilder.Static, FragmentBuilder.Shared, StrategyAuto, PathTag, SharedCache, Reached, WriteOutcome, WriteFresh, WriteStale, WriteSkipped
 ---
 
 # Caching
@@ -382,7 +382,9 @@ not an exact figure for live pages reached, and it errs both ways:
 - a key whose entry had already expired is still counted;
 - an entry the store reached through its own tag index — past the cap
   [below](#the-tag-index-is-per-process-and-bounded), or written by another
-  instance — is invalidated without being counted.
+  instance — is invalidated without being counted. A
+  [`collage.SharedCache`](#a-cache-a-fleet-shares) is the exception: the pages its
+  own index reached, whichever instance wrote them, are counted (since v0.66.0).
 
 It is good for a log line or a metric, not for logic.
 
@@ -439,6 +441,11 @@ With a shared store of your own — `Cache.Store`, a Redis say — implement
 `collage.TaggedCache` too, so the store indexes tags itself; collage then asks it
 to invalidate by tag as well, and it can reach what another instance wrote. The
 built-in disk cache does this, which is why its tags still work after a restart.
+
+A store that is a [`collage.SharedCache`](#a-cache-a-fleet-shares) (since v0.66.0)
+closes the gap completely: its own tag index names every page and data value any
+instance wrote, so the count, `CacheInvalidateEvent.Entries` and warming cover the
+fleet's pages, not only this process's.
 
 **The record per tag is capped by `Cache.MaxEntries`** (default 10000; before
 v0.60.0 a field of its own, `MaxKeysPerTag`). The query string is part of the key,
@@ -781,8 +788,9 @@ evicts it — and a CDN that refetches the page meanwhile can be handed the old 
 and keep it.
 
 Give each instance its own directory. A fleet that must see one another's
-invalidations needs a shared [store of its own](#your-own-store) that implements
-`collage.StaleCache` and `collage.TaggedCache`, instead of `Type: "disk"`.
+invalidations needs a shared store in `Cache.Store` instead of `Type: "disk"`: one
+that implements [`collage.SharedCache`](#a-cache-a-fleet-shares), such as
+collage-redis, keeps pages and data consistent across the fleet.
 
 ### The namespace
 
@@ -865,6 +873,233 @@ until it is evicted or its key is purged.
 ```go
 var _ collage.StaleCache = (*myCache)(nil)
 ```
+
+## A cache a fleet shares
+
+Behind a load balancer every instance has its own page cache, its own
+`collage.Cached` values and its own [tag index](#the-tag-index-is-per-process-and-bounded).
+A CMS webhook reaches one of them, and its `InvalidateTags` reaches only that one:
+the others go on serving the old page as a fresh `HIT`, and rendering from the old
+value, until it expires — for a `Static` page, until the instance restarts or evicts
+it. A `"disk"` cache whose `Dir` they share does not change that (see
+[above](#memory-in-front-of-the-disk)).
+
+Since v0.66.0 a store that implements `collage.SharedCache` is shared by the whole
+fleet. Pages and `collage.Cached` data both live in it, and nothing is kept per
+instance in front of it, so an `InvalidateTags` or `PurgeTags` on any instance
+reaches the next read on every instance.
+
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 276" role="img" aria-labelledby="cache-fleet-title">
+<title id="cache-fleet-title">Three instances behind a load balancer share one store. A webhook reaches instance A, which makes one DropTags call on the shared store; the store holds the pages, the Cached data, the tag index and the epoch. Instances B and C read and write the same store, so their next read sees the invalidation. A warms the pages the invalidation reached, within its own WarmLimit.</title>
+<defs><marker id="cache-fleet-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker><marker id="cache-fleet-hit" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head-hit" d="M0 0 8 4 0 8z" /></marker></defs>
+<rect class="d-chip-hit" x="10" y="8" width="90" height="24" rx="12" /><text class="d-hit-text" x="55" y="24" text-anchor="middle">webhook</text>
+<line class="d-hitline" x1="55" y1="32" x2="55" y2="50" marker-end="url(#cache-fleet-hit)" />
+<rect class="d-a" x="10" y="54" width="90" height="34" rx="5" /><text class="d-on-a" x="55" y="75" text-anchor="middle">instance A</text>
+<rect class="d-a" x="115" y="54" width="90" height="34" rx="5" /><text class="d-on-a" x="160" y="75" text-anchor="middle">instance B</text>
+<rect class="d-a" x="220" y="54" width="90" height="34" rx="5" /><text class="d-on-a" x="265" y="75" text-anchor="middle">instance C</text>
+<line class="d-flow" x1="55" y1="88" x2="55" y2="100" marker-end="url(#cache-fleet-arrow)" />
+<rect class="d-cmd" x="10" y="104" width="90" height="24" rx="12" /><text class="d-cmd-text" x="55" y="120" text-anchor="middle">DropTags</text>
+<line class="d-flow" x1="55" y1="128" x2="55" y2="150" marker-end="url(#cache-fleet-arrow)" />
+<line class="d-flow" x1="160" y1="88" x2="160" y2="150" marker-end="url(#cache-fleet-arrow)" />
+<line class="d-flow" x1="265" y1="88" x2="265" y2="150" marker-end="url(#cache-fleet-arrow)" />
+<text class="d-small" x="212" y="122" text-anchor="middle">reads, writes</text>
+<rect class="d-b" x="10" y="154" width="300" height="48" rx="5" /><text class="d-on-b" x="160" y="173" text-anchor="middle">shared store (collage-redis)</text><text class="d-on-b d-small" x="160" y="189" text-anchor="middle">pages, Cached data, tag index, epoch</text>
+<line class="d-flow" x1="82" y1="202" x2="82" y2="222" marker-end="url(#cache-fleet-arrow)" />
+<line class="d-flow" x1="237" y1="202" x2="237" y2="222" marker-end="url(#cache-fleet-arrow)" />
+<rect class="d-soft-a" x="10" y="226" width="145" height="42" rx="6" /><text class="d-small" x="82" y="243" text-anchor="middle">A warms the pages</text><text class="d-small" x="82" y="256" text-anchor="middle">within its WarmLimit</text>
+<rect class="d-frame" x="165" y="226" width="145" height="42" rx="6" /><text class="d-small" x="237" y="243" text-anchor="middle">B, C: the next read</text><text class="d-small" x="237" y="256" text-anchor="middle">sees the invalidation</text>
+</svg>
+<figcaption>One store for the fleet. The instance a webhook reaches makes one <code>DropTags</code> call, which marks stale (or, for a purge, removes) every page and value under the tags, whichever instance wrote them, and names the pages it reached for the count, the plugin event and warming. Every other instance reads the same store, so its next read sees the change. Only the instance that invalidated warms, within its own <code>WarmLimit</code>.</figcaption>
+</figure>
+
+### Setting one up with collage-redis
+
+[collage-redis](/docs/plugins#elagohtredis) is a `SharedCache` on Redis. It is a
+library, not a plugin: there is nothing to register, and the store goes in
+`Cache.Store`, where `Type` is then ignored.
+
+```sh
+go get github.com/Elagoht/collage-redis
+```
+
+```go
+import "github.com/Elagoht/collage-redis" // package redis
+
+store, err := redis.New(redis.Config{URL: os.Getenv("REDIS_URL")})
+if err != nil {
+	log.Fatal(err)
+}
+defer store.Close()
+
+app, err := collage.New(&collage.Config{
+	Cache: collage.CacheConfig{Enabled: true, Store: store},
+})
+```
+
+`New` never dials Redis. It fails only for a bad config or URL, so an application
+starts, and serves uncached, while its Redis is down. Use `rediss://` for TLS; the
+password and the database number come from the URL too. v0.1.0 needs collage
+v0.66.0 or later and Redis 6 or later.
+
+Only `URL` (or `Client`) is needed:
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `URL` | none | A `redis://` or `rediss://` URL. Required unless `Client` is set; not both. |
+| `Client` | none | An existing go-redis client to reuse. `Close` leaves it open: its owner closes it. |
+| `Prefix` | `collage:` | Starts every key. |
+| `Version` | a hash of the running executable | Namespaces the keys after `Prefix`. Blank, whitespace only or containing `:` is rejected. |
+| `MaxAge` | 7 days | The longest any key lives, and the longest an entry is fresh. |
+| `Timeout` | 250ms | Bounds each Redis command. |
+| `Logger` | `slog.Default()` | Receives the store's warnings. |
+
+A client built from `URL` does not retry a failed command, because a failure is
+only a miss and retrying would slow every request while Redis is down. With a
+`Client` of your own, set `ContextTimeoutEnabled` on it, so `Timeout` bounds a
+command already waiting on the network, and `MaxRetries` to -1. A `Client` is also
+how to reach what a URL cannot describe, such as Sentinel.
+
+Running Redis for it:
+
+- **`maxmemory-policy noeviction`**, with memory for about `MaxAge` of writes.
+  Every key expires on its own; eviction would only remove entries the store still
+  counts on. A full Redis fails every write as a whole — a miss, the page served
+  and not stored — while reads and invalidations still work.
+- **Persistence (RDB or AOF)**, or accept a rare stale-as-fresh page: a
+  `FLUSHALL`, or a restart without persistence, between an invalidation and the
+  write of a render it overlapped erases what lets that write be told apart.
+- **A single node or Sentinel.** Redis Cluster is not supported in v0.1.0.
+- **Clocks in sync** (NTP, say): freshness is judged with each instance's clock.
+
+### What is shared, and what is not
+
+Shared by every instance:
+
+- rendered pages and their tags;
+- the [stale fallback](#stale-pages-and-x-collage-cache): the last good copy,
+  served when a re-render fails;
+- `collage.Cached` values. Every `Cached` call reads the store — one round trip
+  and one JSON decode per load. A value JSON cannot bring back as it was (see
+  [Across a restart](#across-a-restart)) is not cached across renders at all, and
+  behaves as with `Once`, since keeping it in memory would bring back the
+  per-instance copy;
+- invalidations, and their reach: the count `InvalidateTagsN` returns, the
+  `CacheInvalidateEvent.Entries` a CDN purge acts on, and warming cover the pages
+  any instance wrote.
+
+Kept per instance:
+
+- the single fetch per `Cached` key, the background refresh and the failure
+  cooldown: N instances missing one key at once make up to N fetches;
+- warming: only the instance that ran the invalidation re-renders.
+
+### What it guarantees
+
+- **A render an invalidation overlapped lands stale, on every instance.** The
+  store owns an epoch, a counter that only grows. A render or a data fetch reads it
+  before it starts and hands it back when it writes. A write carrying a tag
+  invalidated since is stored stale, so a page B rendered from data A was
+  invalidating is kept as the fallback, never as a fresh page that would stay — for
+  a `Static` page, for good. One carrying a tag purged since is not stored at all.
+- **A late overlapped write does not replace a newer page.** When the warm after
+  an invalidation has stored a fresh page, a render that began before the
+  invalidation and finishes after it does not overwrite it with its stale one.
+  The same holds for data values.
+- **An invalidation is one call.** `InvalidateTags` and `PurgeTags` make one
+  `DropTags` call each, whatever the number of tags or entries, within five
+  seconds. It marks stale (or removes) every page and value under the tags and
+  returns the pages it reached, as one step; when it fails, the error is
+  returned and nothing is counted.
+- **It reaches every instance's pages.** The pages `DropTags` returns, which any
+  instance wrote, are counted, named in `CacheInvalidateEvent.Entries` — so
+  [elagoht/cdnpurge](/docs/plugins#elagohtcdnpurge) purges what B served — and
+  warmed, within the invalidating instance's `WarmLimit`. Past it, a page is
+  rendered by whichever instance gets its next visitor, a `MISS` once; the plugin
+  event still gets every entry.
+
+### When the store fails
+
+A store that errors, or takes longer than 500 milliseconds, is a miss: the page is
+rendered and served without being stored, the value fetched and returned. It is
+never a failed request, so it is not reported as one — no `"cache_write"` error log
+and no `OnError` event, which a full Redis would otherwise send on every cacheable
+miss.
+
+The failures of pages and data together go into one health per App, logged at warn
+at most once every 30 seconds with how many went unlogged
+(`collage: shared page and data cache unavailable`), and at info once when a call
+succeeds again (`… available again`). collage-redis logs the same outage on its
+own side, at most once every 10 seconds, and once at info when Redis answers again.
+
+### Things to know
+
+- **A deploy starts cold.** collage-redis's `Version` is a hash of the executable,
+  so a new build gets an empty namespace and a rolling deploy's old and new builds
+  never read each other's pages. The old build's keys are not deleted; they expire
+  within `MaxAge`. Set `Version` yourself to share entries across binaries.
+- **`MaxAge` bounds the stale fallback.** A page or value not re-rendered within
+  `MaxAge` (seven days by default) is gone, even during an upstream outage. There
+  is no such bound in the built-in stores.
+- **One fetch per key is per instance**, as above: N instances missing one key at
+  once make up to N upstream fetches.
+- **A page invalidated and not yet re-rendered stays in the store's tag index.** A
+  second invalidation of its tags before that re-render counts it again, names it
+  again in the plugin event, and offers it for warming again.
+
+A store that is not a `SharedCache`, the memory cache and `Type: "disk"` behave as
+before.
+
+### Writing your own SharedCache
+
+Any store can be one. The framework type-asserts for it, as for `TaggedCache` and
+`StaleCache`, and it includes both:
+
+```go
+type SharedCache interface {
+	TaggedCache
+	StaleCache
+	Epoch(ctx context.Context) (uint64, error)
+	SetSince(ctx context.Context, key string, content []byte, ttl time.Duration,
+		tags []string, meta []byte, since uint64) (etag string, outcome WriteOutcome, err error)
+	DropTags(ctx context.Context, tags []string, purge bool) ([]Reached, error)
+	GetData(ctx context.Context, key string) (value []byte, stale, found bool, err error)
+	SetData(ctx context.Context, key string, value []byte, ttl time.Duration,
+		tags []string, since uint64) (WriteOutcome, error)
+	DeleteData(ctx context.Context, key string) error
+}
+```
+
+- `Epoch` returns the store's counter. Each tag has a generation, the epoch at its
+  last invalidation, and a purge generation likewise.
+- `SetSince` and `SetData` take the epoch the render or fetch began at, `since`,
+  and say what they did: `collage.WriteSkipped` when a tag was purged after
+  `since`, `collage.WriteStale` when one was invalidated after it, and
+  `collage.WriteFresh` otherwise.
+- `DropTags` advances the epoch, records the generations, marks stale (or, with
+  `purge`, removes) every page and value under the tags, and returns each page it
+  reached as a `collage.Reached`: its key and the meta it was written with, which
+  is how collage knows its host and path.
+
+`collagetest.SharedCacheSuite` runs the whole contract against a store, through two
+handles on one backend, as two instances hold two connections to one Redis:
+
+```go
+func TestMySharedStore(t *testing.T) {
+	collagetest.SharedCacheSuite(t, func(t *testing.T) (a, b collage.SharedCache) {
+		// Two handles on one empty store.
+		return newHandle(t, backend), newHandle(t, backend)
+	})
+}
+```
+
+It runs `collagetest.CacheSuite` on the first handle — the `Cache`, `TaggedCache`
+and `StaleCache` contracts, which is also what to call for a store that is not
+shared — and then writes through one handle and checks through the other: the
+epoch ordering, overlapped writes landing stale or skipped, what `DropTags`
+reaches, data values, and concurrent use, which means something under `-race`.
+collage-redis passes it. To test an application that runs as a fleet, see
+[Testing](/docs/testing#a-fleet-on-one-shared-cache).
 
 ## ETags and 304
 
@@ -1009,8 +1244,12 @@ the old author they were meant to replace.
   finished sees the change.
   A fetch that was still running when its tags were invalidated hands its result
   to whoever was waiting and is kept, but as stale; one overtaken by `PurgeTags` is
-  not kept at all. A warm render instead waits for fresh data and stores a fresh
-  page.
+  not kept at all. A render that began after the invalidation and joined such a
+  fetch gets its value stale too (since v0.66.0, for every store; before, it got
+  it as fresh, and its page could be stored fresh from the data the invalidation
+  replaced), so that render is served `no-store` and not stored. A warm render
+  instead waits for fresh data and stores a fresh page; one that joins such a
+  fetch fetches again.
 - **A failed refresh keeps serving stale.** If the background fetch fails, the
   stale value stays and keeps being served, however long the upstream is down.
   The key cools down: no new fetch starts for it for a second, then two, four,
@@ -1041,7 +1280,9 @@ the old author they were meant to replace.
   still reuse an author fetched an hour ago, which is the point.
 - **In memory, bounded.** Values are kept in the process, up to
   `Cache.MaxEntries`, the least recently used going first — even when pages are
-  cached on disk. Each instance of a multi-instance deployment keeps its own.
+  cached on disk. Each instance of a multi-instance deployment keeps its own,
+  unless `Cache.Store` is a [`collage.SharedCache`](#a-cache-a-fleet-shares): then
+  the values live in that store, beside the pages, and no instance keeps a copy.
 
 ### Across a restart
 
@@ -1078,7 +1319,7 @@ page.
 | | Shared between | Lives for |
 | --- | --- | --- |
 | `collage.Once` | the fragments of one render | that render |
-| `collage.Cached` | every render in the process | fresh for its `ttl` or until its tags are invalidated, then served stale until replaced |
+| `collage.Cached` | every render in the process (in the fleet, with a [`SharedCache`](#a-cache-a-fleet-shares)) | fresh for its `ttl` or until its tags are invalidated, then served stale until replaced |
 | page cache | every request for one URL | fresh for the page's strategy or until its tags are invalidated, then served stale only when its re-render fails or is degraded |
 
 Use `Once` for what one page fetches twice, `Cached` for what many pages fetch,
@@ -1087,7 +1328,7 @@ rendered, so none of its fetches run at all. See
 [Data handlers](/docs/data-handlers) for `Once`.
 
 The page cache is kept per host; `collage.Cached` is not. Its store is one per
-process, keyed only by the key you give it, so on a site serving several customers
+process (or the fleet's shared store), keyed only by the key you give it, so on a site serving several customers
 (elagoht/tenant, say) `Cached(rc, postsKey, ...)` fetches acme's posts once and hands
 them to globex too. Put the customer in the key, and in the tags, so invalidating
 one customer's data leaves the others' alone:

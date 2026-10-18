@@ -844,7 +844,12 @@ olarak işaretlenir (v0.63.0'dan beri). Artık taze diye sunulmaz. Yalnızca yen
 render'ı başarısız ya da degraded olursa `STALE` olarak yeniden sunulur.
 Cache'lenmemiş bir page burada asla yer almaz, çünkü onun için ulaşılacak bir
 entry yoktur. Daha önceki bir invalidation'ın stale olarak işaretlediği bir page
-de yeniden render edilip saklanana kadar burada yer almaz.
+de yeniden render edilip saklanana kadar burada yer almaz. Bir filonun paylaştığı
+bir store, yani bir [`collage.SharedCache`](/docs/caching#a-cache-a-fleet-shares)
+(v0.66.0'dan beri) bunun istisnasıdır: onun kendi tag index'i herhangi bir
+instance'ın yazdığı her page'i adlandırır ve invalidate edilip henüz yeniden render
+edilmemiş bir page'i de tutar. Bu yüzden ikinci bir invalidation o page'i yeniden
+listeler.
 
 Cache'lenen her entry ayrıca
 `collage.PathTag(path)` tag'ine de bağlıdır. Bu yüzden tag'i değil path'i bilen bir

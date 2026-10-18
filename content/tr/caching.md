@@ -1,6 +1,6 @@
 ---
 description: collage'ın render edilmiş page'leri ve onların dayandığı veriyi nasıl cache'lediğini, neyi atacağını nasıl bildiğini anlatır.
-reference: CacheConfig, Cached, App.PurgeTags, CacheStale, CacheWarm, Once, Key, TaggedCache, StaleCache, CacheStatusHeader, SkipCache, Vary, PageBuilder.Static, PageBuilder.Incremental, PageBuilder.Dynamic, FragmentBuilder.Static, FragmentBuilder.Shared, StrategyAuto, PathTag
+reference: CacheConfig, Cached, App.PurgeTags, CacheStale, CacheWarm, Once, Key, TaggedCache, StaleCache, CacheStatusHeader, SkipCache, Vary, PageBuilder.Static, PageBuilder.Incremental, PageBuilder.Dynamic, FragmentBuilder.Static, FragmentBuilder.Shared, StrategyAuto, PathTag, SharedCache, Reached, WriteOutcome, WriteFresh, WriteStale, WriteSkipped
 ---
 
 # Caching
@@ -398,7 +398,10 @@ sapabilir:
 - store'un kendi tag index'i üzerinden ulaştığı bir entry ise sayılmadan
   invalidate edilir. Bu, örneğin
   [aşağıda](#the-tag-index-is-per-process-and-bounded) anlatılan sınırın ötesinde
-  kalan ya da başka bir instance'ın yazdığı bir entry olabilir.
+  kalan ya da başka bir instance'ın yazdığı bir entry olabilir. Bir
+  [`collage.SharedCache`](#a-cache-a-fleet-shares) bunun istisnasıdır: onun kendi
+  index'inin ulaştığı page'ler, hangi instance yazmış olursa olsun, sayılır
+  (v0.66.0'dan beri).
 
 Sayı bir log satırı ya da bir metrik için uygundur, uygulama mantığı için değil.
 
@@ -457,6 +460,12 @@ Kendi paylaşılan store'unuzu kullanıyorsanız (`Cache.Store`, örneğin bir R
 collage bu durumda tag'e göre invalidation'ı store'dan da ister ve store başka bir
 instance'ın yazdığı entry'lere de ulaşabilir. Built-in disk cache bunu yapar.
 Tag'lerinin restart sonrasında da çalışmaya devam etmesinin nedeni budur.
+
+[`collage.SharedCache`](#a-cache-a-fleet-shares) olan bir store (v0.66.0'dan
+beri) bu açığı tamamen kapatır: onun kendi tag index'i herhangi bir instance'ın
+yazdığı her page'i ve veri değerini adlandırır. Böylece sayı,
+`CacheInvalidateEvent.Entries` ve warming yalnızca bu process'in değil, filonun
+page'lerini kapsar.
 
 **Tag başına tutulan kayıt `Cache.MaxEntries` ile sınırlıdır** (varsayılan
 10000; v0.60.0'dan önce bu ayrı bir alandı: `MaxKeysPerTag`). Query string key'in
@@ -829,9 +838,10 @@ olana ya da kopyayı evict edene kadar sürer. Bu arada page'i yeniden çeken bi
 eski kopya verilebilir ve CDN onu tutabilir.
 
 Her instance'a kendi dizinini verin. Instance'larının birbirinin invalidation'larını
-görmesi gereken bir filonun, `Type: "disk"` yerine `collage.StaleCache` ve
-`collage.TaggedCache`'i implement eden, paylaşılan
-[kendi store'una](#your-own-store) ihtiyacı vardır.
+görmesi gereken bir filonun, `Type: "disk"` yerine `Cache.Store`'da paylaşılan bir
+store'a ihtiyacı vardır: [`collage.SharedCache`](#a-cache-a-fleet-shares)'i
+implement eden bir store, örneğin collage-redis, page'leri ve veriyi filo genelinde
+tutarlı tutar.
 
 ### Namespace
 
@@ -922,6 +932,246 @@ da key'i purge edilene kadar tutar.
 ```go
 var _ collage.StaleCache = (*myCache)(nil)
 ```
+
+## Bir filonun paylaştığı cache
+
+Bir load balancer arkasında her instance'ın kendi page cache'i, kendi
+`collage.Cached` değerleri ve kendi [tag index'i](#the-tag-index-is-per-process-and-bounded)
+vardır. Bir CMS webhook'u bunlardan birine ulaşır ve onun `InvalidateTags`'i
+yalnızca o instance'a ulaşır. Diğerleri eski page'i taze bir `HIT` olarak sunmaya
+ve eski değerden render etmeye, o kopya expire olana kadar devam eder. Bir `Static`
+page için bu, instance restart olana ya da kopyayı evict edene kadar sürer.
+`Dir`'ini paylaştıkları bir `"disk"` cache bunu değiştirmez
+([yukarıya](#memory-in-front-of-the-disk) bakın).
+
+v0.66.0'dan beri `collage.SharedCache`'i implement eden bir store, filonun
+tamamı tarafından paylaşılır. Page'ler de `collage.Cached` verisi de onda durur ve
+önünde instance başına hiçbir şey tutulmaz. Böylece herhangi bir instance'taki bir
+`InvalidateTags` ya da `PurgeTags`, her instance'taki bir sonraki okumaya ulaşır.
+
+<figure class="diagram-figure" data-search-ignore>
+<svg class="diagram" viewBox="0 0 320 276" role="img" aria-labelledby="cache-fleet-title">
+<title id="cache-fleet-title">Bir load balancer arkasındaki üç instance tek bir store'u paylaşır. Bir webhook A instance'ına ulaşır ve A, paylaşılan store'a tek bir DropTags çağrısı yapar. Store page'leri, Cached verisini, tag index'ini ve epoch'u tutar. B ve C instance'ları aynı store'u okur ve ona yazar, bu yüzden sonraki okumaları invalidation'ı görür. A, invalidation'ın ulaştığı page'leri kendi WarmLimit'i içinde warm eder.</title>
+<defs><marker id="cache-fleet-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker><marker id="cache-fleet-hit" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head-hit" d="M0 0 8 4 0 8z" /></marker></defs>
+<rect class="d-chip-hit" x="10" y="8" width="90" height="24" rx="12" /><text class="d-hit-text" x="55" y="24" text-anchor="middle">webhook</text>
+<line class="d-hitline" x1="55" y1="32" x2="55" y2="50" marker-end="url(#cache-fleet-hit)" />
+<rect class="d-a" x="10" y="54" width="90" height="34" rx="5" /><text class="d-on-a" x="55" y="75" text-anchor="middle">instance A</text>
+<rect class="d-a" x="115" y="54" width="90" height="34" rx="5" /><text class="d-on-a" x="160" y="75" text-anchor="middle">instance B</text>
+<rect class="d-a" x="220" y="54" width="90" height="34" rx="5" /><text class="d-on-a" x="265" y="75" text-anchor="middle">instance C</text>
+<line class="d-flow" x1="55" y1="88" x2="55" y2="100" marker-end="url(#cache-fleet-arrow)" />
+<rect class="d-cmd" x="10" y="104" width="90" height="24" rx="12" /><text class="d-cmd-text" x="55" y="120" text-anchor="middle">DropTags</text>
+<line class="d-flow" x1="55" y1="128" x2="55" y2="150" marker-end="url(#cache-fleet-arrow)" />
+<line class="d-flow" x1="160" y1="88" x2="160" y2="150" marker-end="url(#cache-fleet-arrow)" />
+<line class="d-flow" x1="265" y1="88" x2="265" y2="150" marker-end="url(#cache-fleet-arrow)" />
+<text class="d-small" x="212" y="122" text-anchor="middle">okur, yazar</text>
+<rect class="d-b" x="10" y="154" width="300" height="48" rx="5" /><text class="d-on-b" x="160" y="173" text-anchor="middle">paylaşılan store (collage-redis)</text><text class="d-on-b d-small" x="160" y="189" text-anchor="middle">page'ler, Cached veri, tag index, epoch</text>
+<line class="d-flow" x1="82" y1="202" x2="82" y2="222" marker-end="url(#cache-fleet-arrow)" />
+<line class="d-flow" x1="237" y1="202" x2="237" y2="222" marker-end="url(#cache-fleet-arrow)" />
+<rect class="d-soft-a" x="10" y="226" width="145" height="42" rx="6" /><text class="d-small" x="82" y="243" text-anchor="middle">A page'leri warm eder</text><text class="d-small" x="82" y="256" text-anchor="middle">kendi WarmLimit'i içinde</text>
+<rect class="d-frame" x="165" y="226" width="145" height="42" rx="6" /><text class="d-small" x="237" y="243" text-anchor="middle">B, C: sonraki okuma</text><text class="d-small" x="237" y="256" text-anchor="middle">invalidation'ı görür</text>
+</svg>
+<figcaption>Filo için tek bir store. Bir webhook'un ulaştığı instance tek bir <code>DropTags</code> çağrısı yapar. Bu çağrı, tag'lerin altındaki her page'i ve değeri, hangi instance yazmış olursa olsun stale olarak işaretler (purge'te ise siler) ve ulaştığı page'leri sayı, plugin event'i ve warming için adlandırır. Diğer her instance aynı store'u okur, bu yüzden sonraki okuması değişikliği görür. Yalnızca invalidate eden instance, kendi <code>WarmLimit</code>'i içinde warm eder.</figcaption>
+</figure>
+
+### collage-redis ile kurulum
+
+[collage-redis](/docs/plugins#elagohtredis), Redis üzerinde bir `SharedCache`'tir.
+Plugin değil, library'dir: register edilecek bir şey yoktur. Store
+`Cache.Store`'a verilir ve bu durumda `Type` yok sayılır.
+
+```sh
+go get github.com/Elagoht/collage-redis
+```
+
+```go
+import "github.com/Elagoht/collage-redis" // package redis
+
+store, err := redis.New(redis.Config{URL: os.Getenv("REDIS_URL")})
+if err != nil {
+	log.Fatal(err)
+}
+defer store.Close()
+
+app, err := collage.New(&collage.Config{
+	Cache: collage.CacheConfig{Enabled: true, Store: store},
+})
+```
+
+`New` Redis'e hiç bağlanmaz. Yalnızca hatalı bir config ya da URL'de başarısız
+olur. Bu yüzden Redis kapalıyken de uygulama açılır ve cache'siz sunar. TLS için
+`rediss://` kullanın. Parola ve veritabanı numarası da URL'den gelir. v0.1.0,
+collage v0.66.0 ya da sonrasını ve Redis 6 ya da sonrasını gerektirir.
+
+Yalnızca `URL` (ya da `Client`) gereklidir:
+
+| Alan | Varsayılan | Anlamı |
+| --- | --- | --- |
+| `URL` | yok | Bir `redis://` ya da `rediss://` URL'si. `Client` verilmediyse zorunludur; ikisi birden verilemez. |
+| `Client` | yok | Yeniden kullanılacak mevcut bir go-redis client'ı. `Close` onu açık bırakır: onu sahibi kapatır. |
+| `Prefix` | `collage:` | Her key'in başına gelir. |
+| `Version` | çalışan executable'ın hash'i | `Prefix`'ten sonra key'leri namespace'ler. Boş, yalnızca boşluktan oluşan ya da `:` içeren bir değer reddedilir. |
+| `MaxAge` | 7 gün | Bir key'in en uzun yaşama süresi ve bir entry'nin en uzun taze kalma süresi. |
+| `Timeout` | 250ms | Her Redis komutunu sınırlar. |
+| `Logger` | `slog.Default()` | Store'un uyarılarını alır. |
+
+`URL`'den kurulan bir client başarısız bir komutu yeniden denemez, çünkü bir
+başarısızlık yalnızca bir miss'tir ve yeniden denemek Redis kapalıyken her
+request'i yavaşlatırdı. Kendi `Client`'ınızı verirseniz, `Timeout`'un ağda beklemekte
+olan bir komutu da sınırlaması için onda `ContextTimeoutEnabled`'ı açın ve
+`MaxRetries`'i -1 yapın. Bir URL'nin tarif edemediği bir şeye, örneğin Sentinel'e,
+ulaşmanın yolu da bir `Client`'tır.
+
+Redis'i bunun için çalıştırmak:
+
+- **`maxmemory-policy noeviction`**, yaklaşık `MaxAge` süresince yapılan yazmalara
+  yetecek bellekle. Her key kendiliğinden expire olur; eviction yalnızca store'un hâlâ
+  güvendiği entry'leri siler. Dolu bir Redis'te her yazma bir bütün olarak başarısız
+  olur (bir miss: page sunulur ama saklanmaz), okumalar ve invalidation'lar ise
+  çalışmaya devam eder.
+- **Persistence (RDB ya da AOF)**, ya da ara sıra taze diye sunulan stale bir
+  page'e razı olun: bir invalidation ile onun çakıştığı bir render'ın yazması
+  arasındaki bir `FLUSHALL` ya da persistence olmadan bir restart, o yazmanın ayırt
+  edilmesini sağlayan bilgiyi siler.
+- **Tek bir node ya da Sentinel.** Redis Cluster v0.1.0'da desteklenmez.
+- **Senkronize saatler** (örneğin NTP ile): tazelik, her instance'ın kendi saatiyle
+  değerlendirilir.
+
+### Ne paylaşılır, ne paylaşılmaz
+
+Her instance tarafından paylaşılanlar:
+
+- render edilmiş page'ler ve tag'leri;
+- [stale fallback](#stale-pages-and-x-collage-cache): bir yeniden render başarısız
+  olduğunda sunulan son başarılı kopya;
+- `collage.Cached` değerleri. Her `Cached` çağrısı store'u okur: her yüklemede bir
+  gidiş dönüş ve bir JSON decode. JSON'un olduğu gibi geri getiremeyeceği bir değer
+  (bkz. [Restart'tan sonra](#across-a-restart)) render'lar arasında hiç
+  cache'lenmez ve `Once` ile olduğu gibi davranır, çünkü onu memory'de tutmak
+  instance başına kopyayı geri getirirdi;
+- invalidation'lar ve ulaştıkları yer: `InvalidateTagsN`'in döndüğü sayı, bir CDN
+  purge'ünün üzerinde çalıştığı `CacheInvalidateEvent.Entries` ve warming, herhangi
+  bir instance'ın yazdığı page'leri kapsar.
+
+Instance başına kalanlar:
+
+- `Cached` key'i başına tek çekme işlemi, arka plandaki yenileme ve başarısızlık
+  bekleme süresi: tek bir key'i aynı anda kaçıran N instance en fazla N çekme
+  işlemi yapar;
+- warming: yalnızca invalidation'ı çalıştıran instance yeniden render eder.
+
+### Neyi garanti eder
+
+- **Bir invalidation'ın çakıştığı render, her instance'ta stale olarak saklanır.**
+  Store, yalnızca artan bir sayaç olan bir epoch'a sahiptir. Bir render ya da bir
+  veri çekme işlemi başlamadan önce onu okur ve yazarken geri verir. O zamandan beri
+  invalidate edilmiş bir tag taşıyan yazma stale olarak saklanır. Böylece B'nin,
+  A'nın invalidate etmekte olduğu veriden render ettiği bir page fallback olarak
+  tutulur, kalıcı olacak taze bir page olarak asla saklanmaz (bir `Static` page için
+  bu, sonsuza kadar demektir). O zamandan beri purge edilmiş bir tag taşıyan yazma
+  ise hiç saklanmaz.
+- **Geç kalan, çakışmış bir yazma daha yeni bir page'in yerini almaz.** Bir
+  invalidation'dan sonraki warm taze bir page sakladıysa, invalidation'dan önce
+  başlayıp ondan sonra biten bir render, onun üzerine kendi stale page'ini yazmaz.
+  Aynısı veri değerleri için de geçerlidir.
+- **Bir invalidation tek bir çağrıdır.** `InvalidateTags` ve `PurgeTags`, tag ya da
+  entry sayısı ne olursa olsun, beş saniye içinde birer `DropTags` çağrısı yapar.
+  Bu çağrı tag'lerin altındaki her page'i ve değeri stale olarak işaretler (ya da
+  siler) ve ulaştığı page'leri tek bir adımda döner. Başarısız olursa hata dönülür
+  ve hiçbir şey sayılmaz.
+- **Her instance'ın page'lerine ulaşır.** `DropTags`'in döndüğü, herhangi bir
+  instance'ın yazdığı page'ler sayılır, `CacheInvalidateEvent.Entries` içinde
+  adlandırılır (böylece [elagoht/cdnpurge](/docs/plugins#elagohtcdnpurge) B'nin
+  sunduğunu da purge eder) ve invalidate eden instance'ın `WarmLimit`'i içinde warm
+  edilir. Bu sınırın ötesindeki bir page'i, bir sonraki ziyaretçisini alan instance
+  render eder; bir kez `MISS` olur. Plugin event'i yine her entry'yi alır.
+
+### Store başarısız olduğunda
+
+Hata veren ya da 500 milisaniyeden uzun süren bir store bir miss'tir: page render
+edilir ve saklanmadan sunulur, değer çekilir ve dönülür. Bu asla başarısız bir
+request değildir, bu yüzden öyle raporlanmaz: `"cache_write"` hata log'u da
+`OnError` event'i de yoktur. Aksi hâlde dolu bir Redis bunları cache'lenebilir her
+miss'te gönderirdi.
+
+Page'lerin ve verinin başarısızlıkları birlikte App başına tek bir sağlık durumuna
+gider. Bu durum warn seviyesinde, en fazla 30 saniyede bir, log'lanmayan
+başarısızlıkların sayısıyla birlikte log'lanır
+(`collage: shared page and data cache unavailable`) ve bir çağrı yeniden başarılı
+olduğunda bir kez info seviyesinde log'lanır (`… available again`). collage-redis de
+aynı kesintiyi kendi tarafında, en fazla 10 saniyede bir log'lar ve Redis yeniden
+cevap verdiğinde bir kez info seviyesinde log'lar.
+
+### Bilinmesi gerekenler
+
+- **Bir deploy cache boş başlar.** collage-redis'in `Version`'ı executable'ın
+  hash'idir. Bu yüzden yeni bir build boş bir namespace alır ve bir rolling
+  deploy'un eski ve yeni build'leri birbirinin page'lerini asla okumaz. Eski build'in
+  key'leri silinmez, `MaxAge` içinde expire olur. Entry'lerin binary'ler arasında
+  paylaşılması için `Version`'ı kendiniz ayarlayın.
+- **`MaxAge` stale fallback'i sınırlar.** `MaxAge` (varsayılan yedi gün) içinde
+  yeniden render edilmeyen bir page ya da değer, bir upstream kesintisi sırasında
+  bile gider. Built-in store'larda böyle bir sınır yoktur.
+- **Key başına tek çekme işlemi instance başınadır**, yukarıdaki gibi: tek bir key'i
+  aynı anda kaçıran N instance upstream'e en fazla N çekme işlemi yapar.
+- **Invalidate edilmiş ve henüz yeniden render edilmemiş bir page, store'un tag
+  index'inde kalır.** Tag'lerinin o yeniden render'dan önce ikinci kez invalidate
+  edilmesi onu yeniden sayar, plugin event'inde yeniden adlandırır ve warming için
+  yeniden sunar.
+
+`SharedCache` olmayan bir store, memory cache ve `Type: "disk"` eskisi gibi
+davranır.
+
+### Kendi SharedCache'inizi yazmak
+
+Herhangi bir store bu olabilir. Framework, `TaggedCache` ve `StaleCache` için
+yaptığı gibi bunun için de type assertion yapar ve interface ikisini de içerir:
+
+```go
+type SharedCache interface {
+	TaggedCache
+	StaleCache
+	Epoch(ctx context.Context) (uint64, error)
+	SetSince(ctx context.Context, key string, content []byte, ttl time.Duration,
+		tags []string, meta []byte, since uint64) (etag string, outcome WriteOutcome, err error)
+	DropTags(ctx context.Context, tags []string, purge bool) ([]Reached, error)
+	GetData(ctx context.Context, key string) (value []byte, stale, found bool, err error)
+	SetData(ctx context.Context, key string, value []byte, ttl time.Duration,
+		tags []string, since uint64) (WriteOutcome, error)
+	DeleteData(ctx context.Context, key string) error
+}
+```
+
+- `Epoch`, store'un sayacını döner. Her tag'in bir generation'ı, yani son
+  invalidation'ındaki epoch'u vardır. Aynı şekilde bir purge generation'ı da vardır.
+- `SetSince` ve `SetData`, render'ın ya da çekme işleminin başladığı epoch'u,
+  `since`'i alır ve ne yaptıklarını söyler: `since`'ten sonra bir tag purge
+  edildiyse `collage.WriteSkipped`, invalidate edildiyse `collage.WriteStale`, aksi
+  hâlde `collage.WriteFresh`.
+- `DropTags` epoch'u ilerletir, generation'ları kaydeder, tag'lerin altındaki her
+  page'i ve değeri stale olarak işaretler (`purge` ile siler) ve ulaştığı her page'i
+  bir `collage.Reached` olarak döner: key'i ve onunla yazıldığı meta. collage
+  page'in host'unu ve path'ini bu meta'dan bilir.
+
+`collagetest.SharedCacheSuite`, sözleşmenin tamamını bir store'a karşı, tek bir
+backend üzerindeki iki handle aracılığıyla çalıştırır; tıpkı iki instance'ın tek bir
+Redis'e iki bağlantı tutması gibi:
+
+```go
+func TestMySharedStore(t *testing.T) {
+	collagetest.SharedCacheSuite(t, func(t *testing.T) (a, b collage.SharedCache) {
+		// Two handles on one empty store.
+		return newHandle(t, backend), newHandle(t, backend)
+	})
+}
+```
+
+Önce ilk handle üzerinde `collagetest.CacheSuite`'i çalıştırır: `Cache`,
+`TaggedCache` ve `StaleCache` sözleşmeleri. Paylaşılmayan bir store için çağrılacak
+olan da budur. Ardından bir handle üzerinden yazar ve diğeri üzerinden kontrol eder:
+epoch sıralaması, çakışmış yazmaların stale saklanması ya da atlanması, `DropTags`'in
+neye ulaştığı, veri değerleri ve `-race` altında anlam taşıyan eşzamanlı kullanım.
+collage-redis bunu geçer. Filo olarak çalışan bir uygulamayı test etmek için
+[Test yazmak](/docs/testing#a-fleet-on-one-shared-cache) sayfasına bakın.
 
 ## ETag'ler ve 304
 
@@ -1072,8 +1322,13 @@ yerine geçmeleri gereken eski yazar verisinden yeniden render edilir.
   timeout'u sabit 30 saniyedir ve request'ten bağımsız çalışır. Çekme işlemi
   bittikten sonra gelen request değişikliği görür. Tag'leri invalidate edildiğinde
   hâlâ süren bir çekme işlemi, sonucunu bekleyenlere iletir. Sonuç da saklanır, ama
-  stale olarak. Araya `PurgeTags` girmişse sonuç hiç saklanmaz. Bir warm render ise
-  taze veriyi bekler ve taze bir page saklar.
+  stale olarak. Araya `PurgeTags` girmişse sonuç hiç saklanmaz. Invalidation'dan
+  sonra başlayıp böyle bir çekme işlemine katılan bir render da değeri stale olarak
+  alır (v0.66.0'dan beri, her store için; önceden taze olarak alırdı ve page'i,
+  invalidation'ın yerine koyduğu veriden taze olarak saklanabilirdi). Bu yüzden o
+  render `no-store` ile sunulur ve saklanmaz. Bir warm render ise taze veriyi bekler
+  ve taze bir page saklar; böyle bir çekme işlemine katılan warm render veriyi
+  yeniden çeker.
 - **Başarısız bir yenileme, stale değeri sunmayı sürdürür.** Arka plandaki çekme
   işlemi başarısız olursa stale değer kalır. Upstream ne kadar uzun süre kapalı
   kalırsa kalsın sunulmaya devam eder. Key'e bir bekleme süresi konur: ilk
@@ -1110,7 +1365,9 @@ yerine geçmeleri gereken eski yazar verisinden yeniden render edilir.
 - **Değerler memory'de tutulur ve sınırlıdır.** Değerler process içinde,
   `Cache.MaxEntries` kadar tutulur. En uzun süredir kullanılmayan önce atılır.
   Page'ler diskte cache'lense bile bu değişmez. Birden çok instance'lı bir deploy'da
-  her instance kendi değerlerini tutar.
+  her instance kendi değerlerini tutar; `Cache.Store` bir
+  [`collage.SharedCache`](#a-cache-a-fleet-shares) ise bu geçerli değildir: değerler
+  o store'da, page'lerin yanında durur ve hiçbir instance bir kopya tutmaz.
 
 ### Restart'tan sonra
 
@@ -1150,7 +1407,7 @@ yoktur. Bu yüzden bir preview, yeni bir page'in yanında güncel veriyi de gör
 | | Kimler arasında paylaşılır | Ne kadar yaşar |
 | --- | --- | --- |
 | `collage.Once` | tek bir render'ın fragment'leri | o render boyunca |
-| `collage.Cached` | process'teki her render | `ttl` süresince ya da tag'leri invalidate edilene kadar taze, sonra yenisi gelene kadar stale sunulur |
+| `collage.Cached` | process'teki her render (bir [`SharedCache`](#a-cache-a-fleet-shares) ile filodaki her render) | `ttl` süresince ya da tag'leri invalidate edilene kadar taze, sonra yenisi gelene kadar stale sunulur |
 | page cache | tek bir URL için gelen her request | page'in stratejisine göre ya da tag'leri invalidate edilene kadar taze, sonra yalnızca yeniden render'ı başarısız ya da degraded olursa stale sunulur |
 
 Bir page'in iki kez çektiği şey için `Once`'ı, birçok page'in çektiği şey için
@@ -1158,8 +1415,8 @@ Bir page'in iki kez çektiği şey için `Once`'ı, birçok page'in çektiği ş
 Cache'lenmiş bir page render edilmez, bu yüzden veri çekme işlemlerinin hiçbiri
 çalışmaz. `Once` için [Data handler'lar](/docs/data-handlers) sayfasına bakın.
 
-Page cache host başınadır; `collage.Cached` değildir. Store'u process başına tektir
-ve yalnızca verdiğiniz key ile key'lenir. Bu yüzden birden fazla müşteriye hizmet
+Page cache host başınadır; `collage.Cached` değildir. Store'u process başına (ya da
+filonun paylaşılan store'u olarak) tektir ve yalnızca verdiğiniz key ile key'lenir. Bu yüzden birden fazla müşteriye hizmet
 veren bir sitede (örneğin elagoht/tenant) `Cached(rc, postsKey, ...)` acme'nin
 yazılarını bir kez çeker ve globex'e de verir. Müşteriyi key'e ve tag'lere koyun;
 böylece bir müşterinin verisini invalidate etmek ötekilere dokunmaz:

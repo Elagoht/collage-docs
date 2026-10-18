@@ -464,7 +464,8 @@ bulacağı, neyin değiştiğine bağlıdır:
   Diğer her instance kendi memory'sindeki kopyayı expire olana kadar taze bir `HIT`
   olarak sunmaya devam eder. Bir `Static` page için bu, bir restart'a ya da bir
   eviction'a kadar sürer. Bu arada page'i yeniden çeken bir CDN eski kopyayı tekrar
-  alabilir.
+  alabilir. Tek bir cache'i paylaşması gereken bir filo bunun yerine
+  [paylaşılan bir store](/docs/caching#a-cache-a-fleet-shares) kullanır.
 - **Önünde memory vardır ve restart'tan sonra boş başlamaz** (v0.63.0'dan beri). Bir hit,
   memory katmanından sunulur. Bu katman açılışta dizinden, en yeni page'lerden
   başlanarak doldurulur. Böylece restart edilen bir instance son page'lerini hemen
@@ -525,23 +526,34 @@ güncellenir. Diğerleri eski page'i TTL'i dolana kadar sunmaya devam eder.
 
 Üç çözümden birini seçin. Değişen page'lere `Incremental(ttl)` verin, böylece stale
 kopya kendiliğinden expire olur. Ya da webhook'u her instance'a gönderin. Ya da
-`Cache.Store` üzerinden `collage.TaggedCache`'i implement eden paylaşımlı bir store
-yapılandırın. Böylece tek bir invalidation, herhangi bir instance'ın yazdığı
-entry'lere ulaşır. Store `collage.StaleCache`'i de implement ederse invalidate
-edilen page'i, geri dönülecek bir kopya olarak tutar. `Dir`'ini instance'ların paylaştığı bir
-`"disk"` cache böyle bir store değildir: her instance'ın memory katmanı elindekini
-sunmaya devam eder. [Caching](/docs/caching#memory-in-front-of-the-disk) sayfasına
-bakın.
+filonun tamamında tek bir cache'i paylaşın. `Dir`'ini instance'ların paylaştığı bir
+`"disk"` cache bu değildir: her instance'ın memory katmanı elindekini sunmaya devam
+eder. [Caching](/docs/caching#memory-in-front-of-the-disk) sayfasına bakın.
 
-Paylaşımlı bir store veriyi değil, page'leri tutar.
-[`collage.Cached`](/docs/caching#caching-data-across-pages) ile tutulan değerler,
-`Cache.Store` ne olursa olsun her process'in kendi belleğinde yaşar. Bir invalidation
-da yalnızca içinde çalıştığı instance'a ulaşır. Webhook A instance'ına ulaştıktan
-sonra, paylaşımlı store page'i invalidate ettiği için B instance'ı page'i yeniden
-render eder. Ama bunu hâlâ elinde tuttuğu eski değerle yapar.
+v0.66.0'dan beri `Cache.Store`'daki, `collage.SharedCache`'i implement eden bir
+store, örneğin [collage-redis](/docs/plugins#elagohtredis), üçüncü çözümdür.
+Page'ler de [`collage.Cached`](/docs/caching#caching-data-across-pages) değerleri de
+onda durur ve önünde instance başına bir kopya yoktur. Bu yüzden A instance'ına
+ulaşan bir webhook, B'nin bir sonraki okumasına da ulaşır. B'nin, A'nın invalidate
+etmekte olduğu veriden başlattığı bir render da taze değil, stale olarak saklanır.
+Invalidation'ın ulaştığı page'ler, hangi instance yazmış olursa olsun, A'nın
+plugin'lerine `CacheInvalidateEvent.Entries` içinde bildirilir (bir CDN purge'ünün
+üzerinde çalıştığı şey budur) ve A onları kendi `WarmLimit`'i içinde warm eder.
+Redis'in kapalı olması bir miss'tir, asla başarısız bir request değildir: site
+cache'siz render eder.
 
-Bu değerlere katlanabileceğiniz kadar kısa bir TTL verin ya da invalidation'ı her
-instance'a gönderin.
+collage-redis ile deploy günü iki şey değişir: her yeni binary boş bir namespace
+ile başlar, yani bir deploy cache boş başlar, ve `MaxAge` (yedi gün), stale bir
+kopyanın başarısız bir render'ın yerine ne kadar süre geçebileceğini sınırlar.
+Bkz. [Bir filonun paylaştığı cache](/docs/caching#a-cache-a-fleet-shares).
+
+Yalnızca `collage.TaggedCache` ve `collage.StaleCache`'i implement eden paylaşımlı
+bir store veriyi değil, page'leri tutar. `collage.Cached` ile tutulan değerler bu
+durumda her process'in kendi belleğinde yaşar ve bir invalidation yalnızca içinde
+çalıştığı instance'a ulaşır: webhook A instance'ına ulaştıktan sonra, paylaşımlı
+store page'i invalidate ettiği için B instance'ı page'i yeniden render eder, ama
+bunu hâlâ elinde tuttuğu eski değerle yapar. Bu değerlere katlanabileceğiniz kadar
+kısa bir TTL verin ya da invalidation'ı her instance'a gönderin.
 
 ## TLS, bir proxy'nin arkasında
 
@@ -930,8 +942,9 @@ Artık iki sunucu da aynı şekilde güncellenir. API çağrısının ulaştığ
 listeyi, eskisi gibi, invalidation stale yapar; diğer sunucuda ise bunu 30 saniyenin
 dolması yapar. İki durumda da bir sonraki render'a eski liste sunulur. Bu sırada
 listeyi arka planda tek bir çekme işlemi yeniler ve ondan sonraki bir request
-değişikliği görür. Diğer çözüm, invalidation'ı iki sunucuya da göndermektir.
-Ayrıntılar için
+değişikliği görür. Başka bir çözüm, invalidation'ı iki sunucuya da göndermektir.
+Üçüncüsü ise iki sunucunun da kullandığı, collage-redis gibi
+[paylaşılan bir cache](/docs/caching#a-cache-a-fleet-shares)'tir. Ayrıntılar için
 [Birden fazla instance ile invalidation](#invalidation-with-several-instances)
 bölümüne bakın.
 

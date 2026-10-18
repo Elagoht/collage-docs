@@ -390,6 +390,10 @@ kendi metoduydu. Ayrıca `collage.StaleCache`'i (`GetStale`, `MarkStaleKey`,
 `MarkStale`, v0.63.0'dan beri) implement eden bir store'dan, invalidate edilen
 entry'leri silmek yerine stale olarak işaretlemesi istenir. Böyle bir store
 başarısız bir yeniden render'a eski page'le cevap verebilir. Bkz. [Caching](/docs/caching#stale-pages-in-your-own-store).
+`collage.SharedCache`'i (v0.66.0'dan beri) implement eden bir store, örneğin
+[collage-redis](/docs/plugins#elagohtredis), bir filo tarafından paylaşılır:
+page'ler ve `collage.Cached` verisi onda durur ve herhangi bir instance'taki
+invalidation hepsine ulaşır. Bkz. [Caching](/docs/caching#a-cache-a-fleet-shares).
 Somut bir tipin nil pointer'ını atamak yerine alanı boş bırakın. Böyle bir pointer
 nil olmayan bir interface'tir ve ilk lookup'ta panic'e yol açar.
 

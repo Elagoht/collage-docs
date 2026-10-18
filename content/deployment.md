@@ -442,7 +442,8 @@ cache. What a new build finds depends on what changed:
   cache. An invalidation on one marks the disk and its own memory, and every other
   instance keeps serving its in-memory copy as a fresh `HIT` until it expires —
   for a `Static` page, until a restart or an eviction — where a CDN refetching it
-  can pick it up again.
+  can pick it up again. A fleet that must share one cache uses a
+  [shared store](/docs/caching#a-cache-a-fleet-shares) instead.
 - **It has memory in front of it, and a restart starts warm** (since v0.63.0). A
   hit is served from a memory tier, filled from the directory at startup, newest
   pages first, so a restarted instance serves its recent pages from memory at once.
@@ -496,21 +497,32 @@ several, it updates only the instance the webhook reached; the others keep servi
 the old page until its TTL runs out.
 
 Choose one of three answers: give pages that change `Incremental(ttl)` so a stale
-copy expires on its own, send the webhook to every instance, or configure a shared
-store through `Cache.Store` that implements `collage.TaggedCache`, which lets one
-invalidation reach entries any instance wrote, and `collage.StaleCache` too, so
-that it keeps an invalidated page to fall back on. A `"disk"` cache whose `Dir` the
-instances share is not such a store: each instance's memory tier keeps serving
-what it holds. See [Caching](/docs/caching#memory-in-front-of-the-disk).
+copy expires on its own, send the webhook to every instance, or share one cache
+across the fleet. A `"disk"` cache whose `Dir` the instances share is not that:
+each instance's memory tier keeps serving what it holds. See
+[Caching](/docs/caching#memory-in-front-of-the-disk).
 
-A shared store holds pages, not data. Values kept with
-[`collage.Cached`](/docs/caching#caching-data-across-pages) live in each process's
-memory, whatever `Cache.Store` is, and an invalidation reaches only the instance it
-ran in. After a webhook reaches instance A, instance B renders a fresh page — the
-shared store invalidated it — from the old value it still holds.
+Since v0.66.0 a store in `Cache.Store` that implements `collage.SharedCache`, such
+as [collage-redis](/docs/plugins#elagohtredis), is the third answer. Pages and
+[`collage.Cached`](/docs/caching#caching-data-across-pages) values both live in it,
+with no per-instance copy in front, so a webhook that reaches instance A reaches
+B's next read too, and a render B began from the data A was invalidating is stored
+stale, not fresh. The pages the invalidation reached, whichever instance wrote
+them, are named to A's plugins in `CacheInvalidateEvent.Entries` — what a CDN purge
+acts on — and A warms them within its own `WarmLimit`. Redis
+being down is a miss, never a failed request: the site renders uncached.
 
-Give those values a
-TTL short enough to live with, or send the invalidation to every instance.
+Two things change on deploy day with collage-redis: every new binary starts with
+an empty namespace, so a deploy starts cold, and `MaxAge` (seven days) bounds how
+long a stale copy can stand in for a failing render. See
+[A cache a fleet shares](/docs/caching#a-cache-a-fleet-shares).
+
+A shared store that implements only `collage.TaggedCache` and `collage.StaleCache`
+holds pages, not data. Values kept with `collage.Cached` then live in each
+process's memory, and an invalidation reaches only the instance it ran in: after a
+webhook reaches instance A, instance B renders a fresh page — the shared store
+invalidated it — from the old value it still holds. Give those values a TTL short
+enough to live with, or send the invalidation to every instance.
 
 ## TLS, behind a proxy
 
@@ -889,7 +901,8 @@ Both servers now catch up the same way. On the server the API call reached, the
 invalidation marks the list stale, as before; on the other, the 30 seconds running
 out does. Either way the next render is served the old list while one fetch in the
 background replaces it, and a request after that sees the change. Sending the invalidation to both
-servers is the other answer; see
+servers is another answer, and a [shared cache](/docs/caching#a-cache-a-fleet-shares)
+both servers use, such as collage-redis, a third; see
 [Invalidation with several instances](#invalidation-with-several-instances).
 
 ### A restart with no downtime

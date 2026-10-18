@@ -2897,8 +2897,9 @@ if err := mail.Enqueue(r.Context(), Email{To: to}); err != nil {
 ## Plugin olmayan library'ler
 
 Yukarıdaki plugin'lerin hepsi `Config.Plugins` içinde register edilir. Library ise
-bir page'in kendi kodunda kullandığı bir modüldür. Bu yüzden register edilecek ya da
-yapılandırılacak bir şey yoktur ve kırk dört plugin'in arasında sayılmaz.
+kendi kodunuzun, bir page'den ya da uygulamanın config'inde kullandığı bir
+modüldür. Bu yüzden register edilecek bir şey, `collage plugin add` ya da
+`plugins-config.json`'da bir bölüm yoktur ve kırk dört plugin'in arasında sayılmaz.
 
 ### elagoht/paginate
 
@@ -2915,6 +2916,41 @@ go get github.com/Elagoht/collage-paginate
 - v0.2.0, collage v0.61.0 ya da sonrasını gerektirir. `FromPath(rc, last)`,
   `PathNamed` ile `StaticParams`'ın yazdığı `n` path parametresini okur; v0.1'de
   parametrenin adını alırdı. `paginate.Version` kaldırıldı.
+
+### elagoht/redis
+
+Redis üzerinde çalışan bir [`collage.SharedCache`](/docs/caching#a-cache-a-fleet-shares).
+Bir uygulamanın her instance'ı tek bir page cache ve tek bir `collage.Cached` data
+store'u ile çalışır. Böylece herhangi bir instance'taki invalidation'ı hepsi görür.
+`Cache.Store`'a verilir:
+
+```sh
+go get github.com/Elagoht/collage-redis
+```
+
+```go
+import "github.com/Elagoht/collage-redis" // package redis
+
+store, err := redis.New(redis.Config{URL: os.Getenv("REDIS_URL")})
+if err != nil {
+	log.Fatal(err)
+}
+defer store.Close()
+
+app, err := collage.New(&collage.Config{
+	Cache: collage.CacheConfig{Enabled: true, Store: store},
+})
+```
+
+- v0.1.0, collage v0.66.0 ya da sonrasını ve Redis 6 ya da sonrasını gerektirir.
+  Tek bir node ve Sentinel (`Config.Client` üzerinden) desteklenir, Redis Cluster
+  desteklenmez.
+- `New` Redis'e hiç bağlanmaz. Bu yüzden Redis kapalıyken de uygulama açılır ve
+  cache'siz sunar. Bir Redis hatası bir miss'tir, asla başarısız bir request değildir.
+- Varsayılan olarak yeni bir binary'nin her deploy'u boş bir namespace ile başlar ve `MaxAge` (yedi
+  gün), stale fallback dahil her key'i sınırlar. Config'i ve bunun için Redis'in
+  nasıl çalıştırılacağı [Caching](/docs/caching#a-cache-a-fleet-shares) sayfasında
+  ve library'nin README'sinde.
 
 ## Head'e yazan plugin'ler
 
