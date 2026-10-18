@@ -23,46 +23,50 @@
   </section>
 
   <section class="feature" id="why" aria-labelledby="why-title">
-    <div class="feature-text">
-      <h2 id="why-title">{{t "home.why.title"}}</h2>
-      <p>{{th "home.why.text"}}</p>
-    </div>
-    <div class="feature-art">
-        <figure class="feature-figure">
-          <svg class="diagram" viewBox="0 0 320 236" role="img" aria-labelledby="why-diagram">
-            <title id="why-diagram">{{t "home.why.d.label"}}</title>
-            <text x="80" y="16" text-anchor="middle">{{t "home.why.d.typical"}}</text>
-            <rect class="d-frame" x="10" y="26" width="140" height="32" rx="6" /><text x="80" y="46" text-anchor="middle">{{t "home.why.d.bundle"}}</text>
-            <rect class="d-frame" x="10" y="64" width="140" height="32" rx="6" /><text x="80" y="84" text-anchor="middle">{{t "home.why.d.hydration"}}</text>
-            <rect class="d-frame" x="10" y="102" width="140" height="32" rx="6" /><text x="80" y="122" text-anchor="middle">{{t "home.why.d.framework"}}</text>
-            <rect class="d-frame" x="10" y="140" width="140" height="32" rx="6" /><text x="80" y="160" text-anchor="middle">{{t "home.why.d.modules"}}</text>
-            <rect class="d-frame" x="10" y="178" width="140" height="48" rx="6" /><text x="80" y="206" text-anchor="middle">{{t "home.why.d.runtime"}}</text>
-            <text class="d-slot-text-a" x="240" y="16" text-anchor="middle">{{t "home.why.d.collage"}}</text>
-            <rect class="d-b" x="170" y="26" width="140" height="32" rx="6" /><text class="d-on-b" x="240" y="46" text-anchor="middle">{{t "home.why.d.html"}}</text>
-            <rect class="d-chip" x="170" y="64" width="140" height="24" rx="12" /><text x="240" y="80" text-anchor="middle">{{t "home.why.d.js"}}</text>
-            <rect class="d-a" x="170" y="160" width="140" height="66" rx="6" /><text class="d-on-a" x="240" y="190" text-anchor="middle">{{t "home.why.d.binary"}}</text><text class="d-on-a d-small" x="240" y="206" text-anchor="middle">{{t "home.why.d.deps"}}</text>
-          </svg>
-        </figure>
+    <div class="feature-row">
+      <div class="feature-text">
+        <h2 id="why-title">{{t "home.why.title"}}</h2>
+        <p>{{th "home.why.text"}}</p>
+      </div>
+      <div class="feature-art">
+          <figure class="feature-figure">
+            <svg class="diagram" viewBox="0 0 320 236" role="img" aria-labelledby="why-diagram">
+              <title id="why-diagram">{{t "home.why.d.label"}}</title>
+              <text x="80" y="16" text-anchor="middle">{{t "home.why.d.typical"}}</text>
+              <rect class="d-frame" x="10" y="26" width="140" height="32" rx="6" /><text x="80" y="46" text-anchor="middle">{{t "home.why.d.bundle"}}</text>
+              <rect class="d-frame" x="10" y="64" width="140" height="32" rx="6" /><text x="80" y="84" text-anchor="middle">{{t "home.why.d.hydration"}}</text>
+              <rect class="d-frame" x="10" y="102" width="140" height="32" rx="6" /><text x="80" y="122" text-anchor="middle">{{t "home.why.d.framework"}}</text>
+              <rect class="d-frame" x="10" y="140" width="140" height="32" rx="6" /><text x="80" y="160" text-anchor="middle">{{t "home.why.d.modules"}}</text>
+              <rect class="d-frame" x="10" y="178" width="140" height="48" rx="6" /><text x="80" y="206" text-anchor="middle">{{t "home.why.d.runtime"}}</text>
+              <text class="d-slot-text-a" x="240" y="16" text-anchor="middle">{{t "home.why.d.collage"}}</text>
+              <rect class="d-b" x="170" y="26" width="140" height="32" rx="6" /><text class="d-on-b" x="240" y="46" text-anchor="middle">{{t "home.why.d.html"}}</text>
+              <rect class="d-chip" x="170" y="64" width="140" height="24" rx="12" /><text x="240" y="80" text-anchor="middle">{{t "home.why.d.js"}}</text>
+              <rect class="d-a" x="170" y="160" width="140" height="66" rx="6" /><text class="d-on-a" x="240" y="190" text-anchor="middle">{{t "home.why.d.binary"}}</text><text class="d-on-a d-small" x="240" y="206" text-anchor="middle">{{t "home.why.d.deps"}}</text>
+            </svg>
+          </figure>
+      </div>
     </div>
   </section>
 
   <section class="feature" id="fragments" aria-labelledby="fragments-title">
-    <div class="feature-text">
-      <h2 id="fragments-title">{{t "home.fragments.title"}}</h2>
-      <p>{{th "home.fragments.text"}}</p>
-      <p>{{th "home.fragments.note"}} <a href="{{pageURL "doc" "slug" "plugins"}}#elagohtlive">{{t "home.fragments.liveLink"}}</a></p>
-    </div>
-    <div class="feature-art">
-      <pre><code class="language-go">collage.NewPage("search").
-	WithLayouts(layout).
-	WithContent(searchPage).
-	WithPath("en", "/search").
-	WithFragmentPath("en", "/search/results", results).
-	Build()</code></pre>
-      <pre><code class="language-js">input.addEventListener("input", async () =&gt; {
-  const res = await fetch("/search/results?q=" + encodeURIComponent(input.value));
-  document.querySelector("#results").outerHTML = await res.text();
-});</code></pre>
+    <div class="feature-row">
+      <div class="feature-text">
+        <h2 id="fragments-title">{{t "home.fragments.title"}}</h2>
+        <p>{{th "home.fragments.text"}}</p>
+        <p>{{th "home.fragments.note"}} <a href="{{pageURL "doc" "slug" "plugins"}}#elagohtlive">{{t "home.fragments.liveLink"}}</a></p>
+      </div>
+      <div class="feature-art">
+        <pre><code class="language-go">collage.NewPage("search").
+  	WithLayouts(layout).
+  	WithContent(searchPage).
+  	WithPath("en", "/search").
+  	WithFragmentPath("en", "/search/results", results).
+  	Build()</code></pre>
+        <pre><code class="language-js">input.addEventListener("input", async () =&gt; {
+    const res = await fetch("/search/results?q=" + encodeURIComponent(input.value));
+    document.querySelector("#results").outerHTML = await res.text();
+  });</code></pre>
+      </div>
     </div>
     <div class="diagrams feature-wide">
       <svg class="diagram diagram-defs" aria-hidden="true" focusable="false">
@@ -140,72 +144,76 @@
   </section>
 
   <section class="feature" id="cache" aria-labelledby="cache-title">
-    <div class="feature-text">
-      <h2 id="cache-title">{{t "home.cache.title"}}</h2>
-      <p>{{th "home.cache.text"}}</p>
-    </div>
-    <div class="feature-art">
-      <pre><code class="language-go">app.InvalidateTags(ctx, "author:ada")
-app.PurgeTags(ctx, "user:42")</code></pre>
-      <div class="diagrams">
-      {{with "home.diagrams.invalidate"}}
-      <figure>
-        <svg class="diagram" viewBox="0 0 320 180" aria-hidden="true">
-          <defs>
-            <marker id="d2-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
-              <path class="d-head-hit" d="M0 0 8 4 0 8z" />
-            </marker>
-          </defs>
-          <rect class="d-cmd" x="66" y="10" width="188" height="26" rx="13" />
-          <text class="d-cmd-text" x="160" y="27" text-anchor="middle">invalidate("author:ada")</text>
-          <path class="d-hitline" d="M130 36 60 62" marker-end="url(#d2-arrow)" />
-          <path class="d-hitline" d="M160 36V62" marker-end="url(#d2-arrow)" />
+    <div class="feature-row">
+      <div class="feature-text">
+        <h2 id="cache-title">{{t "home.cache.title"}}</h2>
+        <p>{{th "home.cache.text"}}</p>
+      </div>
+      <div class="feature-art">
+        <pre><code class="language-go">app.InvalidateTags(ctx, "author:ada")
+  app.PurgeTags(ctx, "user:42")</code></pre>
+        <div class="diagrams">
+        {{with "home.diagrams.invalidate"}}
+        <figure>
+          <svg class="diagram" viewBox="0 0 320 180" aria-hidden="true">
+            <defs>
+              <marker id="d2-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+                <path class="d-head-hit" d="M0 0 8 4 0 8z" />
+              </marker>
+            </defs>
+            <rect class="d-cmd" x="66" y="10" width="188" height="26" rx="13" />
+            <text class="d-cmd-text" x="160" y="27" text-anchor="middle">invalidate("author:ada")</text>
+            <path class="d-hitline" d="M130 36 60 62" marker-end="url(#d2-arrow)" />
+            <path class="d-hitline" d="M160 36V62" marker-end="url(#d2-arrow)" />
 
-          <g class="d-dropped">
-            <rect class="d-frame" x="12" y="66" width="92" height="102" rx="8" />
-            <text x="22" y="86">/post/1</text>
-            <rect class="d-chip" x="20" y="96" width="76" height="20" rx="10" /><text x="58" y="110" text-anchor="middle">post:1</text>
-            <rect class="d-chip-hit" x="20" y="124" width="76" height="20" rx="10" /><text class="d-hit-text" x="58" y="138" text-anchor="middle">author:ada</text>
-          </g>
-          <g class="d-dropped">
-            <rect class="d-frame" x="114" y="66" width="92" height="102" rx="8" />
-            <text x="124" y="86">/post/2</text>
-            <rect class="d-chip" x="122" y="96" width="76" height="20" rx="10" /><text x="160" y="110" text-anchor="middle">post:2</text>
-            <rect class="d-chip-hit" x="122" y="124" width="76" height="20" rx="10" /><text class="d-hit-text" x="160" y="138" text-anchor="middle">author:ada</text>
-          </g>
-          <g>
-            <rect class="d-frame" x="216" y="66" width="92" height="102" rx="8" />
-            <text x="226" y="86">/about</text>
-            <rect class="d-chip" x="224" y="96" width="76" height="20" rx="10" /><text x="262" y="110" text-anchor="middle">page:about</text>
-            <text class="d-kept" x="262" y="156" text-anchor="middle">✓</text>
-          </g>
-        </svg>
-        <figcaption>
-          <h3>{{t (print . ".title")}}</h3>
-          <p>{{t (print . ".text")}}</p>
-        </figcaption>
-      </figure>
-      {{end}}
+            <g class="d-dropped">
+              <rect class="d-frame" x="12" y="66" width="92" height="102" rx="8" />
+              <text x="22" y="86">/post/1</text>
+              <rect class="d-chip" x="20" y="96" width="76" height="20" rx="10" /><text x="58" y="110" text-anchor="middle">post:1</text>
+              <rect class="d-chip-hit" x="20" y="124" width="76" height="20" rx="10" /><text class="d-hit-text" x="58" y="138" text-anchor="middle">author:ada</text>
+            </g>
+            <g class="d-dropped">
+              <rect class="d-frame" x="114" y="66" width="92" height="102" rx="8" />
+              <text x="124" y="86">/post/2</text>
+              <rect class="d-chip" x="122" y="96" width="76" height="20" rx="10" /><text x="160" y="110" text-anchor="middle">post:2</text>
+              <rect class="d-chip-hit" x="122" y="124" width="76" height="20" rx="10" /><text class="d-hit-text" x="160" y="138" text-anchor="middle">author:ada</text>
+            </g>
+            <g>
+              <rect class="d-frame" x="216" y="66" width="92" height="102" rx="8" />
+              <text x="226" y="86">/about</text>
+              <rect class="d-chip" x="224" y="96" width="76" height="20" rx="10" /><text x="262" y="110" text-anchor="middle">page:about</text>
+              <text class="d-kept" x="262" y="156" text-anchor="middle">✓</text>
+            </g>
+          </svg>
+          <figcaption>
+            <h3>{{t (print . ".title")}}</h3>
+            <p>{{t (print . ".text")}}</p>
+          </figcaption>
+        </figure>
+        {{end}}
+        </div>
       </div>
     </div>
   </section>
 
   <section class="feature" id="plugins" aria-labelledby="plugins-title">
-    <div class="feature-text">
-      <h2 id="plugins-title">{{t "home.plugins.title"}}</h2>
-      <p>{{th "home.plugins.text"}}</p>
-    </div>
-    <div class="feature-art">
-      <pre><code class="language-go">app, err := collage.New(&amp;collage.Config{
-	Plugins: []collage.Plugin{
-		session.New(session.Options{KeyEnv: "SESSION_KEY"}),
-		honeypot.New(honeypot.Options{KeyEnv: "HONEYPOT_KEY"}),
-		live.New(live.Options{}),
-	},
-})
+    <div class="feature-row">
+      <div class="feature-text">
+        <h2 id="plugins-title">{{t "home.plugins.title"}}</h2>
+        <p>{{th "home.plugins.text"}}</p>
+      </div>
+      <div class="feature-art">
+        <pre><code class="language-go">app, err := collage.New(&amp;collage.Config{
+  	Plugins: []collage.Plugin{
+  		session.New(session.Options{KeyEnv: "SESSION_KEY"}),
+  		honeypot.New(honeypot.Options{KeyEnv: "HONEYPOT_KEY"}),
+  		live.New(live.Options{}),
+  	},
+  })
 
-app.Use(requestID)
-app.Use(auditLog)</code></pre>
+  app.Use(requestID)
+  app.Use(auditLog)</code></pre>
+      </div>
     </div>
     <div class="plugin-grid">
       <div class="plugin-group">
@@ -228,28 +236,31 @@ app.Use(auditLog)</code></pre>
         <h3>{{t "home.plugins.groups.ops"}}</h3>
         <p><a href="{{pageURL "doc" "slug" "plugins"}}#elagohtminimizer">minimizer</a> <a href="{{pageURL "doc" "slug" "plugins"}}#elagohtcompress">compress</a> <a href="{{pageURL "doc" "slug" "plugins"}}#elagohtbundle">bundle</a> <a href="{{pageURL "doc" "slug" "plugins"}}#elagohtopti-image">opti-image</a> <a href="{{pageURL "doc" "slug" "plugins"}}#elagohtdeploy">deploy</a> <a href="{{pageURL "doc" "slug" "plugins"}}#elagohtprometheus">prometheus</a> <a href="{{pageURL "doc" "slug" "plugins"}}#elagohtotel">otel</a> <a href="{{pageURL "doc" "slug" "plugins"}}#elagohthealth">health</a> <a href="{{pageURL "doc" "slug" "plugins"}}#elagohtjobs">jobs</a> <a href="{{pageURL "doc" "slug" "plugins"}}#elagohtaccesslog">accesslog</a></p>
       </div>
-      <p class="plugin-all"><a href="{{pageURL "doc" "slug" "plugins"}}">{{t "home.plugins.all"}}</a></p>
     </div>
   </section>
 
   <section class="feature" id="go" aria-labelledby="go-title">
-    <div class="feature-text">
-      <h2 id="go-title">{{t "home.go.title"}}</h2>
-      <p>{{th "home.go.text"}}</p>
-    </div>
-    <div class="feature-art">
-      <pre><code class="language-go">api := http.NewServeMux()
-api.HandleFunc("GET /api/users/{id}", users.Get)
-api.HandleFunc("POST /api/users", users.Create)
+    <div class="feature-row">
+      <div class="feature-text">
+        <h2 id="go-title">{{t "home.go.title"}}</h2>
+        <p>{{th "home.go.text"}}</p>
+      </div>
+      <div class="feature-art">
+        <pre><code class="language-go">api := http.NewServeMux()
+  api.HandleFunc("GET /api/users/{id}", users.Get)
+  api.HandleFunc("POST /api/users", users.Create)
 
-app.Handle("/api/", api)</code></pre>
+  app.Handle("/api/", api)</code></pre>
+      </div>
     </div>
   </section>
 
   <section class="feature" id="apps" aria-labelledby="apps-title">
-    <div class="feature-text">
-      <h2 id="apps-title">{{t "home.apps.title"}}</h2>
-      <p>{{th "home.apps.text"}}</p>
+    <div class="feature-row">
+      <div class="feature-text">
+        <h2 id="apps-title">{{t "home.apps.title"}}</h2>
+        <p>{{th "home.apps.text"}}</p>
+      </div>
     </div>
     <div class="scope">
       <div class="scope-col scope-in">
@@ -276,6 +287,7 @@ app.Handle("/api/", api)</code></pre>
       <div class="scope-col scope-out">
         <h3>{{t "home.apps.out.title"}}</h3>
         <ul>
+          <li>{{t "home.apps.out.backend"}}</li>
           <li>{{t "home.apps.out.orm"}}</li>
           <li>{{t "home.apps.out.migrations"}}</li>
           <li>{{t "home.apps.out.db"}}</li>
