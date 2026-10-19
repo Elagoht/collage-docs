@@ -429,7 +429,8 @@ the list — leaves the list as it was and rejects, and `.catch(() => {})` makes
 skipped tick, as the hand-written version does.
 
 The submit half keeps its own `fetch`: it posts the form, and `replace` and `morph`
-fetch with `GET`. Only its lookups change, to `collage.$`:
+fetch with `GET`. What the action answers goes in with `collage.put`, which swaps
+markup already in hand, and refuses an answer that is not one element:
 
 ```js
 const form = collage.$("#add");
@@ -442,11 +443,8 @@ form.addEventListener("submit", async (event) => {
       headers: { "Collage-Fetch": "1" },
       body: new FormData(form),
     });
-    const items = collage.$("#items");
-    if (!response.ok || !items) {
-      throw new Error(`answered ${response.status}`);
-    }
-    items.outerHTML = await response.text();
+    if (!response.ok) throw new Error(`answered ${response.status}`);
+    collage.put("#items", await response.text());
     form.reset();
   } catch {
     form.submit();

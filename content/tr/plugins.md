@@ -1827,9 +1827,12 @@ fragment'leri yenileyen küçük bir client script'i sunar. Yenileme belli aral�
 ya da sunucu bir event stream üzerinden bir değişiklik gönderdiğinde yapılır.
 
 ```go
-import live "github.com/Elagoht/collage-live"
+import (
+	client "github.com/Elagoht/collage-client"
+	live "github.com/Elagoht/collage-live"
+)
 
-Plugins: []collage.Plugin{live.New(live.Options{})},
+Plugins: []collage.Plugin{client.New(), live.New(live.Options{})},
 ```
 
 ```json
@@ -1853,7 +1856,12 @@ Plugins: []collage.Plugin{live.New(live.Options{})},
 ```
 
 - `Config.Plugins` içinde olmalıdır, çünkü layout'un client'ı eklemek için çağırdığı
-  `{{liveClient}}`'ı ekler. v0.5.2, collage v0.61.4 ya da sonrasını gerektirir.
+  `{{liveClient}}`'ı ekler. v0.6.0, collage v0.67.0 ya da sonrasını ve
+  [elagoht/client](#elagohtclient) v0.2.0'ı gerektirir: her cevap page'e
+  collage-client'ın `collage.put`'u ile girer. `collage plugin add elagoht/live`
+  client'ı da ekler; client yoksa `collage.New` başarısız olur. `{{liveClient}}`,
+  client'ın script'ini kendi script'inden önce yazar. Bu yüzden layout değişmez,
+  `{{clientjs}}`'i de çağıran bir layout ise script'i bir kez yükler.
 - Başka bir plugin'in transport'u, örneğin elagoht/websocket, `UseTransport`'u `Init`'inin
   yanı sıra `Configure`'ından da çağırabilir; son çağrı geçerlidir (v0.5.2).
 - `keepAlive` ve `maxStreamAge` süre string'leridir (`live.Options` içinde
@@ -1862,7 +1870,8 @@ Plugins: []collage.Plugin{live.New(live.Options{})},
   ve `live.NewWith(live.Config{…})` tek bir `live.New(live.Options{…})` oldu.
 - Container'ın sahibi page'dir, içindekinin sahibi fragment'tir.
   `data-collage-interval` belli aralıklarla fetch eder, `data-collage-push`
-  fragment'i stream'den alır, `data-collage-swap="morph"` DOM'u yerinde patch eder.
+  fragment'i stream'den alır, `data-collage-swap="morph"` DOM'u collage-client'ın
+  morph'uyla yerinde patch eder.
   Bir form üzerindeki `data-collage-target` ise form'u `fetch` ile gönderir ve
   cevabı bir element'in içine koyar. Bunu başarı durumunda ya da bir `422`
   geldiğinde yapar. Bir action, bir gönderimin validation'dan geçmediğini böyle
@@ -1873,6 +1882,13 @@ Plugins: []collage.Plugin{live.New(live.Options{})},
   v0.2.1'den beri action'ı redirect eden bir form, collage'ın
   [`Collage-Fetch`](/docs/forms-and-actions#failure-renders-success-redirects)
   header'ı sayesinde tek request'te yönlendirilir.
+- **v0.6.0'dan beri morph, idiomorph'unkidir** ve element'leri id'lerine göre
+  eşleştirir. Eskisi onları sıralarına göre eşleştiriyordu. Bu yüzden bir listenin
+  başına eklenen bir öğe, ondan sonraki her öğeyi yeniden kuruyor, yazı yazılan bir
+  alan da metnini ve focus'unu kaybediyordu. Focus'taki bir alan değerini yine
+  korur, ama focus'taki bir `<select>`'in option'ları artık sunucununkileri alır.
+  `collage:swap` collage-client'tan gelir ve
+  `detail: { url: null, mode, inner: true }` taşır.
 - Client elindeki `ETag`'i gönderir ve `304` gelirse DOM'a dokunmaz. Fragment'in
   hoist ettiklerini key'lerine göre head'e bir kez ekler. Gizli bir sekmede durur.
   Bir request başarısız olduğunda element'i `data-collage-stale` ile işaretler ve
@@ -1942,17 +1958,19 @@ collage-live'ın gönderdiği fragment'leri bir event stream yerine bir WebSocke
 
 ```go
 import (
+	client "github.com/Elagoht/collage-client"
 	live "github.com/Elagoht/collage-live"
 	"github.com/Elagoht/collage-websocket"
 )
 
-Plugins: []collage.Plugin{websocket.New(websocket.Options{}), live.New(live.Options{})},
+Plugins: []collage.Plugin{client.New(), websocket.New(websocket.Options{}), live.New(live.Options{})},
 ```
 
-- `collage plugin add elagoht/websocket` collage-live'ı da ekler ve websocket'i
-  ondan önceye koyar. Plugin, uygulamanın live plugin'ini listede nerede olursa
-  olsun kendisi bulur; live yoksa `collage.New` hata verir. v0.4.1, collage v0.61.4
-  ve collage-live v0.5.1 ya da sonrasını gerektirir; `websocket.New(lv)`,
+- `collage plugin add elagoht/websocket` collage-live'ı ve collage-client'ı da
+  ekler ve websocket'i live'dan önceye koyar. Plugin, uygulamanın live plugin'ini
+  listede nerede olursa olsun kendisi bulur; live yoksa `collage.New` başarısız olur.
+  v0.4.2, collage v0.67.0, collage-live v0.6.0 ve collage-client v0.2.0 ya da
+  sonrasını gerektirir; `websocket.New(lv)`,
   `New(nil)` ve `NewWith` kalktı.
 - Başka hiçbir şey değişmez. Layout yine `{{liveClient}}`'ı içerir, bu artık
   client'a buraya bağlanmasını söyler. Element'ler de yine `data-collage-push`
@@ -1985,9 +2003,10 @@ Plugins: []collage.Plugin{websocket.New(websocket.Options{}), live.New(live.Opti
 
 [github.com/Elagoht/collage-client](https://github.com/Elagoht/collage-client),
 bir page'in kendi yaptığı swap'ler için küçük bir client script'i sunar: element
-getter'ları ve kendi URL'sinden çekilip yerine konan bir fragment. Fragment,
-element'in yerine geçerek ya da element'e morph edilerek yerleşir. Geri kalan her
-şey düz JavaScript'e bırakılır.
+getter'ları ve yerine konan bir fragment. Fragment kendi URL'sinden çekilir ya da
+hazır markup olarak verilir; element'in yerine geçerek ya da element'e morph
+edilerek yerleşir. Geri kalan her şey düz JavaScript'e bırakılır. elagoht/live de
+cevaplarını bununla yerleştirir.
 
 ```go
 import client "github.com/Elagoht/collage-client"
@@ -2011,13 +2030,14 @@ const names = collage.$$("li", collage.$("#items")).map((li) => li.textContent);
 
 collage.replace("#items").catch(() => {}); // fetch data-src, put it in as outerHTML would
 collage.morph("#items").catch(() => {});   // the same fetch, the DOM patched in place
+collage.put("#items", html, { morph: true }); // markup in hand, no fetch
 
 document.addEventListener("collage:swap", (event) => {
   console.log(event.target.id, event.detail.mode, event.detail.url);
 });
 ```
 
-- v0.1.1, collage v0.67.0 ya da sonrasını gerektirir ve `Config.Plugins` içinde
+- v0.2.0, collage v0.67.0 ya da sonrasını gerektirir ve `Config.Plugins` içinde
   olmalıdır: master layout'un `<head>`'inde bir kez çağırdığı `{{clientjs}}`'i
   ekler. Yapılandırılacak bir şey yoktur.
 - **Script yalnızca `window.collage`'ı tanımlar.** `collage.$` `querySelector`'dır,
@@ -2036,9 +2056,18 @@ document.addEventListener("collage:swap", (event) => {
   içine yazılanları, korunan bir element de scroll pozisyonunu korur. Morph edilen
   element'teki başka bir alan sunucunun değerini alır. Bu yüzden page'in yarım
   doldurulmuş bir form taşımayan bir kısmını morph edin ya da onu `replace` edin.
-- İkisinden biri bittikten sonra yeni element'ten bir **`collage:swap`** event'i
-  bubble eder. `detail`'i `{ url, mode }`'dir, `mode` da `"replace"` ya da
-  `"morph"`'tur.
+- **`collage.put(target, content, { morph?, inner? })`** (v0.2.0'dan beri) aynı
+  swap'in fetch'siz hâlidir: elde olan markup, bir Element ya da bir
+  DocumentFragment, örneğin bir form'un `fetch`'inin cevabı. Dönmeden önce page'i
+  değiştirir, page'de artık bulunan element'i döndürür ve diğerlerinin reject
+  edeceği yerde hata fırlatır. `inner` olmadan içerik tek bir element olmalıdır. `inner` ile
+  element yerinde kalır ve çocukları içerikle değiştirilir ya da morph edilir.
+  `innerHTML` gibi o da hiçbir origin kontrolü yapmaz, bu yüzden ziyaretçinin
+  yazdığı bir şeyi asla ona vermeyin. Element üzerinde süren bir `replace` ya da
+  `morph`'u iptal eder.
+- Herhangi biri bittikten sonra page'deki element'ten bir **`collage:swap`**
+  event'i bubble eder. `detail`'i `{ url, mode, inner }`'dir: `mode` `"replace"`
+  ya da `"morph"`'tur, `url` ise `put` için `null`'dır.
 - **Request**, fragment path'lerin ve action'ların beklediği gibi `Collage-Fetch: 1`
   (`collage.FetchHeader`) header'ını ve page'in cookie'lerini taşıyan bir `GET`'tir.
   Cevap güvenilir markup olarak eklenir. Bu yüzden `url` page'in kendi origin'inde
@@ -2064,12 +2093,15 @@ document.addEventListener("collage:swap", (event) => {
   policy'de, nonce'u unutan bir layout `collage dev` altında yine çalışır, çünkü
   orada policy yalnızca raporlar; production'da ise script'i yüklemeyi bırakır.
 - Script `/_client/client.<hash>.js` adresinde sunulur, `immutable` olarak bir yıl
-  cache'lenir ve `defer` ile yüklenir. idiomorph 0.8.0 (0BSD) dahil gzip'lenmiş
-  hâliyle yaklaşık 6 KB'tır ve hiçbir şeye bağımlı değildir.
+  cache'lenir ve `defer` ile yüklenir. `{{clientjs}}` ile `{{liveClient}}`'ın
+  birlikte yaptığı gibi script'i iki kez içeren bir page onu bir kez çalıştırır.
+  idiomorph 0.8.0 (0BSD) dahil gzip'lenmiş hâliyle yaklaşık 7 KB'tır ve hiçbir
+  şeye bağımlı değildir.
 - Ne polling yapar, ne form post eder, ne de push alır: bunlar için
   [elagoht/live](#elagohtlive) kullanın. Bir form'un post'u,
   [Page'in bir kısmını güncellemek](/docs/update-part-of-a-page#swap-it-in-with-a-few-lines-of-javascript)
-  sayfasında gösterildiği gibi sizin kendi `fetch`'iniz olarak kalır.
+  sayfasında gösterildiği gibi sizin kendi `fetch`'iniz olarak kalır, cevabı da
+  `put` ile yerleşir.
 
 ### Asset'ler ve teslimat
 

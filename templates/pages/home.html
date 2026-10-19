@@ -207,6 +207,7 @@
   	Plugins: []collage.Plugin{
   		session.New(session.Options{KeyEnv: "SESSION_KEY"}),
   		honeypot.New(honeypot.Options{KeyEnv: "HONEYPOT_KEY"}),
+  		client.New(),
   		live.New(live.Options{}),
   	},
   })

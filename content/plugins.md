@@ -1755,9 +1755,12 @@ refreshes the fragments a page opened with
 interval, or when the server pushes a change over an event stream.
 
 ```go
-import live "github.com/Elagoht/collage-live"
+import (
+	client "github.com/Elagoht/collage-client"
+	live "github.com/Elagoht/collage-live"
+)
 
-Plugins: []collage.Plugin{live.New(live.Options{})},
+Plugins: []collage.Plugin{client.New(), live.New(live.Options{})},
 ```
 
 ```json
@@ -1781,7 +1784,12 @@ Plugins: []collage.Plugin{live.New(live.Options{})},
 ```
 
 - It must go in `Config.Plugins`: it adds `{{liveClient}}`, which the layout calls
-  to include the client. v0.5.2 needs collage v0.61.4 or later.
+  to include the client. v0.6.0 needs collage v0.67.0 or later and
+  [elagoht/client](#elagohtclient) v0.2.0: every answer goes into the page through
+  collage-client's `collage.put`. `collage plugin add elagoht/live` adds client
+  too; without it, `collage.New` fails. `{{liveClient}}` writes client's script
+  ahead of its own, so the layout does not change, and one that also calls
+  `{{clientjs}}` loads it once.
 - A transport of another plugin, such as elagoht/websocket, calls `UseTransport`
   from its `Configure` as well as its `Init`; the last call wins (v0.5.2).
 - `keepAlive` and `maxStreamAge` are duration strings (`collage.Duration` in
@@ -1790,7 +1798,8 @@ Plugins: []collage.Plugin{live.New(live.Options{})},
   and `live.NewWith(live.Config{…})` are one `live.New(live.Options{…})`.
 - The page owns the container and the fragment owns what is inside it.
   `data-collage-interval` fetches on an interval, `data-collage-push` takes the
-  fragment from the stream, `data-collage-swap="morph"` patches the DOM in place,
+  fragment from the stream, `data-collage-swap="morph"` patches the DOM in place
+  with collage-client's morph,
   and `data-collage-target` on a form submits it with `fetch` and puts the answer
   into an element — on a success, or on a `422`, which is how an action says a
   submission did not validate: it answers the form's fragment again, with the
@@ -1799,6 +1808,12 @@ Plugins: []collage.Plugin{live.New(live.Options{})},
   other failure leaves the target as it was and marks it stale. Since v0.2.1 a
   form whose action redirects navigates in one request, with collage's
   [`Collage-Fetch`](/docs/forms-and-actions#failure-renders-success-redirects).
+- **Since v0.6.0 the morph is idiomorph's**, which matches elements by id. The
+  old one matched them by position, so an item added at the top of a list rebuilt
+  every item after it, and a field being typed into lost its text and focus. A
+  focused field still keeps its value, but a focused `<select>`'s options now take
+  the server's. `collage:swap` comes from collage-client, with
+  `detail: { url: null, mode, inner: true }`.
 - The client sends the `ETag` it holds and leaves the DOM alone on a `304`, adds
   what the fragment hoisted to the head once by its key, stops in a hidden tab, and
   backs off when a request fails, marking the element `data-collage-stale`. A
@@ -1865,17 +1880,18 @@ carries collage-live's pushed fragments over a WebSocket instead of an event str
 
 ```go
 import (
+	client "github.com/Elagoht/collage-client"
 	live "github.com/Elagoht/collage-live"
 	"github.com/Elagoht/collage-websocket"
 )
 
-Plugins: []collage.Plugin{websocket.New(websocket.Options{}), live.New(live.Options{})},
+Plugins: []collage.Plugin{client.New(), websocket.New(websocket.Options{}), live.New(live.Options{})},
 ```
 
-- `collage plugin add elagoht/websocket` adds collage-live too, and puts websocket
-  before it. The plugin finds the application's live plugin by itself, wherever it
-  is listed; without one, `collage.New` fails. v0.4.1 needs collage v0.61.4 and
-  collage-live v0.5.1 or later; `websocket.New(lv)`, `New(nil)` and `NewWith` are
+- `collage plugin add elagoht/websocket` adds collage-live and collage-client too,
+  and puts websocket before live. The plugin finds the application's live plugin
+  by itself, wherever it is listed; without one, `collage.New` fails. v0.4.2 needs
+  collage v0.67.0, collage-live v0.6.0 and collage-client v0.2.0 or later; `websocket.New(lv)`, `New(nil)` and `NewWith` are
   gone.
 - Nothing else changes: the layout still includes `{{liveClient}}`, which now tells
   the client to connect here, and elements still say `data-collage-push`.
@@ -1905,8 +1921,9 @@ Plugins: []collage.Plugin{websocket.New(websocket.Options{}), live.New(live.Opti
 
 [github.com/Elagoht/collage-client](https://github.com/Elagoht/collage-client)
 serves a tiny client script for the swaps a page does itself: element getters, and
-a fragment fetched from its own URL and put in place, replacing the element or
-morphing it. Everything else is left to plain JavaScript.
+a fragment put in place, replacing the element or morphing it — fetched from its
+own URL, or handed over as markup. Everything else is left to plain JavaScript.
+elagoht/live puts its answers in with it too.
 
 ```go
 import client "github.com/Elagoht/collage-client"
@@ -1930,13 +1947,14 @@ const names = collage.$$("li", collage.$("#items")).map((li) => li.textContent);
 
 collage.replace("#items").catch(() => {}); // fetch data-src, put it in as outerHTML would
 collage.morph("#items").catch(() => {});   // the same fetch, the DOM patched in place
+collage.put("#items", html, { morph: true }); // markup in hand, no fetch
 
 document.addEventListener("collage:swap", (event) => {
   console.log(event.target.id, event.detail.mode, event.detail.url);
 });
 ```
 
-- v0.1.1 needs collage v0.67.0 or later, and must go in `Config.Plugins`: it adds
+- v0.2.0 needs collage v0.67.0 or later, and must go in `Config.Plugins`: it adds
   `{{clientjs}}`, which the master layout calls once, in its `<head>`. There is
   nothing to configure.
 - **The script defines `window.collage` and nothing else.** `collage.$` is
@@ -1955,8 +1973,17 @@ document.addEventListener("collage:swap", (event) => {
   typed in it, and a kept element keeps its scroll position. Another field of the
   morphed element takes the server's value, so morph a part of the page that does
   not hold a half-filled form, or `replace` it.
-- After either one, a **`collage:swap`** event bubbles from the new element, with
-  `detail: { url, mode }` and `mode` `"replace"` or `"morph"`.
+- **`collage.put(target, content, { morph?, inner? })`** (since v0.2.0) is the same
+  swap without the fetch: markup, an Element or a DocumentFragment already in hand,
+  such as what a form's `fetch` answered. It changes the page before it returns,
+  returns the element now in the page, and throws where the others reject. Without
+  `inner` the content must be one element; with it, the element stays and its
+  children become the content, replaced or morphed. It checks no origin, as
+  `innerHTML` does not, so never pass it what a visitor wrote. It aborts a
+  `replace` or `morph` in flight on the element.
+- After any of them, a **`collage:swap`** event bubbles from the element now in the
+  page, with `detail: { url, mode, inner }`: `mode` `"replace"` or `"morph"`, and
+  `url` `null` for `put`.
 - **The request** is a `GET` with `Collage-Fetch: 1` (`collage.FetchHeader`) and the
   page's cookies, as fragment paths and actions expect. The answer is inserted as
   trusted markup, so `url` must be on the page's own origin: another origin is
@@ -1979,10 +2006,12 @@ document.addEventListener("collage:swap", (event) => {
   works under `collage dev`, where the policy only reports, and stops loading the
   script in production.
 - The script is served at `/_client/client.<hash>.js`, cached for a year as
-  `immutable`, and loaded with `defer`. It is about 6 KB gzipped, idiomorph 0.8.0
+  `immutable`, and loaded with `defer`. A page that includes it twice, as
+  `{{clientjs}}` and `{{liveClient}}` together do, runs it once. It is about 7 KB
+  gzipped, idiomorph 0.8.0
   (0BSD) included, and depends on nothing.
 - It neither polls, nor posts forms, nor takes pushes: for those, use
-  [elagoht/live](#elagohtlive). A form's post stays your own `fetch`, as
+  [elagoht/live](#elagohtlive). A form's post stays your own `fetch`, its answer put in with `put`, as
   [Update part of a page](/docs/update-part-of-a-page#swap-it-in-with-a-few-lines-of-javascript)
   shows.
 

@@ -439,7 +439,8 @@ liste üzerinde daha yeni bir çağrı) listeyi olduğu gibi bırakır ve reject
 çevirir.
 
 Submit yarısı kendi `fetch`'ini korur: form'u post eder, `replace` ve `morph` ise
-`GET` ile çeker. Yalnızca element aramaları değişir ve `collage.$`'a geçer:
+`GET` ile çeker. Action'ın cevabı, elde olan markup'ı swap eden ve tek bir element
+olmayan cevabı reddeden `collage.put` ile yerleşir:
 
 ```js
 const form = collage.$("#add");
@@ -452,11 +453,8 @@ form.addEventListener("submit", async (event) => {
       headers: { "Collage-Fetch": "1" },
       body: new FormData(form),
     });
-    const items = collage.$("#items");
-    if (!response.ok || !items) {
-      throw new Error(`answered ${response.status}`);
-    }
-    items.outerHTML = await response.text();
+    if (!response.ok) throw new Error(`answered ${response.status}`);
+    collage.put("#items", await response.text());
     form.reset();
   } catch {
     form.submit();
