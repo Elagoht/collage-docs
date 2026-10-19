@@ -285,6 +285,14 @@ a:hover {
   border-color: transparent;
 }
 
+/* A touch browser zooms the page in on a field whose text is smaller than
+   16px; at 1rem the box takes the focus without the zoom. */
+@media (pointer: coarse) {
+  .search-input {
+    font-size: 1rem;
+  }
+}
+
 .search-input::-webkit-search-cancel-button {
   display: none;
 }
