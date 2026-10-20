@@ -513,8 +513,7 @@ import (
 func client(t *testing.T) *collagetest.Client {
 	t.Helper()
 	list.Shopping = list.New("Milk", "Bread")
-	cacheDir = t.TempDir()
-	app, err := newApp(false, 0)
+	app, err := newApp(collage.Env{CacheDir: t.TempDir()})
 	if err != nil {
 		t.Fatalf("newApp() = %v", err)
 	}

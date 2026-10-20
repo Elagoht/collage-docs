@@ -2,12 +2,11 @@
 
 package main
 
-import "embed"
-
-// The development build's stand-ins for embed.go's: empty, because development
-// mode renders templates/ and serves static/ from disk. See embed.go for why
-// nothing is embedded here.
-var (
-	templatesFS embed.FS
-	staticFS    embed.FS
+import (
+	"io/fs"
+	"os"
 )
+
+// files is the project directory itself in development, so what a plugin
+// reads from it — a card template, an icon — is the copy you are editing.
+var files fs.FS = os.DirFS(".")
