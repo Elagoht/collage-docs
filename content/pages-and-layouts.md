@@ -262,6 +262,11 @@ page := collage.NewPage("dashboard").
 	Build()
 ```
 
+`collage add guard private` writes both halves — the guard, refusing everyone
+until you write its check, and a layout that carries it — and
+`collage add page dashboard --guard private` wraps a new page in it (since v0.69.0;
+see [`collage add`](/docs/cli#collage-add)).
+
 Every page wrapped in `Private()` is private, and a page is public by leaving it
 out. There is no list of protected paths to keep in step with the routes: the
 guard runs for whatever URL reaches the page, in every locale, with every

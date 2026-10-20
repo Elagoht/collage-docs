@@ -1,5 +1,7 @@
 github.com/Elagoht/collage v0.68.0 h1:n/qz9mSs+0CUM6P9IcUFQnDyKqcPMQRTb21wy1dST8M=
 github.com/Elagoht/collage v0.68.0/go.mod h1:tyGWGpujZXtCFFxn9pjws85HOFOt4QdiuRswwQhj1Qw=
+github.com/Elagoht/collage v0.69.0 h1:x58VfMWSLpKQcGVwzFeI3USzAmvqV28xv7839XXgae8=
+github.com/Elagoht/collage v0.69.0/go.mod h1:tyGWGpujZXtCFFxn9pjws85HOFOt4QdiuRswwQhj1Qw=
 github.com/Elagoht/collage-favicon v0.2.0 h1:Wj/TkvBhxmiZXPRWj7RkE+zRF+pHdMgH6/8RhqC3BUQ=
 github.com/Elagoht/collage-favicon v0.2.0/go.mod h1:hFAwdrc7jAsweFTQNpICskvRSWj+tC5NkosPvbgE/ow=
 github.com/Elagoht/collage-highlight v0.3.0 h1:qhtj5x7ptQB/Hdj9abBiAUq7K+sqoDWIiA/05cre2DQ=

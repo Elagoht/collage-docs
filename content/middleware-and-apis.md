@@ -28,6 +28,8 @@ if err := app.Use(func(next http.Handler) http.Handler {
 
 It is the standard `func(http.Handler) http.Handler` shape, so any middleware written
 for `net/http` works unchanged. The first one registered is the outermost.
+`collage add middleware loadUser` writes one and registers it after those already
+there (since v0.69.0).
 
 Like every registration it must happen before the application starts; afterwards it
 returns `collage.ErrAppStarted`.
