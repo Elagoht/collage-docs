@@ -27,11 +27,12 @@ collage <command> [flags]
 | Komut | Ne yapar |
 | --- | --- |
 | `new` | Yeni bir collage projesi scaffold eder |
-| `add` | Bulunduğunuz projeye bir page, fragment, action ya da document yazar (v0.40.0'dan beri) |
+| `add` | Bulunduğunuz projeye bir page, fragment, action, document, layout, guard, middleware ya da command yazar (v0.40.0'dan beri) |
 | `dev` | Bulunduğunuz dizindeki projeyi development modunda çalıştırır |
 | `build` | Bulunduğunuz dizindeki projeyi deploy edeceğiniz binary'ye derler |
 | `export` | Bulunduğunuz dizindeki projeyi static dosyalara render eder |
 | `serve` | Bir static export'u, bir static host'un sunacağı şekilde sunar |
+| `routes` | Bulunduğunuz dizindeki projenin cevap verdiği her URL'yi, her birinin karşılaştığı guard'larla listeler (v0.69.0'dan beri) |
 | `inspect` | Bulunduğunuz dizindeki projenin nelerden oluştuğunu JSON olarak yazdırır |
 | `check` | Bulunduğunuz dizindeki projenin template'lerini render etmeden kontrol eder (v0.40.0'dan beri) |
 | `plugin` | Projeye plugin ekler, çıkarır ya da bir plugin repository'sini kontrol eder (v0.58.0'dan beri) |
@@ -129,7 +130,10 @@ Flag'leri tek ya da çift tireyle yazabilirsiniz. Flag'ler addan önce de sonra 
 gelebilir. Tam olarak bir ad vermeniz gerekir. Hiç ad vermemek ya da birden fazla
 ad vermek kullanım hatasıdır. Hedef dizin varsa ve boş değilse, `-force`
 vermediğiniz sürece komut reddedilir. `-force` verdiğinizde ise scaffold'un
-yazdığı dosyalar, dizindeki aynı adlı dosyaların yerine geçer.
+yazdığı dosyalar, dizindeki aynı adlı dosyaların yerine geçer. v0.69.0'dan beri
+komut, yerine geçtiği dosyaları da sayar: aralarındaki `go.mod`, sizin module
+path'iniz ve dependency'lerinizdir. Bulunduğunuz dizine scaffold ettiğinizde artık
+`cd .` demez.
 
 **Her projede** şunlar bulunur:
 
@@ -200,11 +204,12 @@ collage dev
 ## collage add
 
 ```sh
-collage add <page|fragment|action|document> <[area/]name> [flags]
+collage add <kind> <[area/]name> [flags]
 ```
 
 Scaffold'un yerleşimine uygun bir page, fragment, action ya da document yazar ve
-onu `routes.go` içinde register eder (v0.40.0'dan beri):
+onu `routes.go` içinde register eder (v0.40.0'dan beri). v0.69.0'dan beri bir
+layout, bir guard, bir middleware ya da bir command da yazar:
 
 ```sh
 collage add page blog/post          # pages/blog/post.go + fragments/pages/blog/post.go
@@ -216,15 +221,24 @@ collage add fragment layouts/partials/siteFooter --file
 collage add action blog/comment     # actions/blog.go + actions/funcs/blog.go
 collage add action blog/ping --path /api/ping
 collage add document feed --path /feed.xml --type application/xml
+collage add action blog/like --page blog/post   # attached to pages/blog/post.go
+collage add layout panel            # fragments/layouts/panel.go, nested
+collage add guard admin             # guards/admin.go + fragments/layouts/admin.go
+collage add page admin/users --layout panel --guard admin
+collage add middleware loadUser     # middleware/loadUser.go + app.Use in routes.go
+collage add command seed            # commands/seed.go + app.RegisterCommand
 ```
 
 | Flag | Varsayılan | Anlamı |
 | --- | --- | --- |
 | `--file` | kapalı | Template'i inline değil, template kökü altındaki bir dosyada tutar |
 | `--path pattern` | `/<area>/<name>` | URL. Path'i olmayan bir action, eklendiği page'de cevap verir |
-| `--name name` | son parça | Page'in, action'ın ya da document'ın adı |
+| `--name name` | son parça | Page'in, action'ın, document'ın ya da command'ın adı |
 | `--locale code` | `Locale.Default` ya da `en` | Path'in ait olduğu locale |
 | `--type type` | `text/plain; charset=utf-8` | Bir document'ın content type'ı |
+| `--layout name` | yok | Bir page'in layout'u: `add layout <name>`'in yazdığı layout, sitenin layout'unun içinde (v0.69.0'dan beri) |
+| `--guard name` | yok | Bir page'in guard'ı: `add guard <name>`'in yazdığı layout, sitenin layout'unun ve varsa `--layout`'un içinde (v0.69.0'dan beri) |
+| `--page target` | yok | Bir action'ın page'i, `[area/]name`: action'ı o page'e ekler (v0.69.0'dan beri) |
 | `--dir path` | `.` | Proje |
 
 - **Bir page**, `layouts.Master()` ile (ya da `fragments/layouts` içinde argüman
@@ -236,7 +250,47 @@ collage add document feed --path /feed.xml --type application/xml
   yoksa oluşturulur. `--path` verildiğinde action kendine ait bir URL'de cevap verir
   ve register edilir. Verilmediğinde ise eklendiği page'de cevap verir ve komut,
   eklemeniz gereken `.WithActionFor(...)` satırını yazdırır.
+- **`--page <[area/]name>`** (v0.69.0'dan beri), yeni action'ı nasıl ekleyeceğinizi
+  yazdırmak yerine onu o page'e kendisi ekler: page'in `NewPage` zincirini bitiren
+  `Build()`'den önce `.WithActionFor(actions.Like())` satırını koyar. Birden fazla
+  zincir içeren bir page dosyasına dokunmaz, eklenecek satırı yazdırır. `--path`
+  ile birlikte verilemez.
 - **Bir document**, `documents/<name>.go` dosyasıdır.
+- **Bir layout** (v0.69.0'dan beri), sitenin kendi layout'unun içine yerleşip
+  page'in içeriğini saran bir layout'tur: `fragments/layouts/<name>.go`,
+  içinde `<div class="<name>">{{slot "content"}}</div>`. Template'i inline olur,
+  `--file` ile bir dosyada durur. `--layout <name>` yeni bir page'i onunla sarar.
+  `add layout`'un ya da `add guard`'ın yazdığı layout'lar `//collage:nested` ile
+  işaretlenir, guard taşıyan bir layout da iç içe sayılır: bunların hiçbiri, yeni
+  bir page'in içine konduğu site layout'u sanılmaz.
+- **Bir guard** (v0.69.0'dan beri) iki dosyadır. `guards/<name>.go`,
+  [guard](/docs/pages-and-layouts#private-pages-guards)'ın kendisidir: siz kontrolünü
+  yazana kadar herkesi `403` ile reddeden bir `GuardFunc`. Bir request'i geçirmek
+  için `nil, nil`, başka yere göndermek için bir redirect dönün.
+  `fragments/layouts/<name>.go` ise kendisi bir şey çizmeyen, yalnızca guard'ı
+  taşıyan bir layout'tur, çünkü guard, page'in layout zincirinde durduğu yerde
+  çalışır. `--guard <name>` yeni bir page'i onunla sarar:
+  `WithLayouts(layouts.Master(), layouts.Admin())`. Page'in render'ları, ona
+  eklenmiş action'lar ve fragment path'leri önce guard'a sorulur. Kendi `--path`'i
+  olan bir action'ın page'i, dolayısıyla guard'ı da yoktur; erişimi handler'ında
+  kontrol eder.
+- **Bir middleware** (v0.69.0'dan beri), her request'i bir sonrakine geçiren bir
+  `func(http.Handler) http.Handler` olan `middleware/<name>.go` dosyasıdır.
+  [`app.Use`](/docs/middleware-and-apis#middleware-appuse) ile, zaten var olan
+  middleware'lerden sonra register edilir; ilk register edilen en dıştadır.
+  Routing'den önce çalışır, guard'lar ise ondan sonra. Bu yüzden bir guard,
+  middleware'in request context'ine koyduğunu okuyabilir: giriş yapmış kullanıcıyı
+  middleware'de yükleyin, kararı guard'da verin.
+- **Bir command** (v0.69.0'dan beri), `app.RegisterCommand` ile register edilen bir
+  `collage.Command` olan `commands/<name>.go` dosyasıdır: `go run . <name>` ya da
+  build edilmiş binary'nin ardından bu ad, sunucu yerine onu çalıştırır. `--name`
+  ona Go adı olmayan bir ad verir, örneğin `user-add`. Projede başka bir
+  `collage.Command`'ın kullandığı bir ad reddedilir. Bir service'e ihtiyacı olan
+  middleware ya da command, onu sizin ekleyeceğiniz bir argüman olarak alır.
+  İkisi de register fonksiyonuna kendi satırı olarak eklenir:
+  `if err := app.Use(...); err != nil { return err }`. Bunun için fonksiyonun
+  `*collage.App` alması ve `error` dönmesi gerekir; değilse eklenecek satır
+  yazdırılır.
 - **Bir fragment**, bir page'in ya da layout'un bir slot'u için page'i olmayan bir
   page içeriğidir. Komut, onu bağlayan `.WithSlotFragment(...)` satırını yazdırır.
   v0.68.0'dan beri path'inin gösterdiği yere, `fragments/<area>/<name>.go`'ya
@@ -655,6 +709,35 @@ Sıradan bir dosya sunucusu gibi değil, bir static host gibi davranır:
 Dizin yoksa ya da içinde hiç dosya yoksa komut hata verir ve önce
 `collage export` çalıştırmanızı söyler. Path varsa ama dizin değilse de hata
 verir ve tam olarak bunu söyler.
+
+## collage routes
+
+```sh
+collage routes
+```
+
+Projenin collage üzerinden cevap verdiği her URL'yi, method ve path başına bir
+satır olarak, path'e göre sıralı listeler (v0.69.0'dan beri):
+
+```text
+METHOD  PATH          KIND    NAME    NOTES
+GET     /             page    home    static
+GET     /admin/users  page    users   dynamic, guard adminGuard
+POST    /admin/users  action  rename  on page users, guard adminGuard
+POST    /api/ping     action  ping    own URL, no guard
+GET     /static/*     mount           12 files
+
+Not listed: handlers mounted with app.Handle, and plugins' own endpoints.
+```
+
+Bir page, nasıl cache'lendiğini ve hangi guard'lara sorulduğunu söyler. Bir
+action, bir page üzerinde mi (o zaman page'in guard'larına sorulur), yoksa
+guard'ı olmayan kendi URL'sinde mi cevap verdiğini söyler. Bir page'in fragment
+URL'leri de karşılaştıkları guard'larla listelenir. Sitenin birden fazla locale'i
+varsa bir `LOCALE` sütunu çıkar. Komut, [`collage inspect`](#collage-inspect)'in
+yazdırdığını okur; yani proje build edilir ve `newApp` çalışır. Collage üzerinden
+register edilmeyenler listede yoktur: `app.Handle` ile mount edilen handler'lar ve
+`/healthz` gibi plugin'lerin kendi endpoint'leri. Flag almaz.
 
 ## collage inspect
 

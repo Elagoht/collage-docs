@@ -30,6 +30,8 @@ if err := app.Use(func(next http.Handler) http.Handler {
 Middleware standart `func(http.Handler) http.Handler` imzasına sahiptir. Bu yüzden
 `net/http` için yazılmış her middleware hiç değişmeden çalışır. İlk register edilen
 middleware en dıştakidir.
+`collage add middleware loadUser` bir middleware yazar ve onu var olanlardan sonra
+register eder (v0.69.0'dan beri).
 
 Diğer bütün register işlemleri gibi bu da uygulama başlamadan önce yapılmalıdır.
 Uygulama başladıktan sonra `app.Use` `collage.ErrAppStarted` döner.

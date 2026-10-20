@@ -270,6 +270,11 @@ page := collage.NewPage("dashboard").
 	Build()
 ```
 
+`collage add guard private` iki parçayı da yazar: siz kontrolünü yazana kadar
+herkesi reddeden guard'ı ve onu taşıyan layout'u. `collage add page dashboard
+--guard private` de yeni bir page'i onunla sarar (v0.69.0'dan beri;
+[`collage add`](/docs/cli#collage-add)'e bakın).
+
 `Private()` ile sarılan her page private'tır; bir page'i public yapmak için
 `Private()`'ı zincirine eklememek yeterlidir. Route'larla senkron tutulacak bir
 korumalı path listesi yoktur. Guard, page'e hangi URL ulaşırsa ulaşsın, her locale'de ve her
