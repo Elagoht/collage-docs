@@ -1,6 +1,6 @@
 ---
 description: What a page is: its layouts and content, who may see it, the paths that reach it, how it is cached, what it shows when it fails, and what registration does.
-reference: Registrable, ErrNilRegistrable, NewPage, PageBuilder, PageBuilder.WithLayouts, Page, RenderPage, DefaultContentSlot, StrategyAuto, FragmentBuilder.WithGuard, GuardFunc, GuardDecision
+reference: Registrable, ErrNilRegistrable, NewPage, PageBuilder, PageBuilder.WithLayouts, Page, RenderPage, DefaultContentSlot, StrategyAuto, FragmentBuilder.WithGuard, GuardFunc, GuardDecision, Cached
 ---
 
 # Pages and layouts
@@ -60,13 +60,13 @@ a slot named `content`. The inside is the **content fragment**, the one the page
 exists to show.
 
 ```go
-layout := collage.NewFragment("layout", "layouts/default.html").
+layout := collage.NewFragment("layout", "layouts/master.html").
 	WithTitle("My site").
 	Build()
 ```
 
 ```html
-<!-- templates/layouts/default.html -->
+<!-- templates/layouts/master.html -->
 <!doctype html>
 <html lang="en">
 <head>{{hoist "head"}}</head>
@@ -122,7 +122,7 @@ single layout is `WithLayouts(layout)`):
 
 ```go
 func Master() *collage.Fragment {
-	return collage.NewFragment("layout", "layouts/default.html").
+	return collage.NewFragment("layout", "layouts/master.html").
 		WithTitle("My site").
 		Build()
 }
@@ -178,6 +178,59 @@ with `ErrSlotOccupied` otherwise.
 | with a nil layout | `ErrNilFragment` |
 | with the same layout twice | `ErrFragmentCycle` |
 | a second time on one builder | `ErrConflictingLayout` |
+
+### A layout with data of its own
+
+A layout is a fragment, so the parts of it that come from a CMS — the site's name,
+a menu, the footer's links — are loaded the way a page's content is: with
+`WithData`. Give each part a fragment of its own, bound into a slot of the layout,
+so each loads only what it shows and fails alone:
+
+```go
+var menuKey = collage.NewKey[[]backend.MenuItem]("menu")
+
+func Master(api *backend.API) *collage.Fragment {
+	return collage.NewFragment("layout", "layouts/master.html").
+		WithData(collage.Load(headData(api))). // title, meta tags: hoisted into the head
+		WithSlotFragment("header", Header(api)).
+		WithSlotFragment("footer", Footer(api)).
+		Build()
+}
+
+func Footer(api *backend.API) *collage.Fragment {
+	return collage.NewFragment("footer", "layouts/footer.html").
+		WithData(collage.Load(func(ctx context.Context, rc *collage.RenderContext) (footerView, error) {
+			menu, err := collage.Cached(rc, menuKey, time.Hour, []string{"menu"}, api.Menu)
+			return footerView{Menu: menu}, err
+		})).
+		Build()
+}
+```
+
+```html
+<!-- templates/layouts/master.html -->
+<body>
+  {{slot "header"}}
+  {{slot "content"}}
+  {{slot "footer"}}
+</body>
+```
+
+The client the data comes from is passed to the layout's constructor, as to any
+page's, from where `routes.go` builds them. Three things follow from the layout
+being part of every page:
+
+- **Fetch it once, not once per page.** Every page renders the menu, so read it
+  through [`collage.Cached`](/docs/caching#caching-data-across-pages): thirty pages
+  then fetch it once, and a static export does too.
+- **The tags make a change reach every page.** The tags given to `Cached` are added
+  to every page that rendered the layout, so `app.InvalidateTags(ctx, "menu")` —
+  from the CMS's webhook — refreshes the menu and drops every cached page that
+  showed it.
+- **A slow CMS slows every page.** Give the part a `WithTimeout` and a
+  `WithFallback`, so a menu that does not arrive is a page without a menu rather
+  than a page that does not arrive; see
+  [When a fragment fails](/docs/fragments-and-slots#when-a-fragment-fails).
 
 ## Private pages: guards
 
@@ -655,7 +708,7 @@ writes; the plugin defines only the user key.
 ```go
 // Master is the site's shell: <head>, header, footer.
 func Master() *collage.Fragment {
-	return collage.NewFragment("layout", "layouts/default.html").
+	return collage.NewFragment("layout", "layouts/master.html").
 		WithTitle("My blog").
 		Build()
 }

@@ -512,8 +512,7 @@ checked when the application starts:
 
 ```go
 func TestAppStarts(t *testing.T) {
-	cacheDir = t.TempDir()
-	app, err := newApp(false, 0)
+	app, err := newApp(collage.Env{CacheDir: t.TempDir()})
 	if err != nil {
 		t.Fatalf("newApp() = %v, want nil", err)
 	}

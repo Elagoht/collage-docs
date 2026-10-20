@@ -1,6 +1,6 @@
 ---
 description: Serving stylesheets, scripts, images and downloads from a directory or an embedded file system, with URLs that can be cached for a year.
-reference: App.Mount, MountOption, WithCacheControl, WithoutBuildCopy, ErrUnknownAsset
+reference: App.Mount, MountOption, WithCacheControl, WithoutBuildCopy, ErrUnknownAsset, Env.Static
 ---
 
 # Static assets
@@ -74,19 +74,17 @@ func mountAssets(app *collage.App) error {
 ```
 
 In development you want the directory on disk instead — the embedded copy was
-fixed when the binary was built, so editing a file would change nothing. A
-scaffolded project does this:
+fixed when the binary was built, so editing a file would change nothing.
+`Env.Static` (since v0.68.0) makes that choice, and a scaffolded project's
+`newApp` mounts what it returns:
 
 ```go
-func staticFiles(devMode bool) (fs.FS, error) {
-	if devMode {
-		if root, err := os.OpenRoot("static"); err == nil {
-			return root.FS(), nil
-		}
-	}
-	return fs.Sub(staticFS, "static")
-}
+return app, app.Mount("/static/", env.Static(files, "static"))
 ```
+
+With `Env.Dev` on it opens the directory on disk with `os.OpenRoot`; otherwise it
+is `fs.Sub(files, "static")`, the embedded copy. Before v0.68.0 the scaffold wrote
+the same choice out in a `staticFiles` function of its own.
 
 collage makes this choice for templates itself, because `Template.Root` tells it
 where they are on disk. A mount is handed only an `fs.FS`, so where its files came
@@ -292,7 +290,7 @@ file to serve:
 ### Mounting
 
 The files are embedded, so the binary runs from any directory, and `collage dev`
-serves the directory on disk instead. `staticFiles` is the function from
+serves the directory on disk instead. `env.Static` is the choice from
 [Embedding](#embedding):
 
 ```go
@@ -300,25 +298,21 @@ serves the directory on disk instead. `staticFiles` is the function from
 var staticFS embed.FS
 
 func main() {
-	devMode := os.Getenv("COLLAGE_DEV") == "1"
+	collage.Main(newApp)
+}
 
+func newApp(env collage.Env) (*collage.App, error) {
 	app, err := collage.New(&collage.Config{
-		DevMode:  devMode,
+		DevMode:  env.Dev,
 		Template: collage.TemplateConfig{Root: "templates"},
 	})
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
-	static, err := staticFiles(devMode)
-	if err != nil {
-		log.Fatal(err)
-	}
-	if err := app.Mount("/static/", static); err != nil {
-		log.Fatal(err)
-	}
+	// register pages
 
-	// register pages, then serve
+	return app, app.Mount("/static/", env.Static(staticFS, "static"))
 }
 ```
 

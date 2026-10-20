@@ -1,6 +1,6 @@
 ---
 description: Test the real application through app.Handler() with pkg/collagetest, a client that keeps cookies and submits forms like a browser: pages, forms, the export.
-reference: Build, BuildOptions, App
+reference: Build, BuildOptions, App, Env
 ---
 
 # Testing
@@ -68,10 +68,11 @@ built this way. This page walks through its pattern.
 The scaffolded `main.go` builds the application in a function of its own:
 
 ```go
-func newApp(devMode bool, port int) (*collage.App, error)
+func newApp(env collage.Env) (*collage.App, error)
 ```
 
-`main` calls it to serve, and the tests call it to test. That is the most important
+`main` hands it to `collage.Main` to serve, and the tests call it to test. That is
+the most important
 decision in the test file: what the tests exercise is the site that actually runs,
 with its real configuration, routes and mounts, not a second wiring that slowly
 drifts from it.
@@ -80,8 +81,7 @@ drifts from it.
 // client returns a browser of its own on a fresh copy of the site.
 func client(t *testing.T) *collagetest.Client {
 	t.Helper()
-	cacheDir = t.TempDir()
-	app, err := newApp(false, 0)
+	app, err := newApp(collage.Env{CacheDir: t.TempDir()})
 	if err != nil {
 		t.Fatalf("newApp() = %v, want nil", err)
 	}
@@ -90,8 +90,11 @@ func client(t *testing.T) *collagetest.Client {
 }
 ```
 
-`newApp(false, 0)` builds the production configuration: development mode off, and a
-port of `0`, which collage replaces with its default — nothing listens anyway.
+`newApp(collage.Env{CacheDir: t.TempDir()})` builds the production configuration:
+`Dev` off, a port of `0`, which collage replaces with its default — nothing
+listens anyway — and a disk cache of the test's own. A project scaffolded before
+v0.68.0 has `newApp(devMode bool, port int)` and a `cacheDir` variable instead;
+see [the CLI](/docs/cli#the-contract-with-maingo) for moving it.
 
 A test is then a request and a look at the response:
 
@@ -189,19 +192,17 @@ res := site.Get("/posts").WantStatus(http.StatusOK)
 
 ## Isolate the disk cache
 
-The scaffold's cache directory is a package variable, and `client` points it at a
-fresh directory before building the application:
+The scaffold's cache directory is the `Env`'s `CacheDir`: `.cache` when
+`collage.Main` builds the application, and a fresh directory when `client` does:
 
 ```go
-// cacheDir is where rendered pages are kept between restarts. A variable so the
-// tests can point it at a directory of their own.
-var cacheDir = ".cache"
+app, err := newApp(collage.Env{CacheDir: t.TempDir()})
 ```
 
 With development mode off, the application uses the disk cache, and a disk cache is
 shared by everything that uses the same directory and the same build.
 
-Without `cacheDir = t.TempDir()` a test could be served a page an earlier test
+Without a `CacheDir` of its own a test could be served a page an earlier test
 rendered — or an earlier run, since the cache survives the process — and pass or
 fail for reasons that have nothing to do with the code. It would also leave a
 `.cache` directory in your package.
@@ -211,9 +212,8 @@ the data cache writes to that directory in the background, and `App.Shutdown`
 waits for those writes, so the directory is not removed while one is still being
 made. `collagetest.NewSite` does this itself.
 
-Because `cacheDir` is shared by the whole package, these tests do not call
-`t.Parallel()`. If you want parallel tests, pass the directory to `newApp` as a
-parameter instead.
+Each test passes its own directory, so nothing stops it from calling
+`t.Parallel()`.
 
 A test that is about caching can use this: make two requests with one client and
 check the second is served from the cache, or call `app.InvalidateTags` between
@@ -407,14 +407,13 @@ production. Run it into `t.TempDir()` and check the files you expect are there:
 ```go
 // The export writes the home page, every doc and the 404 page.
 func TestExport(t *testing.T) {
-	cacheDir = t.TempDir()
-	app, err := newApp(false, 0)
+	app, err := newApp(collage.Env{CacheDir: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
 	out := t.TempDir()
-	if err := staticBuild(app, out, false); err != nil {
-		t.Fatalf("staticBuild: %v", err)
+	if _, err := collage.Build(context.Background(), app, collage.BuildOptions{OutDir: out}); err != nil {
+		t.Fatalf("build: %v", err)
 	}
 	loaded, _ := site.Load(content.FS)
 	want := []string{"index.html", "404.html"}
@@ -429,13 +428,12 @@ func TestExport(t *testing.T) {
 }
 ```
 
-It calls the same `staticBuild` that `collage export` runs, so the test covers
-`WithStaticParams` and the builder options as well as the pages. `staticBuild` returns
-the build's error, which fails the test for a degraded page, an empty render or a
-panic.
+It runs the same builder that `collage export` runs, so the test covers
+`WithStaticParams` and the builder options as well as the pages. `collage.Build`
+returns the build's error, which fails the test for a degraded page, an empty
+render or a panic.
 
-To assert on skips and warnings as well, call `collage.Build` directly and read the
-report:
+To assert on skips and warnings as well, read the report it returns:
 
 ```go
 report, err := collage.Build(context.Background(), app, collage.BuildOptions{OutDir: t.TempDir()})
@@ -490,8 +488,7 @@ rendered, and is what [`collage check`](/docs/cli#collage-check) runs:
 
 ```go
 func TestLinks(t *testing.T) {
-	cacheDir = t.TempDir()
-	app, err := newApp(false, 0)
+	app, err := newApp(collage.Env{CacheDir: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -561,7 +561,7 @@ action:
 - The product is `Required`: a page without it has nothing to show.
 
 ```go
-layout := collage.NewFragment("layout", "layouts/default.html").Build()
+layout := collage.NewFragment("layout", "layouts/master.html").Build()
 
 stock := collage.NewFragment("product-stock", "fragments/stock.html").
 	WithData(collage.Load(loadStock)).
@@ -595,7 +595,7 @@ The layout links the shop's stylesheet, marks the head's area and carries the
 language switcher:
 
 ```html
-<!-- templates/layouts/default.html -->
+<!-- templates/layouts/master.html -->
 <!doctype html>
 <html>
 <head>

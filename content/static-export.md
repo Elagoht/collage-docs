@@ -34,9 +34,10 @@ go run . -collage-build -out dist        # plus -clean when you passed it
 | `-out dir` | `dist` | Where the files are written. |
 | `-clean` | off | Remove the directory's existing contents first. |
 
-The scaffolded `main.go` honours that contract: on `-collage-build` it builds the
-application as usual and, instead of serving it, hands it to collage's builder and
-prints what happened. This is the collage-docs version of that function; which
+The scaffolded `main.go` honours that contract through `collage.Main` (since
+v0.68.0): on `-collage-build` it builds the application as usual and, instead of
+serving it, hands it to collage's builder and prints what happened. A `main` of
+your own does it with a function like this one, the collage-docs version; which
 pages exist is not its business, because each page says that
 [itself](#dynamic-paths-withstaticparams):
 
@@ -63,9 +64,8 @@ the build; an error-level [finding](#reading-the-report) does, with every page s
 written.
 
 A build does not shut the application down either, and nothing serves after it,
-so a program that exits once it has built calls `app.Shutdown` itself; the
-scaffolded `main.go` does, from collage v0.55.0 (see
-[the CLI](/docs/cli#the-contract-with-maingo)).
+so a program that exits once it has built calls `app.Shutdown` itself;
+`collage.Main` does (see [the CLI](/docs/cli#the-contract-with-maingo)).
 
 Otherwise no plugin's `Shutdown` runs: what a plugin holds is never flushed, and
 work a queue plugin such as [elagoht/jobs](/docs/plugins#elagohtjobs) was handed

@@ -1,6 +1,6 @@
 ---
 description: Handling form posts, fetch calls and webhooks with actions, and protecting them from request forgery.
-reference: NewAction, ActionBuilder, ActionResult, SeeOther, JSON, JSONBytes, Status, RenderPage, RenderFragment, PageBuilder.WithAction, PageBuilder.WithFragmentPath, ActionBuilder.WithStreamingBody, ActionBuilder.WithBodyTimeout, ErrCSRFHeaderRequired, ErrDuplicateRoute, ErrUnknownFragmentPath, FetchHeader, LocationHeader
+reference: NewAction, ActionBuilder, ActionResult, SeeOther, SeeOtherPage, JSON, JSONBytes, Status, RenderPage, RenderFragment, PageBuilder.WithAction, PageBuilder.WithFragmentPath, ActionBuilder.WithStreamingBody, ActionBuilder.WithBodyTimeout, ErrCSRFHeaderRequired, ErrDuplicateRoute, ErrUnknownFragmentPath, FetchHeader, LocationHeader
 ---
 
 # Forms and actions
@@ -166,6 +166,7 @@ An `ActionResult` decides the response. Build one with a helper:
 | Helper | Response |
 | --- | --- |
 | `collage.SeeOther(url)` | `303 See Other` to `url` |
+| `collage.SeeOtherPage(rc, name, params)` | `303 See Other` to a page by its name, its path built by `rc.URL`; returns `(*ActionResult, error)` (since v0.68.0) |
 | `collage.RenderPage(page)` | A whole page, rendered with this request's `RenderContext` |
 | `collage.RenderFragment(f)` | One fragment's markup, without a layout |
 | `collage.JSON(status, v)` | `v` marshalled as `application/json`; returns `(*ActionResult, error)` |
@@ -311,9 +312,18 @@ it answers with the registered page it wants, built before the action. In dev mo
 form post answered `422` with no body is logged as a warning, because the reader
 gets a blank page and a `nil` `rc.Page` is the usual cause.
 
-To redirect to a page by name rather than by path, use
-[`rc.URL`](/docs/links-and-locales#links-from-go) (since v0.37.0); the action
-needs no `*App` handed to it for that either.
+To redirect to a page by name rather than by path, so a renamed path cannot leave
+the redirect pointing at the old one, use `collage.SeeOtherPage` (since v0.68.0).
+It builds the path with [`rc.URL`](/docs/links-and-locales#links-from-go), in the
+request's locale and with each value kept inside its path segment, and an unknown
+name is its error; the action needs no `*App` handed to it for that either:
+
+```go
+return collage.SeeOtherPage(rc, "post", map[string]string{"slug": slug})
+```
+
+Before v0.68.0, build the path with `rc.URL` (since v0.37.0) and hand it to
+`SeeOther`.
 
 A login that sends the reader back to where they came from reads that place from
 a `next` query parameter, and the parameter is the reader's input. Pass it through
@@ -961,11 +971,11 @@ func TasksPage() *collage.Page {
 
 			result := collage.RenderFragment(list)
 			if !fetched {
-				back, err := rc.URL("tasks", map[string]string{"team": team})
+				var err error
+				result, err = collage.SeeOtherPage(rc, "tasks", map[string]string{"team": team})
 				if err != nil {
 					return nil, err
 				}
-				result = collage.SeeOther(back)
 			}
 			// The team's cached page renders again, for every member.
 			result.InvalidateTags = []string{Tag(team)}

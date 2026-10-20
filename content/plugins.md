@@ -1,6 +1,6 @@
 ---
 description: What a plugin can do, how to register and configure one, and the forty-five published plugins, grouped by what they are for.
-reference: Plugin, LoadPluginConfig, ErrUnknownPluginConfig, ErrAppStarted
+reference: Plugin, LoadPluginConfig, Env.PluginConfig, ErrUnknownPluginConfig, ErrAppStarted
 ---
 
 # Using plugins
@@ -100,6 +100,9 @@ collage plugin add elagoht/minimizer
 fetches the module, adds the import and the constructor call to `plugins.go`, in
 the place the plugin asks for, and adds an empty section `"elagoht/minimizer": {}`
 to `plugins-config.json`: the defaults. It adds first any plugin this one needs.
+Then it prints what the plugin still needs from you (since v0.68.0): its setup
+note, the template functions it adds and the address of its documentation — with
+several plugins, together at the end, under "What each plugin needs from you".
 
 A failure leaves every file as it was. Taking one out is the same in reverse, and
 the settings its section held are printed so they are not lost:
@@ -219,7 +222,11 @@ A plugin that takes settings reads them from `Config.PluginConfig`, a
 paths — `elagoht/minimizer` — so the key and the plugin are one identifier.
 
 The common case is a JSON file next to your program. A project scaffolded by
-`collage new` has an empty `plugins-config.json` and already loads it:
+`collage new` has an empty `plugins-config.json` and already loads it, with
+`env.PluginConfig(files)` (since v0.68.0): the file in the working directory when
+there is one, otherwise the copy the binary embeds, so a binary deployed without
+the file keeps its settings. Outside a scaffolded project, `LoadPluginConfig` reads
+the file alone:
 
 ```json
 {
@@ -2177,22 +2184,17 @@ makes a site's icons from one source image — `favicon.ico`, the Apple touch ic
 the web app icons and the manifest that lists them — serves them at the root, and
 links them from every page's head.
 
-```go
-import "github.com/Elagoht/collage-favicon"
-
-Plugins: []collage.Plugin{favicon.New(favicon.Options{
-	Source:     "assets/icon.png",
-	SVG:        "assets/icon.svg",
-	Name:       "The blog",
-	ThemeColor: "#0f172a",
-})},
+```sh
+collage plugin add elagoht/favicon
 ```
+
+Since v0.3.0 that is all it needs. The icons are made from the site's own
+`static/icon.png` (and `static/icon.svg`, if there is one), and until there is one
+they are collage's. The settings are for the manifest and the colours:
 
 ```json
 {
   "elagoht/favicon": {
-    "source": "assets/icon.png",
-    "svg": "assets/icon.svg",
     "name": "The blog",
     "themeColor": "#0f172a",
     "backgroundColor": "#ffffff"
@@ -2200,10 +2202,21 @@ Plugins: []collage.Plugin{favicon.New(favicon.Options{
 }
 ```
 
-- v0.2.0 needs collage v0.61.0 or later (v0.1.7 was the last for v0.60.0). The source is a square PNG, JPEG or GIF,
-  ideally 512 pixels or larger, read from disk or from `FS`, or given as bytes in
-  `SourceBytes` and `SVGBytes` (`Image` and `SVGImage` before v0.2.0). The start page
+- v0.3.0 needs collage v0.68.0 or later (v0.2.0 was the last for v0.61.0–v0.67.x,
+  v0.1.7 for v0.60.0). The source is a square PNG, JPEG or GIF, ideally 512
+  pixels or larger.
+- **The source defaults to `/static/icon.png`** (since v0.3.0), and the SVG to
+  `/static/icon.svg` when there is one: URLs of the site's own, read through the
+  mount that serves them with
+  [`Host.OpenMounted`](/docs/writing-plugins#contributing-documents-and-mounts) — from disk in development, from the
+  copy the binary embeds once built. `source` and `svg` name another file: one
+  starting with `/` is a URL, read the same way; any other path is read from disk,
+  or from `FS`. `SourceBytes` and `SVGBytes` give the bytes in Go. The start page
   key is `startURL`.
+- **A missing source never stops the application** (since v0.3.0). With no file at
+  the default URL it serves collage's icons and logs where to put one; a source
+  that was named but is missing, cannot be decoded or is not square is a warning,
+  with the same fallback. Only a colour that is not one stops it.
 - The icons are made once at startup and served as static documents, so a static
   build writes them. An SVG is passed through, never rasterised.
 - The links carry `?v=` and a digest of the source, so a changed icon is a changed

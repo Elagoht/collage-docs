@@ -162,7 +162,9 @@ here rather than through `app.RegisterPlugin`.
 
 `PluginConfig` holds each plugin's section as raw JSON. The framework reads no file:
 fill it however you like, or use `collage.LoadPluginConfig("plugins-config.json")`,
-which returns `nil` for a missing file. A key that names no registered plugin stops
+which returns `nil` for a missing file, or `Env.PluginConfig`, which a scaffolded
+`newApp` calls (since v0.68.0): the file in the working directory when there is
+one, otherwise the copy embedded in the binary. A key that names no registered plugin stops
 the application from starting with `ErrUnknownPluginConfig`, and since v0.61.0 so
 does a key inside a section that the plugin does not know. See
 [Configuring plugins](/docs/plugins#configuring-plugins).
@@ -523,39 +525,41 @@ The configuration a scaffolded project starts from, with the parts that vary by
 environment read from it:
 
 ```go
-pluginConfig, err := collage.LoadPluginConfig("plugins-config.json")
+pluginConfig, err := env.PluginConfig(files)
 if err != nil {
-	return nil, fmt.Errorf("plugin configuration: %w", err)
+	return nil, err
 }
 
 app, err := collage.New(&collage.Config{
-	DevMode: os.Getenv("COLLAGE_DEV") == "1",
-	Server: collage.ServerConfig{
-		Host: envString("HOST", "localhost"),
-		Port: envInt("PORT", 6060),
-	},
+	DevMode: env.Dev,
+	BaseURL: os.Getenv("BASE_URL"),
+	Server:  collage.ServerConfig{Host: env.Host, Port: env.Port},
 	Template: collage.TemplateConfig{
-		FS:        templatesFS,
+		FS:        files,
 		Root:      "templates",
 		Extension: ".html",
 	},
 	Cache: collage.CacheConfig{
 		Enabled:    true,
 		Type:       collage.CacheDisk,
-		Dir:        ".cache",
+		Dir:        env.CacheDir,
 		DefaultTTL: 5 * time.Minute,
 	},
 	PluginConfig: pluginConfig,
+	Plugins:      plugins(),
 	Security: collage.SecurityConfig{
 		CSRFKey: []byte(os.Getenv("COLLAGE_CSRF_KEY")),
 	},
 })
 ```
 
-`envString` and `envInt` are two small helpers in the scaffolded `main.go` that
-read a variable and fall back to a default. The scaffold also reads `BaseURL` from
-`BASE_URL`, and sets `Plugins` to `plugins()`, from the `plugins.go` that
-`collage plugin add` and `del` manage.
+`env` is the `collage.Env` that `collage.Main` hands the scaffolded `newApp`
+(since v0.68.0): `Dev` is `COLLAGE_DEV=1`, `Host` is `HOST` or `localhost`, `Port`
+is `-port`, `PORT` or `6060`, and `CacheDir` is `.cache`. `files` is the project's
+embedded filesystem — the project directory itself in a development build — and
+`plugins()` comes from the `plugins.go` that `collage plugin add` and `del` manage.
+`collage.Main` loads `.env` before `newApp` runs, so `os.Getenv` sees it; see
+[the CLI](/docs/cli#environment-files).
 
 ## Example: one configuration for development and production
 
@@ -568,33 +572,33 @@ its own, posts forms to it.
 
 One binary serves both. Its `newApp` is the scaffold's, with the production
 settings added; what differs between the two is read from the environment or
-decided by `devMode`:
+decided by `env.Dev`:
 
 ```go
-func newApp(devMode bool, port int) (*collage.App, error) {
-	pluginConfig, err := collage.LoadPluginConfig("plugins-config.json")
+func newApp(env collage.Env) (*collage.App, error) {
+	pluginConfig, err := env.PluginConfig(files)
 	if err != nil {
-		return nil, fmt.Errorf("plugin configuration: %w", err)
+		return nil, err
 	}
 
 	cfg := &collage.Config{
-		DevMode: devMode,
-		BaseURL: os.Getenv("BASE_URL"), // empty in development unless .env.development sets it
+		DevMode: env.Dev,
+		BaseURL: os.Getenv("BASE_URL"), // collage dev's own address unless .env.development sets it
 		Server: collage.ServerConfig{
-			Host:              envString("HOST", "localhost"),
-			Port:              port,
+			Host:              env.Host,
+			Port:              env.Port,
 			ReadHeaderTimeout: 5 * time.Second,
 			DrainDelay:        5 * time.Second, // ignored in development
 		},
 		Template: collage.TemplateConfig{
-			FS:        templatesFS,
+			FS:        files,
 			Root:      "templates",
 			Extension: ".html",
 		},
 		Cache: collage.CacheConfig{
 			Enabled:    true,
 			Type:       collage.CacheDisk,
-			Dir:        cacheDir,
+			Dir:        env.CacheDir,
 			DefaultTTL: 5 * time.Minute,
 		},
 		Locale: collage.LocaleConfig{
@@ -609,7 +613,7 @@ func newApp(devMode bool, port int) (*collage.App, error) {
 		},
 	}
 
-	if !devMode {
+	if !env.Dev {
 		// The load balancer in front of both servers, and the admin
 		// panel whose forms post here.
 		cfg.Server.TrustedProxies = []string{"10.0.1.10"}
@@ -631,7 +635,7 @@ What each setting is in each place, and why:
 | --- | --- | --- | --- |
 | `DevMode` | on: `collage dev` sets `COLLAGE_DEV=1` | off: the variable is unset | Development's error pages carry paths and error chains. A development server also answers only requests whose `Host` names this machine; see [Deployment](/docs/deployment#development-mode-stays-on-this-machine). |
 | `Server.Host`, `Server.Port` | the loopback address `collage dev` chose | `HOST` and `PORT`, or `-port` | `collage dev` listens on your address itself and passes requests on; see [CLI](/docs/cli#collage-dev). |
-| `BaseURL` | empty, unless `.env.development` sets `BASE_URL` | `https://tasks.example.com` from `BASE_URL` | Empty is not an error: a site that builds no absolute URL needs none. Set, it must be a bare origin, or `New` fails with `ErrInvalidOrigin`. |
+| `BaseURL` | `collage dev`'s own address, `http://localhost:6060`, unless `.env.development` sets `BASE_URL` (since v0.68.0) | `https://tasks.example.com` from `BASE_URL` | Empty is not an error: a site that builds no absolute URL needs none. Set, it must be a bare origin, or `New` fails with `ErrInvalidOrigin`. |
 | `Security.CSRFKey` | empty: a key per process, logged at info level | at least 32 random bytes, the same on both servers | A generated key refuses every token issued before a restart, or by the other server. |
 | `Security.CSRFTrustedOrigins` | none | the admin panel's origin | Every other origin is refused, even with a valid token. |
 | `Server.TrustedProxies` | none | the load balancer | Without it, every client's address is the load balancer's. |
@@ -648,5 +652,6 @@ the production one; see [CLI](/docs/cli#environment-files).
 
 The production side is four variables — `HOST`, `PORT`, `BASE_URL` and
 `COLLAGE_CSRF_KEY` — plus any a plugin's `KeyEnv` names, set where the binary
-runs. Nothing reads `.env` files there;
-see [Deployment](/docs/deployment#environment).
+runs, or in a `.env` in its working directory, which `collage.Main` loads (since
+v0.68.0) and the server's own variables override; see
+[Deployment](/docs/deployment#environment).

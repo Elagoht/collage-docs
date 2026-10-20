@@ -471,7 +471,7 @@ Each page declares a path per locale, and the product page opens the stock
 fragment in each:
 
 ```go
-layout := collage.NewFragment("layout", "layouts/default.html").Build()
+layout := collage.NewFragment("layout", "layouts/master.html").Build()
 
 stock := collage.NewFragment("product-stock", "fragments/stock.html").
 	WithData(collage.Load(loadStock)).
@@ -508,7 +508,7 @@ the catalogue links each product by name with its `id`, and the product page
 names its stock box's URL:
 
 ```html
-<!-- templates/layouts/default.html -->
+<!-- templates/layouts/master.html -->
 <nav class="languages">
   {{with localeURL "en"}}<a hreflang="en" href="{{.}}">English</a>{{end}}
   {{with localeURL "tr"}}<a hreflang="tr" href="{{.}}">Türkçe</a>{{end}}

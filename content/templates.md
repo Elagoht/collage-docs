@@ -43,7 +43,7 @@ what a fragment names:
 
 ```text
 templates/
-├── layouts/default.html     →  "layouts/default.html"
+├── layouts/master.html      →  "layouts/master.html"
 ├── pages/post.html          →  "pages/post.html"
 └── fragments/author.html    →  "fragments/author.html"
 ```
@@ -118,7 +118,9 @@ the source tree, and without `Root` every template would be called
 An empty `Root` with an `FS` means the root of the filesystem. The `all:` prefix makes the embed include files whose names begin with
 `.` or `_`, which a plain `//go:embed templates` would skip.
 
-This is what `collage new` scaffolds.
+`collage new` scaffolds the same with one filesystem, `files`, which embeds
+`templates`, `static` and `plugins-config.json` together (since v0.68.0) and is
+given as `Template.FS`.
 
 ## Reloading in development
 
@@ -396,7 +398,7 @@ func loadAuthor(ctx context.Context, rc *collage.RenderContext) (authorView, err
 The author card is a fragment of its own, bound into the post's `author` slot:
 
 ```go
-layout := collage.NewFragment("layout", "layouts/default.html").Build()
+layout := collage.NewFragment("layout", "layouts/master.html").Build()
 
 author := collage.NewFragment("author", "fragments/author.html").
 	WithData(collage.Load(loadAuthor)).
@@ -422,7 +424,7 @@ if err := app.RegisterPage(page); err != nil {
 The three templates:
 
 ```html
-<!-- templates/layouts/default.html -->
+<!-- templates/layouts/master.html -->
 <!doctype html>
 <html>
 <head>
@@ -463,7 +465,7 @@ links its content-addressed URL, and a path no mount serves fails the render.
 <title id="tpl-post-title">The blog post page as rendered. The layout's hoist head marker is filled, once the whole page has rendered, with the title and the description meta the post's handler hoisted and the link to post.css the post's template declared with stylesheet. The layout's content slot holds the post fragment, and the post's author slot holds the author fragment. Inside the post, the title and the readers' comments are escaped, and the body, a template.HTML, is inserted as is.</title>
 <defs><marker id="tpl-post-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
 <rect class="d-frame" x="4" y="4" width="312" height="246" rx="8" />
-<text x="14" y="21">layout</text><text class="d-small" x="60" y="21">layouts/default.html</text>
+<text x="14" y="21">layout</text><text class="d-small" x="60" y="21">layouts/master.html</text>
 <rect class="d-slot d-slot-b" x="14" y="30" width="292" height="36" rx="5" />
 <text class="d-small" x="24" y="51">hoist "head"</text>
 <rect class="d-chip" x="104" y="39" width="60" height="18" rx="9" /><text class="d-small" x="134" y="51" text-anchor="middle">&lt;title&gt;</text>

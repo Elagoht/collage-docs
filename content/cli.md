@@ -1,6 +1,6 @@
 ---
 description: Every command of the collage CLI — new, add, dev, build, export, serve, inspect, check, plugin, version and help — with its flags and exactly what it runs.
-reference: DispatchCommands, Command, ErrUnknownCommand, FragmentBuilder.WithoutTypeCheck, App, Registrable
+reference: Main, Env, Env.PluginConfig, Env.Static, DispatchCommands, Command, ErrUnknownCommand, FragmentBuilder.WithoutTypeCheck, App, Registrable
 ---
 
 # The collage CLI
@@ -106,7 +106,7 @@ Scaffolds a new, runnable project named `<name>`.
 
 ```sh
 collage new myblog                                   # into ./myblog, module "myblog", one page
-collage new myblog --template demo                   # the demos, their tests, a .env.example
+collage new myblog --template demo                   # the demos and their tests
 collage new myblog -module github.com/me/myblog
 collage new myblog -dir . -force                     # into the current, non-empty directory
 collage new myblog --with @blog,@prod                # and the plugins of two bundles
@@ -117,7 +117,8 @@ plugin name that cannot be read is a usage error, and no directory is made. Once
 the project is scaffolded, `new` requires the collage the CLI is, then adds each
 plugin as [`collage plugin add`](#collage-plugin) would. A plugin that fails is
 reported and left out; the project and the other plugins stay, and the command
-exits `1`. The setup notes of the plugins added come last, together.
+exits `1`. What each plugin added needs from you — its setup note, template
+functions and documentation — comes last, together.
 
 The scaffolded `main.go` reads `BASE_URL` into `Config.BaseURL` (since v0.59.0): the
 origin a sitemap, a canonical link or a feed puts in front of a path. Empty is
@@ -131,9 +132,16 @@ replace files of the same name.
 **Every project** gets:
 
 - `go.mod`;
-- a `main.go` holding the configuration, the static mount, the CLI contract
-  described [below](#the-contract-with-maingo) and the dispatch of
+- a `main.go` of about fifty lines: `newApp`, which builds the configuration and
+  the static mount from the `collage.Env` it is given, and a `main` that hands it
+  to `collage.Main` (since v0.68.0), which keeps the CLI contract described
+  [below](#the-contract-with-maingo) and dispatches
   [plugin commands](#plugin-commands);
+- `embed.go` and `embed_dev.go`, which declare `files`: templates, static files
+  and `plugins-config.json`, embedded, or the project directory in a development
+  build (see [below](#development-builds-embed-nothing));
+- a `plugins.go` and a `plugins-config.json`, empty, and a `.env.example` (in
+  every project since v0.68.0);
 - a `routes.go` registering every route;
 - a layout that names the site with `WithTitle` and declares no slots (so a
   page's own title replaces the site's);
@@ -144,14 +152,13 @@ replace files of the same name.
 **`--template demo`** adds a page of live demos — an action answering
 JSON, a form posting to its own page, a fragment with its own URL, a JSON
 document — a not-found page, tests for each written with
-[`collagetest`](/docs/testing), `plugins-config.json`, a favicon and a
-`.env.example`.
+[`collagetest`](/docs/testing), and a favicon.
 
 **The layout is by area** (since v0.40.0), the layout of a real application:
 
 ```text
 pages/<area>/<name>.go            a page: its layouts, content, path, actions
-fragments/layouts/main.go         Master(), the layout every page wraps itself in
+fragments/layouts/master.go       Master(), the layout every page wraps itself in
 fragments/pages/<area>/<name>.go  each page's content, mirroring pages/
 actions/<area>.go                 action builders, one file per area
 actions/funcs/<area>.go           their handlers
@@ -175,8 +182,7 @@ template with `collage.Value` — and a stylesheet that sets the background and 
 colour, dark mode included. Nothing else — no tests, and no not-found page:
 collage answers an unknown address with its own plain 404 until you register one.
 
-When it is done it prints the next steps. A demo project, the one with a
-`.env.example`, also gets `cp .env.example .env.development` before `collage dev`:
+When it is done it prints the next steps:
 
 ```sh
 cd myblog
@@ -196,7 +202,10 @@ registers it in `routes.go` (since v0.40.0):
 ```sh
 collage add page blog/post          # pages/blog/post.go + fragments/pages/blog/post.go
 collage add page blog/post --file   # its template in templates/pages/blog/post.html
-collage add fragment blog/sidebar   # fragments/pages/blog/sidebar.go, for a slot
+collage add fragment blog/sidebar   # fragments/blog/sidebar.go, for a slot
+collage add fragment layouts/partials/siteFooter --file
+                                    # fragments/layouts/partials/siteFooter.go
+                                    # + templates/layouts/partials/siteFooter.html
 collage add action blog/comment     # actions/blog.go + actions/funcs/blog.go
 collage add action blog/ping --path /api/ping
 collage add document feed --path /feed.xml --type application/xml
@@ -220,12 +229,22 @@ collage add document feed --path /feed.xml --type application/xml
   answers at a URL of its own and is registered; without one it answers at the
   page it is attached to, and the command prints the `.WithActionFor(...)` to add.
 - **A document** is `documents/<name>.go`.
-- **A fragment** is a page's content without the page, for a slot; the command
-  prints the `.WithSlotFragment(...)` that binds it.
+- **A fragment** is a page's content without the page, for a slot of a page or a
+  layout; the command prints the `.WithSlotFragment(...)` that binds it. Since
+  v0.68.0 it goes where its path says, `fragments/<area>/<name>.go`, with its
+  template at `<area>/<name>` under the template root — before, it went under
+  `fragments/pages/`. Its package is the one already in that directory, or one
+  named after it: `fragments/layouts/partials` is `partials`. A fragment that
+  belongs beside a page's content is `collage add fragment pages/blog/related`.
 
-A name is lowercase letters, digits and dashes. What the command writes is named
-after the last segment — `blog/post` is the page `"post"`, built by `Post()` —
-unless `--name` gives another. The locale of its path is `Locale.Default` as
+The last segment is a Go name, kept as written (since v0.68.0):
+`blog/storyDetail`, `layouts/partials/siteFooter`. What the command writes is
+named after it — the file, the default URL and the name, so `blog/storyDetail` is
+the page `"storyDetail"` at `/blog/storyDetail` — unless `--name` gives another,
+and its function is that name with the first letter capitalised, `StoryDetail()`.
+A dashed name is refused, as it is no Go name. The directories before it are only
+a path and may have dashes, `user-settings/profile`; their package and import
+alias drop them, `usersettings`. The locale of its path is `Locale.Default` as
 `main.go` writes it, `en` when it is not a literal there, or `--locale`; a template
 file goes under `Template.Root` with its `Extension`, read the same way. The
 command says which locale it used.
@@ -303,7 +322,8 @@ both off.
 ```
 
 The scaffolded `main.go` turns on development mode when `COLLAGE_DEV=1` is set,
-and listens on the `HOST` and `PORT` it is given.
+and listens on the `HOST` and `PORT` it is given: `collage.Main` puts both in the
+`Env` it hands `newApp`.
 Development mode reads templates and static files from disk on every request, so
 editing those needs no rebuild and none happens — the page in your browser reloads
 itself instead. Content your program reads from disk itself, such as Markdown,
@@ -315,12 +335,18 @@ mode changes.
 ### Development builds embed nothing
 
 Since v0.46.0 `collage dev` builds with `go build -tags collage_dev`, and the
-scaffold keeps its `//go:embed` lines in `embed.go`, which starts with
+scaffold keeps its `//go:embed` line in `embed.go`, which starts with
 `//go:build !collage_dev`. Beside it, `embed_dev.go` (`//go:build collage_dev`)
-declares the same two variables, empty. Development mode reads `templates/` and
-`static/` from disk anyway, so a development build has nothing to embed, and
-`collage build`, `collage export` and a plain `go build` pass no tag and embed as
-before.
+declares the same variable. Development mode reads `templates/` and `static/` from
+disk anyway, so a development build has nothing to embed, and `collage build`,
+`collage export` and a plain `go build` pass no tag and embed as before.
+
+Since v0.68.0 the two files declare one filesystem, `files`. In `embed.go` it is
+`//go:embed all:templates all:static plugins-config.json`; in `embed_dev.go` it is
+the project directory itself, `os.DirFS(".")`, so a plugin given `files` — a card
+template, a favicon source, Markdown posts — reads the copy you are editing
+rather than an empty filesystem. (Before v0.68.0 they declared `templatesFS` and
+`staticFS`, and the development build's were empty.)
 
 The reason is the Go build cache. A package that embeds files carries them in its
 compiled form, and a change anywhere in your project recompiles `main`, so every
@@ -335,8 +361,8 @@ says so when it starts:
 16:10:23 ! collage dev: main.go embeds files into every development build, and each build stores another copy of them in the Go build cache; move the //go:embed lines into a file constrained with //go:build !collage_dev (see collage help dev)  patterns=all:static all:templates
 ```
 
-To fix it, move the two `//go:embed` variables out of `main.go` (and `"embed"` out
-of its imports) into two files of their own:
+To fix it, move the `//go:embed` variables out of `main.go` (and `"embed"` out
+of its imports) into two files of their own. The ones a new project gets are:
 
 ```go
 // embed.go
@@ -346,11 +372,8 @@ package main
 
 import "embed"
 
-//go:embed all:templates
-var templatesFS embed.FS
-
-//go:embed all:static
-var staticFS embed.FS
+//go:embed all:templates all:static plugins-config.json
+var files embed.FS
 ```
 
 ```go
@@ -359,13 +382,18 @@ var staticFS embed.FS
 
 package main
 
-import "embed"
-
-var (
-	templatesFS embed.FS
-	staticFS    embed.FS
+import (
+	"io/fs"
+	"os"
 )
+
+var files fs.FS = os.DirFS(".")
 ```
+
+A `main.go` that still reads `templatesFS` and `staticFS` keeps the two
+variables, each with its own `//go:embed` line, and declares them empty in
+`embed_dev.go`; to move to `files`, copy `main.go`, `embed.go` and `embed_dev.go`
+from a new project.
 
 `go clean -cache` reclaims what is already in the cache. Your editor's `gopls`,
 which builds without the tag, reports `embed_dev.go` as excluded by build
@@ -448,12 +476,22 @@ export COLLAGE_CSRF_KEY="0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b
   `collage dev` itself listens, read once when it starts. `COLLAGE_DEV_HOST` is
   read from the file or the shell too, and the program is given it with
   `collage dev`'s own `HOST` added.
+- `BASE_URL`, when neither the shell nor the file sets it, is `collage dev`'s own
+  address, `http://localhost:6060` (since v0.68.0). A plugin that writes absolute
+  URLs — a sitemap, a canonical link — refuses to start without an origin, and in
+  development that is the right one. Deployed, set it yourself.
 - No file is not an error. When a file is read, its name is printed on stderr.
 - The file is read again on every restart, and it is watched, so editing it
   restarts the program with the new values.
 
-Only `collage dev` reads these files. `collage build`, `collage export` and the
-built binary take their environment from wherever they run.
+A program whose `main` calls `collage.Main`, as a scaffolded one does, reads them
+too, with the same rules (since v0.68.0): `go run .`, `collage export` and the
+built binary load `.env` from the working directory — `.env.development` first
+under `COLLAGE_DEV=1` — before `newApp` runs, so `os.Getenv("BASE_URL")` sees it
+with no `source .env`. Outside development the file read is named on stderr. On a
+server that sets its variables itself, the variables win and a missing file is no
+error; a malformed line stops the program with the file and the line. A `main` of
+your own that does not call `collage.Main` reads no file.
 
 ## collage build
 
@@ -630,7 +668,7 @@ complete `{{.` and check a field name the way registration does — see
 ```json
 "fragments": [
   {"name": "post-body", "template": "pages/post.html", "handler": true, "dataType": "*blog.Post"},
-  {"name": "layout", "template": "layouts/default.html", "dataType": "nil"},
+  {"name": "layout", "template": "layouts/master.html", "dataType": "nil"},
   {"name": "legacy", "template": "pages/legacy.html", "handler": true, "dataType": null, "typeCheck": false}
 ],
 "types": {
@@ -782,11 +820,18 @@ $ collage plugin add elagoht/consent
 added elagoht/consent v0.2.0
   plugins.go           consent.New(consent.Options{})
   plugins-config.json  "elagoht/consent": {}
+
+elagoht/consent
+  The banner needs its categories and wording: set `"categories"` (at least one) and `"text"` (the default locale's wording, labelling every category; other locales under `"locales"`) in this plugin's section of `plugins-config.json`. Without categories the application does not start.
+  Docs: https://github.com/Elagoht/collage-consent
 ```
 
-It then prints the manifest's `setup` note, when there is one: what only Go can
-give the plugin. An empty section means the defaults, and a setting the plugin
-requires is reported by the plugin when the application starts.
+It then prints what the plugin still needs from you, from its manifest (since
+v0.68.0): its `setup` note, the template functions it adds, each with the first
+sentence of its description, and its documentation's address. With several
+plugins — a bundle, `new --with` — these come together at the end, under "What
+each plugin needs from you". An empty section means the defaults, and a setting
+the plugin requires is reported by the plugin when the application starts.
 
 - **The import is named after the package.** When that name is already an import
   of `plugins.go`, or a name declared anywhere in the package, it becomes
@@ -1055,9 +1100,10 @@ writes `dist/about/index.html` too. `collage serve` then shows `dist/` on
 
 ## The contract with main.go
 
-`dev`, `export` and `inspect` depend on three things your `main.go` does, and the
-scaffolded one does all three. The third, handing the words after its flags to
-`collage.DispatchCommands`, is also what runs your plugins' commands:
+`dev`, `export` and `inspect` depend on three things your `main.go` does, and
+`collage.Main`, which the scaffolded one calls (since v0.68.0), does all three. The
+third, handing the words after its flags to `collage.DispatchCommands`, is also
+what runs your plugins' commands:
 
 | Command | Runs | Your `main.go` must |
 | --- | --- | --- |
@@ -1068,7 +1114,76 @@ scaffolded one does all three. The third, handing the words after its flags to
 `collage build` needs nothing from `main.go`: compiling is something `go build`
 does without being told anything.
 
-The scaffolded version, trimmed to the part that matters:
+The scaffolded `main.go` leaves all of it to `collage.Main`:
+
+```go
+func main() {
+	collage.Main(newApp)
+}
+
+func newApp(env collage.Env) (*collage.App, error) {
+	pluginConfig, err := env.PluginConfig(files)
+	if err != nil {
+		return nil, err
+	}
+
+	app, err := collage.New(&collage.Config{
+		DevMode: env.Dev,
+		BaseURL: os.Getenv("BASE_URL"),
+		Server:  collage.ServerConfig{Host: env.Host, Port: env.Port},
+		Template: collage.TemplateConfig{
+			FS:        files,
+			Root:      "templates",
+			Extension: ".html",
+		},
+		Cache: collage.CacheConfig{
+			Enabled:    true,
+			Type:       "disk",
+			Dir:        env.CacheDir,
+			DefaultTTL: 5 * time.Minute,
+		},
+		PluginConfig: pluginConfig,
+		Plugins:      plugins(),
+		Security: collage.SecurityConfig{
+			CSRFKey: []byte(os.Getenv("COLLAGE_CSRF_KEY")),
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if err := register(app); err != nil {
+		return nil, err
+	}
+
+	return app, app.Mount("/static/", env.Static(files, "static"))
+}
+```
+
+`collage.Main` loads the [environment file](#environment-files), parses
+`-collage-build`, `-out`, `-clean` and `-port`, and calls `newApp` with a
+`collage.Env`:
+
+| Field | Value |
+| --- | --- |
+| `Dev` | `COLLAGE_DEV=1`, which `collage dev` sets |
+| `Host` | `HOST`, or `localhost` |
+| `Port` | `-port`, `PORT`, or `6060` |
+| `CacheDir` | `.cache`; a test passes a directory of its own |
+
+`env.PluginConfig(files)` reads `plugins-config.json` from the working directory
+when it is there, so a deployment can change a setting without a rebuild, and
+otherwise the copy the binary embeds, so a binary deployed without the file keeps
+its settings. `env.Static(files, "static")` serves the static directory from disk
+in development and embedded otherwise. Then `collage.Main` dispatches a plugin's
+command, renders to `-out` on `-collage-build`, or serves, and shuts the
+application down after a build or a command.
+
+A project scaffolded before v0.68.0 keeps working as it is. To move, copy the new
+`main.go`, `embed.go` and `embed_dev.go` from `collage new`, and call
+`newApp(collage.Env{CacheDir: t.TempDir()})` in tests. A `main` written without
+`collage.Main` — the shape a project scaffolded before v0.68.0 has, trimmed to the
+part that matters — keeps the contract this way:
 
 ```go
 func main() {
@@ -1129,13 +1244,12 @@ func shutdown(app *collage.App) error {
 ```
 
 A build and a command serve nothing, so `ListenAndServe` never shuts the
-application down for them. From collage v0.55.0 the scaffolded `main.go` calls
-`app.Shutdown` itself once either is done, so every plugin's `Shutdown` runs: what
-a plugin holds is flushed, and work handed to a queue plugin such as
-[elagoht/jobs](/docs/plugins#elagohtjobs) is at least logged when it is dropped. A
-project scaffolded earlier adds the `shutdown` function and its two calls by hand.
+application down for them. `collage.Main` calls `app.Shutdown` itself once either
+is done, and a `main` of your own does it as above, so every plugin's `Shutdown`
+runs: what a plugin holds is flushed, and work handed to a queue plugin such as
+[elagoht/jobs](/docs/plugins#elagohtjobs) is at least logged when it is dropped.
 
-If you rewrite `main.go`, keep all of it working, or `collage dev`,
+If you write `main` without `collage.Main`, keep all of it working, or `collage dev`,
 `collage export`, `collage inspect` and your plugins' commands stop doing anything
 useful in your project.
 
@@ -1146,10 +1260,10 @@ CLI does not run it.** The CLI never loads your application, so a command that
 only exists once your plugins have started is out of its reach, and
 `collage <plugin-command>` is an unknown command.
 
-Your own program dispatches them, with `collage.DispatchCommands`, and the
-scaffolded `main.go` does (since v0.10.0 — a project scaffolded earlier can copy
-the block [above](#the-contract-with-maingo)). After the flags are parsed and the
-application is built, a word left over is a command:
+Your own program dispatches them, with `collage.DispatchCommands`.
+`collage.Main`, which the scaffolded `main.go` calls, already does. A `main` of
+your own does it this way (the block [above](#the-contract-with-maingo)): after
+the flags are parsed and the application is built, a word left over is a command:
 
 ```go
 if args := flag.Args(); len(args) > 0 {
@@ -1195,6 +1309,7 @@ usage.
 Dispatching starts the application, which closes registration, and a later
 `ListenAndServe` reuses that start. `DispatchCommands` does not shut the
 application down, since a program may go on to serve it: once a command has run,
-call `app.Shutdown` yourself, as above, so that every plugin's `Shutdown` runs.
+call `app.Shutdown` yourself, as above, so that every plugin's `Shutdown` runs;
+`collage.Main` does.
 Writing such a command is covered in
 [Writing a plugin](/docs/writing-plugins#commands).

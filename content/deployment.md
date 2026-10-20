@@ -1,6 +1,6 @@
 ---
 description: Build the binary, run it in a container or under systemd, set what production needs, and put it behind TLS.
-reference: ServerConfig, CacheConfig, LoadPluginConfig, IsHTTPS
+reference: ServerConfig, CacheConfig, LoadPluginConfig, Env.PluginConfig, IsHTTPS
 ---
 
 # Deployment
@@ -133,8 +133,13 @@ systemctl daemon-reload && systemctl enable --now mysite
 
 ## Environment
 
-The scaffolded `main.go` reads five variables. Nothing reads `.env` files in
-production — those are for `collage dev` — so set them wherever the binary runs.
+The scaffolded `main.go` reads five variables. Set them wherever the binary runs,
+or in a `.env` file in its working directory: `collage.Main`, which the scaffolded
+`main` calls, loads it before `newApp` runs (since v0.68.0; before, only
+`collage dev` read such files). What the server's environment already sets wins
+over the file, a missing file is no error, and a malformed line stops the program
+with the file and the line. Keep secrets such as `COLLAGE_CSRF_KEY` out of a file
+you commit; `.gitignore` ignores `.env` for that reason.
 
 One more is read by the framework itself, not by `main.go`: `COLLAGE_DEV_HOST`, which
 names extra hosts a development server answers (since v0.56.0). Leave it unset in
@@ -171,18 +176,15 @@ and cached pages with a form are rendered again once each.
 
 ## Embedded templates and static files
 
-A scaffolded project embeds both:
+A scaffolded project embeds both, with its plugin settings, as one filesystem:
 
 ```go
-//go:embed all:templates
-var templatesFS embed.FS
-
-//go:embed all:static
-var staticFS embed.FS
+//go:embed all:templates all:static plugins-config.json
+var files embed.FS
 ```
 
 Templates are given to collage as `Template.FS`, and static files are mounted from
-`fs.Sub(staticFS, "static")`. In development mode the directories on disk win, so
+`env.Static(files, "static")`. In development mode the directories on disk win, so
 editing a template shows on the next request; in production only the embedded copy
 is read, so what you tested is what runs, wherever the process starts.
 
@@ -194,33 +196,27 @@ in it reloads the browser too.
 
 ## Plugin configuration
 
-The scaffolded `main.go` reads `plugins-config.json` with
+Since v0.68.0 the scaffolded `newApp` reads `plugins-config.json` with
+`env.PluginConfig(files)`: the file in the working directory when there is one, so
+a deployment can change a setting without a rebuild, and otherwise the copy the
+binary embeds. A binary deployed without the file keeps the settings it was built
+with.
+
+A project scaffolded earlier reads it with
 `collage.LoadPluginConfig("plugins-config.json")` — a path relative to the working
 directory, not to the binary, and not embedded. A missing file is not an error: every
 plugin silently runs on its defaults. So a server started somewhere the file is not
-ignores your plugin settings without a word.
-
-The Dockerfile `collage build -i` writes copies it when the project has one at the
-time the Dockerfile is written (since v0.11.1; earlier ones copied only the binary).
-Add the line yourself if you create the file later — `collage build -i` never
-overwrites a Dockerfile — beside the `WORKDIR` the process starts in:
+ignores your plugin settings without a word. Move to `env.PluginConfig`, or copy the
+file where the process starts. The Dockerfile `collage build -i` writes copies it
+when the project has one at the time the Dockerfile is written (since v0.11.1;
+earlier ones copied only the binary). Add the line yourself if you create the file
+later — `collage build -i` never overwrites a Dockerfile — beside the `WORKDIR` the
+process starts in:
 
 ```dockerfile
 WORKDIR /srv
 COPY --from=build /mysite /usr/local/bin/mysite
 COPY --from=build /src/plugins-config.json /srv/plugins-config.json
-```
-
-or embed it, so it travels in the binary like the templates:
-
-```go
-//go:embed plugins-config.json
-var pluginConfigJSON []byte
-
-var pluginConfig map[string]json.RawMessage
-if err := json.Unmarshal(pluginConfigJSON, &pluginConfig); err != nil {
-	return nil, fmt.Errorf("plugin configuration: %w", err)
-}
 ```
 
 With systemd, keep the file in the unit's `WorkingDirectory`.
@@ -333,8 +329,8 @@ spec:
 If the server's wait runs out of time — a request still open when
 `ShutdownTimeout` passes — the plugins are shut down anyway, and `ListenAndServe`
 returns an error saying so (`collage: server shutdown: context deadline exceeded`),
-as it does for a plugin whose `Shutdown` failed. The scaffold's `main.go` passes
-that to `log.Fatalf`, so the process exits with status 1 rather than 0; a platform
+as it does for a plugin whose `Shutdown` failed. `collage.Main`, which the
+scaffold's `main.go` calls, logs it and exits with status 1 rather than 0; a platform
 that treats a non-zero exit on stop as a crash will say so.
 
 If you raise `DrainDelay` or `ShutdownTimeout`, raise your platform's grace period
@@ -407,7 +403,7 @@ The scaffold configures a disk cache:
 Cache: collage.CacheConfig{
 	Enabled:    true,
 	Type:       "disk",
-	Dir:        cacheDir, // ".cache"
+	Dir:        env.CacheDir, // ".cache"
 	DefaultTTL: 5 * time.Minute,
 },
 ```
@@ -646,8 +642,8 @@ does not have.
 
 ```go
 Server: collage.ServerConfig{
-	Host:         envString("HOST", "localhost"),
-	Port:         port,
+	Host:         env.Host,
+	Port:         env.Port,
 	WriteTimeout: time.Minute,
 },
 ```
@@ -817,8 +813,8 @@ h.Check("db", func(ctx context.Context) error { return db.PingContext(ctx) })
 
 app, err := collage.New(&collage.Config{
 	Server: collage.ServerConfig{
-		Host: envString("HOST", "localhost"),
-		Port: port,
+		Host: env.Host,
+		Port: env.Port,
 		// The load balancer's private address: only its X-Forwarded-For
 		// and X-Forwarded-Proto are believed.
 		TrustedProxies: []string{"10.0.1.10"},
@@ -829,7 +825,7 @@ app, err := collage.New(&collage.Config{
 	Cache: collage.CacheConfig{
 		Enabled:    true,
 		Type:       "disk",
-		Dir:        cacheDir, // ".cache", under the unit's WorkingDirectory
+		Dir:        env.CacheDir, // ".cache", under the unit's WorkingDirectory
 		DefaultTTL: 5 * time.Minute,
 	},
 	Plugins: []collage.Plugin{

@@ -57,17 +57,17 @@ itself; every template you save shows up on the next render without a rebuild.
 ## Look at the layout
 
 A minimal project already has one layout, and every page uses it. It is two
-files. The fragment, in `fragments/layouts/main.go`:
+files. The fragment, in `fragments/layouts/master.go`:
 
 ```go
 func Master() *collage.Fragment {
-	return collage.NewFragment("layout", "layouts/default.html").
+	return collage.NewFragment("layout", "layouts/master.html").
 		WithTitle("cookbook").
 		Build()
 }
 ```
 
-And its template, `templates/layouts/default.html`:
+And its template, `templates/layouts/master.html`:
 
 ```html
 <!doctype html>
@@ -390,11 +390,12 @@ See [How templates are checked](/docs/data-handlers#how-templates-are-checked).
 ## Add a second fragment in a slot
 
 A page is rarely one piece. Add a list of the other recipes, as its own fragment
-with its own data. `collage add fragment` writes a fragment beside the page's
-content, without a page of its own:
+with its own data. `collage add fragment` writes a fragment without a page of its
+own, where its path says; `pages/recipes/more` puts it beside the page's content,
+in the same package:
 
 ```sh
-collage add fragment recipes/more --file
+collage add fragment pages/recipes/more --file
 ```
 
 Replace `fragments/pages/recipes/more.go` with:
@@ -620,13 +621,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Elagoht/collage/pkg/collage"
 	"github.com/Elagoht/collage/pkg/collagetest"
 )
 
 func client(t *testing.T) *collagetest.Client {
 	t.Helper()
-	cacheDir = t.TempDir() // a disk cache of its own, not the last run's
-	app, err := newApp(false, 0)
+	app, err := newApp(collage.Env{CacheDir: t.TempDir()}) // a disk cache of its own, not the last run's
 	if err != nil {
 		t.Fatalf("newApp() = %v", err)
 	}

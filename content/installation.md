@@ -131,11 +131,13 @@ A minimal project looks like this:
 
 ```text
 mysite/
-├── main.go                     configuration, the static mount, the CLI contract, plugin commands
-├── embed.go                    templates/ and static/, embedded — left out of collage dev's builds
-├── embed_dev.go                the same variables, empty, for collage dev's builds
+├── main.go                     newApp, the configuration; main hands it to collage.Main
+├── embed.go                    files: templates/, static/ and plugins-config.json, embedded
+├── embed_dev.go                files as the project directory, for collage dev's builds
 ├── routes.go                   every page, document and action — a new route goes here
 ├── plugins.go                  the plugin list; collage plugin add and del edit it
+├── plugins-config.json         plugin settings, keyed by plugin name
+├── .env.example                the environment variables, to copy to .env
 ├── go.mod
 ├── .gitignore
 ├── README.md
@@ -145,7 +147,7 @@ mysite/
 │   ├── layouts/main.go         Master(), the layout every page shares, and the site's title
 │   └── pages/home.go           the home page's content and its data
 ├── templates/
-│   ├── layouts/default.html    the layout's HTML, with {{slot "content"}}
+│   ├── layouts/master.html     the layout's HTML, with {{slot "content"}}
 │   └── pages/home.html         <h1>Hello from {{.Name}}</h1>
 └── static/
     └── app.css                 the background and text colour, light and dark
@@ -157,7 +159,7 @@ grows, the rest goes where the demo project puts it:
 
 ```text
 pages/<area>/<name>.go            a page: its layouts, content, path, actions
-fragments/layouts/main.go         Master(), the layout every page wraps itself in
+fragments/layouts/master.go       Master(), the layout every page wraps itself in
 fragments/pages/<area>/<name>.go  each page's content, mirroring pages/
 actions/<area>.go                 action builders, one file per area
 actions/funcs/<area>.go           their handlers
@@ -175,8 +177,6 @@ The demo project adds:
 - `main_test.go`, whose tests drive `app.Handler()` with
   [`collagetest`](/docs/testing) and no server;
 - a not-found page;
-- `.env.example`, the variables for `collage dev` to copy;
-- `plugins-config.json`, plugin settings keyed by plugin name;
 - a favicon;
 - pages in the `demo` and `errors` areas, with their actions, a document, a
   counter in `data/count/`, and their templates and scripts.
@@ -187,14 +187,16 @@ A few things in it are worth knowing before you change them.
 `COLLAGE_DEV=1`, and the `HOST` and `PORT` to listen on, in its environment, and
 `collage export` runs it with `-collage-build -out <dir>`.
 
-The scaffolded `main.go` honours all of it: the variable turns on development mode, the server
-listens where it is told, and the flag renders the site to files instead of
-serving it.
+The scaffolded `main.go` is about fifty lines, because `main` only calls
+`collage.Main(newApp)` (since v0.68.0), and `collage.Main` honours all of it. It
+hands `newApp` a `collage.Env` — `Dev` set by the variable, the `Host` and `Port`
+to listen on, and `CacheDir` — serves where it is told, and renders the site to
+files when the flag is passed instead of serving it.
 
 A word after the flags — `go run . <command>` — runs a
-[plugin's command](/docs/plugins). If you rewrite `main.go`, keep all of it
-working, or those commands stop doing anything useful.
-[The CLI reference](/docs/cli) has the details.
+[plugin's command](/docs/plugins), and `collage.Main` dispatches that too. If you
+replace it with a `main` of your own, keep all of it working, or those commands
+stop doing anything useful. [The CLI reference](/docs/cli#the-contract-with-maingo) has the details.
 
 **`plugins.go` is the plugin list.** It is a function, `plugins()`, that returns the
 plugins in order, and `main.go` passes it once as `Plugins: plugins()`. It starts
@@ -207,18 +209,26 @@ without starting a server. The demo project's `main_test.go` calls the same func
 `app.Handler()` with `collagetest`, so the tests exercise the site that
 actually runs rather than a second wiring of it. See [Testing](/docs/testing).
 
-**Templates and static files are embedded.** `//go:embed all:templates` and
-`//go:embed all:static`, in `embed.go`, put them inside the binary, so it runs from
-any working directory. `collage dev` builds with `-tags collage_dev`, which swaps
-`embed.go` for `embed_dev.go` and embeds nothing: development reads the directories
-on disk, so an edited template still shows up on the next request, and the Go
-build cache does not gain a copy of them with every save (since v0.46.0; see
+**Templates, static files and plugin settings are embedded.** One
+`//go:embed all:templates all:static plugins-config.json` line, in `embed.go`,
+puts them inside the binary as one filesystem, `files`, so it runs from any
+working directory. `collage dev` builds with `-tags collage_dev`, which swaps
+`embed.go` for `embed_dev.go` and embeds nothing: there `files` is the project
+directory on disk, so an edited template still shows up on the next request, a
+plugin given `files` reads the copy you are editing, and the Go build cache does
+not gain a copy of them with every save (since v0.46.0; see
 [collage dev](/docs/cli#development-builds-embed-nothing)).
 
+`newApp` reads two things from `files` through the `Env`. `env.PluginConfig(files)`
+is `plugins-config.json`: the file in the working directory when there is one, so
+a deployment can change a setting without a rebuild, and otherwise the copy in the
+binary. `env.Static(files, "static")` is what `/static/` serves.
+
 **In development, static files are mounted with `os.OpenRoot`, not `os.DirFS`.**
-An `os.Root` refuses a symlink that leads out of the directory; `os.DirFS` follows
-it. In production the embedded copy is served, through `fs.Sub` so that its
-`static/` directory is not a second path segment. See [Static assets](/docs/assets).
+`env.Static` does it: an `os.Root` refuses a symlink that leads out of the
+directory; `os.DirFS` follows it. In production the embedded copy is served,
+through `fs.Sub` so that its `static/` directory is not a second path segment. See
+[Static assets](/docs/assets).
 
 **Rendered pages are cached on disk in production**, under `.cache/`. In
 development the page cache is never read, so an edit is never hidden behind a
@@ -226,12 +236,14 @@ stale page. See [Caching](/docs/caching).
 
 ## The environment file
 
-A demo project ships `.env.example`; in a minimal one, write the file yourself:
+Every project ships `.env.example` (a minimal one since v0.68.0). Without its
+comments it is:
 
 ```sh
 COLLAGE_CSRF_KEY=
 PORT=6060
 HOST=localhost
+BASE_URL=http://localhost:6060
 ```
 
 Copy it to `.env.development`, which is ignored by git:
@@ -257,10 +269,21 @@ file, never both. The rules are short:
   serving — and `collage dev` keeps watching, so saving the fix carries on.
 - No file at all is not an error. When there is one, its name is printed on
   stderr.
+- `BASE_URL`, when neither your shell nor the file sets it, is `collage dev`'s own
+  address, `http://localhost:6060` (since v0.68.0). A plugin that writes absolute
+  URLs — a sitemap, a canonical link — refuses to start without an origin, and in
+  development that is the right one.
 
-**Only `collage dev` reads these files.** `collage build`, `collage export` and the
-built binary never do; in production the environment comes from wherever the
-binary runs.
+**The program reads them too** (since v0.68.0). `collage.Main`, which the
+scaffolded `main` calls, loads `.env` from the working directory before `newApp`
+runs — `.env.development` first under `COLLAGE_DEV=1` — with the same rules. So
+`os.Getenv("BASE_URL")` sees the file in `go run .`, `collage export` and the
+built binary, with no `source .env`. On a server that sets its variables itself,
+those win, and a missing file is no error.
+
+`BASE_URL` is the address readers reach the site at, which a sitemap, a canonical
+link or a feed writes in front of a path. Change it with `PORT`; in production it
+is the site's own, `https://example.com`.
 
 `COLLAGE_CSRF_KEY` signs the tokens forms carry. Empty is fine while you develop —
 a key is generated for each process. Set one before you deploy anything with a

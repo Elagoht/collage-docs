@@ -74,7 +74,7 @@ A title known when the program starts — the site's name on its layout, the nam
 an about page — needs no code. `WithTitle` declares it on the fragment:
 
 ```go
-layout := collage.NewFragment("layout", "layouts/default.html").
+layout := collage.NewFragment("layout", "layouts/master.html").
 	WithTitle("The Wire").
 	Build()
 ```
@@ -155,7 +155,7 @@ less specific one's. That makes defaults easy — declare them in the layout, an
 any page override them:
 
 ```go
-layout := collage.NewFragment("layout", "layouts/default.html").
+layout := collage.NewFragment("layout", "layouts/master.html").
 	WithTitle("The Wire").
 	WithData(collage.Effect(func(_ context.Context, rc *collage.RenderContext) error {
 		rc.HoistMeta("description", "News about the sea, and the people who live beside it.")
@@ -239,7 +239,7 @@ whichever page is being rendered, with [`app.URL`](/docs/links-and-locales#links
 
 ```go
 func Layout(app *collage.App) *collage.Fragment {
-	return collage.NewFragment("layout", "layouts/default.html").
+	return collage.NewFragment("layout", "layouts/master.html").
 		WithData(collage.Effect(func(_ context.Context, rc *collage.RenderContext) error {
 			for _, locale := range []string{"en", "tr"} {
 				href, err := app.URL(rc.Page.Name, locale, rc.PathParams)
@@ -349,7 +349,7 @@ The layout's template is the one [at the top of this page](#where-it-lands). The
 layout names the shop and describes it, for any page that says nothing of its own:
 
 ```go
-layout := collage.NewFragment("layout", "layouts/default.html").
+layout := collage.NewFragment("layout", "layouts/master.html").
 	WithTitle("The Shop").
 	WithData(collage.Effect(func(_ context.Context, rc *collage.RenderContext) error {
 		rc.HoistMeta("description", "Lamps, rope and brass fittings for small boats.")

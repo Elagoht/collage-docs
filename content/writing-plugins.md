@@ -119,7 +119,7 @@ already parsed the templates, so it refuses such a plugin with
 | `Pages`, `Page`, `InvalidateTags` | — | yes |
 | `URL`, `Locales`, `PageURLs`, `OriginFor`, `MultiOrigin` | — | yes |
 | `BuildID`, `ServeStatus` | — | yes |
-| `RegisterDocument`, `Mount`, `Handle`, `Use` | — | yes |
+| `RegisterDocument`, `Mount`, `OpenMounted`, `Handle`, `Use` | — | yes |
 | `RenderFragment` | — | yes |
 | `RegisterCommand` | — | yes |
 
@@ -150,6 +150,7 @@ cache to reach.
 | `InvalidateTags(ctx, tags...) error` | Invalidates every cached page built from any of the tags — on the built-in stores marks it stale, kept for a re-render that fails or is degraded — and marks the `collage.Cached` values stale. |
 | `RegisterDocument(doc) error` | Registers a document the plugin contributes. |
 | `Mount(prefix, fsys, opts...) error` | Serves a filesystem under a URL prefix. |
+| `OpenMounted(urlPath) (fs.File, error)` | Opens one of the site's own files by the URL it is served at — `/static/icon.png` — through the mount whose prefix it is under: from disk in development, embedded in a built binary. A missing file is `fs.ErrNotExist` (since v0.68.0). |
 | `Handle(prefix, handler) error` | Serves an `http.Handler` under a URL prefix ending in `/`, or at one exact path without it (`/metrics`, since v0.24.0), as `App.Handle` does — an event stream, a WebSocket (since v0.18.0). Unlike a plain `App.Handle` mount since v0.67.0, it runs inside the middleware. |
 | `RenderFragment(r, req) (*collage.FragmentRender, error)` | Renders a fragment a page opened with `WithFragmentPath`, in parts — see [Pushing fragments](#pushing-fragments) (since v0.18.0). |
 | `RegisterCommand(cmd) error` | Contributes a command — see [Commands](#commands). |
@@ -1163,6 +1164,23 @@ A plugin that links to pages asks where they live rather than guessing:
 `WithStaticParams` lists. A pattern without it has none a plugin could know. It is
 what a sitemap is made of. `App.Locales` and `App.PageURLs` are the same, for an
 application's own code.
+
+A plugin that *reads* one of the site's own files — a source image, a stylesheet —
+asks for it by the URL the site serves it at, with `Host.OpenMounted` (since
+v0.68.0), rather than by a path on disk:
+
+```go
+f, err := host.OpenMounted("/static/icon.png")
+if errors.Is(err, fs.ErrNotExist) {
+	// no icon yet: fall back, and say where to put one
+}
+```
+
+It goes through the application's mount, so it reads `static/icon.png` from disk in
+development and the embedded copy in a built binary, and nothing has to be copied
+beside the binary. Only what a request could reach opens: a dotfile, or a path
+outside every mount, is `fs.ErrNotExist`. elagoht/favicon reads its source this
+way.
 
 A plugin that *produces files* — resized images, generated icons — should serve
 them from a mount rather than a route. A static build copies every mount into its
