@@ -1,6 +1,6 @@
 ---
 description: Bir plugin'in neler yapabildiği, bir plugin'in nasıl register edilip yapılandırıldığı ve ne işe yaradıklarına göre gruplanmış, yayımlanmış kırk beş plugin.
-reference: Plugin, LoadPluginConfig, ErrUnknownPluginConfig, ErrAppStarted
+reference: Plugin, LoadPluginConfig, Env.PluginConfig, ErrUnknownPluginConfig, ErrAppStarted
 ---
 
 # Plugin kullanmak
@@ -111,7 +111,10 @@ collage plugin add elagoht/minimizer
 indirir, import'u ve constructor çağrısını plugin'in istediği yere `plugins.go`'ya
 yazar, `plugins-config.json`'a da boş bir `"elagoht/minimizer": {}` bölümü ekler:
 yani varsayılanlar. Bu plugin'in ihtiyaç duyduğu başka bir plugin varsa onu önce
-ekler.
+ekler. Ardından plugin'in sizden hâlâ neye ihtiyaç duyduğunu yazdırır (v0.68.0'dan
+beri): setup notunu, eklediği template fonksiyonlarını ve dokümantasyonunun
+adresini. Birkaç plugin eklendiğinde bunlar en sonda, "What each plugin needs from
+you" başlığı altında birlikte yazdırılır.
 
 Bir hata olursa her dosya olduğu gibi kalır. Kaldırmak da aynı şekilde, tersi
 yönde yapılır. Bölümde ayar varsa kaybolmasın diye yazdırılır:
@@ -236,7 +239,10 @@ identifier'ı paylaşır.
 
 En yaygın yöntem, programınızın yanında duran bir JSON dosyasıdır. `collage new` ile
 oluşturulan bir projede boş bir `plugins-config.json` dosyası bulunur ve proje bu
-dosyayı zaten yükler:
+dosyayı `env.PluginConfig(files)` ile (v0.68.0'dan beri) zaten yükler. Çalışma
+dizininde dosya varsa o okunur, yoksa binary'nin embed ettiği kopya. Böylece dosya
+olmadan deploy edilen bir binary ayarlarını korur. Scaffold edilmiş bir projenin
+dışında `LoadPluginConfig` yalnızca dosyayı okur:
 
 ```json
 {
@@ -2271,22 +2277,17 @@ bir sitenin ikonlarını tek bir kaynak görselden üretir: `favicon.ico`, Apple
 icon, web app ikonları ve onları listeleyen manifest. İkonları kökte sunar ve her
 page'in head'inden link'ler.
 
-```go
-import "github.com/Elagoht/collage-favicon"
-
-Plugins: []collage.Plugin{favicon.New(favicon.Options{
-	Source:     "assets/icon.png",
-	SVG:        "assets/icon.svg",
-	Name:       "The blog",
-	ThemeColor: "#0f172a",
-})},
+```sh
+collage plugin add elagoht/favicon
 ```
+
+v0.3.0'dan beri gereken yalnızca budur. İkonlar sitenin kendi `static/icon.png`
+dosyasından (varsa `static/icon.svg`'den de) üretilir. Böyle bir dosya olana kadar
+ikonlar collage'ınkilerdir. Ayarlar manifest ve renkler içindir:
 
 ```json
 {
   "elagoht/favicon": {
-    "source": "assets/icon.png",
-    "svg": "assets/icon.svg",
     "name": "The blog",
     "themeColor": "#0f172a",
     "backgroundColor": "#ffffff"
@@ -2294,10 +2295,22 @@ Plugins: []collage.Plugin{favicon.New(favicon.Options{
 }
 ```
 
-- v0.2.0, collage v0.61.0 ya da sonrasını gerektirir (v0.1.7, collage v0.60.0 için son sürümdü). Kaynak kare bir PNG, JPEG ya da
-  GIF'tir; ideal olarak 512 piksel ya da daha büyüktür. Diskten ya da `FS`'ten
-  okunur ya da byte olarak `SourceBytes` ve `SVGBytes` ile verilir (v0.2.0'dan önce
-  `Image` ve `SVGImage`). Başlangıç page'inin key'i `startURL`'dir.
+- v0.3.0, collage v0.68.0 ya da sonrasını gerektirir (v0.61.0–v0.67.x için son
+  sürüm v0.2.0, v0.60.0 için v0.1.7'ydi). Kaynak kare bir PNG, JPEG ya da GIF'tir;
+  ideal olarak 512 piksel ya da daha büyüktür.
+- **Kaynak varsayılan olarak `/static/icon.png`'dir** (v0.3.0'dan beri), SVG ise
+  varsa `/static/icon.svg`'dir. Bunlar sitenin kendi URL'leridir ve onları sunan
+  mount üzerinden
+  [`Host.OpenMounted`](/docs/writing-plugins#contributing-documents-and-mounts) ile okunur: development'ta diskten,
+  build edildikten sonra binary'nin embed ettiği kopyadan. `source` ve `svg` başka
+  bir dosyayı gösterir. `/` ile başlayan bir değer bir URL'dir ve aynı şekilde
+  okunur. Diğer her path diskten ya da `FS`'ten okunur. `SourceBytes` ve `SVGBytes`
+  byte'ları Go'da verir. Başlangıç page'inin key'i `startURL`'dir.
+- **Eksik bir kaynak uygulamayı asla durdurmaz** (v0.3.0'dan beri). Varsayılan
+  URL'de dosya yoksa collage'ın ikonlarını sunar ve dosyanın nereye konacağını
+  log'a yazar. Adı verilmiş ama bulunmayan, decode edilemeyen ya da kare olmayan bir
+  kaynak, aynı fallback ile bir uyarıdır. Uygulamayı yalnızca geçerli olmayan bir
+  renk durdurur.
 - İkonlar başlangıçta bir kez üretilir ve static document olarak sunulur. Bu yüzden
   static build onları yazar. SVG olduğu gibi geçirilir, asla rasterize edilmez.
 - Link'ler `?v=` ve kaynağın bir özetini taşır. Böylece değişen bir ikon, değişen bir

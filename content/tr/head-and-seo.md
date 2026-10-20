@@ -74,7 +74,7 @@ Program başlarken bilinen bir title, örneğin layout'taki site adı ya da "Hak
 page'inin adı, hiç kod gerektirmez. `WithTitle` onu fragment üzerinde tanımlar:
 
 ```go
-layout := collage.NewFragment("layout", "layouts/default.html").
+layout := collage.NewFragment("layout", "layouts/master.html").
 	WithTitle("The Wire").
 	Build()
 ```
@@ -160,7 +160,7 @@ kolaylaştırır. Varsayılanları layout'ta tanımlayın, her page istediğinde
 override etsin:
 
 ```go
-layout := collage.NewFragment("layout", "layouts/default.html").
+layout := collage.NewFragment("layout", "layouts/master.html").
 	WithTitle("The Wire").
 	WithData(collage.Effect(func(_ context.Context, rc *collage.RenderContext) error {
 		rc.HoistMeta("description", "News about the sea, and the people who live beside it.")
@@ -249,7 +249,7 @@ layout'tan, o an hangi page render ediliyorsa onun için,
 
 ```go
 func Layout(app *collage.App) *collage.Fragment {
-	return collage.NewFragment("layout", "layouts/default.html").
+	return collage.NewFragment("layout", "layouts/master.html").
 		WithData(collage.Effect(func(_ context.Context, rc *collage.RenderContext) error {
 			for _, locale := range []string{"en", "tr"} {
 				href, err := app.URL(rc.Page.Name, locale, rc.PathParams)
@@ -363,7 +363,7 @@ kendisi hakkında hiçbir şey söylemeyen her page için mağazanın adını ve
 açıklamasını verir:
 
 ```go
-layout := collage.NewFragment("layout", "layouts/default.html").
+layout := collage.NewFragment("layout", "layouts/master.html").
 	WithTitle("The Shop").
 	WithData(collage.Effect(func(_ context.Context, rc *collage.RenderContext) error {
 		rc.HoistMeta("description", "Lamps, rope and brass fittings for small boats.")

@@ -136,11 +136,13 @@ Minimal bir proje şöyle görünür:
 
 ```text
 mysite/
-├── main.go                     configuration, the static mount, the CLI contract, plugin commands
-├── embed.go                    templates/ and static/, embedded — left out of collage dev's builds
-├── embed_dev.go                the same variables, empty, for collage dev's builds
+├── main.go                     newApp, the configuration; main hands it to collage.Main
+├── embed.go                    files: templates/, static/ and plugins-config.json, embedded
+├── embed_dev.go                files as the project directory, for collage dev's builds
 ├── routes.go                   every page, document and action — a new route goes here
 ├── plugins.go                  the plugin list; collage plugin add and del edit it
+├── plugins-config.json         plugin settings, keyed by plugin name
+├── .env.example                the environment variables, to copy to .env
 ├── go.mod
 ├── .gitignore
 ├── README.md
@@ -150,7 +152,7 @@ mysite/
 │   ├── layouts/main.go         Master(), the layout every page shares, and the site's title
 │   └── pages/home.go           the home page's content and its data
 ├── templates/
-│   ├── layouts/default.html    the layout's HTML, with {{slot "content"}}
+│   ├── layouts/master.html     the layout's HTML, with {{slot "content"}}
 │   └── pages/home.html         <h1>Hello from {{.Name}}</h1>
 └── static/
     └── app.css                 the background and text colour, light and dark
@@ -163,7 +165,7 @@ büyüdükçe geri kalan her şey demo projesinin koyduğu yere gider:
 
 ```text
 pages/<area>/<name>.go            a page: its layouts, content, path, actions
-fragments/layouts/main.go         Master(), the layout every page wraps itself in
+fragments/layouts/master.go       Master(), the layout every page wraps itself in
 fragments/pages/<area>/<name>.go  each page's content, mirroring pages/
 actions/<area>.go                 action builders, one file per area
 actions/funcs/<area>.go           their handlers
@@ -181,8 +183,6 @@ Demo projesi bunlara ek olarak şunları içerir:
 - testleri `app.Handler()`'ı [`collagetest`](/docs/testing) ile ve sunucu
   başlatmadan çalıştıran `main_test.go`;
 - bir not-found page'i;
-- `collage dev` için kopyalanacak değişkenleri tutan `.env.example`;
-- plugin ayarlarını plugin adına göre tutan `plugins-config.json`;
 - bir favicon;
 - `demo` ile `errors` alanlarındaki page'ler. Bu page'lerle birlikte action'ları,
   bir document, `data/count/` içinde bir sayaç ve bunların template'leri ile
@@ -194,14 +194,19 @@ Scaffold'daki birkaç şeyi, değiştirmeden önce bilmekte fayda var.
 `COLLAGE_DEV=1` ve dinleyeceği `HOST` ile `PORT` tanımlı olarak çalıştırır.
 `collage export` ise programı `-collage-build -out <dir>` ile çalıştırır.
 
-Scaffold edilen `main.go` bunların hepsine uyar. Değişken development mode'u açar,
-sunucu kendisine söylenen adreste dinler, flag ise siteyi serve etmek yerine
-dosyalara render eder.
+Scaffold edilen `main.go` yaklaşık elli satırdır, çünkü `main` yalnızca
+`collage.Main(newApp)`'i çağırır (v0.68.0'dan beri) ve bunların hepsine
+`collage.Main` uyar. `newApp`'e bir `collage.Env` verir: değişkenin belirlediği
+`Dev`, dinlenecek `Host` ile `Port` ve `CacheDir`. Ardından kendisine söylenen
+adreste serve eder, flag verildiğinde ise siteyi serve etmek yerine dosyalara
+render eder.
 
 Flag'lerden sonra gelen bir kelime, yani `go run . <command>`, bir
-[plugin'in komutunu](/docs/plugins) çalıştırır. `main.go`'yu yeniden yazarsanız
+[plugin'in komutunu](/docs/plugins) çalıştırır. Bu komutu da `collage.Main`
+dispatch eder. `collage.Main`'i kendi yazdığınız bir `main` ile değiştirirseniz
 bunların hepsinin çalışmaya devam etmesini sağlayın. Aksi hâlde bu komutlar işe
-yarar hiçbir şey yapmaz. Ayrıntılar [CLI referansında](/docs/cli) yer alır.
+yarar hiçbir şey yapmaz. Ayrıntılar [CLI referansında](/docs/cli#the-contract-with-maingo) yer
+alır.
 
 **`plugins.go` plugin listesidir.** Bu dosyadaki `plugins()` fonksiyonu
 plugin'leri sırayla döndürür. `main.go` onu bir kez, `Plugins: plugins()` olarak
@@ -216,20 +221,27 @@ uygulamayı döner. Demo projesindeki `main_test.go` aynı fonksiyonu çağırı
 kurulmuş ikinci bir kopyasını değil, gerçekten çalışan siteyi test eder.
 [Test yazmak](/docs/testing) sayfasına bakın.
 
-**Template'ler ve static dosyalar embed edilir.** `embed.go` içindeki
-`//go:embed all:templates` ve `//go:embed all:static` bunları binary'nin içine
-gömer. Bu sayede binary herhangi bir çalışma dizininden çalışabilir. `collage dev`
-ise `-tags collage_dev` ile build eder: bu tag `embed.go` yerine `embed_dev.go`'yu
-alır ve hiçbir şey embed edilmez. Development diskteki dizinleri okur, böylece
-düzenlediğiniz bir template bir sonraki request'te yine görünür ve Go build cache'i
-her kaydetmede onların bir kopyasını daha biriktirmez (v0.46.0'dan beri;
+**Template'ler, static dosyalar ve plugin ayarları embed edilir.** `embed.go`
+içindeki tek bir `//go:embed all:templates all:static plugins-config.json` satırı
+bunları binary'nin içine tek bir dosya sistemi, yani `files` olarak embed eder. Bu
+sayede binary herhangi bir çalışma dizininden çalışabilir. `collage dev` ise
+`-tags collage_dev` ile build eder: bu tag `embed.go` yerine `embed_dev.go`'yu alır
+ve hiçbir şey embed edilmez. Orada `files` diskteki proje dizinidir. Böylece
+düzenlediğiniz bir template bir sonraki request'te yine görünür, `files` verilen
+bir plugin düzenlemekte olduğunuz kopyayı okur ve Go build cache'i her kaydetmede
+onların bir kopyasını daha biriktirmez (v0.46.0'dan beri;
 [collage dev](/docs/cli#development-builds-embed-nothing) sayfasına bakın).
 
+`newApp`, `Env` üzerinden `files`'tan iki şey okur. `env.PluginConfig(files)`,
+`plugins-config.json` dosyasıdır: çalışma dizininde bu dosya varsa o okunur, böylece
+bir deployment bir ayarı yeniden build etmeden değiştirebilir; yoksa binary'deki
+kopya okunur. `env.Static(files, "static")` ise `/static/`'in serve ettiği şeydir.
+
 **Development'ta static dosyalar `os.DirFS` ile değil, `os.OpenRoot` ile mount
-edilir.** Bir `os.Root`, dizinin dışına çıkan bir symlink'i reddeder. `os.DirFS`
-ise onu takip eder. Production'da embed edilmiş kopya serve edilir. Bu kopya
-`fs.Sub` üzerinden sunulur, böylece `static/` dizini URL'de ikinci bir path segment
-olarak görünmez. [Static asset'ler](/docs/assets) sayfasına bakın.
+edilir.** Bunu `env.Static` yapar. Bir `os.Root`, dizinin dışına çıkan bir symlink'i
+reddeder. `os.DirFS` ise onu takip eder. Production'da embed edilmiş kopya serve
+edilir. Bu kopya `fs.Sub` üzerinden sunulur, böylece `static/` dizini URL'de ikinci
+bir path segment olarak görünmez. [Static asset'ler](/docs/assets) sayfasına bakın.
 
 **Production'da render edilen page'ler diskte, `.cache/` altında cache'lenir.**
 Development'ta page cache hiç okunmaz. Böylece yaptığınız bir değişiklik hiçbir
@@ -237,13 +249,14 @@ zaman stale bir page'in arkasında kalmaz. [Caching](/docs/caching) sayfasına b
 
 ## Environment dosyası
 
-Demo projesi bir `.env.example` dosyasıyla gelir. Minimal projede dosyayı kendiniz
-yazın:
+Her proje bir `.env.example` dosyasıyla gelir (minimal proje de v0.68.0'dan beri).
+Yorumları çıkarıldığında dosya şöyledir:
 
 ```sh
 COLLAGE_CSRF_KEY=
 PORT=6060
 HOST=localhost
+BASE_URL=http://localhost:6060
 ```
 
 Bu dosyayı git'in yok saydığı `.env.development` dosyasına kopyalayın:
@@ -271,10 +284,21 @@ okur, ikisini birden okumaz. Kurallar kısadır:
   izlemeyi sürdürür, yani düzeltmeyi kaydettiğinizde süreç kaldığı yerden devam
   eder.
 - Hiç dosya olmaması bir hata değildir. Dosya varsa adı stderr'e yazılır.
+- Shell'iniz de dosya da `BASE_URL`'i ayarlamıyorsa değeri `collage dev`'in kendi
+  adresi olan `http://localhost:6060`'tır (v0.68.0'dan beri). Mutlak URL yazan bir
+  plugin, örneğin bir sitemap ya da bir canonical link, origin olmadan başlamayı
+  reddeder. Development'ta doğru origin de budur.
 
-**Bu dosyaları yalnızca `collage dev` okur.** `collage build`, `collage export` ve
-build edilmiş binary bu dosyaları hiçbir zaman okumaz. Production'da environment,
-binary'nin çalıştığı ortamdan gelir.
+**Program da bu dosyaları okur** (v0.68.0'dan beri). Scaffold edilen `main`'in
+çağırdığı `collage.Main`, `newApp` çalışmadan önce çalışma dizinindeki `.env`'i aynı
+kurallarla yükler. `COLLAGE_DEV=1` altında önce `.env.development`'a bakar. Böylece
+`os.Getenv("BASE_URL")` dosyayı `go run .`'ta, `collage export`'ta ve build edilmiş
+binary'de görür, `source .env` gerekmez. Değişkenlerini kendisi ayarlayan bir
+sunucuda o değişkenler önceliklidir ve dosyanın olmaması bir hata değildir.
+
+`BASE_URL`, okuyucuların siteye ulaştığı adrestir. Bir sitemap, bir canonical link
+ya da bir feed bu adresi bir path'in önüne yazar. `PORT`'u değiştirirseniz bunu da
+değiştirin. Production'da sitenin kendi adresidir, örneğin `https://example.com`.
 
 `COLLAGE_CSRF_KEY`, form'ların taşıdığı token'ları imzalar. Development sırasında
 boş bırakabilirsiniz. Bu durumda her process için yeni bir key üretilir. Form

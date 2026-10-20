@@ -125,7 +125,7 @@ reddeder.
 | `Pages`, `Page`, `InvalidateTags` | — | evet |
 | `URL`, `Locales`, `PageURLs`, `OriginFor`, `MultiOrigin` | — | evet |
 | `BuildID`, `ServeStatus` | — | evet |
-| `RegisterDocument`, `Mount`, `Handle`, `Use` | — | evet |
+| `RegisterDocument`, `Mount`, `OpenMounted`, `Handle`, `Use` | — | evet |
 | `RenderFragment` | — | evet |
 | `RegisterCommand` | — | evet |
 
@@ -156,6 +156,7 @@ ulaşabileceği bir cache olmazdı.
 | `InvalidateTags(ctx, tags...) error` | Bu tag'lerden herhangi biriyle oluşturulmuş bütün cache'lenmiş page'leri invalidate eder (built-in store'larda onları başarısız ya da degraded bir yeniden render için tutarak stale olarak işaretler) ve `collage.Cached` değerlerini stale olarak işaretler. |
 | `RegisterDocument(doc) error` | Plugin'in eklediği bir document'ı register eder. |
 | `Mount(prefix, fsys, opts...) error` | Bir dosya sistemini bir URL prefix'i altında sunar. |
+| `OpenMounted(urlPath) (fs.File, error)` | Sitenin kendi dosyalarından birini sunulduğu URL ile (`/static/icon.png`), prefix'i altında bulunduğu mount üzerinden açar: development'ta diskten, build edilmiş bir binary'de embed edilmiş kopyadan. Eksik bir dosya `fs.ErrNotExist`'tir (v0.68.0'dan beri). |
 | `Handle(prefix, handler) error` | `App.Handle` gibi, bir `http.Handler`'ı `/` ile biten bir URL prefix'i altında ya da sonunda `/` olmayan tek bir tam path'te (`/metrics`, v0.24.0'dan beri) sunar. Örneğin bir event stream ya da bir WebSocket (v0.18.0'dan beri). v0.67.0'dan beri düz bir `App.Handle` mount'unun aksine middleware'in içinde çalışır. |
 | `RenderFragment(r, req) (*collage.FragmentRender, error)` | Bir page'in `WithFragmentPath` ile açtığı bir fragment'i kısımlar hâlinde render eder. Bkz. [Fragment göndermek](#pushing-fragments) (v0.18.0'dan beri). |
 | `RegisterCommand(cmd) error` | Bir komut ekler. Bkz. [Komutlar](#commands). |
@@ -1227,6 +1228,23 @@ kümesi için bir `collage.PageURL` (`Locale`, `Path`, `Params`).
 `WithStaticParams`'ı olmayan bir pattern'in, bir plugin'in bilebileceği hiçbir
 URL'si yoktur. Bir sitemap bundan oluşur. `App.Locales` ve `App.PageURLs` aynı
 metotlardır ve uygulamanın kendi kodu içindir.
+
+Sitenin kendi dosyalarından birini, örneğin bir kaynak görseli ya da bir stylesheet'i
+*okuyan* bir plugin, onu diskteki bir path ile değil, sitenin onu sunduğu URL ile
+`Host.OpenMounted` üzerinden (v0.68.0'dan beri) ister:
+
+```go
+f, err := host.OpenMounted("/static/icon.png")
+if errors.Is(err, fs.ErrNotExist) {
+	// no icon yet: fall back, and say where to put one
+}
+```
+
+Bu çağrı uygulamanın mount'u üzerinden geçer. Bu yüzden development'ta
+`static/icon.png`'yi diskten, build edilmiş bir binary'de ise embed edilmiş kopyadan
+okur. Binary'nin yanına hiçbir şeyin kopyalanması gerekmez. Yalnızca bir
+request'in ulaşabileceği dosyalar açılır: bir dotfile ya da hiçbir mount'un altında
+olmayan bir path `fs.ErrNotExist`'tir. elagoht/favicon kaynağını bu şekilde okur.
 
 *Dosya üreten* bir plugin, örneğin yeniden boyutlandırılmış görseller ya da
 üretilmiş ikonlar, bu dosyaları bir route yerine bir mount'tan sunmalıdır. Static

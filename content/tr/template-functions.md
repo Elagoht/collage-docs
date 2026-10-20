@@ -588,7 +588,7 @@ Page'in, stok kutusunun ve sepet action'ının her locale'de bir path'i vardır:
 - Ürün `Required`'dır: o olmadan page'in gösterecek bir şeyi yoktur.
 
 ```go
-layout := collage.NewFragment("layout", "layouts/default.html").Build()
+layout := collage.NewFragment("layout", "layouts/master.html").Build()
 
 stock := collage.NewFragment("product-stock", "fragments/stock.html").
 	WithData(collage.Load(loadStock)).
@@ -622,7 +622,7 @@ Layout dükkânın stylesheet'ine link verir, head'in area'sını işaretler ve 
 seçiciyi taşır:
 
 ```html
-<!-- templates/layouts/default.html -->
+<!-- templates/layouts/master.html -->
 <!doctype html>
 <html>
 <head>

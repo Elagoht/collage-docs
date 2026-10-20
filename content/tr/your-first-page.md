@@ -60,17 +60,17 @@ gerekmeden bir sonraki render'da görünür.
 ## Layout'a bakın
 
 Minimal bir projede hazır bir layout vardır ve her page onu kullanır. Layout iki
-dosyadan oluşur. Fragment'i `fragments/layouts/main.go` dosyasındadır:
+dosyadan oluşur. Fragment'i `fragments/layouts/master.go` dosyasındadır:
 
 ```go
 func Master() *collage.Fragment {
-	return collage.NewFragment("layout", "layouts/default.html").
+	return collage.NewFragment("layout", "layouts/master.html").
 		WithTitle("cookbook").
 		Build()
 }
 ```
 
-Template'i ise `templates/layouts/default.html` dosyasındadır:
+Template'i ise `templates/layouts/master.html` dosyasındadır:
 
 ```html
 <!doctype html>
@@ -409,10 +409,11 @@ bir `collage.ErrTemplateType` döner. Bkz.
 
 Bir page nadiren tek bir kısımdan oluşur. Diğer tariflerin listesini, kendi verisi
 olan ayrı bir fragment olarak ekleyin. `collage add fragment`, kendi page'i
-olmayan bir fragment'i page'in içeriğinin yanına yazar:
+olmayan bir fragment'i path'inin gösterdiği yere yazar. `pages/recipes/more` onu
+page'in içeriğinin yanına, aynı package'a koyar:
 
 ```sh
-collage add fragment recipes/more --file
+collage add fragment pages/recipes/more --file
 ```
 
 `fragments/pages/recipes/more.go` dosyasını şununla değiştirin:
@@ -644,13 +645,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Elagoht/collage/pkg/collage"
 	"github.com/Elagoht/collage/pkg/collagetest"
 )
 
 func client(t *testing.T) *collagetest.Client {
 	t.Helper()
-	cacheDir = t.TempDir() // a disk cache of its own, not the last run's
-	app, err := newApp(false, 0)
+	app, err := newApp(collage.Env{CacheDir: t.TempDir()}) // a disk cache of its own, not the last run's
 	if err != nil {
 		t.Fatalf("newApp() = %v", err)
 	}

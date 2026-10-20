@@ -1,6 +1,6 @@
 ---
 description: Stylesheet'leri, script'leri, görselleri ve indirilecek dosyaları bir dizinden ya da gömülü bir dosya sisteminden, bir yıl cache'lenebilen URL'lerle sunmak.
-reference: App.Mount, MountOption, WithCacheControl, WithoutBuildCopy, ErrUnknownAsset
+reference: App.Mount, MountOption, WithCacheControl, WithoutBuildCopy, ErrUnknownAsset, Env.Static
 ---
 
 # Static asset'ler
@@ -79,18 +79,16 @@ func mountAssets(app *collage.App) error {
 
 Development'ta ise diskteki dizini kullanmak istersiniz. Gömülü kopya
 binary build edildiği anda sabitlenmiştir, bu yüzden bir dosyayı düzenlemek hiçbir
-şeyi değiştirmez. Scaffold edilmiş bir proje bunu şöyle yapar:
+şeyi değiştirmez. Bu seçimi `Env.Static` (v0.68.0'dan beri) yapar. Scaffold edilmiş
+bir projenin `newApp`'i de onun döndürdüğünü mount eder:
 
 ```go
-func staticFiles(devMode bool) (fs.FS, error) {
-	if devMode {
-		if root, err := os.OpenRoot("static"); err == nil {
-			return root.FS(), nil
-		}
-	}
-	return fs.Sub(staticFS, "static")
-}
+return app, app.Mount("/static/", env.Static(files, "static"))
 ```
+
+`Env.Dev` açıkken diskteki dizini `os.OpenRoot` ile açar. Değilse embed edilmiş
+kopya olan `fs.Sub(files, "static")`'i döner. v0.68.0'dan önce scaffold aynı seçimi
+kendine ait bir `staticFiles` fonksiyonunda açıkça yazıyordu.
 
 collage bu seçimi template'ler için kendisi yapar, çünkü `Template.Root`
 template'lerin diskte nerede olduğunu ona söyler. Bir mount'a ise yalnızca bir
@@ -305,33 +303,29 @@ medya dizini, hiçbir page'in kullanmadığı adlar için ikiye katlanmaz.
 ### Mount etmek
 
 Dosyalar embed edilir, böylece binary herhangi bir dizinden çalışır. `collage dev`
-ise bunun yerine diskteki dizini sunar. `staticFiles`,
-[Embed etmek](#embedding) bölümündeki fonksiyondur:
+ise bunun yerine diskteki dizini sunar. `env.Static`,
+[Embed etmek](#embedding) bölümündeki seçimdir:
 
 ```go
 //go:embed all:static
 var staticFS embed.FS
 
 func main() {
-	devMode := os.Getenv("COLLAGE_DEV") == "1"
+	collage.Main(newApp)
+}
 
+func newApp(env collage.Env) (*collage.App, error) {
 	app, err := collage.New(&collage.Config{
-		DevMode:  devMode,
+		DevMode:  env.Dev,
 		Template: collage.TemplateConfig{Root: "templates"},
 	})
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
-	static, err := staticFiles(devMode)
-	if err != nil {
-		log.Fatal(err)
-	}
-	if err := app.Mount("/static/", static); err != nil {
-		log.Fatal(err)
-	}
+	// register pages
 
-	// register pages, then serve
+	return app, app.Mount("/static/", env.Static(staticFS, "static"))
 }
 ```
 

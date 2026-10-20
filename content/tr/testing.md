@@ -1,6 +1,6 @@
 ---
 description: Gerçek uygulamayı app.Handler() ve cookie saklayıp form'ları tarayıcı gibi gönderen pkg/collagetest ile test edin: page'ler, form'lar, document'lar, export.
-reference: Build, BuildOptions, App
+reference: Build, BuildOptions, App, Env
 ---
 
 # Test yazmak
@@ -69,10 +69,11 @@ kurulmuş bir test dosyasıyla gelir. Bu sayfa o dosyadaki kalıbı adım adım 
 Scaffold edilen `main.go`, uygulamayı ayrı bir fonksiyonda kurar:
 
 ```go
-func newApp(devMode bool, port int) (*collage.App, error)
+func newApp(env collage.Env) (*collage.App, error)
 ```
 
-`main` bu fonksiyonu siteyi serve etmek için, testler ise test etmek için çağırır.
+`main` bu fonksiyonu siteyi serve etmesi için `collage.Main`'e verir, testler ise
+test etmek için çağırır.
 Test dosyasındaki en önemli karar budur. Testler, gerçekten çalışan siteyi gerçek
 config'i, route'ları ve mount'larıyla birlikte sınar. Zamanla ondan uzaklaşan ikinci
 bir kurulumu sınamaz.
@@ -81,8 +82,7 @@ bir kurulumu sınamaz.
 // client returns a browser of its own on a fresh copy of the site.
 func client(t *testing.T) *collagetest.Client {
 	t.Helper()
-	cacheDir = t.TempDir()
-	app, err := newApp(false, 0)
+	app, err := newApp(collage.Env{CacheDir: t.TempDir()})
 	if err != nil {
 		t.Fatalf("newApp() = %v, want nil", err)
 	}
@@ -91,9 +91,12 @@ func client(t *testing.T) *collagetest.Client {
 }
 ```
 
-`newApp(false, 0)` production config'ini kurar. Development mode kapalıdır ve port
-`0`'dır. collage bu `0` değerini kendi varsayılan portuyla değiştirir. Zaten hiçbir
-şey bu portu dinlemez.
+`newApp(collage.Env{CacheDir: t.TempDir()})` production config'ini kurar. `Dev`
+kapalıdır ve port `0`'dır. collage bu `0` değerini kendi varsayılan portuyla
+değiştirir. Zaten hiçbir şey bu portu dinlemez. Disk cache'i de teste özeldir.
+v0.68.0'dan önce scaffold edilmiş bir projede bunun yerine
+`newApp(devMode bool, port int)` ve bir `cacheDir` değişkeni bulunur. Projeyi
+taşımak için [CLI](/docs/cli#the-contract-with-maingo) sayfasına bakın.
 
 Bundan sonra her test, bir request atmaktan ve response'a bakmaktan ibarettir:
 
@@ -194,19 +197,17 @@ res := site.Get("/posts").WantStatus(http.StatusOK)
 
 ## Disk cache'ini izole edin
 
-Scaffold'daki cache dizini bir package değişkenidir. `client`, uygulamayı kurmadan
-önce bu değişkeni yeni bir dizine yönlendirir:
+Scaffold'daki cache dizini `Env`'in `CacheDir`'idir. Uygulamayı `collage.Main`
+kurduğunda bu `.cache`'tir, `client` kurduğunda ise yeni bir dizindir:
 
 ```go
-// cacheDir is where rendered pages are kept between restarts. A variable so the
-// tests can point it at a directory of their own.
-var cacheDir = ".cache"
+app, err := newApp(collage.Env{CacheDir: t.TempDir()})
 ```
 
 Development mode kapalıyken uygulama disk cache'ini kullanır. Aynı dizini ve aynı
 build'i kullanan her şey bu disk cache'ini paylaşır.
 
-`cacheDir = t.TempDir()` satırı olmasaydı, bir teste önceki bir testin render
+Kendine ait bir `CacheDir` olmasaydı, bir teste önceki bir testin render
 ettiği bir page sunulabilirdi. Cache process bittikten sonra da kaldığı için bu page
 önceki bir çalıştırmadan da gelebilirdi. Test de kodla hiçbir ilgisi olmayan
 nedenlerle geçer ya da kalırdı. Ayrıca package'ınızın içinde bir `.cache` dizini
@@ -217,9 +218,8 @@ Uygulamayı, `client`'ın yaptığı gibi, onu oluşturduktan sonra register ett
 bu yazmaları bekler. Böylece dizin, bir yazma hâlâ sürerken silinmez.
 `collagetest.NewSite` bunu kendisi yapar.
 
-`cacheDir` bütün package tarafından paylaşıldığı için bu testler `t.Parallel()`
-çağırmaz. Paralel test istiyorsanız dizini bunun yerine `newApp`'e parametre olarak
-verin.
+Her test kendi dizinini verir. Bu yüzden `t.Parallel()` çağırmasına hiçbir engel
+yoktur.
 
 Caching'i test eden bir test bu durumdan yararlanabilir. Aynı client ile iki request
 atın ve ikincisinin cache'ten sunulduğunu kontrol edin. Ya da iki request arasında
@@ -415,14 +415,13 @@ orada olduğunu kontrol edin:
 ```go
 // The export writes the home page, every doc and the 404 page.
 func TestExport(t *testing.T) {
-	cacheDir = t.TempDir()
-	app, err := newApp(false, 0)
+	app, err := newApp(collage.Env{CacheDir: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
 	out := t.TempDir()
-	if err := staticBuild(app, out, false); err != nil {
-		t.Fatalf("staticBuild: %v", err)
+	if _, err := collage.Build(context.Background(), app, collage.BuildOptions{OutDir: out}); err != nil {
+		t.Fatalf("build: %v", err)
 	}
 	loaded, _ := site.Load(content.FS)
 	want := []string{"index.html", "404.html"}
@@ -437,13 +436,13 @@ func TestExport(t *testing.T) {
 }
 ```
 
-Bu test, `collage export`'un çalıştırdığı `staticBuild` fonksiyonunun aynısını
-çağırır. Böylece test page'lerin yanında `WithStaticParams`'ı ve builder
-seçeneklerini de kapsar. `staticBuild` build'in hatasını döner. Degraded bir page,
-boş bir render ya da bir panic bu hata yüzünden testi başarısız kılar.
+Bu test, `collage export`'un çalıştırdığı builder'ın aynısını çalıştırır. Böylece
+test page'lerin yanında `WithStaticParams`'ı ve builder seçeneklerini de kapsar.
+`collage.Build` build'in hatasını döner. Degraded bir page, boş bir render ya da bir
+panic bu hata yüzünden testi başarısız kılar.
 
-Atlanan page'leri ve uyarıları da kontrol etmek için `collage.Build`'i doğrudan çağırın ve raporu
-okuyun:
+Atlanan page'leri ve uyarıları da kontrol etmek için `collage.Build`'in döndürdüğü
+raporu okuyun:
 
 ```go
 report, err := collage.Build(context.Background(), app, collage.BuildOptions{OutDir: t.TempDir()})
@@ -500,8 +499,7 @@ tek seferde kontrol eder. [`collage check`](/docs/cli#collage-check) komutunun
 
 ```go
 func TestLinks(t *testing.T) {
-	cacheDir = t.TempDir()
-	app, err := newApp(false, 0)
+	app, err := newApp(collage.Env{CacheDir: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}

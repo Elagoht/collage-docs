@@ -44,7 +44,7 @@ yazdığınız ad da budur:
 
 ```text
 templates/
-├── layouts/default.html     →  "layouts/default.html"
+├── layouts/master.html      →  "layouts/master.html"
 ├── pages/post.html          →  "pages/post.html"
 └── fragments/author.html    →  "fragments/author.html"
 ```
@@ -123,7 +123,9 @@ adı `templates/pages/post.html` gibi olurdu.
 prefix'i, adı `.` ya da `_` ile başlayan dosyaların da embed edilmesini sağlar. Düz
 bir `//go:embed templates` bu dosyaları atlar.
 
-`collage new` da projeyi bu şekilde oluşturur.
+`collage new` aynısını tek bir filesystem olan `files` ile oluşturur. Bu filesystem
+`templates`, `static` ve `plugins-config.json`'ı birlikte embed eder (v0.68.0'dan
+beri) ve `Template.FS` olarak verilir.
 
 ## Development'ta yeniden yükleme
 
@@ -415,7 +417,7 @@ func loadAuthor(ctx context.Context, rc *collage.RenderContext) (authorView, err
 Yazar kartı kendi başına bir fragment'tir ve yazının `author` slot'una bağlanır:
 
 ```go
-layout := collage.NewFragment("layout", "layouts/default.html").Build()
+layout := collage.NewFragment("layout", "layouts/master.html").Build()
 
 author := collage.NewFragment("author", "fragments/author.html").
 	WithData(collage.Load(loadAuthor)).
@@ -441,7 +443,7 @@ if err := app.RegisterPage(page); err != nil {
 Üç template:
 
 ```html
-<!-- templates/layouts/default.html -->
+<!-- templates/layouts/master.html -->
 <!doctype html>
 <html>
 <head>
@@ -483,7 +485,7 @@ etmediği bir path render'ı başarısız kılar.
 <title id="tpl-post-title">Render edilmiş blog yazısı page'i. Layout'un hoist head işareti, page'in tamamı render edildikten sonra doldurulur: yazının handler'ının hoist ettiği title ve description meta'sı ile yazının template'inin stylesheet ile tanımladığı post.css link'i oraya gider. Layout'un content slot'u post fragment'ini, yazının author slot'u da author fragment'ini tutar. Yazının içinde başlık ve okurların yorumları escape edilir; template.HTML tipindeki gövde olduğu gibi eklenir.</title>
 <defs><marker id="tpl-post-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
 <rect class="d-frame" x="4" y="4" width="312" height="246" rx="8" />
-<text x="14" y="21">layout</text><text class="d-small" x="60" y="21">layouts/default.html</text>
+<text x="14" y="21">layout</text><text class="d-small" x="60" y="21">layouts/master.html</text>
 <rect class="d-slot d-slot-b" x="14" y="30" width="292" height="36" rx="5" />
 <text class="d-small" x="24" y="51">hoist "head"</text>
 <rect class="d-chip" x="104" y="39" width="60" height="18" rx="9" /><text class="d-small" x="134" y="51" text-anchor="middle">&lt;title&gt;</text>

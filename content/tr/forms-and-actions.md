@@ -1,6 +1,6 @@
 ---
 description: Form post'larını, fetch çağrılarını ve webhook'ları action'larla karşılamak ve onları request forgery'ye karşı korumak.
-reference: NewAction, ActionBuilder, ActionResult, SeeOther, JSON, JSONBytes, Status, RenderPage, RenderFragment, PageBuilder.WithAction, PageBuilder.WithFragmentPath, ActionBuilder.WithStreamingBody, ActionBuilder.WithBodyTimeout, ErrCSRFHeaderRequired, ErrDuplicateRoute, ErrUnknownFragmentPath, FetchHeader, LocationHeader
+reference: NewAction, ActionBuilder, ActionResult, SeeOther, SeeOtherPage, JSON, JSONBytes, Status, RenderPage, RenderFragment, PageBuilder.WithAction, PageBuilder.WithFragmentPath, ActionBuilder.WithStreamingBody, ActionBuilder.WithBodyTimeout, ErrCSRFHeaderRequired, ErrDuplicateRoute, ErrUnknownFragmentPath, FetchHeader, LocationHeader
 ---
 
 # Form'lar ve action'lar
@@ -173,6 +173,7 @@ Response'u bir `ActionResult` belirler. Onu bir helper ile oluşturun:
 | Helper | Response |
 | --- | --- |
 | `collage.SeeOther(url)` | `url`'e `303 See Other` |
+| `collage.SeeOtherPage(rc, name, params)` | Adıyla belirtilen bir page'e `303 See Other`; path'ini `rc.URL` kurar. `(*ActionResult, error)` döner (v0.68.0'dan beri) |
 | `collage.RenderPage(page)` | Bu request'in `RenderContext`'i ile render edilmiş bütün bir page |
 | `collage.RenderFragment(f)` | Tek bir fragment'in markup'ı, layout olmadan |
 | `collage.JSON(status, v)` | `application/json` olarak marshal edilmiş `v`; `(*ActionResult, error)` döner |
@@ -328,9 +329,18 @@ değeriyle cevap verir; bu page action'dan önce oluşturulur. Dev mode'da body'
 bir `422` ile cevaplanan form post'u uyarı olarak log'lanır. Çünkü okuyucu boş bir
 sayfa görür ve bunun olağan sebebi `nil` bir `rc.Page`'dir.
 
-Bir page'e path yerine adıyla redirect etmek için
-[`rc.URL`](/docs/links-and-locales#links-from-go) kullanın (v0.37.0'dan beri).
-Bunun için de action'a `*App` taşımak gerekmez.
+Bir page'e path yerine adıyla redirect etmek için `collage.SeeOtherPage`
+kullanın (v0.68.0'dan beri). Böylece path'i değişen bir page, redirect'i eski path'e
+yönelmiş hâlde bırakamaz. Path'i
+[`rc.URL`](/docs/links-and-locales#links-from-go) ile, request'in locale'inde ve her
+değeri kendi path segment'i içinde tutarak kurar. Ad bilinmiyorsa hata döner.
+Bunun için de action'a `*App` taşımak gerekmez:
+
+```go
+return collage.SeeOtherPage(rc, "post", map[string]string{"slug": slug})
+```
+
+v0.68.0'dan önce path'i `rc.URL` ile (v0.37.0'dan beri) kurun ve `SeeOther`'a verin.
 
 Okuyucuyu geldiği yere geri gönderen bir login, o yeri `next` query parametresinden
 okur ve bu parametre okuyucunun girdisidir. `Location` olmadan önce
@@ -1006,11 +1016,11 @@ func TasksPage() *collage.Page {
 
 			result := collage.RenderFragment(list)
 			if !fetched {
-				back, err := rc.URL("tasks", map[string]string{"team": team})
+				var err error
+				result, err = collage.SeeOtherPage(rc, "tasks", map[string]string{"team": team})
 				if err != nil {
 					return nil, err
 				}
-				result = collage.SeeOther(back)
 			}
 			// The team's cached page renders again, for every member.
 			result.InvalidateTags = []string{Tag(team)}

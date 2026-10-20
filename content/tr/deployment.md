@@ -1,6 +1,6 @@
 ---
 description: Binary'yi build edin, bir container'da ya da systemd altında çalıştırın, production'ın ihtiyaç duyduklarını ayarlayın ve TLS'in arkasına koyun.
-reference: ServerConfig, CacheConfig, LoadPluginConfig, IsHTTPS
+reference: ServerConfig, CacheConfig, LoadPluginConfig, Env.PluginConfig, IsHTTPS
 ---
 
 # Deployment
@@ -137,9 +137,14 @@ systemctl daemon-reload && systemctl enable --now mysite
 
 ## Ortam değişkenleri
 
-Scaffold edilen `main.go` beş değişken okur. Production'da `.env` dosyalarını okuyan
-hiçbir şey yoktur, çünkü onlar `collage dev` içindir. Bu değişkenleri binary nerede
-çalışıyorsa orada ayarlayın.
+Scaffold edilen `main.go` beş değişken okur. Bunları binary nerede çalışıyorsa
+orada ya da çalışma dizinindeki bir `.env` dosyasında ayarlayın. Scaffold edilen
+`main`'in çağırdığı `collage.Main`, bu dosyayı `newApp` çalışmadan önce yükler
+(v0.68.0'dan beri; öncesinde bu dosyaları yalnızca `collage dev` okuyordu).
+Sunucunun environment'ında zaten tanımlı olan değer dosyadakinden önceliklidir.
+Dosyanın olmaması hata değildir, hatalı bir satır ise programı dosya adı ve satır
+numarasıyla birlikte durdurur. `COLLAGE_CSRF_KEY` gibi secret'ları commit ettiğiniz
+bir dosyaya koymayın; `.gitignore` bu nedenle `.env`'i yok sayar.
 
 Bir değişkeni daha `main.go` değil, framework'ün kendisi okur: bir development
 sunucusunun cevap vereceği ek host'ları adlandıran `COLLAGE_DEV_HOST` (v0.56.0'dan
@@ -178,18 +183,16 @@ edilir.
 
 ## Gömülü template'ler ve static dosyalar
 
-Scaffold edilen bir proje ikisini de gömer:
+Scaffold edilen bir proje ikisini de, plugin ayarlarıyla birlikte, tek bir dosya
+sistemi olarak embed eder:
 
 ```go
-//go:embed all:templates
-var templatesFS embed.FS
-
-//go:embed all:static
-var staticFS embed.FS
+//go:embed all:templates all:static plugins-config.json
+var files embed.FS
 ```
 
 Template'ler collage'a `Template.FS` olarak verilir. Static dosyalar ise
-`fs.Sub(staticFS, "static")` üzerinden mount edilir. Development mode'da diskteki
+`env.Static(files, "static")` üzerinden mount edilir. Development mode'da diskteki
 dizinler önceliklidir. Böylece bir template'i düzenlediğinizde değişiklik bir sonraki
 request'te görünür. Production'da yalnızca gömülü kopya okunur. Böylece process nerede
 başlatılırsa başlatılsın, çalışan şey test ettiğiniz şeydir.
@@ -202,35 +205,28 @@ dizini [`Config.DevWatch`](/docs/configuration#devwatch) içinde belirtirseniz
 
 ## Plugin config'i
 
-Scaffold edilen `main.go`, `plugins-config.json` dosyasını
+v0.68.0'dan beri scaffold edilen `newApp`, `plugins-config.json` dosyasını
+`env.PluginConfig(files)` ile okur. Çalışma dizininde dosya varsa onu okur, böylece
+bir deployment bir ayarı yeniden build etmeden değiştirebilir. Yoksa binary'nin embed
+ettiği kopyayı okur. Dosya olmadan deploy edilen bir binary, build edildiği andaki
+ayarları korur.
+
+Daha önce scaffold edilmiş bir proje dosyayı
 `collage.LoadPluginConfig("plugins-config.json")` ile okur. Bu path binary'ye göre
 değil, çalışma dizinine göredir ve dosya binary'ye gömülmez. Dosyanın bulunmaması bir
 hata değildir. Bu durumda her plugin sessizce kendi varsayılanlarıyla çalışır. Yani
 dosyanın olmadığı bir yerde başlatılan sunucu, plugin ayarlarınızı hiçbir uyarı
-vermeden yok sayar.
-
-`collage build -i`'nin yazdığı Dockerfile, yazıldığı sırada projede bu dosya varsa onu
-da kopyalar (v0.11.1'den itibaren; önceki sürümler yalnızca binary'yi kopyalıyordu).
-Dosyayı sonradan oluşturursanız satırı kendiniz ekleyin, çünkü `collage build -i` var
-olan bir Dockerfile'ın üzerine asla yazmaz. Dosyayı process'in başladığı `WORKDIR`'e
-koyun:
+vermeden yok sayar. `env.PluginConfig`'e geçin ya da dosyayı process'in başladığı
+yere kopyalayın. `collage build -i`'nin yazdığı Dockerfile, yazıldığı sırada
+projede bu dosya varsa onu da kopyalar (v0.11.1'den itibaren; önceki sürümler
+yalnızca binary'yi kopyalıyordu). Dosyayı sonradan oluşturursanız satırı kendiniz
+ekleyin, çünkü `collage build -i` var olan bir Dockerfile'ın üzerine asla yazmaz.
+Dosyayı process'in başladığı `WORKDIR`'e koyun:
 
 ```dockerfile
 WORKDIR /srv
 COPY --from=build /mysite /usr/local/bin/mysite
 COPY --from=build /src/plugins-config.json /srv/plugins-config.json
-```
-
-Ya da dosyayı gömün. Böylece dosya, template'ler gibi binary'nin içinde taşınır:
-
-```go
-//go:embed plugins-config.json
-var pluginConfigJSON []byte
-
-var pluginConfig map[string]json.RawMessage
-if err := json.Unmarshal(pluginConfigJSON, &pluginConfig); err != nil {
-	return nil, fmt.Errorf("plugin configuration: %w", err)
-}
 ```
 
 systemd kullanıyorsanız dosyayı unit'in `WorkingDirectory`'sinde tutun.
@@ -348,9 +344,9 @@ Sunucunun beklemesi için süre yetmezse, yani `ShutdownTimeout` dolduğunda hâ
 bir request varsa, plugin'ler yine de kapatılır. `ListenAndServe` de bunu bildiren
 bir hata döner (`collage: server shutdown: context deadline exceeded`).
 `Shutdown`'ı başarısız olan bir plugin için de aynı şekilde hata döner. Scaffold'daki
-`main.go` bu hatayı `log.Fatalf`'e verir. Bu yüzden process 0 yerine 1 status
-koduyla çıkar. Durdurma sırasında sıfırdan farklı bir exit kodunu crash olarak gören
-bir platform bunu crash olarak raporlar.
+`main.go`'nun çağırdığı `collage.Main` bu hatayı log'lar ve process 0 yerine 1
+status koduyla çıkar. Durdurma sırasında sıfırdan farklı bir exit kodunu crash
+olarak gören bir platform bunu crash olarak raporlar.
 
 `DrainDelay`'i ya da `ShutdownTimeout`'u artırırsanız platformunuzun grace
 period'unu da onunla birlikte artırın.
@@ -427,7 +423,7 @@ Scaffold bir disk cache'i yapılandırır:
 Cache: collage.CacheConfig{
 	Enabled:    true,
 	Type:       "disk",
-	Dir:        cacheDir, // ".cache"
+	Dir:        env.CacheDir, // ".cache"
 	DefaultTTL: 5 * time.Minute,
 },
 ```
@@ -680,8 +676,8 @@ olmadığı TLS bağlantısını iddia edemesin.
 
 ```go
 Server: collage.ServerConfig{
-	Host:         envString("HOST", "localhost"),
-	Port:         port,
+	Host:         env.Host,
+	Port:         env.Port,
 	WriteTimeout: time.Minute,
 },
 ```
@@ -859,8 +855,8 @@ h.Check("db", func(ctx context.Context) error { return db.PingContext(ctx) })
 
 app, err := collage.New(&collage.Config{
 	Server: collage.ServerConfig{
-		Host: envString("HOST", "localhost"),
-		Port: port,
+		Host: env.Host,
+		Port: env.Port,
 		// The load balancer's private address: only its X-Forwarded-For
 		// and X-Forwarded-Proto are believed.
 		TrustedProxies: []string{"10.0.1.10"},
@@ -871,7 +867,7 @@ app, err := collage.New(&collage.Config{
 	Cache: collage.CacheConfig{
 		Enabled:    true,
 		Type:       "disk",
-		Dir:        cacheDir, // ".cache", under the unit's WorkingDirectory
+		Dir:        env.CacheDir, // ".cache", under the unit's WorkingDirectory
 		DefaultTTL: 5 * time.Minute,
 	},
 	Plugins: []collage.Plugin{

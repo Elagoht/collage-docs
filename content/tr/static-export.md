@@ -34,9 +34,11 @@ go run . -collage-build -out dist        # plus -clean when you passed it
 | `-out dir` | `dist` | Dosyaların yazılacağı dizin. |
 | `-clean` | kapalı | Önce dizinin mevcut içeriğini siler. |
 
-Scaffold edilen `main.go` bu sözleşmeye uyar. `-collage-build` ile çalıştığında
-uygulamayı her zamanki gibi kurar, ama onu sunmak yerine collage'ın builder'ına
-verir ve ne olduğunu ekrana yazar. Bu fonksiyonun collage-docs'taki hâli aşağıdadır.
+Scaffold edilen `main.go` bu sözleşmeye `collage.Main` üzerinden (v0.68.0'dan
+beri) uyar. `-collage-build` ile çalıştığında uygulamayı her zamanki gibi kurar,
+ama onu sunmak yerine collage'ın builder'ına verir ve ne olduğunu ekrana yazar.
+Kendi yazdığınız bir `main` bunu aşağıdakine benzer bir fonksiyonla yapar. Bu,
+fonksiyonun collage-docs'taki hâlidir.
 Hangi page'lerin var olduğu onu ilgilendirmez, çünkü bunu her page
 [kendisi söyler](#dynamic-paths-withstaticparams):
 
@@ -63,9 +65,8 @@ page'ler ve uyarılar build'i başarısız kılmaz. Error seviyesindeki bir
 [finding](#reading-the-report) ise kılar; bu durumda da her page yine yazılır.
 
 Bir build de uygulamayı shutdown etmez ve ondan sonra hiçbir şey hizmet vermez. Bu
-yüzden build bitince çıkan bir program `app.Shutdown`'ı kendisi çağırır. collage
-v0.55.0'dan beri scaffold edilen `main.go` bunu yapar (bkz.
-[CLI](/docs/cli#the-contract-with-maingo)).
+yüzden build bitince çıkan bir program `app.Shutdown`'ı kendisi çağırır.
+`collage.Main` de bunu yapar (bkz. [CLI](/docs/cli#the-contract-with-maingo)).
 
 Aksi hâlde hiçbir plugin'in `Shutdown`'ı çalışmaz: bir plugin'in elinde tuttuğu
 şey hiçbir zaman flush edilmez ve [elagoht/jobs](/docs/plugins#elagohtjobs) gibi

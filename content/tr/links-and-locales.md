@@ -492,7 +492,7 @@ Her page locale başına bir path tanımlar. Ürün page'i stok fragment'ini her
 locale'de açar:
 
 ```go
-layout := collage.NewFragment("layout", "layouts/default.html").Build()
+layout := collage.NewFragment("layout", "layouts/master.html").Build()
 
 stock := collage.NewFragment("product-stock", "fragments/stock.html").
 	WithData(collage.Load(loadStock)).
@@ -529,7 +529,7 @@ Template'ler path değil, page adı yazar. Dil seçici layout'tadır. Katalog he
 adıyla belirtir:
 
 ```html
-<!-- templates/layouts/default.html -->
+<!-- templates/layouts/master.html -->
 <nav class="languages">
   {{with localeURL "en"}}<a hreflang="en" href="{{.}}">English</a>{{end}}
   {{with localeURL "tr"}}<a hreflang="tr" href="{{.}}">Türkçe</a>{{end}}

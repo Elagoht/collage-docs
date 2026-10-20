@@ -1,6 +1,6 @@
 ---
 description: collage CLI'ın bütün komutları (new, add, dev, build, export, serve, inspect, check, plugin, version, help), flag'leri ve her birinin neyi çalıştırdığı.
-reference: DispatchCommands, Command, ErrUnknownCommand, FragmentBuilder.WithoutTypeCheck, App, Registrable
+reference: Main, Env, Env.PluginConfig, Env.Static, DispatchCommands, Command, ErrUnknownCommand, FragmentBuilder.WithoutTypeCheck, App, Registrable
 ---
 
 # collage CLI
@@ -107,7 +107,7 @@ collage new <name> [--template minimal|demo] [--with plugins] [--dir path] [--mo
 
 ```sh
 collage new myblog                                   # into ./myblog, module "myblog", one page
-collage new myblog --template demo                   # the demos, their tests, a .env.example
+collage new myblog --template demo                   # the demos and their tests
 collage new myblog -module github.com/me/myblog
 collage new myblog -dir . -force                     # into the current, non-empty directory
 collage new myblog --with @blog,@prod                # iki paketin plugin'leriyle birlikte
@@ -118,7 +118,8 @@ okunamayan bir plugin adı kullanım hatasıdır ve dizin oluşturulmaz. Proje s
 edildikten sonra `new`, projeye CLI'ın kendi collage sürümünü ekler, ardından her
 plugin'i [`collage plugin add`](#collage-plugin) gibi ekler. Başarısız olan plugin
 raporlanır ve dışarıda bırakılır; proje ve diğer plugin'ler kalır, komut `1` ile
-çıkar. Eklenen plugin'lerin setup notları en sonda, bir arada yazdırılır.
+çıkar. Eklenen her plugin'in sizden beklediği şeyler (setup notu, template
+fonksiyonları ve dokümantasyonu) en sonda, bir arada yazdırılır.
 
 Scaffold edilen `main.go`, `BASE_URL`'ü `Config.BaseURL`'e okur (v0.59.0'dan beri):
 sitemap'in, canonical link'in ya da feed'in bir path'in önüne koyduğu origin. Bunu
@@ -133,9 +134,16 @@ yazdığı dosyalar, dizindeki aynı adlı dosyaların yerine geçer.
 **Her projede** şunlar bulunur:
 
 - `go.mod`;
-- config'i, static mount'u, [aşağıda](#the-contract-with-maingo) anlatılan CLI
-  sözleşmesini ve [plugin komutlarının](#plugin-commands) dispatch'ini içeren bir
-  `main.go`;
+- elli satır kadar bir `main.go`: kendisine verilen `collage.Env`'den config'i ve
+  static mount'u kuran `newApp` ile onu `collage.Main`'e veren bir `main`
+  (v0.68.0'dan beri). `collage.Main`, [aşağıda](#the-contract-with-maingo)
+  anlatılan CLI sözleşmesini yerine getirir ve
+  [plugin komutlarını](#plugin-commands) dispatch eder;
+- `files`'ı tanımlayan `embed.go` ve `embed_dev.go`: template'ler, static dosyalar
+  ve `plugins-config.json` embed edilir, development build'inde ise proje dizininin
+  kendisi kullanılır (bkz. [aşağısı](#development-builds-embed-nothing));
+- boş bir `plugins.go` ile `plugins-config.json` ve bir `.env.example`
+  (v0.68.0'dan beri her projede);
 - bütün route'ları register eden bir `routes.go`;
 - sitenin adını `WithTitle` ile veren ve hiç slot tanımlamayan bir layout
   (böylece bir page'in kendi başlığı sitenin başlığının yerine geçer);
@@ -146,15 +154,15 @@ yazdığı dosyalar, dizindeki aynı adlı dosyaların yerine geçer.
 **`--template demo`**, projeye canlı demolardan oluşan bir page ekler:
 JSON dönen bir action, kendi page'ine post eden bir form, kendi URL'si olan bir
 fragment ve bir JSON document. Demo projesi ayrıca bir not-found page'i,
-[`collagetest`](/docs/testing) ile yazılmış, her biri için testleri,
-`plugins-config.json`'ı, bir favicon'u ve bir `.env.example`'ı da ekler.
+[`collagetest`](/docs/testing) ile yazılmış, her biri için testleri ve bir
+favicon'u da ekler.
 
 **Yerleşim alana göredir** (v0.40.0'dan beri), yani gerçek bir uygulamanın
 yerleşimidir:
 
 ```text
 pages/<area>/<name>.go            a page: its layouts, content, path, actions
-fragments/layouts/main.go         Master(), the layout every page wraps itself in
+fragments/layouts/master.go       Master(), the layout every page wraps itself in
 fragments/pages/<area>/<name>.go  each page's content, mirroring pages/
 actions/<area>.go                 action builders, one file per area
 actions/funcs/<area>.go           their handlers
@@ -181,9 +189,7 @@ bulunur. Başka hiçbir şey yoktur: test yoktur, not-found page'i de yoktur. Si
 not-found page'i register edene kadar collage bilinmeyen adreslere kendi sade 404'üyle
 cevap verir.
 
-İş bittiğinde sonraki adımları yazdırır. `.env.example` dosyası olan demo
-projesinde, `collage dev`'den önce bir de `cp .env.example .env.development` satırı
-yazdırılır:
+İş bittiğinde sonraki adımları yazdırır:
 
 ```sh
 cd myblog
@@ -203,7 +209,10 @@ onu `routes.go` içinde register eder (v0.40.0'dan beri):
 ```sh
 collage add page blog/post          # pages/blog/post.go + fragments/pages/blog/post.go
 collage add page blog/post --file   # its template in templates/pages/blog/post.html
-collage add fragment blog/sidebar   # fragments/pages/blog/sidebar.go, for a slot
+collage add fragment blog/sidebar   # fragments/blog/sidebar.go, for a slot
+collage add fragment layouts/partials/siteFooter --file
+                                    # fragments/layouts/partials/siteFooter.go
+                                    # + templates/layouts/partials/siteFooter.html
 collage add action blog/comment     # actions/blog.go + actions/funcs/blog.go
 collage add action blog/ping --path /api/ping
 collage add document feed --path /feed.xml --type application/xml
@@ -228,15 +237,27 @@ collage add document feed --path /feed.xml --type application/xml
   ve register edilir. Verilmediğinde ise eklendiği page'de cevap verir ve komut,
   eklemeniz gereken `.WithActionFor(...)` satırını yazdırır.
 - **Bir document**, `documents/<name>.go` dosyasıdır.
-- **Bir fragment**, bir slot için page'i olmayan bir page içeriğidir. Komut, onu
-  bağlayan `.WithSlotFragment(...)` satırını yazdırır.
+- **Bir fragment**, bir page'in ya da layout'un bir slot'u için page'i olmayan bir
+  page içeriğidir. Komut, onu bağlayan `.WithSlotFragment(...)` satırını yazdırır.
+  v0.68.0'dan beri path'inin gösterdiği yere, `fragments/<area>/<name>.go`'ya
+  yazılır; template'i de template kökü altında `<area>/<name>`'dedir. Öncesinde
+  `fragments/pages/` altına yazılırdı. Package'ı o dizinde zaten olan package'tır,
+  yoksa dizinin adını alır: `fragments/layouts/partials`, `partials` olur. Bir
+  page'in içeriğinin yanında duracak bir fragment
+  `collage add fragment pages/blog/related` ile yazılır.
 
-Bir ad küçük harflerden, rakamlardan ve tirelerden oluşur. `--name` başka bir ad
-vermedikçe komutun yazdığı her şey son parçanın adını alır: `blog/post`, `Post()`
-ile kurulan `"post"` page'idir. Path'in locale'i, `main.go` onu nasıl yazıyorsa
-`Locale.Default`'tur; orada bir literal değilse `en`'dir; ya da `--locale` ile
-verilendir. Bir template dosyası `Template.Root` altına, `Extension`'ıyla birlikte
-yazılır; bunlar da aynı şekilde okunur. Komut hangi locale'i kullandığını söyler.
+Son parça bir Go adıdır ve yazıldığı gibi kalır (v0.68.0'dan beri):
+`blog/storyDetail`, `layouts/partials/siteFooter`. `--name` başka bir ad
+vermedikçe komutun yazdığı her şey, yani dosya, varsayılan URL ve ad, bu parçanın
+adını alır. Böylece `blog/storyDetail`, `/blog/storyDetail` adresindeki
+`"storyDetail"` page'idir. Fonksiyonu da ilk harfi büyütülmüş aynı addır:
+`StoryDetail()`. Tireli bir ad Go adı olmadığı için reddedilir. Son parçadan
+önceki dizinler yalnızca bir path'tir ve tire içerebilir: `user-settings/profile`.
+Package'ları ve import alias'ları tireleri atar: `usersettings`. Path'in locale'i,
+`main.go` onu nasıl yazıyorsa `Locale.Default`'tur; orada bir literal değilse
+`en`'dir; ya da `--locale` ile verilendir. Bir template dosyası `Template.Root`
+altına, `Extension`'ıyla birlikte yazılır; bunlar da aynı şekilde okunur. Komut hangi
+locale'i kullandığını söyler.
 
 Komut, `routes.go`'nun zaten tuttuğu listeye register eder. Bu liste bir
 `app.Register(...)` çağrısı olabilir; yeni öğe kendi türündeki son öğeden sonra
@@ -313,7 +334,8 @@ ve soluk attribute'larını korur. `collage dev`'in kendi satırları da aynı b
 ```
 
 Scaffold edilen `main.go`, `COLLAGE_DEV=1` ayarlı olduğunda development modunu açar
-ve kendisine verilen `HOST` ve `PORT` üzerinde dinler. Development modu template'leri
+ve kendisine verilen `HOST` ve `PORT` üzerinde dinler: `collage.Main` ikisini de
+`newApp`'e verdiği `Env`'e koyar. Development modu template'leri
 ve static dosyaları her request'te diskten okur. Bu yüzden onları düzenlediğinizde
 rebuild gerekmez ve rebuild yapılmaz; bunun yerine tarayıcınızdaki page kendini
 yeniler. Programınızın diskten kendisi okuduğu içerik de (örneğin Markdown), dizini
@@ -324,12 +346,19 @@ yeniler (v0.10.0'dan beri). Development modunun başka neleri değiştirdiğini
 ### Development build'leri hiçbir şey embed etmez
 
 v0.46.0'dan beri `collage dev`, `go build -tags collage_dev` ile build eder.
-Scaffold da `//go:embed` satırlarını `//go:build !collage_dev` ile başlayan
+Scaffold da `//go:embed` satırını `//go:build !collage_dev` ile başlayan
 `embed.go` dosyasında tutar. Yanındaki `embed_dev.go` (`//go:build collage_dev`)
-aynı iki değişkeni boş olarak tanımlar. Development modu `templates/` ve `static/`
+aynı değişkeni tanımlar. Development modu `templates/` ve `static/`
 dizinlerini zaten diskten okur, yani bir development build'inin embed edeceği bir
 şey yoktur. `collage build`, `collage export` ve düz bir `go build` tag vermez ve
 eskisi gibi embed eder.
+
+v0.68.0'dan beri iki dosya tek bir dosya sistemi tanımlar: `files`. `embed.go`'da bu
+`//go:embed all:templates all:static plugins-config.json`'dır; `embed_dev.go`'da
+ise proje dizininin kendisidir, `os.DirFS(".")`. Böylece `files` verilen bir plugin
+(bir kart template'i, bir favicon kaynağı, Markdown yazılar) boş bir dosya sistemi
+yerine düzenlemekte olduğunuz kopyayı okur. (v0.68.0'dan önce iki dosya
+`templatesFS` ve `staticFS`'i tanımlıyordu ve development build'indekiler boştu.)
 
 Sebebi Go build cache'idir. Dosya embed eden bir paket bu dosyaları derlenmiş
 hâlinde taşır. Projenizde herhangi bir yerdeki değişiklik `main`'i yeniden derler.
@@ -345,8 +374,9 @@ v0.46.0'dan önce scaffold edilmiş bir proje hâlâ `main.go` içinde embed ede
 16:10:23 ! collage dev: main.go embeds files into every development build, and each build stores another copy of them in the Go build cache; move the //go:embed lines into a file constrained with //go:build !collage_dev (see collage help dev)  patterns=all:static all:templates
 ```
 
-Düzeltmek için iki `//go:embed` değişkenini `main.go`'dan (ve import'larındaki
-`"embed"`'i) çıkarıp kendi dosyalarına taşıyın:
+Düzeltmek için `//go:embed` değişkenlerini `main.go`'dan (ve import'larındaki
+`"embed"`'i) çıkarıp kendilerine ait iki dosyaya taşıyın. Yeni bir projeye gelen
+dosyalar şunlardır:
 
 ```go
 // embed.go
@@ -356,11 +386,8 @@ package main
 
 import "embed"
 
-//go:embed all:templates
-var templatesFS embed.FS
-
-//go:embed all:static
-var staticFS embed.FS
+//go:embed all:templates all:static plugins-config.json
+var files embed.FS
 ```
 
 ```go
@@ -369,13 +396,18 @@ var staticFS embed.FS
 
 package main
 
-import "embed"
-
-var (
-	templatesFS embed.FS
-	staticFS    embed.FS
+import (
+	"io/fs"
+	"os"
 )
+
+var files fs.FS = os.DirFS(".")
 ```
+
+Hâlâ `templatesFS` ve `staticFS`'i okuyan bir `main.go` bu iki değişkeni tutar.
+Her biri kendi `//go:embed` satırıyla tanımlanır, `embed_dev.go`'da ise boş olarak
+tanımlanır. `files`'a geçmek için `main.go`, `embed.go` ve `embed_dev.go`'yu yeni bir
+projeden kopyalayın.
 
 Cache'te zaten birikmiş olanı `go clean -cache` geri kazandırır. Editörünüzdeki
 `gopls` tag'siz build ettiği için `embed_dev.go`'yu açtığınızda dosyanın build
@@ -464,12 +496,23 @@ export COLLAGE_CSRF_KEY="0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b
   `collage dev`'in kendisinin dinlediği yerdir ve `collage dev` başlarken bir kez
   okunur. `COLLAGE_DEV_HOST` da dosyadan ya da shell'den okunur ve program onu
   `collage dev`'in kendi `HOST`'u eklenmiş olarak alır.
+- `BASE_URL`, shell de dosya da onu ayarlamadığında `collage dev`'in kendi adresidir:
+  `http://localhost:6060` (v0.68.0'dan beri). Mutlak URL yazan bir plugin (sitemap,
+  canonical link) origin olmadan başlamayı reddeder ve development'ta doğru origin
+  budur. Deploy edildiğinde onu kendiniz ayarlayın.
 - Dosyanın olmaması hata değildir. Bir dosya okunduğunda adı stderr'e yazdırılır.
 - Dosya her yeniden başlatmada tekrar okunur. Dosya izlendiği için onu
   düzenlediğinizde program yeni değerlerle yeniden başlar.
 
-Bu dosyaları yalnızca `collage dev` okur. `collage build`, `collage export` ve
-derlenmiş binary, ortam değişkenlerini çalıştıkları ortamdan alır.
+`main` fonksiyonu `collage.Main`'i çağıran bir program da bu dosyaları, scaffold
+edilen program gibi, aynı kurallarla okur (v0.68.0'dan beri). `go run .`,
+`collage export` ve derlenmiş binary, `newApp` çalışmadan önce çalışma dizinindeki
+`.env`'i yükler; `COLLAGE_DEV=1` altında önce `.env.development`'a bakılır. Böylece
+`os.Getenv("BASE_URL")` onu `source .env` olmadan görür. Development dışında okunan
+dosyanın adı stderr'e yazdırılır. Değişkenlerini kendisi ayarlayan bir sunucuda
+değişkenler önceliklidir ve dosyanın olmaması hata değildir. Hatalı bir satır ise
+programı dosya ve satırıyla birlikte durdurur. `collage.Main`'i çağırmayan kendi
+yazdığınız bir `main` hiçbir dosya okumaz.
 
 ## collage build
 
@@ -659,7 +702,7 @@ sırasında olduğu gibi kontrol edebilir (bkz.
 ```json
 "fragments": [
   {"name": "post-body", "template": "pages/post.html", "handler": true, "dataType": "*blog.Post"},
-  {"name": "layout", "template": "layouts/default.html", "dataType": "nil"},
+  {"name": "layout", "template": "layouts/master.html", "dataType": "nil"},
   {"name": "legacy", "template": "pages/legacy.html", "handler": true, "dataType": null, "typeCheck": false}
 ],
 "types": {
@@ -813,11 +856,19 @@ $ collage plugin add elagoht/consent
 added elagoht/consent v0.2.0
   plugins.go           consent.New(consent.Options{})
   plugins-config.json  "elagoht/consent": {}
+
+elagoht/consent
+  The banner needs its categories and wording: set `"categories"` (at least one) and `"text"` (the default locale's wording, labelling every category; other locales under `"locales"`) in this plugin's section of `plugins-config.json`. Without categories the application does not start.
+  Docs: https://github.com/Elagoht/collage-consent
 ```
 
-Manifest'te `setup` notu varsa onu da yazdırır: plugin'e yalnızca Go'nun verebileceği
-şeyler. Boş bölüm varsayılanlar demektir. Plugin'in zorunlu tuttuğu bir ayar eksikse
-bunu uygulama başlarken plugin'in kendisi bildirir.
+Ardından plugin'in sizden hâlâ beklediklerini manifest'inden yazdırır
+(v0.68.0'dan beri): `setup` notunu, eklediği template fonksiyonlarını (her birini
+açıklamasının ilk cümlesiyle) ve dokümantasyonunun adresini. Birden fazla plugin
+eklendiğinde (bir paket, `new --with`) bunlar en sonda, "What each plugin needs
+from you" başlığı altında bir arada gelir. Boş bölüm varsayılanlar demektir.
+Plugin'in zorunlu tuttuğu bir ayar eksikse bunu uygulama başlarken plugin'in
+kendisi bildirir.
 
 - **Import, package'ın adını taşır.** Bu ad `plugins.go`'nun bir import'unda ya da
   package'da herhangi bir yerde tanımlı bir adla çakışırsa `<owner><Name>` olur,
@@ -1093,9 +1144,9 @@ gösterir.
 ## main.go ile sözleşme
 
 `dev`, `export` ve `inspect`, `main.go`'nuzun yaptığı üç şeye dayanır. Scaffold
-edilen `main.go` üçünü de yapar. Üçüncüsü, flag'lerden sonraki kelimeleri
-`collage.DispatchCommands`'a vermektir. Plugin'lerinizin komutlarını çalıştıran da
-budur:
+edilen `main.go`'nun çağırdığı `collage.Main` (v0.68.0'dan beri) üçünü de yapar.
+Üçüncüsü, flag'lerden sonraki kelimeleri `collage.DispatchCommands`'a vermektir.
+Plugin'lerinizin komutlarını çalıştıran da budur:
 
 | Komut | Çalıştırdığı | `main.go`'nuzun yapması gereken |
 | --- | --- | --- |
@@ -1106,7 +1157,78 @@ budur:
 `collage build`'in `main.go`'dan hiçbir beklentisi yoktur. Derleme, `go build`'in
 kendisine hiçbir şey söylenmeden yaptığı bir iştir.
 
-Scaffold edilen sürümün, yalnızca önemli kısmı bırakılmış hâli:
+Scaffold edilen `main.go` bunların hepsini `collage.Main`'e bırakır:
+
+```go
+func main() {
+	collage.Main(newApp)
+}
+
+func newApp(env collage.Env) (*collage.App, error) {
+	pluginConfig, err := env.PluginConfig(files)
+	if err != nil {
+		return nil, err
+	}
+
+	app, err := collage.New(&collage.Config{
+		DevMode: env.Dev,
+		BaseURL: os.Getenv("BASE_URL"),
+		Server:  collage.ServerConfig{Host: env.Host, Port: env.Port},
+		Template: collage.TemplateConfig{
+			FS:        files,
+			Root:      "templates",
+			Extension: ".html",
+		},
+		Cache: collage.CacheConfig{
+			Enabled:    true,
+			Type:       "disk",
+			Dir:        env.CacheDir,
+			DefaultTTL: 5 * time.Minute,
+		},
+		PluginConfig: pluginConfig,
+		Plugins:      plugins(),
+		Security: collage.SecurityConfig{
+			CSRFKey: []byte(os.Getenv("COLLAGE_CSRF_KEY")),
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if err := register(app); err != nil {
+		return nil, err
+	}
+
+	return app, app.Mount("/static/", env.Static(files, "static"))
+}
+```
+
+`collage.Main` [ortam dosyasını](#environment-files) yükler; `-collage-build`,
+`-out`, `-clean` ve `-port` flag'lerini parse eder ve `newApp`'i bir `collage.Env`
+ile çağırır:
+
+| Alan | Değer |
+| --- | --- |
+| `Dev` | `collage dev`'in ayarladığı `COLLAGE_DEV=1` |
+| `Host` | `HOST` ya da `localhost` |
+| `Port` | `-port`, `PORT` ya da `6060` |
+| `CacheDir` | `.cache`; bir test kendine ait bir dizin verir |
+
+`env.PluginConfig(files)`, `plugins-config.json` çalışma dizininde varsa onu okur;
+böylece bir deployment bir ayarı rebuild olmadan değiştirebilir. Yoksa binary'nin
+embed ettiği kopyayı okur; böylece dosyası olmadan deploy edilen bir binary
+ayarlarını korur. `env.Static(files, "static")`, static dizinini development'ta
+diskten, diğer durumlarda embed edilmiş hâlinden sunar. Ardından `collage.Main` bir
+plugin'in komutunu dispatch eder, `-collage-build` verildiğinde `-out`'a render
+eder ya da hizmet verir. Bir build'den ya da bir komuttan sonra uygulamayı shutdown
+eder.
+
+v0.68.0'dan önce scaffold edilmiş bir proje olduğu gibi çalışmaya devam eder.
+Geçmek için yeni `main.go`, `embed.go` ve `embed_dev.go`'yu `collage new`'dan
+kopyalayın ve testlerde `newApp(collage.Env{CacheDir: t.TempDir()})` çağırın.
+`collage.Main` olmadan yazılmış bir `main` sözleşmeyi şöyle yerine getirir;
+v0.68.0'dan önce scaffold edilmiş bir projenin `main`'i bu biçimdedir (burada
+yalnızca önemli kısmı bırakılmıştır):
 
 ```go
 func main() {
@@ -1167,15 +1289,14 @@ func shutdown(app *collage.App) error {
 ```
 
 Bir build ve bir komut hizmet vermez, bu yüzden `ListenAndServe` onlar için
-uygulamayı hiçbir zaman shutdown etmez. collage v0.55.0'dan beri scaffold edilen
-`main.go`, ikisinden biri bittiğinde `app.Shutdown`'ı kendisi çağırır. Böylece her
-plugin'in `Shutdown`'ı çalışır: bir plugin'in elinde tuttuğu şey flush edilir ve
-[elagoht/jobs](/docs/plugins#elagohtjobs) gibi bir queue plugin'ine verilen iş,
-drop edildiğinde en azından loglanır. Daha önce scaffold edilmiş bir proje
-`shutdown` fonksiyonunu ve onun iki çağrısını elle ekler.
+uygulamayı hiçbir zaman shutdown etmez. `collage.Main`, ikisinden biri bittiğinde
+`app.Shutdown`'ı kendisi çağırır; kendi yazdığınız bir `main` bunu yukarıdaki gibi
+yapar. Böylece her plugin'in `Shutdown`'ı çalışır: bir plugin'in elinde tuttuğu
+şey flush edilir ve [elagoht/jobs](/docs/plugins#elagohtjobs) gibi bir queue
+plugin'ine verilen iş, drop edildiğinde en azından loglanır.
 
-`main.go`'yu yeniden yazarsanız bunların hepsinin çalışmaya devam ettiğinden emin
-olun. Aksi hâlde `collage dev`, `collage export`, `collage inspect` ve
+`main`'i `collage.Main` olmadan yazarsanız bunların hepsinin çalışmaya devam
+ettiğinden emin olun. Aksi hâlde `collage dev`, `collage export`, `collage inspect` ve
 plugin'lerinizin komutları projenizde işe yarar hiçbir şey yapmaz.
 
 ## Plugin komutları
@@ -1186,10 +1307,10 @@ plugin'leriniz başladıktan sonra var olan bir komuta CLI erişemez ve
 `collage <plugin-command>` bilinmeyen bir komut olarak kalır.
 
 Bu komutları kendi programınız `collage.DispatchCommands` ile dispatch eder.
-Scaffold edilen `main.go` da bunu yapar (v0.10.0'dan beri; daha önce scaffold
-edilmiş bir proje [yukarıdaki](#the-contract-with-maingo) bloğu kopyalayabilir).
-Flag'ler parse edilip uygulama kurulduktan sonra geriye kalan bir kelime komut
-olarak yorumlanır:
+Scaffold edilen `main.go`'nun çağırdığı `collage.Main` bunu zaten yapar. Kendi
+yazdığınız bir `main` bunu şöyle yapar ([yukarıdaki](#the-contract-with-maingo)
+blok): flag'ler parse edilip uygulama kurulduktan sonra geriye kalan bir kelime
+komut olarak yorumlanır:
 
 ```go
 if args := flag.Args(); len(args) > 0 {
@@ -1233,8 +1354,9 @@ edebilir. Kendi kullanım metninizi yazdırmak isterseniz `app.Commands()`
 plugin'lerin register ettiği komutları listeler.
 
 Dispatch işlemi uygulamayı başlatır ve bu da register aşamasını kapatır. Sonradan
-çağrılan `ListenAndServe` aynı başlatmayı yeniden kullanır. `DispatchCommands` uygulamayı shutdown etmez, çünkü bir program
-ardından onunla hizmet vermeye devam edebilir. Bir komut çalıştıktan sonra,
-yukarıdaki gibi `app.Shutdown`'ı kendiniz çağırın. Böylece her plugin'in
-`Shutdown`'ı çalışır. Böyle bir komutun nasıl yazıldığı
+çağrılan `ListenAndServe` aynı başlatmayı yeniden kullanır. `DispatchCommands`
+uygulamayı shutdown etmez, çünkü bir program ardından onunla hizmet vermeye devam
+edebilir. Bir komut çalıştıktan sonra, yukarıdaki gibi `app.Shutdown`'ı kendiniz
+çağırın. Böylece her plugin'in `Shutdown`'ı çalışır. `collage.Main` de bunu
+yapar. Böyle bir komutun nasıl yazıldığı
 [Plugin yazmak](/docs/writing-plugins#commands) sayfasında anlatılır.

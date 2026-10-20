@@ -168,9 +168,12 @@ verilmelidir.
 `PluginConfig` her plugin'in bölümünü ham JSON olarak tutar. Framework hiçbir dosya
 okumaz. Bu alanı istediğiniz gibi doldurabilir ya da
 `collage.LoadPluginConfig("plugins-config.json")`'u kullanabilirsiniz. Bu fonksiyon
-dosya yoksa `nil` döner. Register edilmiş hiçbir plugin'in adına karşılık gelmeyen bir
-key, uygulamanın başlamasını `ErrUnknownPluginConfig` ile engeller; v0.61.0'dan beri
-bir bölümün içinde plugin'in tanımadığı bir key de aynısını yapar. Ayrıntılar için
+dosya yoksa `nil` döner. Scaffold edilmiş bir `newApp`'in çağırdığı
+`Env.PluginConfig`'i de kullanabilirsiniz (v0.68.0'dan beri): çalışma dizininde
+dosya varsa onu, yoksa binary'ye embed edilmiş kopyayı okur. Register edilmiş
+hiçbir plugin'in adına karşılık gelmeyen bir key, uygulamanın başlamasını
+`ErrUnknownPluginConfig` ile engeller; v0.61.0'dan beri bir bölümün içinde
+plugin'in tanımadığı bir key de aynısını yapar. Ayrıntılar için
 [Plugin'leri yapılandırmak](/docs/plugins#configuring-plugins) bölümüne bakın.
 
 ### TrailingSlash
@@ -559,40 +562,42 @@ Aşağıdaki, scaffold edilmiş bir projenin başladığı config'dir. Ortama g�
 kısımlar ortam değişkenlerinden okunur:
 
 ```go
-pluginConfig, err := collage.LoadPluginConfig("plugins-config.json")
+pluginConfig, err := env.PluginConfig(files)
 if err != nil {
-	return nil, fmt.Errorf("plugin configuration: %w", err)
+	return nil, err
 }
 
 app, err := collage.New(&collage.Config{
-	DevMode: os.Getenv("COLLAGE_DEV") == "1",
-	Server: collage.ServerConfig{
-		Host: envString("HOST", "localhost"),
-		Port: envInt("PORT", 6060),
-	},
+	DevMode: env.Dev,
+	BaseURL: os.Getenv("BASE_URL"),
+	Server:  collage.ServerConfig{Host: env.Host, Port: env.Port},
 	Template: collage.TemplateConfig{
-		FS:        templatesFS,
+		FS:        files,
 		Root:      "templates",
 		Extension: ".html",
 	},
 	Cache: collage.CacheConfig{
 		Enabled:    true,
 		Type:       collage.CacheDisk,
-		Dir:        ".cache",
+		Dir:        env.CacheDir,
 		DefaultTTL: 5 * time.Minute,
 	},
 	PluginConfig: pluginConfig,
+	Plugins:      plugins(),
 	Security: collage.SecurityConfig{
 		CSRFKey: []byte(os.Getenv("COLLAGE_CSRF_KEY")),
 	},
 })
 ```
 
-`envString` ve `envInt`, scaffold edilmiş `main.go` içindeki iki küçük yardımcı
-fonksiyondur. Bir environment değişkenini okurlar, değişken yoksa varsayılan bir
-değere dönerler. Scaffold ayrıca `BaseURL`'yi `BASE_URL`'den okur ve `Plugins`'i,
-`collage plugin add` ve `del` komutlarının yönettiği `plugins.go`'daki
-`plugins()` ile doldurur.
+`env`, `collage.Main`'in scaffold edilmiş `newApp`'e verdiği `collage.Env`'dir
+(v0.68.0'dan beri): `Dev`, `COLLAGE_DEV=1` demektir; `Host`, `HOST` ya da
+`localhost`'tur; `Port`, `-port`, `PORT` ya da `6060`'tır; `CacheDir` ise
+`.cache`'tir. `files` projenin embed edilmiş dosya sistemidir, development
+build'inde ise proje dizininin kendisidir. `plugins()` ise `collage plugin add` ve
+`del` komutlarının yönettiği `plugins.go`'dan gelir. `collage.Main`, `newApp`
+çalışmadan önce `.env`'i yükler, böylece `os.Getenv` onu görür; bkz.
+[CLI](/docs/cli#environment-files).
 
 ## Örnek: development ve production için tek bir config
 
@@ -605,33 +610,33 @@ paneli de buraya form post eder.
 
 İki ortama da tek bir binary hizmet verir. Bu binary'nin `newApp` fonksiyonu
 scaffold'unkiyle aynıdır, yalnızca production ayarları eklenmiştir. İki ortam
-arasında farklı olan her şey ya ortamdan okunur ya da `devMode`'a göre belirlenir:
+arasında farklı olan her şey ya ortamdan okunur ya da `env.Dev`'e göre belirlenir:
 
 ```go
-func newApp(devMode bool, port int) (*collage.App, error) {
-	pluginConfig, err := collage.LoadPluginConfig("plugins-config.json")
+func newApp(env collage.Env) (*collage.App, error) {
+	pluginConfig, err := env.PluginConfig(files)
 	if err != nil {
-		return nil, fmt.Errorf("plugin configuration: %w", err)
+		return nil, err
 	}
 
 	cfg := &collage.Config{
-		DevMode: devMode,
-		BaseURL: os.Getenv("BASE_URL"), // empty in development unless .env.development sets it
+		DevMode: env.Dev,
+		BaseURL: os.Getenv("BASE_URL"), // collage dev's own address unless .env.development sets it
 		Server: collage.ServerConfig{
-			Host:              envString("HOST", "localhost"),
-			Port:              port,
+			Host:              env.Host,
+			Port:              env.Port,
 			ReadHeaderTimeout: 5 * time.Second,
 			DrainDelay:        5 * time.Second, // ignored in development
 		},
 		Template: collage.TemplateConfig{
-			FS:        templatesFS,
+			FS:        files,
 			Root:      "templates",
 			Extension: ".html",
 		},
 		Cache: collage.CacheConfig{
 			Enabled:    true,
 			Type:       collage.CacheDisk,
-			Dir:        cacheDir,
+			Dir:        env.CacheDir,
 			DefaultTTL: 5 * time.Minute,
 		},
 		Locale: collage.LocaleConfig{
@@ -646,7 +651,7 @@ func newApp(devMode bool, port int) (*collage.App, error) {
 		},
 	}
 
-	if !devMode {
+	if !env.Dev {
 		// The load balancer in front of both servers, and the admin
 		// panel whose forms post here.
 		cfg.Server.TrustedProxies = []string{"10.0.1.10"}
@@ -668,7 +673,7 @@ Her ayarın iki ortamdaki değeri ve bunun nedeni şöyledir:
 | --- | --- | --- | --- |
 | `DevMode` | açık: `collage dev`, `COLLAGE_DEV=1` set eder | kapalı: değişken set edilmez | Development'ın error page'leri dosya yollarını ve hata zincirlerini taşır. Bir development sunucusu ayrıca yalnızca `Host`'u bu makineyi adlandıran request'lere cevap verir; bkz. [Deployment](/docs/deployment#development-mode-stays-on-this-machine). |
 | `Server.Host`, `Server.Port` | `collage dev`'in seçtiği loopback adresi | `HOST` ve `PORT`, ya da `-port` | Sizin adresinizde `collage dev`'in kendisi dinler ve request'leri iletir; bkz. [CLI](/docs/cli#collage-dev). |
-| `BaseURL` | `.env.development` `BASE_URL`'i set etmedikçe boş | `BASE_URL`'den `https://tasks.example.com` | Boş olması hata değildir: hiç mutlak URL üretmeyen bir site için gerekmez. Set edilmişse yalın bir origin olmalıdır, yoksa `New` `ErrInvalidOrigin` ile başarısız olur. |
+| `BaseURL` | `.env.development` `BASE_URL`'i set etmedikçe `collage dev`'in kendi adresi, `http://localhost:6060` (v0.68.0'dan beri) | `BASE_URL`'den `https://tasks.example.com` | Boş olması hata değildir: hiç mutlak URL üretmeyen bir site için gerekmez. Set edilmişse yalın bir origin olmalıdır, yoksa `New` `ErrInvalidOrigin` ile başarısız olur. |
 | `Security.CSRFKey` | boş: her process'e bir key, info seviyesinde log'lanır | en az 32 byte rastgele veri, iki sunucuda da aynı | Üretilmiş bir key, bir restart'tan önce ya da diğer sunucunun ürettiği her token'ı reddeder. |
 | `Security.CSRFTrustedOrigins` | yok | admin panelinin origin'i | Diğer her origin, geçerli bir token taşısa bile reddedilir. |
 | `Server.TrustedProxies` | yok | load balancer | Bu olmadan her istemcinin adresi load balancer'ınkidir. |
@@ -686,5 +691,7 @@ bkz. [CLI](/docs/cli#environment-files).
 
 Production tarafı, binary'nin çalıştığı yerde set edilen dört değişkendir: `HOST`,
 `PORT`, `BASE_URL` ve `COLLAGE_CSRF_KEY`. Bunlara bir plugin'in `KeyEnv` ile
-adlandırdığı değişkenler eklenir. Orada `.env` dosyalarını hiçbir şey
-okumaz; bkz. [Deployment](/docs/deployment#environment).
+adlandırdığı değişkenler eklenir. Bunlar binary'nin çalışma dizinindeki bir `.env`
+dosyasında da set edilebilir. Bu dosyayı `collage.Main` yükler (v0.68.0'dan beri),
+sunucunun kendi değişkenleri ise dosyadakileri ezer; bkz.
+[Deployment](/docs/deployment#environment).

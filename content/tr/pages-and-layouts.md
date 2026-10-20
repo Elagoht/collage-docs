@@ -1,6 +1,6 @@
 ---
 description: Page nedir: layout'ları ve içeriği, kimin görebileceği, ona ulaşan path'ler, nasıl cache'lendiği, başarısız olunca ne gösterdiği ve register etmenin etkisi.
-reference: Registrable, ErrNilRegistrable, NewPage, PageBuilder, PageBuilder.WithLayouts, Page, RenderPage, DefaultContentSlot, StrategyAuto, FragmentBuilder.WithGuard, GuardFunc, GuardDecision
+reference: Registrable, ErrNilRegistrable, NewPage, PageBuilder, PageBuilder.WithLayouts, Page, RenderPage, DefaultContentSlot, StrategyAuto, FragmentBuilder.WithGuard, GuardFunc, GuardDecision, Cached
 ---
 
 # Page'ler ve layout'lar
@@ -62,13 +62,13 @@ adında bir slot'u çağıran bir fragment'tir. İç kısım ise **content fragm
 Page, bu fragment'i göstermek için vardır.
 
 ```go
-layout := collage.NewFragment("layout", "layouts/default.html").
+layout := collage.NewFragment("layout", "layouts/master.html").
 	WithTitle("My site").
 	Build()
 ```
 
 ```html
-<!-- templates/layouts/default.html -->
+<!-- templates/layouts/master.html -->
 <!doctype html>
 <html lang="en">
 <head>{{hoist "head"}}</head>
@@ -128,7 +128,7 @@ beri vardır ve `WithLayout`'un yerini almıştır; tek bir layout
 
 ```go
 func Master() *collage.Fragment {
-	return collage.NewFragment("layout", "layouts/default.html").
+	return collage.NewFragment("layout", "layouts/master.html").
 		WithTitle("My site").
 		Build()
 }
@@ -185,6 +185,59 @@ register işlemi doldurur. Dolu gelen bir layout `ErrSlotOccupied` ile reddedili
 | nil bir layout ile | `ErrNilFragment` |
 | aynı layout iki kez verilerek | `ErrFragmentCycle` |
 | aynı builder'da ikinci kez | `ErrConflictingLayout` |
+
+### Kendi verisi olan bir layout
+
+Layout bir fragment'tir. Bu yüzden onun bir CMS'ten gelen kısımları, yani sitenin
+adı, bir menü ya da footer'ın link'leri, bir page'in içeriği gibi `WithData` ile
+yüklenir. Her kısma, layout'un bir slot'una bağlanan kendi fragment'ini verin.
+Böylece her biri yalnızca gösterdiğini yükler ve tek başına başarısız olur:
+
+```go
+var menuKey = collage.NewKey[[]backend.MenuItem]("menu")
+
+func Master(api *backend.API) *collage.Fragment {
+	return collage.NewFragment("layout", "layouts/master.html").
+		WithData(collage.Load(headData(api))). // title, meta tags: hoisted into the head
+		WithSlotFragment("header", Header(api)).
+		WithSlotFragment("footer", Footer(api)).
+		Build()
+}
+
+func Footer(api *backend.API) *collage.Fragment {
+	return collage.NewFragment("footer", "layouts/footer.html").
+		WithData(collage.Load(func(ctx context.Context, rc *collage.RenderContext) (footerView, error) {
+			menu, err := collage.Cached(rc, menuKey, time.Hour, []string{"menu"}, api.Menu)
+			return footerView{Menu: menu}, err
+		})).
+		Build()
+}
+```
+
+```html
+<!-- templates/layouts/master.html -->
+<body>
+  {{slot "header"}}
+  {{slot "content"}}
+  {{slot "footer"}}
+</body>
+```
+
+Verinin geldiği client, herhangi bir page'in constructor'ına olduğu gibi layout'un
+constructor'ına da `routes.go`'nun onları kurduğu yerden verilir. Layout'un her
+page'in parçası olması üç sonuç doğurur:
+
+- **Her page için ayrı ayrı değil, bir kez çekin.** Her page menüyü render eder. Bu
+  yüzden onu [`collage.Cached`](/docs/caching#caching-data-across-pages) üzerinden
+  okuyun. Böylece otuz page onu bir kez çeker, static export da öyle.
+- **Tag'ler bir değişikliği her page'e ulaştırır.** `Cached`'e verilen tag'ler,
+  layout'u render eden her page'e eklenir. Bu yüzden CMS'in webhook'undan gelen
+  `app.InvalidateTags(ctx, "menu")` menüyü yeniler ve onu göstermiş her cache'lenmiş
+  page'i atar.
+- **Yavaş bir CMS her page'i yavaşlatır.** Kısma bir `WithTimeout` ve bir
+  `WithFallback` verin. Böylece gelmeyen bir menü, gelmeyen bir page değil, menüsü
+  olmayan bir page olur. Bkz.
+  [Bir fragment başarısız olduğunda](/docs/fragments-and-slots#when-a-fragment-fails).
 
 ## Private page'ler: guard'lar
 
@@ -693,7 +746,7 @@ key'ini tanımlar.
 ```go
 // Master is the site's shell: <head>, header, footer.
 func Master() *collage.Fragment {
-	return collage.NewFragment("layout", "layouts/default.html").
+	return collage.NewFragment("layout", "layouts/master.html").
 		WithTitle("My blog").
 		Build()
 }
