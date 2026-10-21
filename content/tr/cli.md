@@ -237,7 +237,7 @@ collage add command seed            # commands/seed.go + app.RegisterCommand
 | `--locale code` | `Locale.Default` ya da `en` | Path'in ait olduğu locale |
 | `--type type` | `text/plain; charset=utf-8` | Bir document'ın content type'ı |
 | `--layout name` | yok | Bir page'in layout'u: `add layout <name>`'in yazdığı layout, sitenin layout'unun içinde (v0.69.0'dan beri) |
-| `--guard name` | yok | Bir page'in guard'ı: `add guard <name>`'in yazdığı layout, sitenin layout'unun ve varsa `--layout`'un içinde (v0.69.0'dan beri) |
+| `--guard name` | yok | Bir page'in guard'ı: `add guard <name>`'in yazdığı layout, sitenin layout'unun ve varsa `--layout`'un içinde (v0.69.0'dan beri). Bir action'ın: `WithGuard(guards.<Name>)` (v0.70.0'dan beri) |
 | `--page target` | yok | Bir action'ın page'i, `[area/]name`: action'ı o page'e ekler (v0.69.0'dan beri) |
 | `--dir path` | `.` | Proje |
 
@@ -272,8 +272,8 @@ collage add command seed            # commands/seed.go + app.RegisterCommand
   çalışır. `--guard <name>` yeni bir page'i onunla sarar:
   `WithLayouts(layouts.Master(), layouts.Admin())`. Page'in render'ları, ona
   eklenmiş action'lar ve fragment path'leri önce guard'a sorulur. Kendi `--path`'i
-  olan bir action'ın page'i, dolayısıyla guard'ı da yoktur; erişimi handler'ında
-  kontrol eder.
+  olan bir action'ın page'i yoktur; v0.70.0'dan beri `add action ... --guard admin`
+  guard'ı ona doğrudan verir: `.WithGuard(guards.Admin)`.
 - **Bir middleware** (v0.69.0'dan beri), her request'i bir sonrakine geçiren bir
   `func(http.Handler) http.Handler` olan `middleware/<name>.go` dosyasıdır.
   [`app.Use`](/docs/middleware-and-apis#middleware-appuse) ile, zaten var olan
@@ -724,6 +724,7 @@ METHOD  PATH          KIND    NAME    NOTES
 GET     /             page    home    static
 GET     /admin/users  page    users   dynamic, guard adminGuard
 POST    /admin/users  action  rename  on page users, guard adminGuard
+POST    /api/fire     action  fire    own URL, own guard
 POST    /api/ping     action  ping    own URL, no guard
 GET     /static/*     mount           12 files
 
@@ -731,8 +732,9 @@ Not listed: handlers mounted with app.Handle, and plugins' own endpoints.
 ```
 
 Bir page, nasıl cache'lendiğini ve hangi guard'lara sorulduğunu söyler. Bir
-action, bir page üzerinde mi (o zaman page'in guard'larına sorulur), yoksa
-guard'ı olmayan kendi URL'sinde mi cevap verdiğini söyler. Bir page'in fragment
+action, bir page üzerinde mi (o zaman page'in guard'larına sorulur), yoksa kendi
+URL'sinde mi cevap verdiğini ve kendi guard'ı olup olmadığını söyler (v0.70.0'dan
+beri). Bir page'in fragment
 URL'leri de karşılaştıkları guard'larla listelenir. Sitenin birden fazla locale'i
 varsa bir `LOCALE` sütunu çıkar. Komut, [`collage inspect`](#collage-inspect)'in
 yazdırdığını okur; yani proje build edilir ve `newApp` çalışır. Collage üzerinden

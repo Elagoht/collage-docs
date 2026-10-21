@@ -125,6 +125,19 @@ Bir page'deki action'a page'in URL'si üzerinden ulaşılır, bu yüzden page'in
 bir page'deki bir form, page'in reddettiği bir okuyucu tarafından gönderilemez.
 Guard, body okunmadan ve forgery kontrolünden önce çalışır.
 
+Bir action'ın kendi guard'ı da olabilir: `WithGuard`, bir layout'un aldığı
+`GuardFunc`'ın aynısını alır (v0.70.0'dan beri). Page üzerindeki bir action'da,
+page'in guard'larından sonra sorulur: formu kimin göreceğine page, kimin
+gönderebileceğine action karar verir:
+
+```go
+WithActionFor(collage.NewAction("delete").
+	WithMethods(http.MethodPost).
+	WithGuard(guards.Admin). // readers see the page; only admins delete
+	WithHandler(deletePost).
+	Build())
+```
+
 ## Kendi URL'sinde bir action
 
 Bir page ile ilgisi olmayan bir action, örneğin bir JSON endpoint'i ya da bir
@@ -137,6 +150,13 @@ err := app.RegisterAction(collage.NewAction("like").
 	WithHandler(like).
 	Build())
 ```
+
+Page'i olmadığı için page guard'ları da yoktur. Onu kimin çağırabileceğini
+söylemek için `WithGuard(guards.SignedIn)` ile kendi guard'ını verin
+(v0.70.0'dan beri): bir page'inkiler gibi, body okunmadan ve forgery
+kontrolünden önce sorulur. `collage add action api/like --path /api/like --guard
+signedIn` onu bu şekilde yazar, [`collage routes`](/docs/cli#collage-routes) da
+hangi action'ların kendi guard'ı olduğunu gösterir.
 
 Ona post eden bir form path'i yazmak yerine action'ı adıyla belirtir. Böylece
 action taşındığında form eski adrese post etmeye devam etmez (v0.36.0'dan beri):
