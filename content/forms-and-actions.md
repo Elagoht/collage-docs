@@ -1,6 +1,6 @@
 ---
 description: Handling form posts, fetch calls and webhooks with actions, and protecting them from request forgery.
-reference: NewAction, ActionBuilder, ActionResult, SeeOther, SeeOtherPage, JSON, JSONBytes, Status, RenderPage, RenderFragment, PageBuilder.WithAction, PageBuilder.WithFragmentPath, ActionBuilder.WithStreamingBody, ActionBuilder.WithBodyTimeout, ErrCSRFHeaderRequired, ErrDuplicateRoute, ErrUnknownFragmentPath, FetchHeader, LocationHeader
+reference: NewAction, ActionBuilder, ActionBuilder.WithGuard, ActionResult, SeeOther, SeeOtherPage, JSON, JSONBytes, Status, RenderPage, RenderFragment, PageBuilder.WithAction, PageBuilder.WithFragmentPath, ActionBuilder.WithStreamingBody, ActionBuilder.WithBodyTimeout, ErrCSRFHeaderRequired, ErrDuplicateRoute, ErrUnknownFragmentPath, FetchHeader, LocationHeader
 ---
 
 # Forms and actions
@@ -121,6 +121,18 @@ page's [guards](/docs/pages-and-layouts#private-pages-guards): a form on a priva
 page cannot be submitted by a reader the page refuses. The guard runs before the
 body is read and before the forgery check.
 
+An action can carry a guard of its own, too: `WithGuard` takes the same
+`GuardFunc` a layout does (since v0.70.0). On a page it is asked after the page's
+guards — the page decides who sees the form, the action who may submit it:
+
+```go
+WithActionFor(collage.NewAction("delete").
+	WithMethods(http.MethodPost).
+	WithGuard(guards.Admin). // readers see the page; only admins delete
+	WithHandler(deletePost).
+	Build())
+```
+
 ## An action at its own URL
 
 An action that is not about a page — a JSON endpoint, a webhook — is registered on
@@ -133,6 +145,12 @@ err := app.RegisterAction(collage.NewAction("like").
 	WithHandler(like).
 	Build())
 ```
+
+It has no page, so no page guards. To say who may call it, give it a guard of its
+own with `WithGuard(guards.SignedIn)` (since v0.70.0): asked before the body is
+read and before the forgery check, as a page's are. `collage add action
+api/like --path /api/like --guard signedIn` writes it that way, and
+[`collage routes`](/docs/cli#collage-routes) shows which actions have one.
 
 A form posting to it names it rather than writing the path, so moving the action
 cannot leave a form posting to the old one (since v0.36.0):

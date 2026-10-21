@@ -229,7 +229,7 @@ collage add command seed            # commands/seed.go + app.RegisterCommand
 | `--locale code` | `Locale.Default`, or `en` | The locale its path is in |
 | `--type type` | `text/plain; charset=utf-8` | A document's content type |
 | `--layout name` | none | A page's layout: the one `add layout <name>` wrote, inside the site's (since v0.69.0) |
-| `--guard name` | none | A page's guard: the layout `add guard <name>` wrote, inside the site's and any `--layout` (since v0.69.0) |
+| `--guard name` | none | A page's guard: the layout `add guard <name>` wrote, inside the site's and any `--layout` (since v0.69.0). An action's: `WithGuard(guards.<Name>)` (since v0.70.0) |
 | `--page target` | none | An action's page, `[area/]name`: attaches the action to it (since v0.69.0) |
 | `--dir path` | `.` | The project |
 
@@ -261,8 +261,9 @@ collage add command seed            # commands/seed.go + app.RegisterCommand
   renders nothing of its own and carries the guard, since a guard acts where a
   page's layout chain carries it. `--guard <name>` wraps a new page in it:
   `WithLayouts(layouts.Master(), layouts.Admin())`. The page's renders, its
-  attached actions and its fragment paths meet the guard first; an action with
-  its own `--path` has no page and so no guard, and checks access in its handler.
+  attached actions and its fragment paths meet the guard first. An action with
+  its own `--path` has no page; since v0.70.0, `add action ... --guard admin`
+  gives it the guard itself, `.WithGuard(guards.Admin)`.
 - **A middleware** (since v0.69.0) is `middleware/<name>.go`, a
   `func(http.Handler) http.Handler` that passes every request on, registered with
   [`app.Use`](/docs/middleware-and-apis#middleware-appuse) after the middleware already there —
@@ -688,6 +689,7 @@ METHOD  PATH          KIND    NAME    NOTES
 GET     /             page    home    static
 GET     /admin/users  page    users   dynamic, guard adminGuard
 POST    /admin/users  action  rename  on page users, guard adminGuard
+POST    /api/fire     action  fire    own URL, own guard
 POST    /api/ping     action  ping    own URL, no guard
 GET     /static/*     mount           12 files
 
@@ -695,8 +697,8 @@ Not listed: handlers mounted with app.Handle, and plugins' own endpoints.
 ```
 
 A page says how it is cached and which guards it meets; an action says whether it
-answers on a page, and so meets the page's guards, or at a URL of its own with
-none; a page's fragment URLs are listed with the guards they meet too. A `LOCALE`
+answers on a page, and so meets the page's guards, or at a URL of its own, and
+whether it has a guard of its own (since v0.70.0); a page's fragment URLs are listed with the guards they meet too. A `LOCALE`
 column appears when the site has more than one locale. It reads what
 [`collage inspect`](#collage-inspect) prints, so the project is built and `newApp`
 runs. What is not registered through collage — `app.Handle`, a plugin's own
