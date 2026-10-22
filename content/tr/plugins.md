@@ -2568,7 +2568,7 @@ Plugins: []collage.Plugin{htmlcheck.New(htmlcheck.Options{})},
 #### elagoht/devtoolbar
 
 [github.com/Elagoht/collage-devtoolbar](https://github.com/Elagoht/collage-devtoolbar),
-development'ta her page'in altında küçük bir panel gösterir: hangi page'in, hangi
+development'ta her page'de küçük bir panel gösterir: hangi page'in, hangi
 locale'de, hangi status'la render edildiği, render'ın ve her fragment'inin ne kadar
 sürdüğü, hangi fragment'lerin başarısız olduğu, render'ın bağlı olduğu dependency
 tag'ler, `Cache-Control`'ü ve `ETag`'i, boyutu ve denetleyen plugin'lerin kaç
@@ -2600,6 +2600,16 @@ Plugins: []collage.Plugin{
 
 ```json
 { "elagoht/devtoolbar": { "allowRemote": true } }
+```
+
+- **Konum.** Panel sol alt köşede durur. v0.5.0'dan beri `position` onu başka bir
+  köşeye ya da üst veya alt kenarın ortasına koyar: `top-left`, `top`,
+  `top-right`, `bottom-right`, `bottom` ya da `bottom-left`. Go'da
+  `devtoolbar.Options{Position: devtoolbar.PositionTopRight}` olarak yazılır.
+  Bunların dışındaki bir değer uygulamayı açılışta durdurur.
+
+```json
+{ "elagoht/devtoolbar": { "position": "top-right" } }
 ```
 
 - **Onu en son register edin:** saydığı finding'ler, ondan önce çalışan

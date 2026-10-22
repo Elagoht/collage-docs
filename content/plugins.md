@@ -2465,7 +2465,7 @@ Plugins: []collage.Plugin{htmlcheck.New(htmlcheck.Options{})},
 #### elagoht/devtoolbar
 
 [github.com/Elagoht/collage-devtoolbar](https://github.com/Elagoht/collage-devtoolbar)
-shows a small panel at the bottom of every page in development: which page
+shows a small panel on every page in development: which page
 rendered, in which locale, with what status, how long the render and each of its
 fragments took, which fragments failed, the dependency tags the render depended
 on, its `Cache-Control` and `ETag`, its size, and how many findings the checking
@@ -2496,6 +2496,16 @@ Plugins: []collage.Plugin{
 
 ```json
 { "elagoht/devtoolbar": { "allowRemote": true } }
+```
+
+- **Position.** The panel sits in the bottom-left corner. Since v0.5.0 `position`
+  puts it in another corner or in the middle of the top or bottom edge:
+  `top-left`, `top`, `top-right`, `bottom-right`, `bottom` or `bottom-left`. In Go
+  it is `devtoolbar.Options{Position: devtoolbar.PositionTopRight}`; any other
+  value stops the application at start-up.
+
+```json
+{ "elagoht/devtoolbar": { "position": "top-right" } }
 ```
 
 - **Register it last**: the findings it counts are those of the plugins that ran
