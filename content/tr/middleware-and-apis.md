@@ -153,8 +153,13 @@ Sınır, request'in yönlendirildiği
 - Body'yi okuyan bir middleware (bir signature kontrolü, bir logger, form'u parse
   eden bir method override) onu sınırlı olarak okur.
 - Body'si bir middleware tarafından limitinin ötesine kadar okunmuş bir action `413`
-  ile cevap verir.
+  ile cevap verir. v0.71.0'dan beri middleware body'yi buffer'layıp yerine yeni bir
+  reader koymuş olsa da (`io.ReadAll`, ardından `io.NopCloser`) böyledir.
 - `app.Handle` ile mount edilmiş bir handler'a dokunulmaz.
+
+v0.71.0'dan beri body, uygulamada middleware olsun olmasın sınırlanır. Öncesinde
+middleware'i olmayan bir uygulamada, bir page'in guard'ı, bir action'ın guard'ı ya
+da bir data handler body'yi okumadan önce onu sınırlayan hiçbir şey yoktu.
 
 ### Data handler'lara değer aktarmak
 

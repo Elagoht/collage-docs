@@ -225,7 +225,7 @@ başarısız olursa hata döner:
 | `HTML` | Markup. İçindeki her form okuyucunun forgery token'ını taşır |
 | `Head` | Fragment'in marker koymadığı bir alana hoist ettikleri; area'ları ve key'leriyle birlikte `HoistItem` olarak |
 | `DependencyTags` | Render'ın bağlı olduğu tag'ler. Neyin gönderileceğini bilmek için bunları `CacheInvalidateEvent.Tags` ile eşleştirin |
-| `Shared` | Render bu anda her okuyucu için aynıdır: page herkes için cache'lenir ya da alt ağaçtaki her handler `Static()` veya `Shared()` olarak tanımlanmıştır ve slot resolver yoktur. Ayrıca form token'ı da yoktur (v0.19.0'dan beri; öncesinde `Static()` olmayan her handler request'i okuyor sayılırdı) |
+| `Shared` | Render bu anda aynı host'taki her okuyucu için aynıdır: page herkes için cache'lenir ya da alt ağaçtaki her handler `Static()` veya `Shared()` olarak tanımlanmıştır ve slot resolver yoktur. Ayrıca form token'ı da yoktur (v0.19.0'dan beri; öncesinde `Static()` olmayan her handler request'i okuyor sayılırdı). v0.71.0'dan beri böyle bir render, page cache'inki gibi, okuyucunun cookie'leri, header'ları ve context değerleri çıkarılmış bir request'ten üretilir |
 | `ETag` | Aynı body için fragment'in path'ine gelen bir request'in alacağı ETag. Böylece bir client, gönderilen bir kopyayı zaten gösterdiği kopyadan ayırt edebilir ya da ikisinin aynı olduğunu anlayabilir (v0.19.0'dan beri) |
 | `Cookie` | Request hiç cookie taşımıyorsa `HTML`'deki form'ların ihtiyaç duyduğu forgery cookie'si |
 
@@ -246,7 +246,9 @@ beri): guard'a, fragment'in URL'sine gelen bir request'te olduğu gibi `r` hakk�
 sorulur. Reddettiği bir okuyucu render yerine `collage.ErrGuardRefused` alır; o
 bağlantıya hiçbir şey göndermeyin. `Shared` olmayan bir render tek bir okuyucunun
 verisini taşıyabilir. Bu yüzden herkes için bir kez değil, her bağlantı için o
-bağlantının request'iyle render edilmelidir. Handler'ı belli bir anda herkes için
+bağlantının request'iyle render edilmelidir. `Shared` bir render ise aynı URL'yi
+aynı host'ta (`r.Host`) izleyen her bağlantıya gidebilir. Host'lar arasında
+paylaşılmaz, çünkü bir origin resolver her host'a kendi mutlak URL'lerini verir. Handler'ı belli bir anda herkes için
 aynı şeyi döndüren bir fragment (bir ölçüm gibi)
 [`Shared()`](/docs/caching#a-page-that-declares-none) olarak işaretlenir. Böylece
 render'ı, page'i static yapmadan `Shared` sayılır. `App.RenderFragment` aynı

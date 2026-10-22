@@ -160,9 +160,13 @@ bölümüne bakın.
 ## Body'ler sınırlıdır
 
 Bir request body'si, middleware'iniz çalışmadan önce, yönlendirildiği action'ın
-limitiyle sınırlanır. Aksini söylemediğiniz sürece bu limit 4 MiB'tır.
+limitiyle sınırlanır. Aksini söylemediğiniz sürece bu limit 4 MiB'tır. v0.71.0'dan
+beri middleware yokken de böyledir, yani bir page'in ya da action'ın guard'ı body'yi
+sınırlı olarak okur. Daha büyük olduğunu söyleyen bir body, handler çalışmadan önce
+reddedilir.
 
-Diske taşan multipart dosyalar action cevap verdiğinde silinir. Forgery kontrolünün
+Diske taşan multipart dosyalar, form'u kim parse etmiş olursa olsun request
+cevaplandığında silinir. Forgery kontrolünün
 hiç imzalamadığı bir cookie ise body daha hiç okunmadan reddedilir. Ayrıntılar için
 [Request body'leri sınırlıdır](/docs/forms-and-actions#request-bodies-are-bounded)
 bölümüne bakın.
@@ -210,6 +214,11 @@ taşımadığı için sıkı bir policy nonce gerektirmez.
 
 ## Size kalanlar
 
+- **Güvenlik düzeltmelerini içeren bir Go toolchain'i.** Bir program, derlendiği
+  standart kütüphaneyi içinde taşır. En son Go patch sürümüyle derleyin; kurulu
+  Go'nuz daha eskiyse `GOTOOLCHAIN=go1.26.10 go build` kullanın. Bir binary'yi
+  `go version -m` ile kontrol edin. Go 1.26.10, ele geçirilmiş eMudhra ara
+  sertifikalarını reddeder (CVE-2026-111943).
 - **TLS**, `X-Forwarded-Proto`'yu ve tarayıcının `Host`'unu ileten bir proxy'de.
   Ayrıntılar için [Deployment](/docs/deployment#tls-behind-a-proxy) sayfasına bakın.
 - **Rate limit'ler**: [elagoht/ratelimit](/docs/plugins#elagohtratelimit).

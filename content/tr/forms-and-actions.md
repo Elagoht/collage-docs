@@ -264,6 +264,12 @@ request'e redirect yerine `204 No Content` ile cevap verilir ve hedef
 yalnızca bir kez gider. Action eskisi gibi `SeeOther` döndürür. collage-live'ın
 form'ları bu header'ı gönderir.
 
+v0.71.0'dan beri bu yolla yalnızca bir path ya da bir `http`/`https` adresi
+iletilir. Script `location.assign` ile gider. Bu, bir `Location`'ı izleyen
+tarayıcının çalıştırmayı reddettiği bir `javascript:` URL'sini sayfanın içinde
+çalıştırır. Bu yüzden `javascript:`, `data:` ya da başka bir hedef, `fetch`'in
+izlemediği `303`'ün kendisiyle cevaplanır.
+
 Header yalnızca bir redirect'i değiştirir. Cevap bir page ya da fragment ise header
 olsa da olmasa da aynıdır. Bir script'e page'den daha azıyla cevap vermek isteyen
 handler, [aşağıdaki iş listesinin](#example-a-team-task-list)
@@ -583,7 +589,16 @@ bir form daha orada, handler'ınız çalışmadan önce reddedilir. Bu durumda d
 
 Parser'ın memory'de tuttuğu 32 MiB'tan büyük bir multipart body, dosyalarını diske
 taşır. v0.34.0'dan beri bu dosyalar, handler çalışmış da olsa request reddedilmiş de
-olsa, action cevap verdikten sonra silinir.
+olsa, action cevap verdikten sonra silinir. v0.71.0'dan beri bu, form'u kim parse
+etmiş olursa olsun geçerlidir: bir page'in guard'ı, bir action'ın guard'ı, bir data
+handler ya da bir middleware. Bir action'ın guard'ları da body'yi zaten sınırlanmış
+olarak görür.
+
+v0.71.0'dan beri `Content-Length`'i limitin üstünde olan bir body, forgery kontrolü
+ve handler çalışmadan önce `413` ile reddedilir. Böylece forgery kontrolü olmayan bir
+action hiçbir zaman yarıda kesilmiş bir form üzerinde çalışmaz. Uzunluğunu
+söylemeyen chunked bir body limite takılırsa, başarılı gibi cevaplanmak yerine
+handler'dan sonra reddedilir.
 
 Kendi boyut kuralınız (örneğin 5 MB'ı aşan bir fotoğrafı form'da bir mesajla
 reddetmek) ancak action'ın limiti bu kuralın üzerindeyse işler. Aksi halde collage
