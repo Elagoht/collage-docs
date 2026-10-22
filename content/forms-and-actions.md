@@ -249,6 +249,11 @@ is answered `204 No Content` with the destination in `Collage-Location`
 (`collage.LocationHeader`) instead of a redirect, and the script navigates once.
 The action returns `SeeOther` as before. collage-live's forms send the header.
 
+Since v0.71.0 only a path or an `http`/`https` address is handed over that way. A
+script navigates with `location.assign`, which runs a `javascript:` URL in the page,
+where a browser following a `Location` refuses to; a `javascript:`, `data:` or other
+destination is answered as the `303` itself, which `fetch` will not follow.
+
 The header changes only a redirect. A page or a fragment is answered the same way
 with it or without it; a handler that wants to answer a script with less than the
 page reads the header itself, as [the task list below](#example-a-team-task-list)
@@ -555,7 +560,14 @@ not a `403`: a body too large to read is not a forgery.
 
 A multipart body larger than the 32 MiB the parser keeps in memory spills its files
 to disk. Since v0.34.0 they are removed once the action has answered, whether the
-handler ran or the request was refused.
+handler ran or the request was refused. Since v0.71.0 that holds whoever parsed the
+form — a page's guard, an action's guard, a data handler, a middleware — and an
+action's guards meet the body already bounded.
+
+Since v0.71.0 a body whose `Content-Length` is over the limit is refused with `413`
+before the forgery check and the handler run, so an action without a forgery check is
+never run on a form cut short. A chunked body, which does not say its length, that
+runs into the limit is refused after the handler instead of answered as a success.
 
 A size rule of your own, like a photo over 5 MB refused with a message on the form,
 only works when the action's limit is above it. Otherwise collage answers the `413`

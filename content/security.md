@@ -149,9 +149,12 @@ cacheable. See [What a shared render sees](/docs/caching#what-a-shared-render-se
 ## Bodies are bounded
 
 A request body is limited — 4 MiB unless you say otherwise — before your middleware
-runs, at the limit of the action it routes to.
+runs, at the limit of the action it routes to; since v0.71.0 also when there is no
+middleware, so a page's or an action's guard reads it bounded. A body that says it is
+larger is refused before the handler runs.
 
-Multipart files spilled to disk are removed when the action has answered, and a
+Multipart files spilled to disk are removed when the request has been answered, whoever
+parsed the form, and a
 cookie the forgery check never signed is refused before the body is read at all.
 See [Request bodies are bounded](/docs/forms-and-actions#request-bodies-are-bounded).
 
@@ -197,6 +200,11 @@ nonce.
 
 ## What is left to you
 
+- **A Go toolchain with the security fixes.** A program carries the standard library
+  it was built with. Build with the latest Go patch release —
+  `GOTOOLCHAIN=go1.26.10 go build` if your installed Go is older — and check a binary
+  with `go version -m`. Go 1.26.10 rejects the compromised eMudhra intermediate
+  certificates (CVE-2026-111943).
 - **TLS**, at a proxy that passes `X-Forwarded-Proto` and the browser's `Host` on.
   See [Deployment](/docs/deployment#tls-behind-a-proxy).
 - **Rate limits** — [elagoht/ratelimit](/docs/plugins#elagohtratelimit).

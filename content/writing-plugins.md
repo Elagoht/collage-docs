@@ -214,7 +214,7 @@ returns an error when it fails:
 | `HTML` | The markup, with the reader's forgery token in any form it holds |
 | `Head` | What the fragment hoisted into an area it placed no marker for, as `HoistItem`s with their area and key |
 | `DependencyTags` | The tags the render depended on — match them against `CacheInvalidateEvent.Tags` to know what to push |
-| `Shared` | The render is the same for every reader at this moment: the page is cached for everyone, or every handler in the subtree is declared `Static()` or `Shared()` and there is no slot resolver — and there is no form token. (since v0.19.0; before, a handler counted as reading the request unless it was `Static()`) |
+| `Shared` | The render is the same for every reader on the same host at this moment: the page is cached for everyone, or every handler in the subtree is declared `Static()` or `Shared()` and there is no slot resolver — and there is no form token. (since v0.19.0; before, a handler counted as reading the request unless it was `Static()`) Since v0.71.0 such a render is made from a request with the reader's cookies, headers and context values stripped, as the page cache's is |
 | `ETag` | The ETag a request to the fragment's path would get for the same body, so a client can tell a pushed copy from one it already shows, or recognise the two as the same (since v0.19.0) |
 | `Cookie` | The forgery cookie the forms in `HTML` need, when the request carried none |
 
@@ -234,7 +234,10 @@ reaches. That includes the fragment's own
 about `r` as it would be about a request to the fragment's URL, and a reader it
 refuses gets `collage.ErrGuardRefused` instead of a render — send that connection
 nothing. A render that is not `Shared` may hold one reader's data, so it must be
-rendered for each connection with that connection's request, never once for all.
+rendered for each connection with that connection's request, never once for all. A
+`Shared` one may go to every connection watching the same URL on the same host
+(`r.Host`), not across hosts, where an origin resolver gives each its own absolute
+URLs.
 A fragment whose handler returns the same for everyone at one moment — a
 measurement — is marked [`Shared()`](/docs/caching#a-page-that-declares-none) so
 that its render counts, without making its page static.

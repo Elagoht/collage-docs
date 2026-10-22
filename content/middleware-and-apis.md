@@ -145,8 +145,14 @@ to, or `Server.MaxBodyBytes` for anything else.
 
 - A middleware that reads the body — a signature check, a logger, a method override
   parsing the form — reads it bounded.
-- An action whose body a middleware already read past its limit answers `413`.
+- An action whose body a middleware already read past its limit answers `413` — since
+  v0.71.0 also when the middleware buffered the body and put a fresh reader in its
+  place (`io.ReadAll`, then `io.NopCloser`).
 - A handler mounted with `app.Handle` is left alone.
+
+Since v0.71.0 the body is bounded whether or not the application has middleware.
+Before, an application with none had nothing bound the body before a page's guard,
+an action's guard or a data handler read it.
 
 ### Passing values to data handlers
 
