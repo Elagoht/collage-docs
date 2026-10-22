@@ -715,11 +715,20 @@ every page with its patterns, parameters, `layouts` (outermost first) and `guard
 every fragment with its template and slots — an inline fragment with `"inline":
 true` and no template path — the documents, the actions, the template functions,
 the plugins, the locales, and the files the mounts serve. It takes no flags; positional arguments are a usage
-error. It runs:
+error. It builds the project as `collage dev` does and runs the program with
+`COLLAGE_DEV=1` (since v0.70.1; before, `go run . collage-inspect`):
 
 ```sh
-go run . collage-inspect
+go build -tags collage_dev -o <temporary file> .
+COLLAGE_DEV=1 <temporary file> collage-inspect
 ```
+
+Nothing is embedded, so the program reads `templates/` and `static/` from disk,
+and the build goes to a file of its own: `go run` stores the linked program in
+the Go build cache, and without the tag the compiled `main` package holds every
+file the scaffold embeds, so each run after a change to `main` stored another
+copy of them there, kept for days. `collage routes` and `collage check` run the
+project the same way.
 
 `collage-inspect` is a command `DispatchCommands` answers itself rather than handing
 it to a plugin: it prints the application's description as indented JSON. That JSON
@@ -830,10 +839,11 @@ since a render falls back to the default one.
 
 It exits `1` when it finds anything, so it can stand in CI before `collage build`;
 `-json` prints the findings as an array of `{level, rule, message}` for an editor.
-It runs:
+It runs the program as `collage inspect` does:
 
 ```sh
-go run . collage-check
+go build -tags collage_dev -o <temporary file> .
+COLLAGE_DEV=1 <temporary file> collage-check
 ```
 
 which `collage.DispatchCommands` answers by starting the application and calling
@@ -1002,8 +1012,11 @@ application refuses to start, naming the setting, until it is done.
 `add` enforces. The check itself reads only the repository:
 
 - `-release` also wants a release tag at `HEAD`, which needs git;
-- `-run` builds a throwaway program in the repository with `go run`, which
-  fetches what the module cache lacks. It calls `New` exactly as `add` would
+- `-run` builds a throwaway program in the repository's `collage-plugin-check/`
+  directory and runs it, which fetches what the module cache lacks. The
+  directory has one name, so the Go build cache keeps one copy of the program
+  (since v0.70.1); one already there — another check running, or one
+  interrupted — is refused and left alone. It calls `New` exactly as `add` would
   write it, as a `collage.Plugin`, and checks that `Name()` is the manifest's
   `name`. It fails on a build error, a panic in `New` or a different name. It
   does not configure or start the plugin, so a setting an empty section lacks is
@@ -1187,7 +1200,7 @@ what runs your plugins' commands:
 | --- | --- | --- |
 | `collage dev` | `go build -tags collage_dev`, then the binary, with `COLLAGE_DEV=1`, the `HOST` and `PORT` to listen on, and `COLLAGE_DEV_HOST` | turn on development mode when `COLLAGE_DEV` is `1`, and listen on `HOST` and `PORT` |
 | `collage export` | `go run . -collage-build -out <dir> [-clean]` | parse `-collage-build`, `-out` and `-clean`, and on `-collage-build` render to `<dir>` instead of serving |
-| `collage inspect` | `go run . collage-inspect` | pass the words after its flags to `collage.DispatchCommands` |
+| `collage inspect` | `go build -tags collage_dev`, then the binary with `collage-inspect` and `COLLAGE_DEV=1`; `routes` and `check` too | turn on development mode when `COLLAGE_DEV` is `1`, and pass the words after its flags to `collage.DispatchCommands` |
 
 `collage build` needs nothing from `main.go`: compiling is something `go build`
 does without being told anything.
