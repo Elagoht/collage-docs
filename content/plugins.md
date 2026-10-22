@@ -785,7 +785,8 @@ app.RegisterPage(collage.NewPage("post").
   `md.DirTag(locale)`. In development every request reads the file again.
 - A locale can have its own directory, raw HTML is left out unless `unsafe` is on,
   and several sets — a blog and the documentation — are several plugins told apart
-  by `Name`.
+  by `Name`. Since v0.3.2 a heading's `{style="…"}` and `on…` attributes are dropped
+  too unless `unsafe` is on; `id` and `class` stay.
 
 #### elagoht/highlight
 
@@ -2477,7 +2478,9 @@ Plugins: []collage.Plugin{
   machine or a private network (loopback, RFC 1918, IPv6 unique-local,
   link-local), as `collage.ClientIP` names it, so behind a proxy listed in
   `Server.TrustedProxies` it is the forwarded client. Any other client gets the
-  response untouched, and the first one logs a warning.
+  response untouched, and the first one logs a warning. Since v0.4.2 a local peer
+  that forwards a non-local client — a proxy missing from `Server.TrustedProxies` —
+  gets no panel either, and the first one logs a warning naming that setting.
 - A tailnet or carrier-grade NAT address (`100.64.0.0/10`) is not a private
   network, so a phone reaching the machine over Tailscale gets no panel. To show
   it to remote clients, turn the check off with
@@ -2693,8 +2696,10 @@ Plugins: []collage.Plugin{tenant.New(tenant.Options{
 - A host that is no tenant's is answered 404 with the site's own 404 page. A
   resolver that fails or panics is answered 503 with a `Retry-After`, and that is
   not cached. A "no tenant" answer is, for `ttl` (`"1m"`, a duration string; a
-  number is an error); `maxHosts` (10000) bounds how many hosts are remembered,
-  and a negative one stops the application. `bypass` hosts are served without a tenant.
+  number is an error); `maxHosts` (10000) bounds how many hosts are remembered —
+  since v0.2.1 tenants and "no tenant" answers each up to that many, so a flood of
+  made-up hosts cannot push a real tenant out, and concurrent misses for one host
+  share one resolver call — and a negative one stops the application. `bypass` hosts are served without a tenant.
 - A handler reads the tenant with `tenant.ID(rc)`, and code that holds only a
   context, such as a page's `StaticParams`, with `tenant.IDFromContext(ctx)`. Both
   are safe in a cached page. `collage.BaseURL(rc)` is the tenant's origin.

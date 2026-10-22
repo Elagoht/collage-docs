@@ -1198,6 +1198,12 @@ The key is a [`collage.Key`](/docs/data-handlers#collagekey), the same kind the
 fragments of one render share values through: a name and a type, declared once,
 with `With` adding the part that varies — `authorKey.With("ada")` is named
 `author:ada`. A `fetch` returning anything but the key's type does not compile.
+
+Build the varying part from what the application chose — an id found in its own
+database, a page number it capped — not from raw request input. The store is
+bounded by `MaxEntries`, not by `MaxBytes`: it holds Go values whose size is the
+application's, so a key taken from a query parameter is one entry per value a
+visitor invents, and on a `"disk"` cache they outlive the process.
 Tags stay plain strings — `"author:" + id` here — because they are what
 `InvalidateTags` is called with. Before v0.50.0 the key was a string.
 
