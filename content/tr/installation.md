@@ -525,8 +525,9 @@ VS Code için Collage Snippets & Highlighter extension'ı vardır. Şunları ekl
   [`collage.json`](/docs/writing-plugins#editor-support-collagejson) içeren her
   plugin için completion, açıklamalar ve yanlış yazılmış bir key için uyarı.
 
-Extension, projenizdeki adları `go run . collage-inspect` çalıştırarak öğrenir;
-[`collage inspect`](/docs/cli#collage-inspect) de bu komutu çalıştırır. Bunu
+Extension, projenizdeki adları projeyi `collage dev` gibi derleyip
+`collage-inspect` ile çalıştırarak öğrenir;
+[`collage inspect`](/docs/cli#collage-inspect) de aynısını yapar. Bunu
 `go.mod`'u collage'ı gerektiren her dizinde yapar ve bir Go dosyası her
 kaydedildiğinde tekrarlar. collage v0.27.0 veya daha yeni bir sürümle çalışan bir
 proje, hiçbir şey eklemeden bu komuta cevap verir.
@@ -542,7 +543,7 @@ code --install-extension collage-snippets-highlighter-<version>.vsix
 | Ayar | Varsayılan | Ne yapar |
 | --- | --- | --- |
 | `collage.completions` | `auto` | Completion ve hover'ın nerede sunulacağı: `auto`, yalnızca `go.mod`'u collage'ı gerektiren bir dizinde; `always`; ya da `never` |
-| `collage.inspect` | `true` | Projeyi öğrenmek için `go run . collage-inspect` çalıştırılıp çalıştırılmayacağı. Bu komut uygulamayı sunmadan kurar. Bu yüzden kurulurken veritabanına bağlanan bir program burada da bağlanır |
+| `collage.inspect` | `true` | Projeyi öğrenmek için projenin `collage-inspect` ile çalıştırılıp çalıştırılmayacağı. Bu komut uygulamayı sunmadan kurar. Bu yüzden kurulurken veritabanına bağlanan bir program burada da bağlanır |
 | `collage.diagnostics` | `warning` | Var olmayan bir adın nasıl raporlanacağı: `off`, `information`, `warning` ya da `error` |
 | `collage.goCommand` | `go` | Çalıştırılacak go komutu |
 

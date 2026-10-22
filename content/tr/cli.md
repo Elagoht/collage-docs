@@ -753,12 +753,22 @@ başta) ve `guards`'ıyla her page, template'i ve slot'larıyla her fragment (in
 bir fragment `"inline": true` ile ve template path'i olmadan gelir), document'lar,
 action'lar, template fonksiyonları, plugin'ler, locale'ler ve mount'ların sunduğu
 dosyalar bulunur.
-Hiçbir flag almaz; positional argümanlar kullanım hatasıdır. Çalıştırdığı komut
-şudur:
+Hiçbir flag almaz; positional argümanlar kullanım hatasıdır. Projeyi `collage
+dev` gibi derler ve programı `COLLAGE_DEV=1` ile çalıştırır (v0.70.1'den beri;
+öncesinde `go run . collage-inspect`):
 
 ```sh
-go run . collage-inspect
+go build -tags collage_dev -o <geçici dosya> .
+COLLAGE_DEV=1 <geçici dosya> collage-inspect
 ```
+
+Programa hiçbir şey gömülmez; program `templates/` ve `static/` dizinlerini
+diskten okur. Derlenen program da ayrı bir dosyaya yazılır. Bunun nedeni şu:
+`go run`, derlediği programı Go build cache'ine koyar. Tag olmadan derlenen `main`
+paketi, scaffold'un gömdüğü bütün dosyaları içerir. Bu yüzden `main`'deki her
+değişiklikten sonraki her çalıştırma, bu dosyaların bir kopyasını daha cache'e
+ekliyordu ve kopyalar günlerce orada kalıyordu. `collage routes` ve `collage check`
+de projeyi aynı şekilde çalıştırır.
 
 `collage-inspect`, `DispatchCommands`'ın bir plugin'e iletmeden kendisinin cevapladığı
 bir komuttur: uygulamanın tarifini girintili JSON olarak yazdırır. Sözleşme bu
@@ -874,10 +884,11 @@ varsayılan locale'e geri döner.
 
 Bir şey bulduğunda `1` ile çıkar. Bu yüzden CI'da `collage build`'den önce yer
 alabilir. `-json`, bulguları bir editör için `{level, rule, message}` dizisi olarak
-yazdırır. Çalıştırdığı komut şudur:
+yazdırır. Programı `collage inspect` gibi çalıştırır:
 
 ```sh
-go run . collage-check
+go build -tags collage_dev -o <geçici dosya> .
+COLLAGE_DEV=1 <geçici dosya> collage-check
 ```
 
 `collage.DispatchCommands` bu komuta uygulamayı başlatıp `App.Check`'i çağırarak
@@ -1046,8 +1057,11 @@ yapılana kadar uygulama, eksik ayarın adını vererek başlamayı reddeder.
 sözleşmeye göre kontrol eder. Kontrolün kendisi yalnızca repository'yi okur:
 
 - `-release` ayrıca `HEAD`'de bir release tag'i ister, bunun için git gerekir;
-- `-run`, repository'de `go run` ile geçici bir program derler. Module cache'te
-  olmayanı indirir. Bu program `New`'u `add`'in yazacağı biçimde, bir `collage.Plugin`
+- `-run`, repository'nin `collage-plugin-check/` dizininde geçici bir program
+  derleyip çalıştırır. Module cache'te olmayanı indirir. Dizinin adı her seferinde
+  aynıdır, böylece Go build cache'i programın tek bir kopyasını tutar (v0.70.1'den
+  beri). Dizin zaten varsa (başka bir kontrol çalışıyordur ya da yarıda
+  kesilmiştir) `-run` reddeder ve dizine dokunmaz. Bu program `New`'u `add`'in yazacağı biçimde, bir `collage.Plugin`
   olarak çağırır ve `Name()`'in manifest'teki `name` olduğunu kontrol eder. Build
   hatasında, `New`'daki bir panic'te ya da farklı bir adda başarısız olur. Plugin'i
   configure etmez, başlatmaz; yani boş bir bölümde eksik kalan bir ayar onun işi
@@ -1237,7 +1251,7 @@ Plugin'lerinizin komutlarını çalıştıran da budur:
 | --- | --- | --- |
 | `collage dev` | önce `go build -tags collage_dev`, sonra binary; `COLLAGE_DEV=1`, dinlenecek `HOST` ile `PORT` ve `COLLAGE_DEV_HOST` ayarlı olarak | `COLLAGE_DEV` `1` olduğunda development modunu açmak ve `HOST` ile `PORT` üzerinde dinlemek |
 | `collage export` | `go run . -collage-build -out <dir> [-clean]` | `-collage-build`, `-out` ve `-clean` flag'lerini parse etmek; `-collage-build` verildiğinde sunmak yerine `<dir>` dizinine render etmek |
-| `collage inspect` | `go run . collage-inspect` | flag'lerden sonraki kelimeleri `collage.DispatchCommands`'a vermek |
+| `collage inspect` | önce `go build -tags collage_dev`, sonra binary; `collage-inspect` ve `COLLAGE_DEV=1` ile (`routes` ve `check` de böyle) | `COLLAGE_DEV` `1` olduğunda development modunu açmak ve flag'lerden sonraki kelimeleri `collage.DispatchCommands`'a vermek |
 
 `collage build`'in `main.go`'dan hiçbir beklentisi yoktur. Derleme, `go build`'in
 kendisine hiçbir şey söylenmeden yaptığı bir iştir.
