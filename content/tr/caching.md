@@ -1279,6 +1279,13 @@ key'inin adı `author:ada` olur. Key'in tipinden başka bir şey dönen bir `fet
 derlenmez. Tag'ler düz string olarak kalır (burada `"author:" + id`), çünkü
 `InvalidateTags` onlarla çağrılır. v0.50.0'dan önce key bir string'di.
 
+Değişen kısmı uygulamanın seçtiği bir şeyden kurun: kendi veritabanında bulduğu
+bir id, üst sınır koyduğu bir sayfa numarası gibi. Ham request girdisinden
+kurmayın. Store `MaxBytes` ile değil `MaxEntries` ile sınırlıdır. Boyutu
+uygulamaya ait Go değerleri tutar. Bu yüzden bir query parametresinden alınan
+key, bir ziyaretçinin uydurduğu her değer için bir entry demektir ve `"disk"`
+cache'te bunlar process'ten sonra da kalır.
+
 ### İki cache için tek tag kümesi
 
 Verdiğiniz `tags`, data handler onları dönmüş gibi page'in kendi tag'lerine eklenir.

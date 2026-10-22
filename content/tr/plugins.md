@@ -824,7 +824,8 @@ app.RegisterPage(collage.NewPage("post").
   yeniden okur.
 - Bir locale'in kendi dizini olabilir. Ham HTML, `unsafe` açık değilse dışarıda
   bırakılır. Birden fazla küme, örneğin bir blog ve dokümantasyon, `Name` ile ayırt
-  edilen birden fazla plugin'dir.
+  edilen birden fazla plugin'dir. v0.3.2'den beri `unsafe` açık değilse bir
+  başlığın `{style="…"}` ve `on…` attribute'ları da çıkarılır; `id` ve `class` kalır.
 
 #### elagoht/highlight
 
@@ -2579,6 +2580,9 @@ Plugins: []collage.Plugin{
   link-local). Client'ı `collage.ClientIP` belirler; yani `Server.TrustedProxies`
   içinde listelenen bir proxy'nin arkasında, proxy'nin ilettiği client esas
   alınır. Başka her client response'u olduğu gibi alır ve ilki bir uyarı log'lar.
+  v0.4.2'den beri yerel olmayan bir client'ı ileten yerel bir peer, yani
+  `Server.TrustedProxies`'te olmayan bir proxy de panel almaz. İlki o ayarı
+  adıyla anan bir uyarı log'lar.
 - Bir tailnet ya da carrier-grade NAT adresi (`100.64.0.0/10`) özel ağ sayılmaz;
   bu yüzden makineye Tailscale üzerinden bağlanan bir telefon paneli görmez.
   Uzak client'lara da göstermek için kontrolü
@@ -2802,7 +2806,10 @@ Plugins: []collage.Plugin{tenant.New(tenant.Options{
   olan ya da panic eden bir resolver `Retry-After` ile 503 alır ve bu cache'lenmez.
   "Tenant yok" cevabı `ttl` (`"1m"`; bir süre string'i, sayı hatadır) boyunca
   cache'lenir; `maxHosts` (10000) kaç host'un hatırlanacağını sınırlar, negatif bir
-  değer uygulamayı durdurur. `bypass` host'ları tenant'sız sunulur.
+  değer uygulamayı durdurur. v0.2.1'den beri tenant'lar ve "tenant yok" cevapları
+  ayrı ayrı bu kadar tutulur, böylece uydurma host'larla yapılan bir sel gerçek bir
+  tenant'ı dışarı itemez. Aynı host için eşzamanlı cache miss'ler tek bir resolver
+  çağrısını paylaşır. `bypass` host'ları tenant'sız sunulur.
 - Bir handler tenant'ı `tenant.ID(rc)` ile okur; yalnızca context'i olan kod, örneğin
   bir page'in `StaticParams`'ı, `tenant.IDFromContext(ctx)` ile. İkisi de cache'lenen
   bir page'de güvenlidir. `collage.BaseURL(rc)` tenant'ın origin'idir.
