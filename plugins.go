@@ -33,7 +33,7 @@ func plugins(devMode bool) []collage.Plugin {
 		jsonld.New(jsonld.Options{}),
 		sitemap.New(sitemap.Options{}),
 		robots.New(robots.Options{}),
-		favicon.New(favicon.Options{FS: staticFS}),
+		favicon.New(favicon.Options{FS: embedded(devMode, staticFS)}),
 		toc.New(toc.Options{}),
 		highlight.New(highlight.Options{}),
 		search.New(search.Options{}),

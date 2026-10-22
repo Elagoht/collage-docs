@@ -3,30 +3,22 @@
 //
 // # The collage CLI contract
 //
-// "collage dev" builds this program and runs it with COLLAGE_DEV=1 set and the
-// variables of .env.development (or .env) added, rebuilding and restarting it
-// when its Go code changes; "collage export" runs
-// `go run . -collage-build -out <dir>`. This file honours both by reading that
-// variable and those flags below. Development mode reads templates and static
-// files from disk on every request, so editing those needs no restart at all.
+// collage.Main keeps it: "collage dev" builds this program with the
+// collage_dev tag and runs it with COLLAGE_DEV=1; "collage export" runs it with
+// -collage-build -out <dir>; "collage inspect", "routes" and "check" run it with
+// a word after the flags — collage-inspect, collage-check — which Main hands to
+// collage.DispatchCommands. Development mode reads templates, static files,
+// catalogs and the pages from disk on every request, so editing those needs no
+// restart at all.
 //
 // "collage build" needs nothing from this file: it compiles the program, which
 // is something go build does without being told anything.
-//
-// If you rewrite this file, keep both halves working, or "collage dev" and
-// "collage export" stop doing anything useful here.
 package main
 
 import (
-	"context"
-	"embed"
-	"errors"
-	"flag"
 	"fmt"
 	"io/fs"
-	"log"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/Elagoht/collage/pkg/collage"
@@ -35,58 +27,8 @@ import (
 	"github.com/Elagoht/collage-docs/site"
 )
 
-// Templates and static files are embedded, so this binary runs from anywhere:
-// a container with a different WORKDIR, a systemd unit, a copy on a server.
-//
-// It costs nothing in development. With DevMode on, collage prefers the
-// directory on disk whenever it is there — which it is while you are working
-// in this project — so editing a template is still visible on the next
-// request, embedded copy or not.
-//
-//go:embed all:templates
-var templatesFS embed.FS
-
-//go:embed all:static
-var staticFS embed.FS
-
-//go:embed all:locales
-var localesFS embed.FS
-
-// cacheDir is where rendered pages are kept between restarts. A variable so the
-// tests can point it at a directory of their own: a disk cache is shared by
-// everything that uses the same directory, build and key, so a test would
-// otherwise read what the previous test, or the previous run, rendered.
-var cacheDir = ".cache"
-
 func main() {
-	buildFlag := flag.Bool("collage-build", false, "render the app to static files instead of serving it")
-	outFlag := flag.String("out", "dist", "output directory for -collage-build")
-	cleanFlag := flag.Bool("clean", false, "remove -out's existing contents before building")
-	portFlag := flag.Int("port", envInt("PORT", 3000), "port to listen on (env PORT)")
-	flag.Parse()
-
-	devMode := os.Getenv("COLLAGE_DEV") == "1"
-
-	app, err := newApp(devMode, *portFlag)
-	if err != nil {
-		log.Fatalf("collage-docs: %v", err)
-	}
-
-	if *buildFlag {
-		buildErr := staticBuild(app, *outFlag, *cleanFlag)
-		if err := shutdown(app); err != nil {
-			log.Printf("collage-docs: shutdown: %v", err)
-			buildErr = errors.Join(buildErr, err)
-		}
-		if buildErr != nil {
-			log.Fatalf("collage-docs: static build: %v", buildErr)
-		}
-		return
-	}
-
-	if err := app.ListenAndServe(); err != nil {
-		log.Fatalf("collage-docs: %v", err)
-	}
+	collage.Main(newApp)
 }
 
 // newApp builds the application: its configuration, its routes — registered in
@@ -94,9 +36,13 @@ func main() {
 //
 // It is separate from main so that the tests can build the same application
 // and drive it through app.Handler(), with no server listening and no port to
-// pick. What they exercise is then the site that actually runs, rather than a
-// second wiring that can drift from it.
-func newApp(devMode bool, port int) (*collage.App, error) {
+// pick, and a cache directory of their own: a disk cache is shared by
+// everything that uses the same directory, build and key, so a test would
+// otherwise read what the previous test, or the previous run, rendered. What
+// they exercise is then the site that actually runs, rather than a second
+// wiring that can drift from it.
+func newApp(env collage.Env) (*collage.App, error) {
+	devMode := env.Dev
 	// Plugin configuration, keyed by plugin name. A missing file is not an
 	// error: every plugin then runs on its defaults.
 	pluginConfig, err := collage.LoadPluginConfig("plugins-config.json")
@@ -128,8 +74,8 @@ func newApp(devMode bool, port int) (*collage.App, error) {
 		// front of a path.
 		BaseURL: site.Origin,
 		Server: collage.ServerConfig{
-			Host: envString("HOST", "localhost"),
-			Port: port,
+			Host: env.Host,
+			Port: env.Port,
 		},
 		Template: collage.TemplateConfig{
 			FS:        templatesFS,
@@ -143,7 +89,7 @@ func newApp(devMode bool, port int) (*collage.App, error) {
 			// .cache, namespaced by a hash of this binary.
 			Enabled:    true,
 			Type:       "disk",
-			Dir:        cacheDir,
+			Dir:        env.CacheDir,
 			DefaultTTL: 5 * time.Minute,
 		},
 		// The plugins are in plugins.go, and their settings in plugins-config.json.
@@ -238,49 +184,12 @@ func locales(devMode bool) fs.FS {
 	return localesFS
 }
 
-// envString returns the environment variable named key, or fallback.
-func envString(key, fallback string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return fallback
-}
-
-// envInt is envString for a number. An unparseable value falls back rather than
-// failing: a port is not worth refusing to start over.
-func envInt(key string, fallback int) int {
-	value, err := strconv.Atoi(os.Getenv(key))
-	if err != nil {
-		return fallback
-	}
-	return value
-}
-
-// shutdown runs every plugin's Shutdown once a build is done. A build does not
-// serve, so nothing else would: a plugin would then never flush what it holds,
-// and a queue's waiting items would vanish without being logged.
-//
-// Only after a successful start. A start that failed has already shut down
-// the plugins it started, and a plugin's Shutdown runs once.
-func shutdown(app *collage.App) error {
-	if app.Start() != nil {
+// embedded is fsys outside development, and nil in it, for a plugin that reads
+// from its FS when one is set and from disk when not: a development build
+// embeds nothing (see embed.go).
+func embedded(devMode bool, fsys fs.FS) fs.FS {
+	if devMode {
 		return nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	return app.Shutdown(ctx)
-}
-
-// staticBuild renders every statically-buildable page to files under outDir
-// through collage's own builder, and prints what was written, skipped and
-// failed.
-func staticBuild(app *collage.App, outDir string, clean bool) error {
-	report, buildErr := collage.Build(context.Background(), app, collage.BuildOptions{
-		OutDir: outDir,
-		Clean:  clean,
-	})
-
-	collage.PrintBuildReport(os.Stdout, report, buildErr)
-
-	return buildErr
+	return fsys
 }

@@ -16,14 +16,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Elagoht/collage/pkg/collage"
+
 	"github.com/Elagoht/collage-docs/content"
 	"github.com/Elagoht/collage-docs/site"
 )
 
 func get(t *testing.T, target string) *httptest.ResponseRecorder {
 	t.Helper()
-	cacheDir = t.TempDir()
-	app, err := newApp(false, 0)
+	app, err := newApp(collage.Env{Host: "localhost", CacheDir: t.TempDir()})
 	if err != nil {
 		t.Fatalf("newApp() = %v", err)
 	}
@@ -352,14 +353,13 @@ func TestUnknownDocIsNotFound(t *testing.T) {
 // export writes the site the way "collage export" does and returns where.
 func export(t *testing.T) string {
 	t.Helper()
-	cacheDir = t.TempDir()
-	app, err := newApp(false, 0)
+	app, err := newApp(collage.Env{Host: "localhost", CacheDir: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
 	out := t.TempDir()
-	if err := staticBuild(app, out, false); err != nil {
-		t.Fatalf("staticBuild: %v", err)
+	if _, err := collage.Build(t.Context(), app, collage.BuildOptions{OutDir: out}); err != nil {
+		t.Fatalf("collage.Build: %v", err)
 	}
 	return out
 }
