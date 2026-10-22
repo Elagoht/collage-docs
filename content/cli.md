@@ -236,7 +236,10 @@ collage add command seed            # commands/seed.go + app.RegisterCommand
 - **A page** is `pages/<area>/<name>.go`, wrapped in `layouts.Master()` — or the
   first layout in `fragments/layouts` that takes no arguments — with its content in
   `fragments/pages/<area>/<name>.go`: a template, a view struct, and a typed
-  `collage.Load` handler that declares the page's title.
+  `collage.Load` handler that declares the page's title. The handler is made by
+  `<name>Data() collage.Data`, which the content's function calls (since
+  v0.73.0), so a service the handler needs is a parameter added to both — see
+  [Data handlers](/docs/data-handlers#handlers-with-no-tags).
 - **An action** gets a builder appended to `actions/<area>.go` and a handler to
   `actions/funcs/<area>.go`, either created when it is not there. With `--path` it
   answers at a URL of its own and is registered; without one it answers at the
@@ -1121,11 +1124,12 @@ collage check
 ```
 
 ```text
-01:14:05 • collage: caching to disk  dir=.cache/6ba57471adaf48bf  version=19be6c1c06fea3dcff022e9dab873f1f
+01:14:05 • collage: dev mode, using an in-memory cache instead of the configured disk cache
 collage: check: nothing found
 ```
 
-The first line is the program's own, since `check` starts it. The second is the
+The first line is the program's own, since `check` starts it, in development
+mode (since v0.70.1). The second is the
 verdict, and the exit code is `0`; in CI, this is the step before `collage build`.
 
 **4. Build for the server.** The laptop is not the server, so name the server's

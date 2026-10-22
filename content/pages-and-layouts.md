@@ -1,6 +1,6 @@
 ---
 description: What a page is: its layouts and content, who may see it, the paths that reach it, how it is cached, what it shows when it fails, and what registration does.
-reference: Registrable, ErrNilRegistrable, NewPage, PageBuilder, PageBuilder.WithLayouts, Page, RenderPage, DefaultContentSlot, StrategyAuto, FragmentBuilder.WithGuard, GuardFunc, GuardDecision, Cached
+reference: Registrable, ErrNilRegistrable, NewPage, PageBuilder, PageBuilder.WithLayouts, Page, RenderPage, DefaultContentSlot, StrategyAuto, FragmentBuilder.WithGuard, GuardFunc, GuardDecision, GuardSeeOtherPage, URL, Cached
 ---
 
 # Pages and layouts
@@ -243,9 +243,13 @@ func requireUser(ctx context.Context, r *http.Request) (*collage.GuardDecision, 
 	if session.FromContext(ctx).Get("user") != "" {
 		return nil, nil // allowed
 	}
+	login, err := collage.URL(ctx, "login", nil)
+	if err != nil {
+		return nil, err
+	}
 	return &collage.GuardDecision{
 		Status:   http.StatusSeeOther,
-		Location: "/login?next=" + url.QueryEscape(r.URL.RequestURI()),
+		Location: login + "?next=" + url.QueryEscape(r.URL.RequestURI()),
 	}, nil
 }
 
@@ -261,6 +265,15 @@ page := collage.NewPage("dashboard").
 	WithPath("en", "/dashboard").
 	Build()
 ```
+
+A guard sends the reader to a page by its name, not a path written into it.
+`collage.URL(ctx, name, params)` (since v0.73.0) is `rc.URL` for code that has no
+render: it builds in the locale the request is in, so a guard on `/tr/dashboard`
+sends the reader to the Turkish login, and falls back to the default locale as
+`{{pageURL}}` does. Without a query to add, `collage.GuardSeeOtherPage(ctx,
+"login", nil)` returns the whole decision — a guard's `SeeOtherPage`, which
+returns an action's `*ActionResult` instead. An unknown name is an error and
+fails the request; it lets nobody through.
 
 `collage add guard private` writes both halves — the guard, refusing everyone
 until you write its check, and a layout that carries it — and
@@ -356,7 +369,8 @@ at all.
 What a guard checks is not the framework's to know. `requireUser` above reads the
 session; a guard can as well read a header, a role, a feature flag — anything a
 request carries. The [session plugin](/docs/plugins#elagohtsession) ships this one
-ready-made, as `session.RequireUser("/login")`. `collage inspect` lists, for each
+ready-made, as `session.RequireUserPage("login")` — or `session.RequireUser("/login")`
+with the path written. `collage inspect` lists, for each
 page, the fragments that carry a guard.
 
 ## Paths
@@ -705,8 +719,8 @@ may enter:
 | `not-found`, `error` | no path | `Master` | `Dynamic()` |
 
 The layouts carry the guards. `Account` uses the
-[session plugin](/docs/plugins#elagohtsession)'s `RequireUser`, which sends a
-signed-out reader to `/login` with where they were going in `next`. `Admin` checks
+[session plugin](/docs/plugins#elagohtsession)'s `RequireUserPage`, which sends a
+signed-out reader to the page named `login` with where they were going in `next`. `Admin` checks
 a role, under a session key `"role"` that this application's own login action
 writes; the plugin defines only the user key.
 
@@ -721,7 +735,7 @@ func Master() *collage.Fragment {
 // Account is the signed-in area. Its guard sends everyone else to log in.
 func Account() *collage.Fragment {
 	return collage.NewFragment("account-layout", "layouts/account.html").
-		WithGuard(session.RequireUser("/login")).
+		WithGuard(session.RequireUserPage("login")).
 		Build()
 }
 

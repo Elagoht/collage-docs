@@ -1,6 +1,6 @@
 ---
 description: Serving a site in several languages, and linking between pages by name so links follow them in every locale.
-reference: LocaleConfig, PageBuilder.WithPath, PageBuilder.WithFragmentPath, RenderContext, App, Vary, ErrLocaleUnreachable, ErrNoPathInLocale, ErrUnknownRoute, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath
+reference: LocaleConfig, PageBuilder.WithPath, PageBuilder.WithFragmentPath, RenderContext, URL, App, Vary, ErrLocaleUnreachable, ErrNoPathInLocale, ErrUnknownRoute, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath
 ---
 
 # Links and locales
@@ -306,6 +306,13 @@ A value, even one straight from the request, is one escaped path segment: one
 holding `/`, or being `.` or `..`, is `collage.ErrRouteParams`, so it cannot turn
 the path into another site's URL. On a `RenderContext` collage did not make — one
 a test builds by hand — both return `collage.ErrUnknownRoute`.
+
+In a guard or a middleware, which run in a request but have no render, it is
+`collage.URL(ctx, name, params)` (since v0.73.0): the same builder, in the locale
+the request resolved to — the default one in a middleware, which runs before
+routing — and `ErrUnknownRoute` outside a request collage serves.
+`collage.GuardSeeOtherPage(ctx, name, params)` turns it into a guard's redirect
+(see [Pages and layouts](/docs/pages-and-layouts#private-pages-guards)).
 
 For a locale other than the render's own, or outside a render — a sitemap
 listing every page, the alternates in a page's head — use `app.URL`, which takes

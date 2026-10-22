@@ -170,6 +170,33 @@ content := collage.NewFragment("clock", "fragments/clock.html").
 	Build()
 ```
 
+A handler that reads through something the application builds once — a service,
+a store — is made by a function that takes it, and the fragment's own function
+passes it on, so nothing reaches for a global:
+
+```go
+func Post(posts *blog.Service) *collage.Fragment {
+	return collage.NewFragment("blog-post", "pages/blog-post.html").
+		WithData(postData(posts)).
+		Build()
+}
+
+func postData(posts *blog.Service) collage.Data {
+	return collage.Load(func(ctx context.Context, rc *collage.RenderContext) (postView, error) {
+		post, err := posts.BySlug(ctx, rc.Param("slug"))
+		if err != nil {
+			return postView{}, err
+		}
+		return postView{Title: post.Title}, nil
+	})
+}
+```
+
+`collage add page` and `collage add fragment` write the handler in this shape,
+with no parameters yet (since v0.73.0), so a service is one parameter added to
+both functions. In VS Code, the extension's `cdata` snippet writes one, returning
+the `…View` type the file declares.
+
 Both drop the data when the loader returns an error. Which one to reach for:
 
 | The data | Write |

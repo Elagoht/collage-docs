@@ -1184,12 +1184,13 @@ if err := s.Set(session.UserKey, user.ID); err != nil {
 return collage.SeeOther("/account"), nil
 ```
 
-A layout carrying `session.RequireUser` keeps signed-out readers off every page it
-wraps — a [guard](/docs/pages-and-layouts#private-pages-guards):
+A layout carrying `session.RequireUserPage` keeps signed-out readers off every page
+it wraps — a [guard](/docs/pages-and-layouts#private-pages-guards) that sends them
+to the page named `login`:
 
 ```go
 private := collage.NewFragment("private", "layouts/private.html").
-	WithGuard(session.RequireUser("/login")).
+	WithGuard(session.RequireUserPage("login")).
 	Build()
 ```
 
@@ -1206,7 +1207,7 @@ private := collage.NewFragment("private", "layouts/private.html").
 }
 ```
 
-- v0.3.0 needs collage v0.61.0 or later (v0.2.4 was the last for v0.60.0). It adds no
+- v0.4.0 needs collage v0.73.0 or later (v0.3.1 was the last for v0.61.4); v0.3.0 needed v0.61.0 (v0.2.4 was the last for v0.60.0). It adds no
   template function, so `RegisterPlugin` accepts it too.
 - **Changed in v0.3.0:** keys never go in `plugins-config.json`. `keyEnv` names
   the environment variable holding the hex key and `previousKeysEnv` the one
@@ -1223,6 +1224,12 @@ private := collage.NewFragment("private", "layouts/private.html").
   every reader to a login that could never let them in. Pass `next` through
   `collage.SafeRedirect` (collage v0.44.0) before the login action redirects to
   it: `collage.SafeRedirect(rc.Request.URL.Query().Get("next"), "/")`.
+- **`RequireUserPage(loginPage)`** (since v0.4.0) is `RequireUser` with the login
+  page named rather than its path written: the path is built with `collage.URL`
+  for each request, in its locale — `/tr/giris?next=…` from a Turkish page — so a
+  renamed or translated path cannot leave the guard pointing at the old one.
+  `RequirePage(key, loginPage)` is its form for any key. A name the application
+  has not registered fails the request rather than letting anyone through.
 - `Get`, `Set`, `Delete`, `Clear`, `Regenerate` and `ID`; a handler of your own
   reads it with `session.FromContext(r.Context())`.
 - **A request carrying a valid session is rendered fresh**, neither read from the
