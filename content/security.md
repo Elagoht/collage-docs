@@ -76,6 +76,13 @@ be replayed forever.
 A reader with a long-open form is sent a fresh token rather than refused; set
 `CSRFTokenTTL` negative to keep a token valid for as long as its signature.
 
+Since v0.72.0 the token in a form is masked anew in every response: XORed with a
+fresh random pad and prefixed `~`. A compressed response that reflects what a
+request sent is shorter when the reflection matches part of the token, and an
+attacker who can make a reader's browser send requests could read the token from
+those lengths (BREACH). Masked, it is different bytes every time. The check takes
+the mask off, from the form and the header, and still accepts an unmasked token.
+
 ## Redirects stay on the site
 
 No redirect collage writes can send a reader to another site:
@@ -201,10 +208,10 @@ nonce.
 ## What is left to you
 
 - **A Go toolchain with the security fixes.** A program carries the standard library
-  it was built with. Build with the latest Go patch release —
-  `GOTOOLCHAIN=go1.26.10 go build` if your installed Go is older — and check a binary
-  with `go version -m`. Go 1.26.10 rejects the compromised eMudhra intermediate
-  certificates (CVE-2026-111943).
+  it was built with. Since v0.72.0 collage requires Go 1.26.10, so with the default
+  `GOTOOLCHAIN=auto` the go command fetches it for a build that would have used an
+  older Go. Check a binary with `go version -m`. Go 1.26.10 rejects the compromised
+  eMudhra intermediate certificates (CVE-2026-111943).
 - **TLS**, at a proxy that passes `X-Forwarded-Proto` and the browser's `Host` on.
   See [Deployment](/docs/deployment#tls-behind-a-proxy).
 - **Rate limits** — [elagoht/ratelimit](/docs/plugins#elagohtratelimit).

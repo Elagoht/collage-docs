@@ -42,7 +42,7 @@ Go.
 
 ## Install Go
 
-collage needs **Go 1.26 or newer**. Install it from [go.dev/dl](https://go.dev/dl)
+collage needs **Go 1.26.10 or newer** (since v0.72.0; with the default `GOTOOLCHAIN=auto`, an older Go fetches it by itself). Install it from [go.dev/dl](https://go.dev/dl)
 or your package manager, and check:
 
 ```sh
