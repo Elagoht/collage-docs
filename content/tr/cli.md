@@ -770,6 +770,12 @@ değişiklikten sonraki her çalıştırma, bu dosyaların bir kopyasını daha 
 ekliyordu ve kopyalar günlerce orada kalıyordu. `collage routes` ve `collage check`
 de projeyi aynı şekilde çalıştırır.
 
+Bu komutlar ayrıca `COLLAGE_CLI_COMMAND` değişkenini sordukları kelimeye ayarlar
+(v0.71.1'den beri). Bu değişken ayarlıyken `App.ListenAndServe` sunucuyu açmayı
+reddeder ve nedenini döner. Böylece argümanlarını `DispatchCommands`'a hiç
+vermeyen bir `main.go` (örneğin `collage.Main`'den önce yazılmış biri), komutu
+sonsuza kadar bir sunucuyu bekletmek yerine hemen hata verir.
+
 `collage-inspect`, `DispatchCommands`'ın bir plugin'e iletmeden kendisinin cevapladığı
 bir komuttur: uygulamanın tarifini girintili JSON olarak yazdırır. Sözleşme bu
 JSON'dur; arkasındaki Go tipleri (`App.Inspect`, `collage.Inspection`,
