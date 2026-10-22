@@ -1,6 +1,6 @@
 ---
 description: Page nedir: layout'ları ve içeriği, kimin görebileceği, ona ulaşan path'ler, nasıl cache'lendiği, başarısız olunca ne gösterdiği ve register etmenin etkisi.
-reference: Registrable, ErrNilRegistrable, NewPage, PageBuilder, PageBuilder.WithLayouts, Page, RenderPage, DefaultContentSlot, StrategyAuto, FragmentBuilder.WithGuard, GuardFunc, GuardDecision, Cached
+reference: Registrable, ErrNilRegistrable, NewPage, PageBuilder, PageBuilder.WithLayouts, Page, RenderPage, DefaultContentSlot, StrategyAuto, FragmentBuilder.WithGuard, GuardFunc, GuardDecision, GuardSeeOtherPage, URL, Cached
 ---
 
 # Page'ler ve layout'lar
@@ -251,9 +251,13 @@ func requireUser(ctx context.Context, r *http.Request) (*collage.GuardDecision, 
 	if session.FromContext(ctx).Get("user") != "" {
 		return nil, nil // allowed
 	}
+	login, err := collage.URL(ctx, "login", nil)
+	if err != nil {
+		return nil, err
+	}
 	return &collage.GuardDecision{
 		Status:   http.StatusSeeOther,
-		Location: "/login?next=" + url.QueryEscape(r.URL.RequestURI()),
+		Location: login + "?next=" + url.QueryEscape(r.URL.RequestURI()),
 	}, nil
 }
 
@@ -269,6 +273,16 @@ page := collage.NewPage("dashboard").
 	WithPath("en", "/dashboard").
 	Build()
 ```
+
+Guard, okuyucuyu kendisine yazılmış bir path'e değil, adıyla belirtilen bir page'e
+gönderir. `collage.URL(ctx, name, params)` (v0.73.0'dan beri), render'ı olmayan kod
+için `rc.URL`'dir: request hangi locale'deyse adresi o locale'de kurar. Böylece
+`/tr/dashboard` üzerindeki bir guard okuyucuyu Türkçe login'e gönderir. Page'in o
+locale'de path'i yoksa `{{pageURL}}` gibi varsayılan locale'e düşer. Eklenecek bir
+query yoksa `collage.GuardSeeOtherPage(ctx, "login", nil)` kararın tamamını döner.
+Bu, guard'ların `SeeOtherPage`'idir; `SeeOtherPage` ise action'lar için
+`*ActionResult` döner. Bilinmeyen bir ad hatadır ve request'i başarısız kılar;
+kimseyi içeri almaz.
 
 `collage add guard private` iki parçayı da yazar: siz kontrolünü yazana kadar
 herkesi reddeden guard'ı ve onu taşıyan layout'u. `collage add page dashboard
@@ -367,7 +381,8 @@ Guard'ın neyi kontrol ettiği framework'ün bilebileceği bir şey değildir. Y
 `requireUser` session'ı okur; bir guard aynı şekilde bir header'ı, bir rolü, bir
 feature flag'i, kısacası request'in taşıdığı her şeyi okuyabilir.
 [Session plugin'i](/docs/plugins#elagohtsession) bu guard'ı hazır olarak,
-`session.RequireUser("/login")` şeklinde sunar. `collage inspect` her page için
+`session.RequireUserPage("login")` şeklinde sunar; path'i elle yazmak için
+`session.RequireUser("/login")` da vardır. `collage inspect` her page için
 guard taşıyan fragment'leri listeler.
 
 ## Path'ler
@@ -742,9 +757,9 @@ olanlar, kimin girebileceğini söyleyen layout'ların içinde durur:
 | `not-found`, `error` | path yok | `Master` | `Dynamic()` |
 
 Guard'ları layout'lar taşır. `Account`,
-[session plugin'inin](/docs/plugins#elagohtsession) `RequireUser`'ını kullanır. Bu
-guard, giriş yapmamış bir okuyucuyu gitmek istediği yeri `next` içinde taşıyarak
-`/login`'e gönderir. `Admin` bir rolü kontrol eder. Rol, bu uygulamanın kendi login
+[session plugin'inin](/docs/plugins#elagohtsession) `RequireUserPage`'ini kullanır.
+Bu guard, giriş yapmamış bir okuyucuyu gitmek istediği yeri `next` içinde taşıyarak
+`login` adlı page'e gönderir. `Admin` bir rolü kontrol eder. Rol, bu uygulamanın kendi login
 action'ının yazdığı `"role"` session key'inde durur; plugin yalnızca kullanıcı
 key'ini tanımlar.
 
@@ -759,7 +774,7 @@ func Master() *collage.Fragment {
 // Account is the signed-in area. Its guard sends everyone else to log in.
 func Account() *collage.Fragment {
 	return collage.NewFragment("account-layout", "layouts/account.html").
-		WithGuard(session.RequireUser("/login")).
+		WithGuard(session.RequireUserPage("login")).
 		Build()
 }
 

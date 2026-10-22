@@ -244,7 +244,10 @@ collage add command seed            # commands/seed.go + app.RegisterCommand
 - **Bir page**, `layouts.Master()` ile (ya da `fragments/layouts` içinde argüman
   almayan ilk layout ile) sarılmış bir `pages/<area>/<name>.go` dosyasıdır. İçeriği
   `fragments/pages/<area>/<name>.go` içindedir: bir template, bir view struct'ı ve
-  page'in başlığını belirten, tipli bir `collage.Load` handler'ı.
+  page'in başlığını belirten, tipli bir `collage.Load` handler'ı. Handler'ı,
+  içeriğin fonksiyonunun çağırdığı `<name>Data() collage.Data` üretir (v0.73.0'dan
+  beri). Bu yüzden handler'ın ihtiyaç duyduğu bir servis, ikisine eklenen bir
+  parametredir; bkz. [Data handler'lar](/docs/data-handlers#handlers-with-no-tags).
 - **Bir action** için `actions/<area>.go` dosyasının sonuna bir builder,
   `actions/funcs/<area>.go` dosyasının sonuna da bir handler eklenir. Bu dosyalar
   yoksa oluşturulur. `--path` verildiğinde action kendine ait bir URL'de cevap verir
@@ -1168,11 +1171,12 @@ collage check
 ```
 
 ```text
-01:14:05 • collage: caching to disk  dir=.cache/6ba57471adaf48bf  version=19be6c1c06fea3dcff022e9dab873f1f
+01:14:05 • collage: dev mode, using an in-memory cache instead of the configured disk cache
 collage: check: nothing found
 ```
 
-İlk satır programın kendisine aittir, çünkü `check` programı başlatır. İkincisi
+İlk satır programın kendisine aittir, çünkü `check` programı development modunda
+başlatır (v0.70.1'den beri). İkincisi
 kontrolün sonucudur ve çıkış kodu `0`'dır; CI'da bu, `collage build`'den önceki adımdır.
 
 **4. Sunucu için build edin.** Laptop sunucu değildir, bu yüzden sunucunun

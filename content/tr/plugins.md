@@ -1234,12 +1234,13 @@ if err := s.Set(session.UserKey, user.ID); err != nil {
 return collage.SeeOther("/account"), nil
 ```
 
-`session.RequireUser` taşıyan bir layout, giriş yapmamış okuyucuları sardığı her
-page'den uzak tutar; bu bir [guard](/docs/pages-and-layouts#private-pages-guards)'dır:
+`session.RequireUserPage` taşıyan bir layout, giriş yapmamış okuyucuları sardığı
+her page'den uzak tutar. Bu, onları `login` adlı page'e gönderen bir
+[guard](/docs/pages-and-layouts#private-pages-guards)'dır:
 
 ```go
 private := collage.NewFragment("private", "layouts/private.html").
-	WithGuard(session.RequireUser("/login")).
+	WithGuard(session.RequireUserPage("login")).
 	Build()
 ```
 
@@ -1256,7 +1257,8 @@ private := collage.NewFragment("private", "layouts/private.html").
 }
 ```
 
-- v0.3.0, collage v0.61.0 ya da sonrasını gerektirir (v0.2.4, collage v0.60.0 için son sürümdü).
+- v0.4.0, collage v0.73.0 ya da sonrasını gerektirir (v0.3.1, collage v0.61.4 için son sürümdü);
+  v0.3.0 collage v0.61.0 gerektiriyordu (v0.2.4, collage v0.60.0 için son sürümdü).
   Template fonksiyonu eklemediği için `RegisterPlugin` de onu kabul eder.
 - **v0.3.0'da değişenler:** key'ler artık `plugins-config.json`'a girmez.
   `keyEnv` hex key'i tutan ortam değişkeninin, `previousKeysEnv` ise önceki
@@ -1274,6 +1276,13 @@ private := collage.NewFragment("private", "layouts/private.html").
   login'e göndermez. Login action'ı `next`'e redirect etmeden önce `next`'i
   `collage.SafeRedirect`'ten geçirin (collage v0.44.0):
   `collage.SafeRedirect(rc.Request.URL.Query().Get("next"), "/")`.
+- **`RequireUserPage(loginPage)`** (v0.4.0'dan beri), login page'inin path'ini
+  yazmak yerine adını alan `RequireUser`'dır. Path her request için
+  `collage.URL` ile, request'in locale'inde kurulur: Türkçe bir page'den
+  `/tr/giris?next=…`. Böylece adı değişen ya da çevrilen bir path, guard'ı eski
+  adreste bırakmaz. `RequirePage(key, loginPage)` aynısını herhangi bir key için
+  yapar. Uygulamanın kaydetmediği bir ad, kimseyi içeri almak yerine request'i
+  başarısız kılar.
 - Metotları `Get`, `Set`, `Delete`, `Clear`, `Regenerate` ve `ID`'dir. Kendi
   handler'ınız session'ı `session.FromContext(r.Context())` ile okur.
 - **Geçerli bir session taşıyan request yeniden render edilir.** Page cache'ten

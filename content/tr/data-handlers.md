@@ -174,6 +174,34 @@ content := collage.NewFragment("clock", "fragments/clock.html").
 	Build()
 ```
 
+Uygulamanın bir kez kurduğu bir şey (bir servis, bir store) üzerinden okuyan bir
+handler'ı, onu parametre olarak alan bir fonksiyon üretir. Fragment'in kendi
+fonksiyonu da bu parametreyi ona iletir. Böylece hiçbir kod global bir değişkene
+uzanmaz:
+
+```go
+func Post(posts *blog.Service) *collage.Fragment {
+	return collage.NewFragment("blog-post", "pages/blog-post.html").
+		WithData(postData(posts)).
+		Build()
+}
+
+func postData(posts *blog.Service) collage.Data {
+	return collage.Load(func(ctx context.Context, rc *collage.RenderContext) (postView, error) {
+		post, err := posts.BySlug(ctx, rc.Param("slug"))
+		if err != nil {
+			return postView{}, err
+		}
+		return postView{Title: post.Title}, nil
+	})
+}
+```
+
+`collage add page` ve `collage add fragment` handler'ı bu biçimde, henüz parametresiz
+olarak yazar (v0.73.0'dan beri). Böylece bir servis eklemek, iki fonksiyona birer
+parametre eklemekten ibarettir. VS Code'da eklentinin `cdata` snippet'i böyle bir
+handler yazar ve dönüş tipi olarak dosyada tanımlı `…View` tipini kullanır.
+
 İkisi de loader hata döndüğünde veriyi atar. Hangisini seçeceğiniz şöyle
 belirlenir:
 

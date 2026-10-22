@@ -1,6 +1,6 @@
 ---
 description: Bir siteyi birkaç dilde sunmak ve page'lere adlarıyla link vermek; böylece link'ler page'i her locale'de takip eder.
-reference: LocaleConfig, PageBuilder.WithPath, PageBuilder.WithFragmentPath, RenderContext, App, Vary, ErrLocaleUnreachable, ErrNoPathInLocale, ErrUnknownRoute, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath
+reference: LocaleConfig, PageBuilder.WithPath, PageBuilder.WithFragmentPath, RenderContext, URL, App, Vary, ErrLocaleUnreachable, ErrNoPathInLocale, ErrUnknownRoute, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath
 ---
 
 # Link'ler ve locale'ler
@@ -322,6 +322,14 @@ segment'idir. `/` içeren ya da `.` veya `..` olan bir değer
 `collage.ErrRouteParams` döner. Böylece bir değer path'i başka bir sitenin
 URL'sine çeviremez. collage'ın oluşturmadığı bir `RenderContext`'te (örneğin bir
 testin elle kurduğu) ikisi de `collage.ErrUnknownRoute` döner.
+
+Request içinde çalışan ama render'ı olmayan bir guard'da ya da middleware'de bu iş
+`collage.URL(ctx, name, params)` ile yapılır (v0.73.0'dan beri). Aynı builder'dır;
+request'in çözümlendiği locale'de kurar. Routing'den önce çalışan bir middleware'de
+varsayılan locale'i kullanır. collage'ın sunduğu bir request dışında
+`ErrUnknownRoute` döner. `collage.GuardSeeOtherPage(ctx, name, params)` bunu bir
+guard'ın redirect'ine çevirir (bkz.
+[Page'ler ve layout'lar](/docs/pages-and-layouts#private-pages-guards)).
 
 Render'ın kendi locale'i dışında bir locale için ya da render dışında (bütün
 page'leri listeleyen bir sitemap, bir page'in head'indeki alternate link'ler)
