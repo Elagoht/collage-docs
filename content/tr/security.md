@@ -80,6 +80,14 @@ Uzun süredir açık bir form'u olan bir okuyucu reddedilmek yerine yeni bir tok
 alır. Bir token'ı imzası geçerli olduğu sürece geçerli tutmak için
 `CSRFTokenTTL`'i negatif yapın.
 
+v0.72.0'dan beri bir form'daki token her response'ta yeniden maskelenir: her
+seferinde yeni, rastgele bir pad ile XOR'lanır ve başına `~` konur. Request'in
+gönderdiğini yansıtan sıkıştırılmış bir response, yansıyan metin token'ın bir
+kısmıyla eşleştiğinde daha kısa olur. Bir okuyucunun tarayıcısına request
+gönderttirebilen bir saldırgan da token'ı bu uzunluklardan okuyabilirdi (BREACH).
+Maskelenmiş token her seferinde farklı byte'lardır. Kontrol maskeyi hem form'dan
+hem header'dan gelen değerden kaldırır ve maskelenmemiş bir token'ı da kabul eder.
+
 ## Redirect'ler sitede kalır
 
 collage'ın yazdığı hiçbir redirect, okuyucuyu başka bir siteye gönderemez:
@@ -215,8 +223,9 @@ taşımadığı için sıkı bir policy nonce gerektirmez.
 ## Size kalanlar
 
 - **Güvenlik düzeltmelerini içeren bir Go toolchain'i.** Bir program, derlendiği
-  standart kütüphaneyi içinde taşır. En son Go patch sürümüyle derleyin; kurulu
-  Go'nuz daha eskiyse `GOTOOLCHAIN=go1.26.10 go build` kullanın. Bir binary'yi
+  standart kütüphaneyi içinde taşır. v0.72.0'dan beri collage Go 1.26.10 ister.
+  Böylece varsayılan `GOTOOLCHAIN=auto` ile go komutu, daha eski bir Go ile
+  yapılacak bir derleme için bu sürümü kendisi indirir. Bir binary'yi
   `go version -m` ile kontrol edin. Go 1.26.10, ele geçirilmiş eMudhra ara
   sertifikalarını reddeder (CVE-2026-111943).
 - **TLS**, `X-Forwarded-Proto`'yu ve tarayıcının `Host`'unu ileten bir proxy'de.

@@ -42,7 +42,7 @@ dışında hiçbir şeye ihtiyaç duymaz.
 
 ## Go'yu kurun
 
-collage **Go 1.26 veya daha yeni bir sürüm** ister. Go'yu [go.dev/dl](https://go.dev/dl)
+collage **Go 1.26.10 veya daha yeni bir sürüm** ister (v0.72.0'dan beri; varsayılan `GOTOOLCHAIN=auto` ile daha eski bir Go bu sürümü kendisi indirir). Go'yu [go.dev/dl](https://go.dev/dl)
 adresinden ya da paket yöneticinizden kurun ve kontrol edin:
 
 ```sh
