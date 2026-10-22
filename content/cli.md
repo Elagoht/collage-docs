@@ -730,6 +730,12 @@ file the scaffold embeds, so each run after a change to `main` stored another
 copy of them there, kept for days. `collage routes` and `collage check` run the
 project the same way.
 
+They also set `COLLAGE_CLI_COMMAND` to the word they ask with (since v0.71.1).
+While it is set, `App.ListenAndServe` refuses to serve and returns why, so a
+`main.go` that never hands its arguments to `DispatchCommands` — one written
+before `collage.Main` — fails at once instead of leaving the command waiting on
+a server forever.
+
 `collage-inspect` is a command `DispatchCommands` answers itself rather than handing
 it to a plugin: it prints the application's description as indented JSON. That JSON
 is the contract; the Go types behind it (`App.Inspect`, `collage.Inspection`,
