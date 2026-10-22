@@ -215,8 +215,10 @@ collage add action blog/ping --path /api/ping
 collage add document feed --path /feed.xml --type application/xml
 collage add action blog/like --page blog/post   # attached to pages/blog/post.go
 collage add layout panel            # fragments/layouts/panel.go, nested
-collage add guard admin             # guards/admin.go + fragments/layouts/admin.go
-collage add page admin/users --layout panel --guard admin
+collage add guard admin             # guards/admin.go, the guard function alone
+collage add layout panel --guard admin  # a layout that carries it
+collage add page admin/users --layout panel
+collage add page login --guard guest    # WithGuard on the page's content
 collage add middleware loadUser     # middleware/loadUser.go + app.Use in routes.go
 collage add command seed            # commands/seed.go + app.RegisterCommand
 ```
@@ -229,7 +231,7 @@ collage add command seed            # commands/seed.go + app.RegisterCommand
 | `--locale code` | `Locale.Default`, or `en` | The locale its path is in |
 | `--type type` | `text/plain; charset=utf-8` | A document's content type |
 | `--layout name` | none | A page's layout: the one `add layout <name>` wrote, inside the site's (since v0.69.0) |
-| `--guard name` | none | A page's guard: the layout `add guard <name>` wrote, inside the site's and any `--layout` (since v0.69.0). An action's: `WithGuard(guards.<Name>)` (since v0.70.0) |
+| `--guard name` | none | `.WithGuard(guards.<Name>)`, the guard `add guard <name>` wrote: on a page's content or a layout (since v0.74.0), or an action (since v0.70.0) |
 | `--page target` | none | An action's page, `[area/]name`: attaches the action to it (since v0.69.0) |
 | `--dir path` | `.` | The project |
 
@@ -253,20 +255,23 @@ collage add command seed            # commands/seed.go + app.RegisterCommand
 - **A layout** (since v0.69.0) is `fragments/layouts/<name>.go`, a layout that
   nests inside the site's own around a page's content,
   `<div class="<name>">{{slot "content"}}</div>` — inline, or in a template file
-  with `--file`. `--layout <name>` wraps a new page in it. A layout `add layout`
-  or `add guard` wrote is marked `//collage:nested`, and one that carries a guard
-  counts as nested too: neither is ever taken for the site's layout a new page
-  goes into.
-- **A guard** (since v0.69.0) is two files. `guards/<name>.go` is the
-  [guard](/docs/pages-and-layouts#private-pages-guards), a `GuardFunc` that refuses
-  everyone with `403` until you write its check — return `nil, nil` to let a
-  request through, or a redirect. `fragments/layouts/<name>.go` is a layout that
-  renders nothing of its own and carries the guard, since a guard acts where a
-  page's layout chain carries it. `--guard <name>` wraps a new page in it:
-  `WithLayouts(layouts.Master(), layouts.Admin())`. The page's renders, its
-  attached actions and its fragment paths meet the guard first. An action with
-  its own `--path` has no page; since v0.70.0, `add action ... --guard admin`
-  gives it the guard itself, `.WithGuard(guards.Admin)`.
+  with `--file`. `--layout <name>` wraps a new page in it, and `--guard <name>`
+  gives the layout that guard. A layout `add layout` wrote is marked
+  `//collage:nested`, and one that carries a guard counts as nested too: neither
+  is ever taken for the site's layout a new page goes into.
+- **A guard** (since v0.69.0) is `guards/<name>.go`, the
+  [guard](/docs/pages-and-layouts#private-pages-guards) function alone: a
+  `GuardFunc` that refuses everyone with `403` until you write its check — return
+  `nil, nil` to let a request through, or a redirect. `--guard <name>` puts it
+  where it is asked, adding `.WithGuard(guards.Admin)` and nothing else; the
+  guard must exist, or the command is refused with the `add guard` to run first.
+  On `add page` it goes on the page's content fragment — a page's builder has no
+  guard of its own — so the page's renders, its attached actions and its
+  fragment paths meet it. On `add layout` it goes on the layout, and every page
+  wrapped in it meets the guard first. An action with its own `--path` has no
+  page; since v0.70.0, `add action ... --guard admin` gives it the guard itself.
+  Before v0.74.0, `add guard` also wrote a layout that only carried the guard,
+  and `add page --guard` wrapped the page in it; such layouts keep working.
 - **A middleware** (since v0.69.0) is `middleware/<name>.go`, a
   `func(http.Handler) http.Handler` that passes every request on, registered with
   [`app.Use`](/docs/middleware-and-apis#middleware-appuse) after the middleware already there —

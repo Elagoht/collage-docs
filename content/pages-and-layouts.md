@@ -275,10 +275,10 @@ sends the reader to the Turkish login, and falls back to the default locale as
 returns an action's `*ActionResult` instead. An unknown name is an error and
 fails the request; it lets nobody through.
 
-`collage add guard private` writes both halves — the guard, refusing everyone
-until you write its check, and a layout that carries it — and
-`collage add page dashboard --guard private` wraps a new page in it (since v0.69.0;
-see [`collage add`](/docs/cli#collage-add)).
+`collage add guard private` writes the guard, refusing everyone until you write
+its check; `collage add layout private --guard private` writes a layout that
+carries it, and `collage add page dashboard --guard private` puts it on a new
+page's content (since v0.74.0; see [`collage add`](/docs/cli#collage-add)).
 
 Every page wrapped in `Private()` is private, and a page is public by leaving it
 out. There is no list of protected paths to keep in step with the routes: the
