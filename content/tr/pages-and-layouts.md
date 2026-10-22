@@ -284,10 +284,11 @@ Bu, guard'ların `SeeOtherPage`'idir; `SeeOtherPage` ise action'lar için
 `*ActionResult` döner. Bilinmeyen bir ad hatadır ve request'i başarısız kılar;
 kimseyi içeri almaz.
 
-`collage add guard private` iki parçayı da yazar: siz kontrolünü yazana kadar
-herkesi reddeden guard'ı ve onu taşıyan layout'u. `collage add page dashboard
---guard private` de yeni bir page'i onunla sarar (v0.69.0'dan beri;
-[`collage add`](/docs/cli#collage-add)'e bakın).
+`collage add guard private`, siz kontrolünü yazana kadar herkesi reddeden
+guard'ı yazar. `collage add layout private --guard private` onu taşıyan bir
+layout yazar, `collage add page dashboard --guard private` ise guard'ı yeni bir
+page'in içeriğine koyar (v0.74.0'dan beri; [`collage add`](/docs/cli#collage-add)'e
+bakın).
 
 `Private()` ile sarılan her page private'tır; bir page'i public yapmak için
 `Private()`'ı zincirine eklememek yeterlidir. Route'larla senkron tutulacak bir

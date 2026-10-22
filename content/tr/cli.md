@@ -223,8 +223,10 @@ collage add action blog/ping --path /api/ping
 collage add document feed --path /feed.xml --type application/xml
 collage add action blog/like --page blog/post   # attached to pages/blog/post.go
 collage add layout panel            # fragments/layouts/panel.go, nested
-collage add guard admin             # guards/admin.go + fragments/layouts/admin.go
-collage add page admin/users --layout panel --guard admin
+collage add guard admin             # guards/admin.go, yalnızca guard fonksiyonu
+collage add layout panel --guard admin  # onu taşıyan bir layout
+collage add page admin/users --layout panel
+collage add page login --guard guest    # page'in içeriğine WithGuard
 collage add middleware loadUser     # middleware/loadUser.go + app.Use in routes.go
 collage add command seed            # commands/seed.go + app.RegisterCommand
 ```
@@ -237,7 +239,7 @@ collage add command seed            # commands/seed.go + app.RegisterCommand
 | `--locale code` | `Locale.Default` ya da `en` | Path'in ait olduğu locale |
 | `--type type` | `text/plain; charset=utf-8` | Bir document'ın content type'ı |
 | `--layout name` | yok | Bir page'in layout'u: `add layout <name>`'in yazdığı layout, sitenin layout'unun içinde (v0.69.0'dan beri) |
-| `--guard name` | yok | Bir page'in guard'ı: `add guard <name>`'in yazdığı layout, sitenin layout'unun ve varsa `--layout`'un içinde (v0.69.0'dan beri). Bir action'ın: `WithGuard(guards.<Name>)` (v0.70.0'dan beri) |
+| `--guard name` | yok | `add guard <name>`'in yazdığı guard ile `.WithGuard(guards.<Name>)`: bir page'in içeriğinde ya da bir layout'ta (v0.74.0'dan beri), ya da bir action'da (v0.70.0'dan beri) |
 | `--page target` | yok | Bir action'ın page'i, `[area/]name`: action'ı o page'e ekler (v0.69.0'dan beri) |
 | `--dir path` | `.` | Proje |
 
@@ -262,21 +264,24 @@ collage add command seed            # commands/seed.go + app.RegisterCommand
 - **Bir layout** (v0.69.0'dan beri), sitenin kendi layout'unun içine yerleşip
   page'in içeriğini saran bir layout'tur: `fragments/layouts/<name>.go`,
   içinde `<div class="<name>">{{slot "content"}}</div>`. Template'i inline olur,
-  `--file` ile bir dosyada durur. `--layout <name>` yeni bir page'i onunla sarar.
-  `add layout`'un ya da `add guard`'ın yazdığı layout'lar `//collage:nested` ile
-  işaretlenir, guard taşıyan bir layout da iç içe sayılır: bunların hiçbiri, yeni
-  bir page'in içine konduğu site layout'u sanılmaz.
-- **Bir guard** (v0.69.0'dan beri) iki dosyadır. `guards/<name>.go`,
-  [guard](/docs/pages-and-layouts#private-pages-guards)'ın kendisidir: siz kontrolünü
-  yazana kadar herkesi `403` ile reddeden bir `GuardFunc`. Bir request'i geçirmek
-  için `nil, nil`, başka yere göndermek için bir redirect dönün.
-  `fragments/layouts/<name>.go` ise kendisi bir şey çizmeyen, yalnızca guard'ı
-  taşıyan bir layout'tur, çünkü guard, page'in layout zincirinde durduğu yerde
-  çalışır. `--guard <name>` yeni bir page'i onunla sarar:
-  `WithLayouts(layouts.Master(), layouts.Admin())`. Page'in render'ları, ona
-  eklenmiş action'lar ve fragment path'leri önce guard'a sorulur. Kendi `--path`'i
-  olan bir action'ın page'i yoktur; v0.70.0'dan beri `add action ... --guard admin`
-  guard'ı ona doğrudan verir: `.WithGuard(guards.Admin)`.
+  `--file` ile bir dosyada durur. `--layout <name>` yeni bir page'i onunla sarar,
+  `--guard <name>` ise layout'a o guard'ı verir. `add layout`'un yazdığı
+  layout'lar `//collage:nested` ile işaretlenir, guard taşıyan bir layout da iç içe
+  sayılır: bunların hiçbiri, yeni bir page'in içine konduğu site layout'u sanılmaz.
+- **Bir guard** (v0.69.0'dan beri) yalnızca `guards/<name>.go` dosyasıdır,
+  [guard](/docs/pages-and-layouts#private-pages-guards) fonksiyonunun kendisi: siz
+  kontrolünü yazana kadar herkesi `403` ile reddeden bir `GuardFunc`. Bir
+  request'i geçirmek için `nil, nil`, başka yere göndermek için bir redirect
+  dönün. `--guard <name>` onu sorulacağı yere koyar: yalnızca
+  `.WithGuard(guards.Admin)` ekler, başka bir şey değil. Guard'ın var olması
+  gerekir, yoksa komut önce çalıştırılacak `add guard`'ı söyleyerek reddedilir.
+  `add page`'de guard, page'in içerik fragment'ine konur (page builder'ın kendi
+  guard'ı yoktur); page'in render'ları, ona eklenmiş action'lar ve fragment
+  path'leri ona sorulur. `add layout`'ta guard layout'a konur ve onunla sarılan
+  her page önce guard'a sorulur. Kendi `--path`'i olan bir action'ın page'i yoktur;
+  v0.70.0'dan beri `add action ... --guard admin` guard'ı ona doğrudan verir.
+  v0.74.0'dan önce `add guard` yalnızca guard'ı taşıyan bir layout da yazıyordu ve
+  `add page --guard` page'i onunla sarıyordu; o layout'lar çalışmaya devam eder.
 - **Bir middleware** (v0.69.0'dan beri), her request'i bir sonrakine geçiren bir
   `func(http.Handler) http.Handler` olan `middleware/<name>.go` dosyasıdır.
   [`app.Use`](/docs/middleware-and-apis#middleware-appuse) ile, zaten var olan
