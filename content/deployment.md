@@ -798,7 +798,7 @@ its own.
 | It needs | From |
 | --- | --- |
 | A forgery key, the same on both servers | `COLLAGE_CSRF_KEY`, in a secrets file the unit reads |
-| The flash key, the same on both servers | `FLASH_KEY`, the variable `KeyEnv` names |
+| The flash key, the same on both servers | `FLASH_KEY`, which elagoht/flash reads unless `KeyEnv` names another |
 | A page cache it can write | `.cache/<hash>` in the unit's `WorkingDirectory`, one per server |
 | The reader's address and scheme | `Server.TrustedProxies` listing the load balancer |
 | A drain the load balancer notices | elagoht/health first in the list, and `Server.DrainDelay` |
@@ -830,7 +830,7 @@ app, err := collage.New(&collage.Config{
 	},
 	Plugins: []collage.Plugin{
 		h, // first, so a probe always reaches it
-		flash.New(flash.Options{KeyEnv: "FLASH_KEY"}),
+		flash.New(flash.Options{}), // its key from FLASH_KEY
 	},
 	Security: collage.SecurityConfig{
 		CSRFKey: []byte(os.Getenv("COLLAGE_CSRF_KEY")),

@@ -259,8 +259,9 @@ the application itself:
 | A stolen session cookie | — | elagoht/session: a session cannot be revoked, it lives in the cookie | A short `maxAge` or `idleTimeout` |
 
 The plugins go in `Config.Plugins`: elagoht/secure and elagoht/honeypot add
-template functions (`{{cspNonce}}`, `{{honeypot}}`). A plugin's key is read from the
-environment variable its `KeyEnv` names, never from `plugins-config.json`:
+template functions (`{{cspNonce}}`, `{{honeypot}}`). A plugin's key is read from an
+environment variable — `SESSION_KEY`, `SECURE_KEY`, `HONEYPOT_KEY`, or another its
+`KeyEnv` names — never from `plugins-config.json`:
 
 ```go
 app, err := collage.New(&collage.Config{
@@ -272,16 +273,15 @@ app, err := collage.New(&collage.Config{
 		CSRFKey: []byte(os.Getenv("COLLAGE_CSRF_KEY")),
 	},
 	Plugins: []collage.Plugin{
-		session.New(session.Options{KeyEnv: "SESSION_KEY", Encrypt: true}),
+		session.New(session.Options{Encrypt: true}),
 		secure.New(secure.Options{
-			KeyEnv: "SECURE_KEY",
-			CSP:    "default-src 'self'; script-src 'self' 'nonce-{nonce}'",
+			CSP: "default-src 'self'; script-src 'self' 'nonce-{nonce}'",
 		}),
 		ratelimit.New(ratelimit.Options{Rules: []ratelimit.Rule{
 			{PathPrefix: "/login", Rate: 0.1, Burst: 5},
 			{Rate: 0.5, Burst: 10},
 		}}),
-		honeypot.New(honeypot.Options{KeyEnv: "HONEYPOT_KEY"}),
+		honeypot.New(honeypot.Options{}),
 	},
 })
 ```

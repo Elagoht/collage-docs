@@ -314,7 +314,7 @@ points, each plugin linked to its section below:
 
 | You are building | Start with | What they do for it |
 | --- | --- | --- |
-| A blog | [markdown](#elagohtmarkdown), [highlight](#elagohthighlight), [toc](#elagohttoc), [feed](#elagohtfeed), [sitemap](#elagohtsitemap), [robots](#elagohtrobots), [meta](#elagohtmeta), [jsonld](#elagohtjsonld), [ogimage](#elagohtogimage), [search](#elagohtsearch) | Posts written in Markdown with highlighted code and a table of contents, a feed for readers, what search engines and link previews read, and search on a statically built site. `@blog` adds all of them but search in one command. |
+| A blog | [markdown](#elagohtmarkdown), [highlight](#elagohthighlight), [toc](#elagohttoc), [feed](#elagohtfeed), [sitemap](#elagohtsitemap), [robots](#elagohtrobots), [meta](#elagohtmeta), [jsonld](#elagohtjsonld), [ogimage](#elagohtogimage), [search](#elagohtsearch) | Posts written in Markdown with highlighted code and a table of contents, a feed for readers, what search engines and link previews read, and search on a statically built site. `@blog` adds toc, feed, ogimage and the search-engine ones in one command; add markdown, highlight and search yourself. |
 | A product catalogue | [jsonld](#elagohtjsonld), [meta](#elagohtmeta), [sitemap](#elagohtsitemap), [opti-image](#elagohtopti-image), [i18n](#elagohti18n), [cdnpurge](#elagohtcdnpurge), [compress](#elagohtcompress), [minimizer](#elagohtminimizer) | `Product` structured data, resized product images served from the plugin's own mount, translations per locale, and a CDN's copies purged when a product's tags are invalidated. |
 | A multi-user web app with roles | [session](#elagohtsession), [oauth](#elagohtoauth), [validate](#elagohtvalidate), [flash](#elagohtflash), [honeypot](#elagohthoneypot), [uploads](#elagohtuploads), [secure](#elagohtsecure), [ratelimit](#elagohtratelimit), [fail2ban](#elagohtfail2ban), [live](#elagohtlive) | Sign-in through an identity provider, the signed-in user kept in a session, forms checked and answered, uploads checked by their content, abuse limited or banned, and parts of a page kept current. The roles are yours: a middleware added with `app.Use` reads the session the plugin put in the request's context, as [Plugins' middleware and yours](/docs/middleware-and-apis#plugins-middleware-and-yours) shows. |
 
@@ -1047,7 +1047,7 @@ too long ago, or — when the form asks — came back too soon.
 ```go
 import "github.com/Elagoht/collage-honeypot"
 
-Plugins: []collage.Plugin{honeypot.New(honeypot.Options{KeyEnv: "HONEYPOT_KEY"})},
+Plugins: []collage.Plugin{honeypot.New(honeypot.Options{})},
 ```
 
 ```html
@@ -1062,7 +1062,6 @@ Plugins: []collage.Plugin{honeypot.New(honeypot.Options{KeyEnv: "HONEYPOT_KEY"})
 ```json
 {
   "elagoht/honeypot": {
-    "keyEnv": "HONEYPOT_KEY",
     "minDelay": "0s",
     "maxAge": "24h",
     "silent": false,
@@ -1073,6 +1072,11 @@ Plugins: []collage.Plugin{honeypot.New(honeypot.Options{KeyEnv: "HONEYPOT_KEY"})
 
 - v0.5.0 needs collage v0.61.0 or later (v0.4.4 was the last for v0.60.0), and must go in
   `Config.Plugins`: it adds `{{honeypot}}`.
+- **Since v0.6.0** the key is read from `HONEYPOT_KEY` with nothing configured:
+  put `HONEYPOT_KEY=` (`openssl rand -hex 32`) in `.env.development` and where
+  production runs. `keyEnv` names another variable and wins, then `Options.Key`,
+  then `HONEYPOT_KEY`; a named variable must be set, `HONEYPOT_KEY` may be empty,
+  and either one not hex stops the application.
 - **Changed in v0.5.0:** the hex `key` is gone — `keyEnv` names the environment
   variable holding it, and `Options.Key` takes the bytes from Go. `maxAge` and
   `minDelay` are duration strings (`"24h"`, `"300ms"`); `{{honeypot 0.3}}` still
@@ -1125,7 +1129,7 @@ page it redirects to.
 ```go
 import "github.com/Elagoht/collage-flash"
 
-Plugins: []collage.Plugin{flash.New(flash.Options{KeyEnv: "FLASH_KEY"})},
+Plugins: []collage.Plugin{flash.New(flash.Options{})},
 ```
 
 ```go
@@ -1142,7 +1146,6 @@ return collage.SeeOther("/settings"), nil
 ```json
 {
   "elagoht/flash": {
-    "keyEnv": "FLASH_KEY",
     "cookie": "collage_flash",
     "maxAge": "5m"
   }
@@ -1151,6 +1154,11 @@ return collage.SeeOther("/settings"), nil
 
 - v0.2.0 needs collage v0.61.0 or later (v0.1.4 was the last for v0.50.0), and must go in `Config.Plugins`: it adds
   `{{flashes}}`.
+- **Since v0.3.0** the key is read from `FLASH_KEY` with nothing configured:
+  put `FLASH_KEY=` (`openssl rand -hex 32`) in `.env.development` and where
+  production runs. `keyEnv` names another variable and wins, then `Options.Key`,
+  then `FLASH_KEY`; a named variable must be set, `FLASH_KEY` may be empty, and
+  either one not hex stops the application.
 - **Changed in v0.2.0:** the hex `key` became `keyEnv`, the name of the
   environment variable holding it (`Options.Key` from Go is unchanged), and
   `maxAge` is a duration string, `"5m"` by default, where it was seconds. An old
@@ -1172,7 +1180,7 @@ encrypt, with no database behind it.
 ```go
 import "github.com/Elagoht/collage-session"
 
-Plugins: []collage.Plugin{session.New(session.Options{KeyEnv: "SESSION_KEY"})},
+Plugins: []collage.Plugin{session.New(session.Options{})},
 ```
 
 ```go
@@ -1197,8 +1205,6 @@ private := collage.NewFragment("private", "layouts/private.html").
 ```json
 {
   "elagoht/session": {
-    "keyEnv": "SESSION_KEY",
-    "previousKeysEnv": "SESSION_PREVIOUS_KEYS",
     "encrypt": true,
     "maxAge": "168h",
     "idleTimeout": "0s",
@@ -1207,6 +1213,12 @@ private := collage.NewFragment("private", "layouts/private.html").
 }
 ```
 
+- **Since v0.5.0** the key is read from `SESSION_KEY`, and the previous keys
+  from `SESSION_PREVIOUS_KEYS`, with nothing configured: put `SESSION_KEY=`
+  (`openssl rand -hex 32`) in `.env.development` and where production runs.
+  `keyEnv` and `previousKeysEnv` name other variables and win, then the options
+  set from Go, then these two; a named variable must be set, these may be empty,
+  and a key that is not hex stops the application.
 - v0.4.0 needs collage v0.73.0 or later (v0.3.1 was the last for v0.61.4); v0.3.0 needed v0.61.0 (v0.2.4 was the last for v0.60.0). It adds no
   template function, so `RegisterPlugin` accepts it too.
 - **Changed in v0.3.0:** keys never go in `plugins-config.json`. `keyEnv` names
@@ -1362,7 +1374,6 @@ Plugins: []collage.Plugin{secure.New(secure.Options{
     "hsts": 63072000,
     "hstsSubdomains": true,
     "frameOptions": "DENY",
-    "keyEnv": "SECURE_KEY",
     "permissionsPolicy": "camera=(), microphone=(), geolocation=()"
   }
 }
@@ -1389,16 +1400,17 @@ Plugins: []collage.Plugin{secure.New(secure.Options{
   a document or a mounted file still gets its `304` (since v0.1.5; before, with a
   policy set, nothing behind the plugin could).
 - Set a key: at least 32 random bytes, the same on every instance and across
-  restarts. A secret never goes in `plugins-config.json`: `keyEnv` names the
-  environment variable holding it in hex (`openssl rand -hex 32`), or `Options.Key`
-  takes the bytes from Go (v0.3.0; `key` and `Options.KeyHex` are gone). With it the
+  restarts, in hex (`openssl rand -hex 32`) in `SECURE_KEY`, which is read with
+  nothing configured (since v0.4.0). A secret never goes in `plugins-config.json`:
+  `keyEnv` names another variable and wins, or `Options.Key` takes the bytes from
+  Go, and wins over `SECURE_KEY` (v0.3.0; `key` and `Options.KeyHex` are gone). With it the
   `{{cspNonce}}` placeholder is the same in every process, so a page from a disk
   cache that survived a deploy, or from a cache shared by several instances, still
   gets its nonce. Without a key the placeholder changes per process, and such a
   page carries another process's placeholder, matching no header until the entry
   expires: set a key when you use a disk cache or several instances. A key that is
-  short, or a variable that is empty or not hex, stops the application from
-  starting; keep it secret.
+  short, a named variable that is empty or not hex, or a `SECURE_KEY` that is not
+  hex, stops the application from starting; keep it secret.
 - With no policy, or one without `{nonce}`, there is no nonce to name: the `nonce`
   attribute is removed, as in a static build, and the page stays cacheable with a
   stable `ETag`.
@@ -1506,7 +1518,7 @@ elagoht/session, so `session.RequireUser` guards work unchanged.
 import "github.com/Elagoht/collage-oauth"
 
 Plugins: []collage.Plugin{
-	session.New(session.Options{KeyEnv: "SESSION_KEY"}),
+	session.New(session.Options{}),
 	oauth.New(oauth.Options{
 		Providers: []oauth.Provider{{
 			Name:            "google",
@@ -1533,8 +1545,7 @@ Plugins: []collage.Plugin{
         "clientSecretEnv": "GOOGLE_CLIENT_SECRET", "offline": true }
     ],
     "afterLogin": "/account",
-    "errorPath": "/sign-in-failed",
-    "keyEnv": "OAUTH_KEY"
+    "errorPath": "/sign-in-failed"
   }
 }
 ```
@@ -1546,6 +1557,11 @@ Plugins: []collage.Plugin{
   environment: the file names the variables, with `clientSecretEnv`, `keyEnv` and
   `previousKeysEnv` (since v0.2.0; `key`, `previousKeys` and `Options.KeyHex` are
   gone, and an old configuration stops at start).
+- **Since v0.3.0** the key is read from `OAUTH_KEY`, and the previous keys from
+  `OAUTH_PREVIOUS_KEYS`, when neither `keyEnv`/`previousKeysEnv` nor the Go
+  options set them: put `OAUTH_KEY=` (`openssl rand -hex 32`) in
+  `.env.development` and where production runs when `Store` keeps tokens. These
+  may be empty; a key in them that is not hex stops the application.
 - The routes are `{prefix}/{name}/login` and `{prefix}/{name}/callback` (prefix
   `/auth`), `GET` only. Register `{origin}/auth/google/callback` with the provider:
   the origin is `Config.BaseURL`, or what an origin resolver such as elagoht/tenant

@@ -1011,7 +1011,7 @@ passes over the rest. `collage help plugin` lists them too.
 | --- | --- | --- |
 | `@prod` | what a site in production wants | health, secure, compress, minimizer, accesslog, ratelimit |
 | `@site` | a public site's search and share basics | robots, sitemap, meta, jsonld, favicon |
-| `@blog` | `@site`, and posts written in Markdown | the plugins of `@site`, markdown, feed, toc, highlight, ogimage |
+| `@blog` | `@site`, and a feed, contents and share cards | the plugins of `@site`, feed, toc, ogimage (markdown and highlight left out since v0.75.0) |
 | `@forms` | forms, and state kept in cookies | session, flash, validate, honeypot |
 | `@live` | fragments the server keeps current | live, websocket |
 | `@ops` | metrics and error reports | prometheus, errortrack |
