@@ -1298,6 +1298,13 @@ private := collage.NewFragment("private", "layouts/private.html").
   adreste bırakmaz. `RequirePage(key, loginPage)` aynısını herhangi bir key için
   yapar. Uygulamanın kaydetmediği bir ad, kimseyi içeri almak yerine request'i
   başarısız kılar.
+- **`RequireGuest(homePath)`** ve **`RequireGuestPage(homePage)`** (v0.6.0'dan
+  beri) yalnızca giriş yapmamış okuyucunun işine yarayan page'leri korur: giriş,
+  kayıt, unutulan şifre. Giriş yapmamış okuyucu geçer; giriş yapmış olan,
+  request'teki `next` `collage.SafeRedirect`'e göre bu sitede bir path ise oraya,
+  değilse home path'e ya da adı verilen page'e (request'in locale'inde) `303` ile
+  gönderilir. Auth page'lerinin layout'unda:
+  `WithGuard(session.RequireGuestPage("account"))`.
 - Metotları `Get`, `Set`, `Delete`, `Clear`, `Regenerate` ve `ID`'dir. Kendi
   handler'ınız session'ı `session.FromContext(r.Context())` ile okur.
 - **Geçerli bir session taşıyan request yeniden render edilir.** Page cache'ten

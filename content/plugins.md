@@ -1242,6 +1242,12 @@ private := collage.NewFragment("private", "layouts/private.html").
   renamed or translated path cannot leave the guard pointing at the old one.
   `RequirePage(key, loginPage)` is its form for any key. A name the application
   has not registered fails the request rather than letting anyone through.
+- **`RequireGuest(homePath)`** and **`RequireGuestPage(homePage)`** (since
+  v0.6.0) guard the pages only a signed-out reader needs — sign in, sign up, a
+  forgotten password. A signed-out reader goes through; a signed-in one gets
+  `303` to the request's `next` when `collage.SafeRedirect` finds it a path on
+  this site, or to the home path, or the named page in the request's locale.
+  `WithGuard(session.RequireGuestPage("account"))` on the auth pages' layout.
 - `Get`, `Set`, `Delete`, `Clear`, `Regenerate` and `ID`; a handler of your own
   reads it with `session.FromContext(r.Context())`.
 - **A request carrying a valid session is rendered fresh**, neither read from the
