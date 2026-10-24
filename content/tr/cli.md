@@ -1056,7 +1056,7 @@ gider. `del @ad`, paketin projede olan plugin'lerini siler, olmayanları atlar.
 | --- | --- | --- |
 | `@prod` | canlıdaki bir sitenin istedikleri | health, secure, compress, minimizer, accesslog, ratelimit |
 | `@site` | herkese açık bir sitenin arama ve paylaşım temelleri | robots, sitemap, meta, jsonld, favicon |
-| `@blog` | `@site` ve Markdown ile yazılan yazılar | `@site`'ın plugin'leri, markdown, feed, toc, highlight, ogimage |
+| `@blog` | `@site`, bir feed, içindekiler ve paylaşım kartları | `@site`'ın plugin'leri, feed, toc, ogimage (markdown ve highlight v0.75.0'dan beri yok) |
 | `@forms` | formlar ve cookie'de tutulan durum | session, flash, validate, honeypot |
 | `@live` | sunucunun güncel tuttuğu fragment'lar | live, websocket |
 | `@ops` | metrikler ve hata raporları | prometheus, errortrack |

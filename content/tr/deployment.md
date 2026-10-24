@@ -840,7 +840,7 @@ cookie'sini kendine ait bir key ile imzalar.
 | Neye ihtiyacı var | Nereden gelir |
 | --- | --- |
 | İki sunucuda da aynı forgery key'i | Unit'in okuduğu secret dosyasındaki `COLLAGE_CSRF_KEY` |
-| İki sunucuda da aynı flash key'i | `KeyEnv`'in adlandırdığı değişken olan `FLASH_KEY` |
+| İki sunucuda da aynı flash key'i | `KeyEnv` başka bir değişken adı vermedikçe elagoht/flash'ın okuduğu `FLASH_KEY` |
 | Yazabildiği bir page cache | Unit'in `WorkingDirectory`'sinde `.cache/<hash>`, her sunucuda bir tane |
 | Okuyucunun adresi ve scheme'i | Load balancer'ı listeleyen `Server.TrustedProxies` |
 | Load balancer'ın fark ettiği bir drain | Plugin listesinde ilk sıradaki elagoht/health ve `Server.DrainDelay` |
@@ -872,7 +872,7 @@ app, err := collage.New(&collage.Config{
 	},
 	Plugins: []collage.Plugin{
 		h, // first, so a probe always reaches it
-		flash.New(flash.Options{KeyEnv: "FLASH_KEY"}),
+		flash.New(flash.Options{}), // key'i FLASH_KEY'den
 	},
 	Security: collage.SecurityConfig{
 		CSRFKey: []byte(os.Getenv("COLLAGE_CSRF_KEY")),

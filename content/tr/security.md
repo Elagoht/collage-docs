@@ -280,8 +280,9 @@ uygulamanın kendisi karşılar:
 
 Plugin'ler `Config.Plugins`'e girer: elagoht/secure ve elagoht/honeypot template
 fonksiyonları ekler (`{{cspNonce}}`, `{{honeypot}}`). Bir plugin'in key'i hiçbir
-zaman `plugins-config.json`'dan değil, `KeyEnv`'inin adlandırdığı ortam değişkeninden
-okunur:
+zaman `plugins-config.json`'dan değil, bir ortam değişkeninden okunur:
+`SESSION_KEY`, `SECURE_KEY`, `HONEYPOT_KEY` ya da `KeyEnv`'inin adını verdiği başka
+bir değişken:
 
 ```go
 app, err := collage.New(&collage.Config{
@@ -293,16 +294,15 @@ app, err := collage.New(&collage.Config{
 		CSRFKey: []byte(os.Getenv("COLLAGE_CSRF_KEY")),
 	},
 	Plugins: []collage.Plugin{
-		session.New(session.Options{KeyEnv: "SESSION_KEY", Encrypt: true}),
+		session.New(session.Options{Encrypt: true}),
 		secure.New(secure.Options{
-			KeyEnv: "SECURE_KEY",
-			CSP:    "default-src 'self'; script-src 'self' 'nonce-{nonce}'",
+			CSP: "default-src 'self'; script-src 'self' 'nonce-{nonce}'",
 		}),
 		ratelimit.New(ratelimit.Options{Rules: []ratelimit.Rule{
 			{PathPrefix: "/login", Rate: 0.1, Burst: 5},
 			{Rate: 0.5, Burst: 10},
 		}}),
-		honeypot.New(honeypot.Options{KeyEnv: "HONEYPOT_KEY"}),
+		honeypot.New(honeypot.Options{}),
 	},
 })
 ```

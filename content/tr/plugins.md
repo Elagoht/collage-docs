@@ -333,7 +333,7 @@ başlangıç noktası vardır; her plugin aşağıdaki kendi bölümüne bağlan
 
 | Ne kuruyorsunuz | Başlangıç | Size ne sağlarlar |
 | --- | --- | --- |
-| Bir blog | [markdown](#elagohtmarkdown), [highlight](#elagohthighlight), [toc](#elagohttoc), [feed](#elagohtfeed), [sitemap](#elagohtsitemap), [robots](#elagohtrobots), [meta](#elagohtmeta), [jsonld](#elagohtjsonld), [ogimage](#elagohtogimage), [search](#elagohtsearch) | Markdown ile yazılan, kodu renklendirilmiş ve içindekiler tablosu olan yazılar, okuyucular için bir feed, arama motorlarının ve link preview'larının okuduğu bilgiler ve static olarak build edilen sitede arama. `@blog`, search dışındakilerin hepsini tek komutla ekler. |
+| Bir blog | [markdown](#elagohtmarkdown), [highlight](#elagohthighlight), [toc](#elagohttoc), [feed](#elagohtfeed), [sitemap](#elagohtsitemap), [robots](#elagohtrobots), [meta](#elagohtmeta), [jsonld](#elagohtjsonld), [ogimage](#elagohtogimage), [search](#elagohtsearch) | Markdown ile yazılan, kodu renklendirilmiş ve içindekiler tablosu olan yazılar, okuyucular için bir feed, arama motorlarının ve link preview'larının okuduğu bilgiler ve static olarak build edilen sitede arama. `@blog`; toc, feed, ogimage ve arama motorlarına yönelik olanları tek komutla ekler; markdown, highlight ve search'ü kendiniz ekleyin. |
 | Bir ürün kataloğu | [jsonld](#elagohtjsonld), [meta](#elagohtmeta), [sitemap](#elagohtsitemap), [opti-image](#elagohtopti-image), [i18n](#elagohti18n), [cdnpurge](#elagohtcdnpurge), [compress](#elagohtcompress), [minimizer](#elagohtminimizer) | `Product` structured data, plugin'in kendi mount'undan sunulan yeniden boyutlandırılmış ürün görselleri, her locale için çeviriler ve bir ürünün tag'leri invalidate edildiğinde CDN'deki kopyaların temizlenmesi. |
 | Rolleri olan çok kullanıcılı bir web uygulaması | [session](#elagohtsession), [oauth](#elagohtoauth), [validate](#elagohtvalidate), [flash](#elagohtflash), [honeypot](#elagohthoneypot), [uploads](#elagohtuploads), [secure](#elagohtsecure), [ratelimit](#elagohtratelimit), [fail2ban](#elagohtfail2ban), [live](#elagohtlive) | Bir kimlik sağlayıcısıyla giriş, session'da tutulan giriş yapmış kullanıcı, denetlenip cevaplanan form'lar, içeriğine göre denetlenen upload'lar, sınırlanan ya da ban'lenen kötüye kullanım ve page'in güncel tutulan kısımları. Roller sizindir: `app.Use` ile eklenen bir middleware, plugin'in request context'ine koyduğu session'ı okur; [Plugin'lerin middleware'i ve sizinki](/docs/middleware-and-apis#plugins-middleware-and-yours) bunu gösterir. |
 
@@ -1093,7 +1093,7 @@ bir form'u reddeder.
 ```go
 import "github.com/Elagoht/collage-honeypot"
 
-Plugins: []collage.Plugin{honeypot.New(honeypot.Options{KeyEnv: "HONEYPOT_KEY"})},
+Plugins: []collage.Plugin{honeypot.New(honeypot.Options{})},
 ```
 
 ```html
@@ -1108,7 +1108,6 @@ Plugins: []collage.Plugin{honeypot.New(honeypot.Options{KeyEnv: "HONEYPOT_KEY"})
 ```json
 {
   "elagoht/honeypot": {
-    "keyEnv": "HONEYPOT_KEY",
     "minDelay": "0s",
     "maxAge": "24h",
     "silent": false,
@@ -1119,6 +1118,12 @@ Plugins: []collage.Plugin{honeypot.New(honeypot.Options{KeyEnv: "HONEYPOT_KEY"})
 
 - v0.5.0, collage v0.61.0 ya da sonrasını gerektirir (v0.4.4, collage v0.60.0 için son sürümdü) ve
   `Config.Plugins` içinde olmalıdır: `{{honeypot}}`'ı ekler.
+- **v0.6.0'dan beri** key, hiçbir şey ayarlanmadan `HONEYPOT_KEY`'dan okunur:
+  `.env.development`'a ve production'ın çalıştığı yere `HONEYPOT_KEY=`
+  (`openssl rand -hex 32`) yazın. `keyEnv` başka bir değişkenin adını verir ve
+  önceliklidir; ardından `Options.Key`, en son `HONEYPOT_KEY` gelir. Adı verilen
+  değişkenin ayarlı olması gerekir, `HONEYPOT_KEY` boş olabilir; ikisinden biri hex
+  değilse uygulama başlamaz.
 - **v0.5.0'da değişenler:** hex `key` kalktı. Artık `keyEnv` key'i tutan ortam
   değişkeninin adını verir, Go'dan ise `Options.Key` byte'ları doğrudan alır.
   `maxAge` ve `minDelay` süre string'leridir (`"24h"`, `"300ms"`).
@@ -1175,7 +1180,7 @@ ettiği page'in bir kez gösterdiği mesaj.
 ```go
 import "github.com/Elagoht/collage-flash"
 
-Plugins: []collage.Plugin{flash.New(flash.Options{KeyEnv: "FLASH_KEY"})},
+Plugins: []collage.Plugin{flash.New(flash.Options{})},
 ```
 
 ```go
@@ -1192,7 +1197,6 @@ return collage.SeeOther("/settings"), nil
 ```json
 {
   "elagoht/flash": {
-    "keyEnv": "FLASH_KEY",
     "cookie": "collage_flash",
     "maxAge": "5m"
   }
@@ -1201,6 +1205,12 @@ return collage.SeeOther("/settings"), nil
 
 - v0.2.0, collage v0.61.0 ya da sonrasını gerektirir (v0.1.4, collage v0.50.0 için son sürümdü) ve `Config.Plugins` içinde olmalıdır:
   `{{flashes}}`'ı ekler.
+- **v0.3.0'dan beri** key, hiçbir şey ayarlanmadan `FLASH_KEY`'dan okunur:
+  `.env.development`'a ve production'ın çalıştığı yere `FLASH_KEY=`
+  (`openssl rand -hex 32`) yazın. `keyEnv` başka bir değişkenin adını verir ve
+  önceliklidir; ardından `Options.Key`, en son `FLASH_KEY` gelir. Adı verilen
+  değişkenin ayarlı olması gerekir, `FLASH_KEY` boş olabilir; ikisinden biri hex
+  değilse uygulama başlamaz.
 - **v0.2.0'da değişenler:** hex `key`, key'i tutan ortam değişkeninin adını veren
   `keyEnv` oldu (Go'daki `Options.Key` değişmedi). `maxAge` saniye yerine bir süre
   string'idir, varsayılanı `"5m"`. Eski bir `key`, uygulamayı
@@ -1222,7 +1232,7 @@ string map'i. Arkasında bir veritabanı yoktur.
 ```go
 import "github.com/Elagoht/collage-session"
 
-Plugins: []collage.Plugin{session.New(session.Options{KeyEnv: "SESSION_KEY"})},
+Plugins: []collage.Plugin{session.New(session.Options{})},
 ```
 
 ```go
@@ -1247,8 +1257,6 @@ private := collage.NewFragment("private", "layouts/private.html").
 ```json
 {
   "elagoht/session": {
-    "keyEnv": "SESSION_KEY",
-    "previousKeysEnv": "SESSION_PREVIOUS_KEYS",
     "encrypt": true,
     "maxAge": "168h",
     "idleTimeout": "0s",
@@ -1257,6 +1265,13 @@ private := collage.NewFragment("private", "layouts/private.html").
 }
 ```
 
+- **v0.5.0'dan beri** key `SESSION_KEY`'den, önceki key'ler de
+  `SESSION_PREVIOUS_KEYS`'ten hiçbir şey ayarlanmadan okunur: `.env.development`'a
+  ve production'ın çalıştığı yere `SESSION_KEY=` (`openssl rand -hex 32`) yazın.
+  `keyEnv` ve `previousKeysEnv` başka değişkenlerin adını verir ve önceliklidir;
+  ardından Go'dan verilen option'lar, en son bu ikisi gelir. Adı verilen
+  değişkenin ayarlı olması gerekir, bu ikisi boş olabilir; hex olmayan bir key
+  uygulamanın başlamasını engeller.
 - v0.4.0, collage v0.73.0 ya da sonrasını gerektirir (v0.3.1, collage v0.61.4 için son sürümdü);
   v0.3.0 collage v0.61.0 gerektiriyordu (v0.2.4, collage v0.60.0 için son sürümdü).
   Template fonksiyonu eklemediği için `RegisterPlugin` de onu kabul eder.
@@ -1419,7 +1434,6 @@ Plugins: []collage.Plugin{secure.New(secure.Options{
     "hsts": 63072000,
     "hstsSubdomains": true,
     "frameOptions": "DENY",
-    "keyEnv": "SECURE_KEY",
     "permissionsPolicy": "camera=(), microphone=(), geolocation=()"
   }
 }
@@ -1447,17 +1461,20 @@ Plugins: []collage.Plugin{secure.New(secure.Options{
   zamanki gibi cevap verir: bir feed, bir document ya da mount edilmiş bir dosya
   `304`'ünü yine alır (v0.1.5'ten beri; öncesinde bir policy tanımlıysa plugin'in
   arkasındaki hiçbir şey alamıyordu).
-- Bir key ayarlayın: en az 32 rastgele byte, her instance'ta ve restart'larda aynı.
-  Secret asla `plugins-config.json`'a girmez: `keyEnv`, key'i hex olarak tutan
-  ortam değişkeninin adını verir (`openssl rand -hex 32`), ya da `Options.Key`
-  byte'ları Go'dan alır (v0.3.0; `key` ve `Options.KeyHex` kaldırıldı).
+- Bir key ayarlayın: en az 32 rastgele byte, her instance'ta ve restart'larda aynı,
+  hex olarak (`openssl rand -hex 32`) `SECURE_KEY`'de; hiçbir şey ayarlanmadan
+  okunur (v0.4.0'dan beri). Secret asla `plugins-config.json`'a girmez: `keyEnv`
+  başka bir değişkenin adını verir ve önceliklidir, ya da `Options.Key` byte'ları
+  Go'dan alır ve `SECURE_KEY`'e göre önceliklidir (v0.3.0; `key` ve
+  `Options.KeyHex` kaldırıldı).
   Key ile `{{cspNonce}}` placeholder'ı her process'te aynıdır; bu yüzden bir
   deploy'dan sağ çıkan disk cache'ten ya da birkaç instance'ın paylaştığı bir
   cache'ten gelen page de nonce'unu alır. Key yoksa placeholder process başına
   değişir ve böyle bir page başka bir process'in placeholder'ını taşır; kayıt
   süresi dolana kadar hiçbir header ile eşleşmez. Disk cache ya da birden fazla
-  instance kullanıyorsanız key ayarlayın. Kısa bir key ya da boş veya hex olmayan
-  bir değişken uygulamanın başlamasını engeller; key'i gizli tutun.
+  instance kullanıyorsanız key ayarlayın. Kısa bir key, adı verilmiş boş ya da hex
+  olmayan bir değişken veya hex olmayan bir `SECURE_KEY` uygulamanın başlamasını
+  engeller; key'i gizli tutun.
 - Policy yoksa ya da policy `{nonce}` içermiyorsa adlandırılacak bir nonce da
   yoktur: `nonce` attribute'u static build'deki gibi kaldırılır, page sabit bir
   `ETag` ile cache'lenebilir kalır.
@@ -1568,7 +1585,7 @@ guard'ları değişmeden çalışır.
 import "github.com/Elagoht/collage-oauth"
 
 Plugins: []collage.Plugin{
-	session.New(session.Options{KeyEnv: "SESSION_KEY"}),
+	session.New(session.Options{}),
 	oauth.New(oauth.Options{
 		Providers: []oauth.Provider{{
 			Name:            "google",
@@ -1595,8 +1612,7 @@ Plugins: []collage.Plugin{
         "clientSecretEnv": "GOOGLE_CLIENT_SECRET", "offline": true }
     ],
     "afterLogin": "/account",
-    "errorPath": "/sign-in-failed",
-    "keyEnv": "OAUTH_KEY"
+    "errorPath": "/sign-in-failed"
   }
 }
 ```
@@ -1608,6 +1624,11 @@ Plugins: []collage.Plugin{
   ortam değişkeninde durur: dosya yalnızca değişkenlerin adını `clientSecretEnv`,
   `keyEnv` ve `previousKeysEnv` ile verir (v0.2.0'dan beri; `key`, `previousKeys` ve
   `Options.KeyHex` kaldırıldı, eski bir yapılandırma başlangıçta durur).
+- **v0.3.0'dan beri** ne `keyEnv`/`previousKeysEnv` ne de Go option'ları key
+  vermezse key `OAUTH_KEY`'den, önceki key'ler `OAUTH_PREVIOUS_KEYS`'ten okunur:
+  `Store` token saklıyorsa `.env.development`'a ve production'ın çalıştığı yere
+  `OAUTH_KEY=` (`openssl rand -hex 32`) yazın. Bu ikisi boş olabilir; içlerinde hex
+  olmayan bir key uygulamanın başlamasını engeller.
 - Route'lar `{prefix}/{name}/login` ve `{prefix}/{name}/callback`'tir (prefix
   `/auth`), yalnızca `GET`. Sağlayıcıya `{origin}/auth/google/callback` adresini
   kaydedin. Origin `Config.BaseURL`'dür ya da elagoht/tenant gibi bir origin
