@@ -989,6 +989,19 @@ if !v.Valid() {
 return collage.SeeOther("/welcome"), nil
 ```
 
+Each field gives back what was checked, as its type (since v0.3.0):
+
+```go
+servings := v.Field("servings").Required("How many servings?").Int().Range(1, 50)
+minutes := v.Field("minutes").Int()                // optional
+steps := v.Field("steps").Required().Lines()       // a <textarea>, one per line
+tags := v.Field("tags").All().OneOf(tagNames...)   // a group of checkboxes
+if !v.Valid() {
+	return validate.Refuse(rc, v, rc.Page), nil
+}
+create(servings.Value(), minutes.Ptr(), steps.Value(), tags.Value()) // int, *int, []string, []string
+```
+
 ```html
 <input name="email" type="email" value="{{fieldValue "email"}}">
 {{with fieldError "email"}}<p class="error">{{.}}</p>{{end}}
@@ -1007,7 +1020,7 @@ return collage.SeeOther("/welcome"), nil
 }
 ```
 
-- v0.2.0 needs collage v0.61.0 or later (v0.1.7 was the last for v0.60.0). It must go in
+- v0.3.0 needs collage v0.61.0 or later (v0.1.7 was the last for v0.60.0). It must go in
   `Config.Plugins`: it adds `{{fieldError}}`, `{{fieldValue}}` and `{{hasErrors}}`.
 - `{{fieldValue "name" fallback}}` shows what was submitted when a submission was
   refused, and the fallback when the form is shown for the first time — the value
@@ -1025,7 +1038,18 @@ return collage.SeeOther("/welcome"), nil
   and the first stays cacheable.
 - The checks are `Required`, `MinLen`, `MaxLen`, `Email`, `URL`, `Int`, `Range`,
   `OneOf`, `Matches`, `Equal` and `Custom`; `v.Fail` reports what only the
-  application knows. A field keeps its first message.
+  application knows. A field keeps its first message. Every check but `OneOf`
+  takes an optional message of its own, `Required("…")`, as `.Message("…")`
+  after it would (since v0.3.0).
+- **Typed values (since v0.3.0).** `Field.Value()` is the string, trimmed.
+  `Int()`, `Float()`, `Bool()` (a checkbox), `Date()` (`2026-10-25`), `All()` (every
+  value under the name) and `Lines()` (a textarea's lines) turn the field into a
+  typed one whose `Value()` is an `int`, `float64`, `bool`, `time.Time` or
+  `[]string`, and whose checks work on it: `Min`, `Max`, `Range`, `MinItems`,
+  `MaxItems`, `Custom(func(int) string)`. `Ptr()` is nil for a field left empty —
+  an optional field's "not given". A field that failed gives the zero value.
+  **`Int()` returns an `*IntField`**: a string check after it no longer compiles;
+  `.Int().Message(…)` and `.Int().Range(…)` still work.
 - Messages are English by default, and are replaced per check, per locale or for
   every locale. A field whose name contains `password` is never typed back;
   `noRefill` adds names of your own to it (since v0.2.0 it no longer replaces

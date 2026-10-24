@@ -1034,6 +1034,19 @@ if !v.Valid() {
 return collage.SeeOther("/welcome"), nil
 ```
 
+Her alan, kontrol edilen değeri kendi tipinde geri verir (v0.3.0'dan beri):
+
+```go
+servings := v.Field("servings").Required("Kaç porsiyon?").Int().Range(1, 50)
+minutes := v.Field("minutes").Int()                // isteğe bağlı
+steps := v.Field("steps").Required().Lines()       // her satırda bir tane olan bir <textarea>
+tags := v.Field("tags").All().OneOf(tagNames...)   // bir checkbox grubu
+if !v.Valid() {
+	return validate.Refuse(rc, v, rc.Page), nil
+}
+create(servings.Value(), minutes.Ptr(), steps.Value(), tags.Value()) // int, *int, []string, []string
+```
+
 ```html
 <input name="email" type="email" value="{{fieldValue "email"}}">
 {{with fieldError "email"}}<p class="error">{{.}}</p>{{end}}
@@ -1052,7 +1065,7 @@ return collage.SeeOther("/welcome"), nil
 }
 ```
 
-- v0.2.0, collage v0.61.0 ya da sonrasını gerektirir (v0.1.7, collage v0.60.0 için son sürümdü). `Config.Plugins` içinde olmalıdır: `{{fieldError}}`,
+- v0.3.0, collage v0.61.0 ya da sonrasını gerektirir (v0.1.7, collage v0.60.0 için son sürümdü). `Config.Plugins` içinde olmalıdır: `{{fieldError}}`,
   `{{fieldValue}}` ve `{{hasErrors}}`'ı ekler.
 - `{{fieldValue "name" fallback}}`, reddedilen bir gönderimde gönderilen değeri,
   form ilk kez gösterildiğinde ise fallback'i gösterir. Bir profil ya da düzenleme
@@ -1070,7 +1083,19 @@ return collage.SeeOther("/welcome"), nil
   render'a da hizmet eder ve ilk render cache'lenebilir kalır.
 - Kontroller `Required`, `MinLen`, `MaxLen`, `Email`, `URL`, `Int`, `Range`, `OneOf`,
   `Matches`, `Equal` ve `Custom`'dır. `v.Fail`, yalnızca uygulamanın bildiği bir
-  durumu raporlar. Bir alan ilk mesajını korur.
+  durumu raporlar. Bir alan ilk mesajını korur. `OneOf` dışındaki her kontrol
+  isteğe bağlı bir mesaj alır: `Required("…")`, arkasından gelen `.Message("…")`
+  ile aynı işi görür (v0.3.0'dan beri).
+- **Tipli değerler (v0.3.0'dan beri).** `Field.Value()`, kenarlarındaki boşluklar
+  silinmiş string'dir. `Int()`, `Float()`, `Bool()` (checkbox), `Date()`
+  (`2026-10-25`), `All()` (adın altında gelen tüm değerler) ve `Lines()` (bir
+  textarea'nın satırları) alanı tipli bir alana çevirir. Bu alanın `Value()`'su
+  `int`, `float64`, `bool`, `time.Time` ya da `[]string`'dir ve kontrolleri bu
+  değer üzerinde çalışır: `Min`, `Max`, `Range`, `MinItems`, `MaxItems`,
+  `Custom(func(int) string)`. Boş bırakılan alanda `Ptr()` nil'dir, yani isteğe
+  bağlı bir alanın "verilmedi"si. Başarısız olan bir alan sıfır değerini verir.
+  **`Int()` artık `*IntField` döndürür**: arkasından gelen bir string kontrolü
+  artık derlenmez; `.Int().Message(…)` ve `.Int().Range(…)` çalışmaya devam eder.
 - Mesajlar varsayılan olarak İngilizcedir. Kontrol başına, locale başına ya da her
   locale için değiştirilebilir. Adında `password` geçen bir alan asla geri
   doldurulmaz. `noRefill` bu listeye kendi adlarınızı ekler (v0.2.0'dan beri
