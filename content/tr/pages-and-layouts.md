@@ -295,6 +295,24 @@ bakın).
 korumalı path listesi yoktur. Guard, page'e hangi URL ulaşırsa ulaşsın, her locale'de ve her
 parametreyle çalışır.
 
+Parametreler request'in üzerindedir (v0.76.0'dan beri): `r.PathValue("slug")`,
+request hangi locale'in path'inden gelirse gelsin page'in pattern'indeki
+`{slug}`'dır. Bir yazıyı yalnızca yazarının düzenlemesine izin veren bir guard
+slug'ı okur ve başka herkese `404` döner; böylece bir slug, okuyucuya ait olmayan
+yazılar hakkında hiçbir şey söylemez:
+
+```go
+func Author(posts *blog.Posts) collage.GuardFunc {
+	return func(ctx context.Context, r *http.Request) (*collage.GuardDecision, error) {
+		post, ok := posts.BySlug(r.PathValue("slug"))
+		if !ok || post.AuthorID != session.FromContext(ctx).Get(session.UserKey) {
+			return &collage.GuardDecision{Status: http.StatusNotFound}, nil
+		}
+		return nil, nil
+	}
+}
+```
+
 Bir guard, page'in **omurgasında** olduğunda o page için sorulur: page'in
 zincirindeki bir layout ya da page'in content fragment'i. Guard'lar en dıştakinden
 başlayarak çalışır, content fragment'inki en son sorulur ve ilk cevap veren karar

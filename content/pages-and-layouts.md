@@ -285,6 +285,23 @@ out. There is no list of protected paths to keep in step with the routes: the
 guard runs for whatever URL reaches the page, in every locale, with every
 parameter.
 
+The parameters are on the request (since v0.76.0): `r.PathValue("slug")` is the
+`{slug}` of the page's pattern, whichever locale's path the request came in on.
+A guard that lets only a post's author edit it reads the slug and answers `404`
+to anyone else, so a slug tells nothing about posts that are not theirs:
+
+```go
+func Author(posts *blog.Posts) collage.GuardFunc {
+	return func(ctx context.Context, r *http.Request) (*collage.GuardDecision, error) {
+		post, ok := posts.BySlug(r.PathValue("slug"))
+		if !ok || post.AuthorID != session.FromContext(ctx).Get(session.UserKey) {
+			return &collage.GuardDecision{Status: http.StatusNotFound}, nil
+		}
+		return nil, nil
+	}
+}
+```
+
 A guard is asked for a page when it is on the page's **spine**: a layout in the
 page's chain, or the page's content fragment. Guards run outermost first, the
 content fragment's last, and the first that answers decides.
