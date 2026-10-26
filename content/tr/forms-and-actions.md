@@ -908,6 +908,22 @@ page'ler için yaptığı gibi adıyla oluşturun (v0.18.0'dan beri):
 Page'in açmadığı bir fragment `collage.ErrUnknownFragmentPath` olur. Geri kalanı
 [Link'ler ve locale'ler](/docs/links-and-locales#a-fragments-url) sayfasındadır.
 
+Fragment'in içindeki link'ler ise ters yöne, page'e gider. v0.77.0'dan beri kendi
+path'inden cevap verilen bir fragment, `rc.Page` olarak onu açan page ile render
+edilir.
+Bu yüzden içindeki `localeURL` page'in başka bir locale'deki hâlidir;
+[`withQuery`](/docs/template-functions#withquery) ise request'in query'si
+değiştirilmiş hâliyle page'in URL'sidir. Script yalnızca sonuçları çekmiş olsa da
+arama sonuçlarının sayfalayıcısı sonuçların bir sonraki sayfasına link verebilir:
+
+```html
+<a href="{{withQuery "page" (add .Page 1)}}">More results</a>
+```
+
+`/search/results?q=grid&page=1` üzerinde bu link `/search?page=2&q=grid` olur.
+v0.77.0'dan önce fragment'in orada bir page'i yoktu ve `localeURL` başarısız
+oluyordu.
+
 ### Hoist ettikleri
 
 Tek başına cevap olarak verilen bir fragment'in etrafında layout yoktur.

@@ -1,5 +1,5 @@
 ---
-description: Every command of the collage CLI — new, add, dev, build, export, serve, inspect, check, plugin, version and help — with its flags and exactly what it runs.
+description: Every command of the collage CLI, from new, add and dev to plugin, ai, completion and man, with its flags and exactly what it runs.
 reference: Main, Env, Env.PluginConfig, Env.Static, DispatchCommands, Command, ErrUnknownCommand, FragmentBuilder.WithoutTypeCheck, App, Registrable
 ---
 
@@ -35,12 +35,26 @@ collage <command> [flags]
 | `inspect` | Print what the current directory's project is made of, as JSON |
 | `check` | Check the current directory's project's templates without rendering them (since v0.40.0) |
 | `plugin` | Add a plugin to the project, remove one, or check a plugin repository (since v0.58.0) |
+| `ai` | Write or refresh the project's `AGENTS.md`, the rules for coding agents (since v0.77.0) |
+| `completion` | Print a shell completion script for bash, zsh or fish (since v0.77.0) |
+| `man` | Print collage's man page, or install it where `man` finds it (since v0.77.0) |
 | `version` | Print the collage CLI version |
 | `help` | Show help for a command, or list every command |
 
 `collage help <command>` prints that command's own usage, and so does
 `collage <command> -h`. Flags use Go's `flag` syntax: `-out dist` and `-out=dist`
 are the same, and `--out` works too.
+
+A mistyped name ends its error with the closest valid one (since v0.77.0):
+
+```text
+collage: unknown command: "chek" (did you mean "check"?)
+```
+
+That goes for every name the CLI knows the valid set of: a command, a subcommand,
+an `add` kind, a flag, a `--template`, a `@bundle`, and a plugin — one a bundle
+names for `plugin add`, one `plugins.go` has for `plugin del`. A name close to none
+of them gets the error alone, and the exit code is the same either way.
 
 <figure class="diagram-figure" data-search-ignore>
 <svg class="diagram" viewBox="0 0 320 380" role="img" aria-labelledby="cli-life-title">
@@ -92,7 +106,7 @@ are the same, and `--out` works too.
 ## collage new
 
 ```sh
-collage new <name> [--template minimal|demo] [--with plugins] [--dir path] [--module path] [--force]
+collage new <name> [--template minimal|demo] [--with plugins] [--dir path] [--module path] [--force] [--ai]
 ```
 
 Scaffolds a new, runnable project named `<name>`.
@@ -104,6 +118,7 @@ Scaffolds a new, runnable project named `<name>`.
 | `-dir path` | `./<name>` | Directory to scaffold into |
 | `-module path` | `<name>` | The module path written into `go.mod` |
 | `-force` | off | Scaffold into a non-empty directory anyway |
+| `--ai` | off | Write `AGENTS.md`, the rules for coding agents, and a `CLAUDE.md` importing it, as [`collage ai init`](#collage-ai) does (since v0.77.0) |
 
 ```sh
 collage new myblog                                   # into ./myblog, module "myblog", one page
@@ -111,6 +126,7 @@ collage new myblog --template demo                   # the demos and their tests
 collage new myblog -module github.com/me/myblog
 collage new myblog -dir . -force                     # into the current, non-empty directory
 collage new myblog --with @blog,@prod                # and the plugins of two bundles
+collage new myblog --ai                              # and AGENTS.md for coding agents
 ```
 
 `--with` is read before anything is written: a bundle that does not exist or a
@@ -148,8 +164,9 @@ you are in no longer tells you to `cd .`.
 - a `routes.go` registering every route;
 - a layout that names the site with `WithTitle` and declares no slots (so a
   page's own title replaces the site's);
-- a home page that hands its template the project's name with `collage.Value` —
-  static without saying `Static()`, because nothing in it fetches;
+- a home page whose markup is inline in its Go file, handed the project's name with
+  `collage.Value` — static without saying `Static()`, because nothing in it
+  fetches;
 - `static/`, a `.gitignore` and a README.
 
 **`--template demo`** adds a page of live demos — an action answering
@@ -167,15 +184,20 @@ actions/<area>.go                 action builders, one file per area
 actions/funcs/<area>.go           their handlers
 documents/<name>.go               routes that are not HTML
 data/<domain>/                    state, by domain
-templates/                        the HTML kept in files
+templates/layouts/                the layouts' HTML
 ```
 
 `pages/` and `fragments/pages/` mirror each other by area, and every package in
 them is called `pages` or `fragments`, so a page file imports its content as
 `fragments "<module>/fragments/pages/<area>"` and `routes.go` imports each area's
-pages under an alias, `demopages`. Small fragments keep their markup inline, as a
-`collage.InlineHTML` const beside their data handler; the layout and the larger
-pages keep theirs in `templates/`. An action a page attaches with `WithActionFor`
+pages under an alias, `demopages`. Pages and fragments keep their markup inline, as
+a `collage.InlineHTML` const beside their data handler, and only layouts keep
+theirs in `templates/layouts/` (since v0.77.0; before, the home page and the
+larger pages were in `templates/pages/`). Editing a page's markup is a Go change,
+which `collage dev` rebuilds for. In the layout's `<head>`, `{{hoist "head"}}`
+comes after the site's stylesheet, so a stylesheet a fragment hoists wins over the
+site's at equal specificity; a project scaffolded earlier changes its own layout if
+it wants the same. An action a page attaches with `WithActionFor`
 shares the page's name and has no path of its own. `routes.go` registers
 everything with one [`app.Register`](/docs/pages-and-layouts#registration) call.
 
@@ -1040,6 +1062,87 @@ application refuses to start, naming the setting, until it is done.
 These are commands of the `collage` binary. A plugin's own subcommands are
 another thing: see [Plugin commands](#plugin-commands).
 
+## collage ai
+
+```sh
+collage ai init [--dir path]
+collage new mysite --ai      # the same, while scaffolding
+```
+
+Writes the rules a coding agent needs to work in a collage project — opencode,
+Codex, Cursor, Claude Code — into the project's `AGENTS.md` (since v0.77.0). They
+say where each kind of file goes (and that `collage add` puts it there), that a
+change to a layout reaches every page under it, how guards reach an action, how
+CSS is hoisted, and which plugin to add instead of writing one. They are short on
+purpose: an agent that has never seen collage, often a small model, reads them
+first and follows them over its own habits.
+
+collage writes only its own section, between two markers:
+
+```markdown
+<!-- collage:begin v0.77.0 — written by `collage ai init`; … -->
+…
+<!-- collage:end -->
+
+## Project rules
+```
+
+- **Run it again after upgrading collage** to refresh that section. Everything
+  outside the markers — the project's own rules — is kept byte for byte.
+- **An `AGENTS.md` without the markers** gets the section above its text.
+- **Markers that are not one begin line followed by one end line are refused**, and
+  nothing is written: which text is collage's would be a guess, and a wrong guess
+  deletes your rules.
+- **A `CLAUDE.md` holding `@AGENTS.md` is written too** when the project has none,
+  so Claude Code reads the same rules. An existing one is never changed; the
+  command says so when it does not import `AGENTS.md`.
+
+It prints what it did with each file — `created`, `updated`, or `current` when the
+section is already what it would write:
+
+```text
+AGENTS.md: created
+CLAUDE.md: created
+```
+
+## collage completion
+
+```sh
+collage completion bash|zsh|fish
+```
+
+Prints a script that completes commands, flags and their values when TAB is
+pressed (since v0.77.0): `add`'s kinds, `plugin add`'s bundles and the plugins they
+name, `--template`'s templates, `--with`'s list item by item, and paths for
+`--dir`, `-o` and `-out`. Load it from the shell's startup file:
+
+```sh
+eval "$(collage completion bash)"      # ~/.bashrc (works with macOS's bash 3.2)
+source <(collage completion zsh)       # ~/.zshrc, after compinit
+collage completion fish | source       # ~/.config/fish/config.fish
+```
+
+The script asks the `collage` on `PATH` what to complete, through a hidden
+`collage __complete` command, so it stays right after an upgrade with nothing to
+reload. Each command's flags are declared once and read by both the command and
+completion, so a new flag completes the day it exists. Commands a project's
+plugins add run through the project's own binary, and are not completed.
+
+## collage man
+
+```sh
+collage man              # print collage(1)
+collage man --install    # write it where man finds it
+```
+
+Prints collage(1), the man page, made from every command's own `help` text (since
+v0.77.0). `--install` writes it to `../share/man/man1/collage.1` beside the
+directory on `PATH` that holds `collage` — `$(go env GOPATH)/share/man` for
+`go install`, `~/.local/share/man` for a link in `~/.local/bin`. `man` searches
+there for every directory on `PATH`, so `man collage` works with nothing else set
+up. The command says so when the binary is not on `PATH`, or when `MANPATH` is set
+without the empty entry that keeps those directories in.
+
 ## collage version
 
 ```sh
@@ -1062,7 +1165,8 @@ collage help export     # one command's usage
 
 With no argument it lists every command and exits `0`. With a command name it
 prints that command's usage; an unknown name prints
-`collage: unknown command: "nope"` and exits `2`.
+`collage: unknown command: "nope"`, with the closest command after it when one is
+close (since v0.77.0), and exits `2`.
 
 ## Example: from a new project to a first deploy
 

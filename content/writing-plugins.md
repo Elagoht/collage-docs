@@ -134,7 +134,7 @@ cache to reach.
 | `DevMode() bool` | Whether the application runs in development mode. |
 | `Logger() *slog.Logger` | The application's logger. |
 | `ConfigReader` (embedded) | What `collage.PluginConfig(host, defaults)` reads this plugin's configuration section through — see [Configuration](#configuration). |
-| `AddTemplateFunc(name, fn) error` | Adds a template function. Returns `ErrDuplicateTemplateFunc` when the name was already added — by another plugin, or by this one earlier. |
+| `AddTemplateFunc(name, fn) error` | Adds a template function. Returns `ErrDuplicateTemplateFunc` when the name was already added — by another plugin, or by this one earlier — or is a built-in's (since v0.77.0). |
 | `WrapMount(wrap func(fs.FS) fs.FS)` | Registers a transformation applied to every mounted filesystem, in the order wrappers were registered. |
 | `AddRenderFunc(name, factory) error` | Adds a template function made anew for each render from its `*RenderContext` — see [Template functions](#template-functions) (since v0.21.0). |
 
@@ -1089,11 +1089,13 @@ Every template can then call `{{readingTime .Words}}`. The function is any value
   plugin's function: the application can see both and decide. A function added
   with `AddRenderFunc` is the exception: it is bound again on every render, after
   the application's functions, so it is the one that runs.
-- A plugin function under a built-in name replaces the built-in — except the
-  eleven functions bound per render (`slot`, `hoist`, `asset`, `stylesheet`,
-  `csrfToken`, `pageURL`, `pageURLIn`, `localeURL`, `actionURL`, `fragmentURL`,
-  `fragmentURLIn`), which the render engine rebinds every time.
-  See [Template functions](/docs/template-functions).
+- **A built-in's name is not a plugin's to take.** Since v0.77.0 `AddTemplateFunc`
+  refuses the name of any [built-in function](/docs/template-functions), `json` or
+  `truncate` as much as `pageURL`, with `ErrDuplicateTemplateFunc`. Before, the
+  plugin's function replaced the built-in without a word, under every template
+  written against it, or never ran when the built-in is bound per render. Pick a
+  name of your own; `Config.Template.Funcs` is where an application replaces a
+  built-in.
 - It must be called from `Configure`. There is no way to add one later, because a
   function added after parsing is one no template can call.
 
@@ -1112,10 +1114,9 @@ host.AddRenderFunc("nonce", func(rc *collage.RenderContext) any {
 ```
 
 It follows `AddTemplateFunc`'s rules: it is called from `Configure`, and a name
-another plugin added is `ErrDuplicateTemplateFunc`. It also refuses every
-built-in name, the twenty listed on
-[Template functions](/docs/template-functions), with the same error: a render
-function cannot replace one of the framework's own.
+another plugin added, or a built-in's, is `ErrDuplicateTemplateFunc`: a render
+function cannot replace one of the framework's own, those listed on
+[Template functions](/docs/template-functions).
 
 ## Wrapping mounts
 

@@ -294,7 +294,7 @@ her şeydir.
 | `rc.Request` | Cevaplanan `*http.Request`. Static export'ta, page'in path'i için oluşturulmuş sentetik bir `GET` |
 | `rc.Locale` | URL'nin çözüldüğü locale |
 | `rc.Param(name)`, `rc.PathParams` | Route'taki `{name}` placeholder'larının yakaladığı değerler |
-| `rc.Page` | Render edilen page. Bir action'da, action'ın cevap verdiği URL'nin page'i (v0.33.0'dan beri). **Yalnızca okunur** |
+| `rc.Page` | Render edilen page. Bir action'da, action'ın cevap verdiği URL'nin page'i (v0.33.0'dan beri). Page'inin onun için açtığı bir URL'den sunulan fragment'te, o page (v0.77.0'dan beri). **Yalnızca okunur** |
 | `key.Get(rc)`, `key.Set(rc, value)` | Tek bir render'daki fragment'ler arasında bir `collage.Key` üzerinden paylaşılan değerler |
 | `rc.Context()` | Render context'inin taşıdığı context |
 | `rc.HoistTitle`, `rc.HoistMeta`, `rc.HoistProperty`, `rc.HoistLink`, `rc.HoistAlternate`, `rc.HoistStylesheet`, `rc.Hoist` | Page'in `<head>`'i için tanımlar. Bkz. [Head ve SEO](/docs/head-and-seo) |

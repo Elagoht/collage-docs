@@ -140,7 +140,7 @@ ulaşabileceği bir cache olmazdı.
 | `DevMode() bool` | Uygulamanın development modunda çalışıp çalışmadığını söyler. |
 | `Logger() *slog.Logger` | Uygulamanın logger'ını döner. |
 | `ConfigReader` (embed edilmiş) | `collage.PluginConfig(host, defaults)` bu plugin'in config bölümünü bunun üzerinden okur. Bkz. [Yapılandırma](#configuration). |
-| `AddTemplateFunc(name, fn) error` | Bir template fonksiyonu ekler. Ad daha önce eklenmişse `ErrDuplicateTemplateFunc` döner; ekleyen başka bir plugin de olabilir, aynı plugin'in önceki bir çağrısı da. |
+| `AddTemplateFunc(name, fn) error` | Bir template fonksiyonu ekler. Ad daha önce eklenmişse `ErrDuplicateTemplateFunc` döner; ekleyen başka bir plugin de olabilir, aynı plugin'in önceki bir çağrısı da. Ad bir built-in'inkiyse de aynı hatayı döner (v0.77.0'dan beri). |
 | `WrapMount(wrap func(fs.FS) fs.FS)` | Mount edilen her dosya sistemine uygulanacak bir dönüşümü register eder. Wrapper'lar register edildikleri sırayla uygulanır. |
 | `AddRenderFunc(name, factory) error` | Her render için o render'ın `*RenderContext`'inden yeniden üretilen bir template fonksiyonu ekler. Bkz. [Template fonksiyonları](#template-functions) (v0.21.0'dan beri). |
 
@@ -1143,11 +1143,13 @@ Bundan sonra her template `{{readingTime .Words}}` çağırabilir. Fonksiyon,
   kararı o verir. `AddRenderFunc` ile eklenen bir fonksiyon bunun istisnasıdır. O
   her render'da, uygulamanın fonksiyonlarından sonra yeniden bağlanır; bu yüzden
   çalışan odur.
-- Built-in bir adla eklenen plugin fonksiyonu, built-in fonksiyonun yerini alır.
-  Her render'da bağlanan on bir fonksiyon bunun istisnasıdır (`slot`, `hoist`,
-  `asset`, `stylesheet`, `csrfToken`, `pageURL`, `pageURLIn`, `localeURL`,
-  `actionURL`, `fragmentURL`, `fragmentURLIn`). Render engine bunları her seferinde
-  yeniden bağlar. Bkz. [Template fonksiyonları](/docs/template-functions).
+- **Built-in bir ad plugin'in alabileceği bir ad değildir.** v0.77.0'dan beri
+  `AddTemplateFunc`, herhangi bir [built-in fonksiyonun](/docs/template-functions)
+  adını, `pageURL` kadar `json` ya da `truncate`'i de, `ErrDuplicateTemplateFunc`
+  ile reddeder. Önceden plugin'in fonksiyonu, o built-in'e göre yazılmış her
+  template'in altında built-in'in yerini sessizce alıyordu; built-in her render'da
+  bağlanan bir fonksiyonsa da hiç çalışmıyordu. Kendinize ait bir ad seçin. Bir
+  built-in'i değiştirmek uygulamanın işidir ve `Config.Template.Funcs` ile yapılır.
 - `AddTemplateFunc`, `Configure` içinden çağrılmalıdır. Sonradan eklemenin bir yolu
   yoktur, çünkü parse işleminden sonra eklenen bir fonksiyonu hiçbir template
   çağıramaz.
@@ -1168,10 +1170,10 @@ host.AddRenderFunc("nonce", func(rc *collage.RenderContext) any {
 ```
 
 `AddTemplateFunc`'ın kurallarına uyar: `Configure` içinden çağrılır ve başka bir
-plugin'in eklediği bir ad `ErrDuplicateTemplateFunc` hatasıdır. Ayrıca
-[Template fonksiyonları](/docs/template-functions) sayfasında listelenen yirmi
-built-in adın hepsini aynı hatayla reddeder: bir render fonksiyonu, framework'ün
-kendi fonksiyonlarından birinin yerini alamaz.
+plugin'in eklediği bir ad ya da bir built-in'in adı `ErrDuplicateTemplateFunc`
+hatasıdır: bir render fonksiyonu, framework'ün
+[Template fonksiyonları](/docs/template-functions) sayfasında listelenen kendi
+fonksiyonlarından birinin yerini alamaz.
 
 ## Mount'ları wrap etmek
 

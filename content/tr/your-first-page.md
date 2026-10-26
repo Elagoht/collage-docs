@@ -78,8 +78,8 @@ Template'i ise `templates/layouts/master.html` dosyasındadır:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  {{hoist "head"}}
   <link rel="stylesheet" href="{{asset "/static/app.css"}}">
+  {{hoist "head"}}
 </head>
 <body>
   {{slot "content"}}
@@ -99,6 +99,9 @@ Template'te `<title>` yok. Başlığı layout `WithTitle` ile tanımlar.
 page ikinci bir başlık eklemez, sitenin başlığının yerini alır.
 Birazdan tarif page'i de bunu yapacak. Bkz.
 [Head ve SEO](/docs/head-and-seo#keys-and-the-innermost-wins).
+Marker sitenin stylesheet'inden sonra gelir (v0.77.0'dan beri). Böylece bir page'in
+hoist ettiği stylesheet ondan sonra link'lenir ve eşit specificity'deki bir kuralda
+üstün gelir.
 
 ## Home page'e bakın
 
@@ -108,17 +111,25 @@ alanın (area) dizinine girer (`pages/blog/`). Home page'in alanı yoktur. İçe
 `fragments/pages/home.go`, bir template'e veri vermenin en kısa yolunu gösterir:
 
 ```go
-// Types data used on this page: what templates/pages/home.html renders as ".".
+// Types data used on this page.
 type homeView struct {
 	Name string
 }
 
 func Home() *collage.Fragment {
-	return collage.NewFragment("home", "pages/home.html").
+	return collage.NewInlineFragment("home", homeBlock).
 		WithData(collage.Value(homeView{Name: "cookbook"})).
 		Build()
 }
+
+const homeBlock collage.InlineHTML = `<h1>Hello from {{.Name}}</h1>`
 ```
+
+Markup, Go dosyasında bir `collage.InlineHTML` sabiti olarak durur: v0.77.0'dan beri
+scaffold her page'in ve fragment'in markup'ını inline tutar, `templates/` içinde
+yalnızca layout'lar kalır. Markup'ı düzenlemek bir Go değişikliğidir ve
+`collage dev` bunun için yeniden build alır. Bkz.
+[Inline template'ler](/docs/fragments-and-slots#inline-templates).
 
 Page'in kendisi olan `pages/home.go` ise bu içeriği bir path'te layout'un
 içine yerleştirir:
@@ -139,12 +150,8 @@ Buradaki `fragments`, içeriğin package'ıdır ve
 içerdikleri şeyin adını taşır, `pages` ve `fragments`; hangi alan olduğunu ise
 altlarındaki alan dizini söyler.
 
-`collage.Value`, template'e her render'da aynı değeri verir. `templates/pages/home.html`
-içinde bu değer `.` olarak kullanılır:
-
-```html
-<h1>Hello from {{.Name}}</h1>
-```
+`collage.Value`, template'e her render'da aynı değeri verir. `homeBlock` içinde bu
+değer `.`'dır: `{{.Name}}`, `Name` alanıdır.
 
 `homeView`'a bir alan ekleyin, değerini `collage.Value(...)` içinde verin ve template'te
 kullanın; page bu alanı gösterir. Sabit bir veri için, örneğin bir link listesi ya

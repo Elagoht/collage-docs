@@ -1,5 +1,5 @@
 ---
-description: Every built-in template function — slot, hoist, asset, csrfToken, the URL functions and the string helpers — with its signature, an example and its edge cases.
+description: Every built-in template function — slot, hoist, asset, the URL functions, json, arithmetic, strings and lists — with its signature and an example.
 reference: TemplateConfig, DefaultContentSlot, ErrUnknownSlot, FragmentBuilder.WithTitle, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath
 ---
 
@@ -23,6 +23,7 @@ Templates are Go's `html/template`, so everything it provides is there: `if`,
 | [`actionURL`](#actionurl) | `actionURL name [param value]...` | an action's URL in this render's locale |
 | [`fragmentURL`](#fragmenturl) | `fragmentURL page fragment [param value]...` | a fragment path's URL in this render's locale |
 | [`fragmentURLIn`](#fragmenturlin) | `fragmentURLIn locale page fragment [param value]...` | a fragment path's URL in exactly that locale |
+| [`withQuery`](#withquery) | `withQuery name value [name value]...` | this page's URL with query parameters set or removed |
 | [`safeHTML`](#safehtml) | `safeHTML string` | the string, trusted as HTML |
 | [`safeURL`](#safeurl) | `safeURL string` | the string, trusted as a URL |
 | [`dict`](#dict) | `dict key value [key value]...` | a map built from pairs |
@@ -32,6 +33,22 @@ Templates are Go's `html/template`, so everything it provides is there: `if`,
 | [`title`](#title) | `title string` | each word capitalised |
 | [`join`](#join) | `join sep items` | the items joined by `sep` |
 | [`formatTime`](#formattime) | `formatTime time layout` | the time, formatted |
+| [`pathEscape`](#pathescape) | `pathEscape string` | the string, escaped for one path segment |
+| [`json`](#json) | `json value [spaces] [pretty]` | the value as JSON |
+| [`pre`](#pre) | `pre value [spaces] [pretty]` | the value in an escaped `<pre>` block |
+| [`add`, `sub`, `mul`, `div`, `mod`, `min`, `max`](#arithmetic) | `add a b` | integer arithmetic |
+| [`addf`, `subf`, `mulf`, `divf`](#arithmetic) | `addf a b` | the same for `float64` |
+| [`trim`, `replace`, `contains`, `hasPrefix`, `hasSuffix`, `split`](#strings) | `replace old new string` | the `strings` functions, the string last |
+| [`truncate`](#strings) | `truncate n string` | the first `n` characters, with `…` when anything was cut |
+| [`first`, `last`](#lists-and-maps) | `first list` | a list's first or last element |
+| [`seq`](#lists-and-maps) | `seq n` | `1` to `n`, to range over |
+| [`keys`, `hasKey`](#lists-and-maps) | `keys map`, `hasKey map key` | a map's keys, sorted; whether it holds one |
+| [`dig`](#dig) | `dig value key...` | the value at a path through maps and structs, or nothing |
+
+Everything from `withQuery` down is new in v0.77.0. Every function is typed, so the
+[template checker](/docs/data-handlers#how-templates-are-checked) — at
+registration and in `collage check` — reports `{{add .Title 1}}` with a string
+`Title` before any request does.
 
 A function that returns an error fails the template, and the fragment fails with
 it — under the fragment's own failure policy:
@@ -47,7 +64,7 @@ warning. See [Fragments and slots](/docs/fragments-and-slots).
 
 ## Bound per render
 
-The first eleven functions need the render they are part of — the fragment, the
+The first twelve functions need the render they are part of — the fragment, the
 request, the locale, the application's routes and mounts. Each reads something
 different:
 
@@ -61,24 +78,27 @@ different:
 | `pageURL`, `actionURL`, `fragmentURL` | the render's locale, with the application's routes |
 | `pageURLIn`, `fragmentURLIn` | the application's routes; the locale is an argument |
 | `localeURL` | the page being rendered and its path parameters |
+| `withQuery` | the page being rendered, its path parameters and the request's query |
 
 They are registered when templates are parsed as placeholders, so that a template
 may call them, and the render engine binds the real implementation on every
 render. A placeholder that somehow runs outside a render returns an error rather
 than guessing.
 
-One consequence: an entry under one of these names in `Config.Template.Funcs`, or
-from a plugin, is parsed but never called. The other nine can be replaced.
+One consequence: an entry under one of these names in `Config.Template.Funcs` is
+parsed but never called, and since v0.77.0 `New` logs a warning naming it. The
+other thirty-six can be replaced from `Config.Template.Funcs`. A plugin can replace
+none of the forty-eight: see [Adding your own](#adding-your-own).
 
 <figure class="diagram-figure" data-search-ignore>
 <svg class="diagram" viewBox="0 0 320 306" role="img" aria-labelledby="tf-bind-title">
-<title id="tf-bind-title">Where a template's functions come from. collage.New parses the templates with one function map: collage's twenty built-ins, eleven of them placeholders, then the functions plugins add with AddTemplateFunc, then Config.Template.Funcs, each merged over the one before. On every render, for each fragment, the eleven per-render names are bound again from that render, and so are the functions plugins add with AddRenderFunc. So a Template.Funcs entry named pageURL is parsed and never runs, while one named upper replaces the built-in.</title>
+<title id="tf-bind-title">Where a template's functions come from. collage.New parses the templates with one function map: collage's forty-eight built-ins, twelve of them placeholders, then the functions plugins add with AddTemplateFunc under names of their own, then Config.Template.Funcs, each merged over the one before. On every render, for each fragment, the twelve per-render names are bound again from that render, and so are the functions plugins add with AddRenderFunc. So a Template.Funcs entry named pageURL is parsed and never runs, while one named upper replaces the built-in.</title>
 <defs><marker id="tf-bind-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
 <rect class="d-pill" x="40" y="4" width="240" height="22" rx="11" /><text x="160" y="19" text-anchor="middle">collage.New: parse templates</text>
 <line class="d-flow" x1="160" y1="26" x2="160" y2="36" marker-end="url(#tf-bind-arrow)" />
 <rect class="d-frame" x="4" y="40" width="312" height="96" rx="6" />
 <text class="d-small" x="14" y="55">one function map</text>
-<rect class="d-b" x="14" y="62" width="232" height="20" rx="4" /><text class="d-on-b" x="130" y="76" text-anchor="middle">20 built-ins (11 placeholders)</text>
+<rect class="d-b" x="14" y="62" width="232" height="20" rx="4" /><text class="d-on-b" x="130" y="76" text-anchor="middle">48 built-ins (12 placeholders)</text>
 <rect class="d-b" x="14" y="86" width="232" height="20" rx="4" /><text class="d-on-b" x="130" y="100" text-anchor="middle">plugins: AddTemplateFunc</text>
 <rect class="d-b" x="14" y="110" width="232" height="20" rx="4" /><text class="d-on-b" x="130" y="124" text-anchor="middle">Config.Template.Funcs</text>
 <line class="d-flow" x1="262" y1="66" x2="262" y2="126" marker-end="url(#tf-bind-arrow)" />
@@ -87,13 +107,13 @@ from a plugin, is parsed but never called. The other nine can be replaced.
 <rect class="d-pill" x="40" y="152" width="240" height="22" rx="11" /><text x="160" y="167" text-anchor="middle">every render, each fragment</text>
 <line class="d-flow" x1="140" y1="174" x2="90" y2="188" marker-end="url(#tf-bind-arrow)" />
 <line class="d-flow" x1="180" y1="174" x2="230" y2="188" marker-end="url(#tf-bind-arrow)" />
-<rect class="d-a" x="12" y="192" width="146" height="40" rx="5" /><text class="d-on-a" x="85" y="208" text-anchor="middle">11 per-render</text><text class="d-on-a d-small" x="85" y="223" text-anchor="middle">bound from this render</text>
+<rect class="d-a" x="12" y="192" width="146" height="40" rx="5" /><text class="d-on-a" x="85" y="208" text-anchor="middle">12 per-render</text><text class="d-on-a d-small" x="85" y="223" text-anchor="middle">bound from this render</text>
 <rect class="d-c" x="162" y="192" width="146" height="40" rx="5" /><text class="d-on-c" x="235" y="208" text-anchor="middle">AddRenderFunc</text><text class="d-on-c d-small" x="235" y="223" text-anchor="middle">plugins', per render</text>
 <text class="d-small" x="160" y="252" text-anchor="middle">a Template.Funcs entry named…</text>
 <g class="d-dropped"><rect class="d-frame" x="12" y="260" width="146" height="40" rx="6" /><text x="85" y="276" text-anchor="middle">"pageURL"</text><text class="d-small" x="85" y="291" text-anchor="middle">parsed, never runs</text></g>
 <rect class="d-chip-hit" x="162" y="260" width="146" height="40" rx="8" /><text class="d-hit-text" x="235" y="276" text-anchor="middle">"upper"</text><text class="d-hit-text d-small" x="235" y="291" text-anchor="middle">replaces the built-in</text>
 </svg>
-<figcaption>Every template is parsed in <code>collage.New</code> with one function map: collage's twenty built-ins, then what plugins add with <code>AddTemplateFunc</code>, then <code>Config.Template.Funcs</code>, each over the one before. Eleven of the built-ins are placeholders. On every render, for each fragment, those eleven are bound again from that render, and so are the functions plugins add with <code>AddRenderFunc</code>. An entry of yours under one of the other nine names, such as <code>upper</code>, replaces the built-in; one under a per-render name, such as <code>pageURL</code>, is parsed and never runs.</figcaption>
+<figcaption>Every template is parsed in <code>collage.New</code> with one function map: collage's forty-eight built-ins, then what plugins add with <code>AddTemplateFunc</code> under names of their own, then <code>Config.Template.Funcs</code>, each over the one before. Twelve of the built-ins are placeholders. On every render, for each fragment, those twelve are bound again from that render, and so are the functions plugins add with <code>AddRenderFunc</code>. An entry of yours under one of the other thirty-six names, such as <code>upper</code>, replaces the built-in; one under a per-render name, such as <code>pageURL</code>, is parsed and never runs.</figcaption>
 </figure>
 
 ### slot
@@ -313,7 +333,9 @@ a language switcher is made of.
   `{{with}}` skips a language the page has not been translated into.
 - A locale no URL can reach is still an error (`ErrLocaleUnreachable`): that is a
   mistake in the template, not a missing translation.
-- It fails in a render that is not a page's.
+- It fails in a render that is not a page's: a document's, or an action's at a URL
+  of its own. A fragment served at a URL its page opened for it renders with that
+  page (since v0.77.0), so there it links the page.
 - For the `<link rel="alternate" hreflang>` search engines read, declare them from
   Go with `rc.HoistAlternate` — see
   [Head and SEO](/docs/head-and-seo#canonical-and-alternate-links).
@@ -369,6 +391,32 @@ From Go it is `app.FragmentURL(page, fragment, locale, params)`. See
 `fragmentURL` in exactly the locale given, with no fallback: a fragment with no
 path in that locale is `ErrNoPathInLocale`, and a locale no URL can reach is
 `ErrLocaleUnreachable`.
+
+### withQuery
+
+```html
+<a href="{{withQuery "page" (add .Page 1)}}">Older posts</a>
+<a href="{{withQuery "tag" ""}}">Every tag</a>
+<a href="{{withQuery "page" 1 "sort" "new"}}">Newest first</a>
+```
+
+The page being rendered, with the request's query and those parameters set (since
+v0.77.0). A value of `""` removes a parameter, and the others stay as they were.
+On `/blog?tag=go&page=2`, the three links above are `/blog?page=3&tag=go`,
+`/blog?page=2` and `/blog?page=1&sort=new&tag=go`: the query is written with its
+names sorted.
+
+- **The path is the page's own URL**, in the render's locale with its path
+  parameters, falling back to the default locale as `pageURL` does. In a fragment
+  refreshed from a [URL of its own](/docs/forms-and-actions#a-fragment-at-its-own-url),
+  the link still leads to the page, not to the bare fragment. In an action at a URL
+  of its own, which has no page, it is the action's URL.
+- **The query is the one the render sees.** On a cached page that is only the
+  parameters in its [cache key](/docs/caching#what-a-shared-render-sees), never a
+  reader's other ones, so a link written into the shared copy cannot carry one
+  reader's `utm_source` to the next.
+- **Names are strings, and values are strings, integers or `fmt.Stringer`s**, as
+  `pageURL`'s are. Another type, or a name without a value, fails the render.
 
 ### safeHTML
 
@@ -457,6 +505,101 @@ one:
 `t` is a `time.Time`. It is formatted in whatever location it carries; convert it
 in the data handler if you want another.
 
+### pathEscape
+
+```html
+<a href="https://example.com/wiki/{{pathEscape .Term}}">{{.Term}}</a>
+```
+
+`url.PathEscape`: the string escaped to sit in one segment of a path, so a `/` in it
+becomes `%2F` rather than a step down (since v0.77.0). A link to one of your own
+pages needs none of this: `pageURL` escapes its parameters itself.
+
+### json
+
+```html
+<script type="application/json" id="chart-data">{{json .Series 2 false}}</script>
+```
+
+The value as JSON (since v0.77.0), indented by two spaces unless told otherwise:
+`{{json v 4}}` indents by four, and `{{json v 2 false}}` writes one line. The
+spaces are 0 to 16.
+
+It returns `template.JS`. Inside a `<script>` — `application/json` data, or a
+script that reads it — it is written as it is, and `<`, `>` and `&` stay `\u003c`-escaped, so
+a value cannot close the script. Anywhere else it is escaped like any other text. A
+value `encoding/json` cannot encode, such as a channel, fails the render.
+
+### pre
+
+```html
+{{pre .}}
+```
+
+The value in a `<pre>` block, for looking at what a template was given (since
+v0.77.0). A string or a `[]byte` is shown as it is; anything else as `json` writes
+it, with the same optional spaces and `pretty`. The content is always escaped.
+
+### Arithmetic
+
+```html
+<p>Page {{.Page}} of {{.Pages}}, posts {{add (mul (sub .Page 1) .PerPage) 1}} onwards</p>
+<p>{{printf "%.1f" (divf .Rating 2.0)}} / 5</p>
+```
+
+`add`, `sub`, `mul`, `div`, `mod`, `min` and `max` take two `int`s, and `addf`,
+`subf`, `mulf` and `divf` two `float64`s (since v0.77.0). `div`, `mod` and `divf`
+by zero fail the render.
+
+### Strings
+
+```html
+<h2>{{.Slug | replace "-" " " | title}}</h2>
+{{if hasPrefix "https://" .Link}}<a href="{{.Link}}" rel="external">{{.Link}}</a>{{end}}
+<p>{{truncate 140 .Summary}}</p>
+```
+
+`trim` is `strings.TrimSpace`. `replace old new s`, `contains sub s`,
+`hasPrefix prefix s`, `hasSuffix suffix s` and `split sep s` are the `strings`
+functions with the string last, so each reads in a pipeline (since v0.77.0).
+`replace` replaces every `old`, and `split` returns a `[]string`.
+
+`truncate n s` cuts `s` to its first `n` characters and puts `…` after them when
+anything was cut. It counts characters, not bytes, so a Turkish letter is never
+split in half. A negative `n` fails the render.
+
+### Lists and maps
+
+```html
+{{with first .Posts}}<a href="{{pageURL "post" "slug" .Slug}}">Latest: {{.Title}}</a>{{end}}
+{{range seq 5}}<span class="star">{{.}}</span>{{end}}
+{{range keys .Counts}}<li>{{.}}: {{index $.Counts .}}</li>{{end}}
+{{if hasKey .Flags "beta"}}<span class="badge">beta</span>{{end}}
+```
+
+All since v0.77.0:
+
+- `first list` and `last list` are a slice's or an array's first and last element,
+  and nothing for an empty one, so `{{with}}` skips it.
+- `seq n` is `1` to `n`, for a loop that counts. It is empty when `n` is below 1,
+  and more than 100000 fails the render.
+- `keys map` is a string-keyed map's keys, sorted, so a loop over them renders the
+  same way every time. `hasKey map "k"` says whether the map holds `k`, even with
+  a zero value under it.
+- Each fails the render when handed something else: a map to `first`, a list to
+  `keys`.
+
+### dig
+
+```html
+{{with dig .Settings "theme" "accent"}}<meta name="theme-color" content="{{.}}">{{end}}
+```
+
+The value at that path through maps with string keys and the exported fields of
+structs, following pointers (since v0.77.0). A path that leads nowhere — a missing
+key, an unexported field, a nil pointer on the way — is nothing rather than an
+error, so `{{with dig …}}` handles a value that is optional.
+
 ## Adding your own
 
 Add functions with `Config.Template.Funcs`, before `New`:
@@ -475,22 +618,25 @@ app, err := collage.New(&collage.Config{
 ```
 
 They are merged over the built-ins, so an entry under a built-in name — other than
-the per-render ones — replaces it.
+the per-render ones — replaces it. An entry under a per-render name is accepted and
+never runs; since v0.77.0 `New` logs a warning naming it.
 
 They must be there before `New` because `html/template` can only call a name that
 was in its function map when the template was parsed; a template calling a name
 nobody registered fails in `New`, not at the first request.
 
 A plugin adds functions the same way, from its `Configure` phase; an application's
-entry under the same name wins. See
+entry under the same name wins. A plugin cannot take a built-in's name: since
+v0.77.0 `AddTemplateFunc` refuses it with `ErrDuplicateTemplateFunc`, where it used
+to replace the built-in without a word. See
 [Writing a plugin](/docs/writing-plugins#template-functions).
 
 A plugin's `AddRenderFunc` function is the exception on both sides:
 
-- It is bound per render, like the eleven above, so an application's entry under
+- It is bound per render, like the twelve above, so an application's entry under
   its name is parsed and never called.
-- It cannot take any of the twenty built-in names. `AddRenderFunc` refuses them
-  with `ErrDuplicateTemplateFunc`.
+- Like `AddTemplateFunc`, it cannot take any of the forty-eight built-in names.
+  `AddRenderFunc` refuses them with `ErrDuplicateTemplateFunc`.
 
 Anything that needs the request belongs in a data handler rather than a function:
 that is where the page's data comes from anyway.
@@ -499,7 +645,7 @@ that is where the page's data comes from anyway.
 
 The shop from [Links and locales](/docs/links-and-locales#example-a-bilingual-product-catalogue)
 sells in English and Turkish. Its product page, with a layout around it, calls nine
-of the eleven per-render functions:
+of the twelve per-render functions:
 
 | Function | In the example |
 | --- | --- |

@@ -865,6 +865,20 @@ Write the path once, in `WithFragmentPath`, and build every link to it by name, 
 the page did not open is `collage.ErrUnknownFragmentPath`; the rest is in
 [Links and locales](/docs/links-and-locales#a-fragments-url).
 
+Links inside the fragment lead the other way, to the page. Since v0.77.0 a fragment
+answered at its own path renders with the page that opened it as `rc.Page`, so
+`localeURL` in it is the page in another locale, and
+[`withQuery`](/docs/template-functions#withquery) is the page's URL with the
+request's query changed. The search results' pager can link the next page of
+results while the script fetched only the results:
+
+```html
+<a href="{{withQuery "page" (add .Page 1)}}">More results</a>
+```
+
+On `/search/results?q=grid&page=1` that link is `/search?page=2&q=grid`. Before
+v0.77.0 the fragment had no page there, and `localeURL` failed.
+
 ### What it hoists
 
 A fragment answered on its own has no layout around it. A `{{hoist}}` marker the

@@ -67,6 +67,20 @@ Yazdırılan sürüm build'in kendisinden okunur, yani `go install` hangi sürü
 çektiyse o görünür. `collage help` bütün komutları listeler, `collage help new` ise
 tek bir komutu açıklar.
 
+### Shell completion ve man sayfası
+
+v0.77.0'dan beri CLI, TAB'a basıldığında komutlarını, flag'lerini ve onların
+değerlerini tamamlar. Script'i shell'inizin başlangıç dosyasından yükleyin:
+
+```sh
+eval "$(collage completion bash)"      # ~/.bashrc
+source <(collage completion zsh)       # ~/.zshrc, after compinit
+collage completion fish | source       # ~/.config/fish/config.fish
+```
+
+`collage man --install`, collage(1)'i `man`'in baktığı yere koyar; böylece
+`man collage` çalışır. İkisinin ayrıntıları da [CLI referansında](/docs/cli#collage-completion).
+
 ## Proje oluşturun
 
 ```sh
@@ -101,6 +115,7 @@ Birkaç flag, projenin nereye ve nasıl yazılacağını değiştirir. Flag'leri
 | `-dir path` | Projeyi `./<name>` yerine `path` içine scaffold eder |
 | `-module path` | `go.mod`'daki module path'i belirler, örneğin `github.com/you/mysite`. Varsayılan değer proje adıdır |
 | `-force` | Boş olmayan bir dizine de scaffold eder |
+| `--ai` | Bir coding agent'ın collage projesinde ihtiyaç duyduğu kuralları içeren `AGENTS.md`'yi ve onu import eden bir `CLAUDE.md` yazar (v0.77.0'dan beri). `collage ai init` aynısını sonradan yapar; bkz. [CLI](/docs/cli#collage-ai) |
 | `--with plugins` | Proje yazıldıktan sonra plugin ekler: `@prod` gibi bundle'lar ve `elagoht/session` gibi plugin'ler, virgülle ayrılmış (v0.59.0'dan beri). Plugin'ler çekildiği için `go mod tidy` artık bir sonraki adım değildir |
 
 ```sh
@@ -149,11 +164,11 @@ mysite/
 ├── pages/
 │   └── home.go                 the home page: its layout, content and path
 ├── fragments/
-│   ├── layouts/main.go         Master(), the layout every page shares, and the site's title
-│   └── pages/home.go           the home page's content and its data
+│   ├── layouts/master.go       Master(), the layout every page shares, and the site's title
+│   └── pages/home.go           the home page's content, its data and its markup:
+│                               <h1>Hello from {{.Name}}</h1>
 ├── templates/
-│   ├── layouts/master.html     the layout's HTML, with {{slot "content"}}
-│   └── pages/home.html         <h1>Hello from {{.Name}}</h1>
+│   └── layouts/master.html     the layout's HTML, with {{slot "content"}}
 └── static/
     └── app.css                 the background and text colour, light and dark
 ```
@@ -171,8 +186,14 @@ actions/<area>.go                 action builders, one file per area
 actions/funcs/<area>.go           their handlers
 documents/<name>.go               routes that are not HTML
 data/<domain>/                    state, by domain
-templates/                        the HTML kept in files
+templates/layouts/                the layouts' HTML
 ```
+
+v0.77.0'dan beri bir page'in ve bir fragment'in markup'ı Go dosyasında, data
+handler'ının yanında bir `collage.InlineHTML` sabiti olarak durur; template dosyası
+olan yalnızca layout'lardır. Bir page'in markup'ını düzenlemek bir Go
+değişikliğidir ve `collage dev` bunun için yeniden build alır. Bir page'e kendi
+template dosyasını vermek isterseniz `collage add page --file` bunu hâlâ yapar.
 
 `collage add page blog/post` bir page'i oraya yazar ve `routes.go`'da register
 eder. `collage add` aynısını bir fragment, bir action ya da bir document için de
@@ -185,8 +206,7 @@ Demo projesi bunlara ek olarak şunları içerir:
 - bir not-found page'i;
 - bir favicon;
 - `demo` ile `errors` alanlarındaki page'ler. Bu page'lerle birlikte action'ları,
-  bir document, `data/count/` içinde bir sayaç ve bunların template'leri ile
-  script'leri de gelir.
+  bir document, `data/count/` içinde bir sayaç ve bunların script'i de gelir.
 
 Scaffold'daki birkaç şeyi, değiştirmeden önce bilmekte fayda var.
 

@@ -101,7 +101,7 @@ application. See [Configuration](/docs/configuration#validation).
 | --- | --- | --- | --- |
 | `ErrDuplicatePlugin` | `collage: duplicate plugin` | Two plugins share a name. | Register each plugin once. |
 | `ErrConfigurerRegisteredLate` | `collage: plugin needs Configure and must be supplied in Config.Plugins` | `RegisterPlugin` was given a plugin with a `Configure` phase, which has already passed. | Move it to `Config.Plugins`. |
-| `ErrDuplicateTemplateFunc` | `collage: duplicate plugin template function` | `AddTemplateFunc` was called for a name already added — by another plugin, or by the same one a second time. | `AddTemplateFunc` returns it to the plugin's `Configure`; `New` fails only if `Configure` returns it. The plugins conflict: `Template.Funcs` cannot prevent it, so drop or rename one of them. |
+| `ErrDuplicateTemplateFunc` | `collage: duplicate plugin template function` | `AddTemplateFunc` was called for a name already added — by another plugin, or by the same one a second time — or, since v0.77.0, for a built-in's name, such as `json`. | `AddTemplateFunc` returns it to the plugin's `Configure`; `New` fails only if `Configure` returns it. The plugins conflict: `Template.Funcs` cannot prevent it, so drop or rename one of them. A built-in's name is the plugin's to change. |
 | `ErrUnknownPluginConfig` | `collage: plugin configuration names no registered plugin` | A `PluginConfig` key matches no registered plugin. Checked when the application starts. | Almost always a typo in the key. |
 | `ErrDuplicateCommand` | `collage: duplicate command name` | Two commands share a name. | — |
 | `ErrNilApp` | `collage: nil app` | `DispatchCommands` or `collage.Build` was given a nil `*App`. | — |

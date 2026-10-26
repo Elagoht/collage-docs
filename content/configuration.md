@@ -329,8 +329,10 @@ built-in name replaces that built-in, and an entry under a name a plugin added
 replaces the plugin's. It must be set before `New`, because a template can only
 call a function that existed when it was parsed — a template calling an unknown
 name fails in `New`. The functions bound per render (`slot`, `hoist`, `asset`,
-`stylesheet`, `csrfToken`, `pageURL`, `pageURLIn`, `localeURL`) are rebound on every
-render, so overriding them has no effect. See
+`stylesheet`, `csrfToken`, `pageURL`, `pageURLIn`, `localeURL`, `actionURL`,
+`fragmentURL`, `fragmentURLIn`, `withQuery`) are rebound on every render, so
+overriding them has no effect, and since v0.77.0 `New` logs a warning naming each
+one given. See
 [Template functions](/docs/template-functions).
 
 ### Timeout

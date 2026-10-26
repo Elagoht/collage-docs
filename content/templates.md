@@ -256,9 +256,16 @@ These are available in every template, alongside `html/template`'s own (`printf`
 | `upper`, `lower`, `title` | Case conversion |
 | `join sep items` | Joins a `[]string` |
 | `formatTime t layout` | Formats a `time.Time` with a Go layout |
+| `withQuery "page" 2 …` | This page's URL with query parameters set; `""` removes one |
+| `pathEscape s` | Escapes a string for one path segment |
+| `json v`, `pre v` | A value as JSON, or in an escaped `<pre>` block to see what a template was given |
+| `add`, `sub`, `mul`, `div`, `mod`, `min`, `max`; `addf`, `subf`, `mulf`, `divf` | Integer and `float64` arithmetic |
+| `trim`, `replace`, `contains`, `hasPrefix`, `hasSuffix`, `split`, `truncate` | String functions, the string last so they read in a pipeline |
+| `first`, `last`, `seq`, `keys`, `hasKey`, `dig` | A list's ends, a range to count over, a map's keys, a value deep in the data |
 
-The link functions are strict: an unknown page name or a missing parameter fails
-the render instead of producing a broken link. Each function's arguments and
+The functions from `withQuery` down are new in v0.77.0. The link functions are
+strict: an unknown page name or a missing parameter fails the render instead of
+producing a broken link. Each function's arguments and
 behaviour are in [Template functions](/docs/template-functions).
 
 ## Adding your own functions
@@ -293,18 +300,20 @@ app, err := collage.New(&collage.Config{
   known when the template was parsed, and `New` is where parsing happens. A template
   calling a name nobody registered fails in `New`, which is the point: it is a typo
   you find at startup.
-- **An entry under a built-in's name replaces the built-in** — except the eleven
+- **An entry under a built-in's name replaces the built-in** — except the twelve
   that depend on the render: `slot`, `hoist`, `asset`, `stylesheet`, `csrfToken`,
-  `pageURL`, `pageURLIn`, `localeURL`, `actionURL`, `fragmentURL` and
-  `fragmentURLIn`. The render engine binds its own of each
-  for every render, so overriding any of them is accepted and has no effect.
+  `pageURL`, `pageURLIn`, `localeURL`, `actionURL`, `fragmentURL`,
+  `fragmentURLIn` and `withQuery`. The render engine binds its own of each
+  for every render, so overriding any of them is accepted and has no effect; since
+  v0.77.0 `New` logs a warning naming it.
 - **A function cannot see the request.** It is registered once for the whole
   program. Anything that depends on the request, the locale or the user belongs in
   the data handler, which is where the data comes from anyway.
 
 A plugin can contribute functions too, from its `Configure` hook — see
 [Writing a plugin](/docs/writing-plugins). When a plugin and `Funcs` both define a
-name, `Funcs` wins: the application is the one that can see both.
+name, `Funcs` wins: the application is the one that can see both. A plugin cannot
+take a built-in's name at all (since v0.77.0).
 
 ## Escaping
 

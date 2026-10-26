@@ -351,8 +351,10 @@ plugin'in eklediği bir adı taşıyan kayıt da plugin'in fonksiyonunun yerini 
 alan `New`'dan önce ayarlanmalıdır. Çünkü bir template yalnızca parse edildiği anda
 var olan bir fonksiyonu çağırabilir. Bilinmeyen bir adı çağıran template `New`'da
 hata verir. Her render'a bağlanan fonksiyonlar (`slot`, `hoist`, `asset`,
-`stylesheet`, `csrfToken`, `pageURL`, `pageURLIn`, `localeURL`) her render'da yeniden
-bağlanır. Bu yüzden onları override etmenin hiçbir etkisi olmaz. Ayrıntılar için
+`stylesheet`, `csrfToken`, `pageURL`, `pageURLIn`, `localeURL`, `actionURL`,
+`fragmentURL`, `fragmentURLIn`, `withQuery`) her render'da yeniden bağlanır. Bu
+yüzden onları override etmenin hiçbir etkisi olmaz; v0.77.0'dan beri `New`, verilen
+her birini adıyla anan bir uyarı log'lar. Ayrıntılar için
 [Template fonksiyonları](/docs/template-functions) sayfasına bakın.
 
 ### Timeout

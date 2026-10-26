@@ -75,8 +75,8 @@ And its template, `templates/layouts/master.html`:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  {{hoist "head"}}
   <link rel="stylesheet" href="{{asset "/static/app.css"}}">
+  {{hoist "head"}}
 </head>
 <body>
   {{slot "content"}}
@@ -95,6 +95,8 @@ There is no `<title>` in the template. The layout declares one with `WithTitle`,
 and `{{hoist "head"}}` is where it lands. A page that declares its own title
 replaces the site's rather than adding a second one — the recipe page will, in a
 moment. See [Head and SEO](/docs/head-and-seo#keys-and-the-innermost-wins).
+The marker comes after the site's stylesheet (since v0.77.0), so a stylesheet a
+page hoists is linked after it and wins a rule of equal specificity.
 
 ## Look at the home page
 
@@ -104,17 +106,24 @@ its pages (`pages/blog/`). The home page has no area. Its content,
 `fragments/pages/home.go`, shows the shortest way to give a template data:
 
 ```go
-// Types data used on this page: what templates/pages/home.html renders as ".".
+// Types data used on this page.
 type homeView struct {
 	Name string
 }
 
 func Home() *collage.Fragment {
-	return collage.NewFragment("home", "pages/home.html").
+	return collage.NewInlineFragment("home", homeBlock).
 		WithData(collage.Value(homeView{Name: "cookbook"})).
 		Build()
 }
+
+const homeBlock collage.InlineHTML = `<h1>Hello from {{.Name}}</h1>`
 ```
+
+The markup is in the Go file, as a `collage.InlineHTML` constant: since v0.77.0
+the scaffold keeps every page's and fragment's markup inline, and only layouts in
+`templates/`. Editing it is a Go change, which `collage dev` rebuilds for. See
+[Inline templates](/docs/fragments-and-slots#inline-templates).
 
 And the page, `pages/home.go`, puts that content in the layout at a path:
 
@@ -134,11 +143,7 @@ func Home() *collage.Page {
 hold, `pages` and `fragments`, and an area's directory below them says which area.
 
 `collage.Value` hands the template the same value on every render, and in
-`templates/pages/home.html` that value is `.`:
-
-```html
-<h1>Hello from {{.Name}}</h1>
-```
+`homeBlock` that value is `.`: `{{.Name}}` is the `Name` field.
 
 Add a field to `homeView`, set it in `collage.Value(...)` and use it in the template,
 and the page shows it. That is all a fixed piece of data — a list of links, a

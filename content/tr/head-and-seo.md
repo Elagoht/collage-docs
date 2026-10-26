@@ -23,8 +23,8 @@ Layout, `<head>`'inin içine bir marker koyar:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  {{hoist "head"}}
   <link rel="stylesheet" href="{{asset "/static/app.css"}}">
+  {{hoist "head"}}
 </head>
 <body>
   {{slot "content"}}
@@ -34,6 +34,11 @@ Layout, `<head>`'inin içine bir marker koyar:
 
 `{{hoist "head"}}` içerik yazmaz, bir marker yazar. Çünkü o noktada altındaki hiçbir
 şey henüz render edilmemiştir.
+
+Marker sitenin stylesheet'inden sonra gelir. Böylece bir fragment'in hoist ettiği
+stylesheet ondan sonra link'lenir ve eşit specificity'deki bir kuralda üstün gelir.
+`collage new`'un yazdığı layout'ta marker v0.77.0'dan beri bu konumdadır. Marker'ı
+başa koyan bir layout ise son sözü sitenin stylesheet'ine bırakır.
 
 Page'in tamamı bittiğinde collage bu marker'ı, ağacın herhangi bir yerinde `"head"`
 alanı için tanımlanmış her şeyle değiştirir. Bu iş tek geçişte yapılır ve konumu
@@ -462,6 +467,7 @@ Burada her element ayrı bir satırda; collage ise hoist edilenleri yan yana yaz
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/static/app.2708d73bf31c36cd.css">
   <title>Brass deck lamp — The Shop</title>
   <meta name="description" content="A lamp for a boat&#39;s chart table.">
   <meta property="og:title" content="Brass deck lamp">
@@ -470,7 +476,6 @@ Burada her element ayrı bir satırda; collage ise hoist edilenleri yan yana yaz
   <link rel="canonical" href="https://shop.example/products/42">
   <link rel="stylesheet" href="/static/product.ab1d57cf7f5ec545.css">
   <link rel="stylesheet" href="/static/stock.1d101be0b97db6e6.css">
-  <link rel="stylesheet" href="/static/app.2708d73bf31c36cd.css">
 </head>
 ```
 
@@ -481,8 +486,9 @@ Burada her element ayrı bir satırda; collage ise hoist edilenleri yan yana yaz
   eder.
 - **İki stylesheet de content-addressed URL'leriyle link'lenir.** Page onları hangi
   sırayla tanımladıysa o sırayla, önce ürününki, sonra stok kutusununki gelir.
-  `app.css` onlardan sonra gelir, çünkü layout'un template'i onu marker'ın altına
-  yazar.
+  `app.css` onlardan önce gelir, çünkü layout'un template'i onu marker'ın üstüne
+  yazar. Böylece `product.css`'teki bir kural, `app.css`'teki eşit specificity'deki
+  bir kurala üstün gelir.
 
 ### Stok kutusunun URL'si ne döner
 

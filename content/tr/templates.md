@@ -269,8 +269,15 @@ Aşağıdaki fonksiyonlar, `html/template`'in kendi fonksiyonlarıyla (`printf`,
 | `upper`, `lower`, `title` | Büyük/küçük harf dönüşümü yapar |
 | `join sep items` | Bir `[]string`'i birleştirir |
 | `formatTime t layout` | Bir `time.Time`'ı bir Go layout'uyla formatlar |
+| `withQuery "page" 2 …` | Query parametreleri set edilmiş hâliyle bu page'in URL'si; `""` bir parametreyi kaldırır |
+| `pathEscape s` | Bir string'i tek bir path segment'i için escape eder |
+| `json v`, `pre v` | Bir değerin JSON hâli, ya da bir template'e ne verildiğini görmek için escape edilmiş bir `<pre>` bloğu |
+| `add`, `sub`, `mul`, `div`, `mod`, `min`, `max`; `addf`, `subf`, `mulf`, `divf` | Tam sayı ve `float64` aritmetiği |
+| `trim`, `replace`, `contains`, `hasPrefix`, `hasSuffix`, `split`, `truncate` | String'i en sonda alan, bu yüzden pipeline içinde doğal okunan string fonksiyonları |
+| `first`, `last`, `seq`, `keys`, `hasKey`, `dig` | Bir listenin uçları, üzerinde sayılacak bir aralık, bir map'in key'leri, verinin derinindeki bir değer |
 
-Link fonksiyonları katıdır. Bilinmeyen bir page adı ya da eksik bir parametre, bozuk
+`withQuery`'den aşağıdaki fonksiyonlar v0.77.0'da geldi. Link fonksiyonları
+katıdır. Bilinmeyen bir page adı ya da eksik bir parametre, bozuk
 bir link üretmek yerine render'ı başarısız kılar. Her fonksiyonun argümanlarını ve
 davranışını [Template fonksiyonları](/docs/template-functions) sayfasında
 bulabilirsiniz.
@@ -308,18 +315,20 @@ app, err := collage.New(&collage.Config{
   edilmemiş bir adı çağıran template `New`'da hata verir. Amaç da tam olarak budur:
   yazım hatasını uygulama açılırken yakalarsınız.
 - **Built-in bir fonksiyonun adıyla eklenen bir entry, o built-in'in yerini alır.**
-  Render'a bağlı olan on bir fonksiyon bunun dışındadır: `slot`, `hoist`, `asset`,
+  Render'a bağlı olan on iki fonksiyon bunun dışındadır: `slot`, `hoist`, `asset`,
   `stylesheet`, `csrfToken`, `pageURL`, `pageURLIn`, `localeURL`, `actionURL`,
-  `fragmentURL` ve `fragmentURLIn`. Render engine her render için bunların kendi
-  versiyonlarını bağlar. Bu yüzden bunlardan birini override etmek kabul edilir,
-  ama hiçbir etkisi olmaz.
+  `fragmentURL`, `fragmentURLIn` ve `withQuery`. Render engine her render için
+  bunların kendi versiyonlarını bağlar. Bu yüzden bunlardan birini override etmek
+  kabul edilir, ama hiçbir etkisi olmaz; v0.77.0'dan beri `New` onu adıyla anan bir
+  uyarı log'lar.
 - **Bir fonksiyon request'i göremez.** Fonksiyon, bütün program için bir kez register
   edilir. Request'e, locale'e ya da kullanıcıya bağlı olan her şey data handler'da
   olmalıdır. Veri zaten oradan gelir.
 
 Bir plugin de `Configure` hook'undan fonksiyon ekleyebilir. Ayrıntılar için
 [Plugin yazmak](/docs/writing-plugins) sayfasına bakın. Bir plugin ve `Funcs` aynı
-adı tanımlarsa `Funcs` kazanır, çünkü ikisini birden görebilen uygulamadır.
+adı tanımlarsa `Funcs` kazanır, çünkü ikisini birden görebilen uygulamadır. Bir
+plugin built-in bir adı ise hiç alamaz (v0.77.0'dan beri).
 
 ## Escaping
 

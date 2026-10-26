@@ -65,6 +65,20 @@ collage version
 The version it prints is read from the build, so it is whatever `go install`
 fetched. `collage help` lists every command, and `collage help new` describes one.
 
+### Shell completion and the man page
+
+Since v0.77.0 the CLI completes its commands, flags and their values when TAB is
+pressed. Load the script from your shell's startup file:
+
+```sh
+eval "$(collage completion bash)"      # ~/.bashrc
+source <(collage completion zsh)       # ~/.zshrc, after compinit
+collage completion fish | source       # ~/.config/fish/config.fish
+```
+
+`collage man --install` puts collage(1) where `man` looks, so `man collage` works.
+Both are in [the CLI reference](/docs/cli#collage-completion).
+
 ## Create a project
 
 ```sh
@@ -99,6 +113,7 @@ come before or after the name:
 | `-dir path` | Scaffold into `path` instead of `./<name>` |
 | `-module path` | The module path in `go.mod`, such as `github.com/you/mysite`. Defaults to the name |
 | `-force` | Scaffold into a directory that is not empty |
+| `--ai` | Write `AGENTS.md`, the rules a coding agent needs in a collage project, and a `CLAUDE.md` importing it (since v0.77.0); `collage ai init` does the same later — see [the CLI](/docs/cli#collage-ai) |
 | `--with plugins` | Add plugins once it is written: bundles such as `@prod` and plugins such as `elagoht/session`, comma-separated (since v0.59.0). The plugins are fetched, so `go mod tidy` is no longer a next step |
 
 ```sh
@@ -144,11 +159,11 @@ mysite/
 ├── pages/
 │   └── home.go                 the home page: its layout, content and path
 ├── fragments/
-│   ├── layouts/main.go         Master(), the layout every page shares, and the site's title
-│   └── pages/home.go           the home page's content and its data
+│   ├── layouts/master.go       Master(), the layout every page shares, and the site's title
+│   └── pages/home.go           the home page's content, its data and its markup:
+│                               <h1>Hello from {{.Name}}</h1>
 ├── templates/
-│   ├── layouts/master.html     the layout's HTML, with {{slot "content"}}
-│   └── pages/home.html         <h1>Hello from {{.Name}}</h1>
+│   └── layouts/master.html     the layout's HTML, with {{slot "content"}}
 └── static/
     └── app.css                 the background and text colour, light and dark
 ```
@@ -165,8 +180,14 @@ actions/<area>.go                 action builders, one file per area
 actions/funcs/<area>.go           their handlers
 documents/<name>.go               routes that are not HTML
 data/<domain>/                    state, by domain
-templates/                        the HTML kept in files
+templates/layouts/                the layouts' HTML
 ```
+
+Since v0.77.0 a page's and a fragment's markup stays in its Go file, as a
+`collage.InlineHTML` constant beside its data handler, and only layouts are
+template files. Editing a page's markup is a Go change, which `collage dev`
+rebuilds for; `collage add page --file` still gives a page a template file of its
+own when you want one.
 
 `collage add page blog/post` writes a page there and registers it in `routes.go`,
 and `collage add` does the same for a fragment, an action or a document; see
@@ -179,7 +200,7 @@ The demo project adds:
 - a not-found page;
 - a favicon;
 - pages in the `demo` and `errors` areas, with their actions, a document, a
-  counter in `data/count/`, and their templates and scripts.
+  counter in `data/count/`, and their script.
 
 A few things in it are worth knowing before you change them.
 

@@ -1,5 +1,5 @@
 ---
-description: collage CLI'ın bütün komutları (new, add, dev, build, export, serve, inspect, check, plugin, version, help), flag'leri ve her birinin neyi çalıştırdığı.
+description: collage CLI'ın new, add ve dev'den plugin, ai, completion ve man'e kadar bütün komutları, flag'leri ve her birinin neyi çalıştırdığı.
 reference: Main, Env, Env.PluginConfig, Env.Static, DispatchCommands, Command, ErrUnknownCommand, FragmentBuilder.WithoutTypeCheck, App, Registrable
 ---
 
@@ -36,12 +36,28 @@ collage <command> [flags]
 | `inspect` | Bulunduğunuz dizindeki projenin nelerden oluştuğunu JSON olarak yazdırır |
 | `check` | Bulunduğunuz dizindeki projenin template'lerini render etmeden kontrol eder (v0.40.0'dan beri) |
 | `plugin` | Projeye plugin ekler, çıkarır ya da bir plugin repository'sini kontrol eder (v0.58.0'dan beri) |
+| `ai` | Projenin coding agent'lar için kurallarını içeren `AGENTS.md`'yi yazar ya da günceller (v0.77.0'dan beri) |
+| `completion` | bash, zsh ya da fish için bir shell completion script'i yazdırır (v0.77.0'dan beri) |
+| `man` | collage'ın man sayfasını yazdırır ya da `man`'in bulacağı yere kurar (v0.77.0'dan beri) |
 | `version` | collage CLI'ın sürümünü yazdırır |
 | `help` | Bir komutun yardımını gösterir ya da bütün komutları listeler |
 
 `collage help <command>` o komutun kendi kullanım bilgisini yazdırır.
 `collage <command> -h` de aynı şeyi yapar. Flag'ler Go'nun `flag` sözdizimini
 kullanır: `-out dist` ile `-out=dist` aynıdır, `--out` da çalışır.
+
+Yanlış yazılmış bir ad, hatasının sonunda en yakın geçerli adı önerir
+(v0.77.0'dan beri):
+
+```text
+collage: unknown command: "chek" (did you mean "check"?)
+```
+
+Bu, CLI'ın geçerli değerlerini bildiği her ad için böyledir: bir komut, bir alt
+komut, bir `add` türü, bir flag, bir `--template`, bir `@bundle` ve bir plugin.
+Plugin, `plugin add` için bir paketin adını verdiği, `plugin del` için ise
+`plugins.go`'da bulunan plugin'dir. Hiçbirine yakın olmayan bir ad yalnızca hatayı
+alır; çıkış kodu her iki durumda da aynıdır.
 
 <figure class="diagram-figure" data-search-ignore>
 <svg class="diagram" viewBox="0 0 320 380" role="img" aria-labelledby="cli-life-title">
@@ -93,7 +109,7 @@ kullanır: `-out dist` ile `-out=dist` aynıdır, `--out` da çalışır.
 ## collage new
 
 ```sh
-collage new <name> [--template minimal|demo] [--with plugins] [--dir path] [--module path] [--force]
+collage new <name> [--template minimal|demo] [--with plugins] [--dir path] [--module path] [--force] [--ai]
 ```
 
 `<name>` adında, çalıştırılmaya hazır yeni bir proje scaffold eder.
@@ -105,6 +121,7 @@ collage new <name> [--template minimal|demo] [--with plugins] [--dir path] [--mo
 | `-dir path` | `./<name>` | Projenin scaffold edileceği dizin |
 | `-module path` | `<name>` | `go.mod`'a yazılan module path |
 | `-force` | kapalı | Dizin boş olmasa da scaffold eder |
+| `--ai` | kapalı | Coding agent'lar için kuralları içeren `AGENTS.md`'yi ve onu import eden bir `CLAUDE.md`'yi [`collage ai init`](#collage-ai) gibi yazar (v0.77.0'dan beri) |
 
 ```sh
 collage new myblog                                   # into ./myblog, module "myblog", one page
@@ -112,6 +129,7 @@ collage new myblog --template demo                   # the demos and their tests
 collage new myblog -module github.com/me/myblog
 collage new myblog -dir . -force                     # into the current, non-empty directory
 collage new myblog --with @blog,@prod                # iki paketin plugin'leriyle birlikte
+collage new myblog --ai                              # and AGENTS.md for coding agents
 ```
 
 `--with`, hiçbir şey yazılmadan önce okunur: var olmayan bir paket ya da
@@ -151,8 +169,8 @@ path'iniz ve dependency'lerinizdir. Bulunduğunuz dizine scaffold ettiğinizde a
 - bütün route'ları register eden bir `routes.go`;
 - sitenin adını `WithTitle` ile veren ve hiç slot tanımlamayan bir layout
   (böylece bir page'in kendi başlığı sitenin başlığının yerine geçer);
-- template'ine proje adını `collage.Value` ile veren bir ana sayfa (içinde hiçbir
-  şey veri çekmediği için `Static()` demeden static'tir);
+- markup'ı Go dosyasında inline duran ve proje adını `collage.Value` ile alan bir
+  ana sayfa (içinde hiçbir şey veri çekmediği için `Static()` demeden static'tir);
 - `static/`, bir `.gitignore` ve bir README.
 
 **`--template demo`**, projeye canlı demolardan oluşan bir page ekler:
@@ -172,16 +190,22 @@ actions/<area>.go                 action builders, one file per area
 actions/funcs/<area>.go           their handlers
 documents/<name>.go               routes that are not HTML
 data/<domain>/                    state, by domain
-templates/                        the HTML kept in files
+templates/layouts/                the layouts' HTML
 ```
 
 `pages/` ve `fragments/pages/` alan alan birbirini yansıtır. İçlerindeki her
 package'ın adı `pages` ya da `fragments`'tır. Bu yüzden bir page dosyası kendi
 içeriğini `fragments "<module>/fragments/pages/<area>"` olarak import eder;
 `routes.go` da her alanın page'lerini `demopages` gibi bir alias ile import eder.
-Küçük fragment'lar markup'larını inline tutar: data handler'larının yanında bir
-`collage.InlineHTML` const'u olarak. Layout ve daha büyük page'ler ise markup'larını
-`templates/` içinde tutar. Bir page'in `WithActionFor` ile eklediği bir action,
+Page'ler ve fragment'lar markup'larını inline tutar: data handler'larının yanında
+bir `collage.InlineHTML` const'u olarak. Markup'ını `templates/layouts/` içinde
+tutan yalnızca layout'lardır (v0.77.0'dan beri; önceden ana sayfa ve daha büyük
+page'ler `templates/pages/` içindeydi). Bir page'in markup'ını düzenlemek bir Go
+değişikliğidir ve `collage dev` bunun için yeniden build alır. Layout'un
+`<head>`'inde `{{hoist "head"}}` sitenin stylesheet'inden sonra gelir. Böylece bir
+fragment'in hoist ettiği stylesheet, eşit specificity'de sitenin stylesheet'ine
+üstün gelir. Daha önce scaffold edilmiş bir proje aynısını istiyorsa kendi
+layout'unu değiştirir. Bir page'in `WithActionFor` ile eklediği bir action,
 page'le aynı adı taşır ve kendine ait bir path'i yoktur. `routes.go` her şeyi tek
 bir [`app.Register`](/docs/pages-and-layouts#registration) çağrısıyla register eder.
 
@@ -1084,6 +1108,91 @@ sözleşmeye göre kontrol eder. Kontrolün kendisi yalnızca repository'yi okur
 Bunlar `collage` binary'sinin komutlarıdır. Bir plugin'in kendi alt komutları ise
 başka bir şeydir: bkz. [Plugin komutları](#plugin-commands).
 
+## collage ai
+
+```sh
+collage ai init [--dir path]
+collage new mysite --ai      # the same, while scaffolding
+```
+
+Bir coding agent'ın (opencode, Codex, Cursor, Claude Code) collage projesinde
+çalışmak için ihtiyaç duyduğu kuralları projenin `AGENTS.md` dosyasına yazar
+(v0.77.0'dan beri). Kurallar her dosya türünün nereye gittiğini (ve `collage add`'in
+onu oraya koyduğunu), bir layout değişikliğinin altındaki her page'e ulaştığını,
+guard'ların bir action'a nasıl ulaştığını, CSS'in nasıl hoist edildiğini ve kendiniz
+yazmak yerine hangi plugin'i eklemeniz gerektiğini söyler. Kasıtlı olarak kısadırlar:
+collage'ı hiç görmemiş bir agent, çoğu zaman küçük bir model, önce onları okur ve
+kendi alışkanlıklarının önüne koyar.
+
+collage yalnızca iki marker arasındaki kendi bölümünü yazar:
+
+```markdown
+<!-- collage:begin v0.77.0 — written by `collage ai init`; … -->
+…
+<!-- collage:end -->
+
+## Project rules
+```
+
+- **collage'ı yükselttikten sonra komutu yeniden çalıştırın**; o bölüm yenilenir.
+  Marker'ların dışındaki her şey, yani projenin kendi kuralları, byte byte korunur.
+- **Marker'ları olmayan bir `AGENTS.md`**, bölümü metninin üstüne alır.
+- **Bir begin satırı ve ardından bir end satırı biçiminde olmayan marker'lar
+  reddedilir** ve hiçbir şey yazılmaz. Hangi metnin collage'a ait olduğu bir tahmin
+  olurdu ve yanlış bir tahmin kurallarınızı silerdi.
+- **Proje bir `CLAUDE.md`'ye sahip değilse `@AGENTS.md` içeren bir `CLAUDE.md` de
+  yazılır**; böylece Claude Code aynı kuralları okur. Var olan bir `CLAUDE.md` asla
+  değiştirilmez; `AGENTS.md`'yi import etmiyorsa komut bunu söyler.
+
+Her dosyayla ne yaptığını yazdırır: `created`, `updated` ya da bölüm zaten yazacağı
+hâldeyse `current`:
+
+```text
+AGENTS.md: created
+CLAUDE.md: created
+```
+
+## collage completion
+
+```sh
+collage completion bash|zsh|fish
+```
+
+TAB'a basıldığında komutları, flag'leri ve onların değerlerini tamamlayan bir
+script yazdırır (v0.77.0'dan beri): `add`'in türleri, `plugin add`'in paketleri ve
+onların adını verdiği plugin'ler, `--template`'in template'leri, `--with`'in listesi
+(öğe öğe) ve `--dir`, `-o` ile `-out` için path'ler. Script'i shell'in başlangıç
+dosyasından yükleyin:
+
+```sh
+eval "$(collage completion bash)"      # ~/.bashrc (works with macOS's bash 3.2)
+source <(collage completion zsh)       # ~/.zshrc, after compinit
+collage completion fish | source       # ~/.config/fish/config.fish
+```
+
+Script neyin tamamlanacağını gizli bir `collage __complete` komutu üzerinden
+`PATH`'teki `collage`'a sorar. Bu yüzden bir yükseltmeden sonra da, yeniden
+yüklenecek bir şey olmadan doğru kalır. Her komutun flag'leri bir kez tanımlanır ve
+hem komut hem completion tarafından okunur; böylece yeni bir flag var olduğu gün
+tamamlanır. Bir projenin plugin'lerinin eklediği komutlar projenin kendi binary'si
+üzerinden çalışır ve tamamlanmaz.
+
+## collage man
+
+```sh
+collage man              # print collage(1)
+collage man --install    # write it where man finds it
+```
+
+Her komutun kendi `help` metninden üretilen man sayfası collage(1)'i yazdırır
+(v0.77.0'dan beri). `--install` onu, `collage`'ı barındıran `PATH` dizininin
+yanındaki `../share/man/man1/collage.1` konumuna yazar: `go install` için
+`$(go env GOPATH)/share/man`, `~/.local/bin` içindeki bir link için
+`~/.local/share/man`. `man`, `PATH`'teki her dizin için orada arar; bu yüzden
+`man collage` başka hiçbir kurulum gerektirmeden çalışır. Binary `PATH`'te
+değilse ya da `MANPATH`, bu dizinleri dahil eden boş girdi olmadan ayarlanmışsa
+komut bunu söyler.
+
 ## collage version
 
 ```sh
@@ -1106,7 +1215,8 @@ collage help export     # one command's usage
 
 Argümansız çalıştırıldığında bütün komutları listeler ve `0` ile çıkar. Bir komut
 adı verildiğinde o komutun kullanım bilgisini yazdırır. Bilinmeyen bir ad
-verildiğinde `collage: unknown command: "nope"` yazdırır ve `2` ile çıkar.
+verildiğinde `collage: unknown command: "nope"` yazdırır; yakın bir komut varsa
+(v0.77.0'dan beri) ardından onu önerir. Sonra `2` ile çıkar.
 
 ## Örnek: yeni bir projeden ilk deploy'a
 

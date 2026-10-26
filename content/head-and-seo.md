@@ -23,8 +23,8 @@ The layout places a marker in its `<head>`:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  {{hoist "head"}}
   <link rel="stylesheet" href="{{asset "/static/app.css"}}">
+  {{hoist "head"}}
 </head>
 <body>
   {{slot "content"}}
@@ -34,6 +34,11 @@ The layout places a marker in its `<head>`:
 
 `{{hoist "head"}}` writes a marker, not content — nothing below it has rendered
 yet.
+
+The marker comes after the site's stylesheet, so a stylesheet a fragment hoists is
+linked after it and wins a rule of equal specificity; the layout `collage new`
+writes has it there since v0.77.0. A layout of yours that puts the marker first
+gives the site's stylesheet the last word instead.
 
 When the whole page is finished, collage replaces the marker with everything
 that was declared for the `"head"` area, anywhere in the tree. One pass, and the
@@ -449,6 +454,7 @@ line here; collage writes the hoisted ones side by side:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/static/app.2708d73bf31c36cd.css">
   <title>Brass deck lamp — The Shop</title>
   <meta name="description" content="A lamp for a boat&#39;s chart table.">
   <meta property="og:title" content="Brass deck lamp">
@@ -457,7 +463,6 @@ line here; collage writes the hoisted ones side by side:
   <link rel="canonical" href="https://shop.example/products/42">
   <link rel="stylesheet" href="/static/product.ab1d57cf7f5ec545.css">
   <link rel="stylesheet" href="/static/stock.1d101be0b97db6e6.css">
-  <link rel="stylesheet" href="/static/app.2708d73bf31c36cd.css">
 </head>
 ```
 
@@ -468,7 +473,8 @@ line here; collage writes the hoisted ones side by side:
   given.
 - **Both stylesheets are linked at their content-addressed URLs**, the product's
   before the stock box's, in the order the page declared them. `app.css` comes
-  after them, because the layout's template writes it below the marker.
+  before them, because the layout's template writes it above the marker, so a
+  rule in `product.css` wins over one of equal specificity in `app.css`.
 
 ### What the stock box's URL answers
 
