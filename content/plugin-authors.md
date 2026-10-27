@@ -181,7 +181,8 @@ the section. Nothing else is needed from you.
 When your plugin works through another one, find it by type instead of asking
 the user to pass it in. `collage.FindPlugin[T](host)` looks through the
 application's plugins and returns the plugin of type `T` (the first, if there are
-several), from `Configure` or from `Init`:
+several). Call it from `Configure` and keep what it finds: since v0.78.0 the `Host`
+given to `Init` lists no plugins, so `FindPlugin` from `Init` reports false.
 
 ```go
 live, ok := collage.FindPlugin[*live.Plugin](host)
@@ -190,8 +191,8 @@ if !ok {
 }
 ```
 
-It sees every plugin in the list, whether that one has been configured or
-initialised yet or not. Then name the other plugin in `requires`, so that `add`
+It sees every plugin in the list, whether that one has been configured yet or
+not. Then name the other plugin in `requires`, so that `add`
 brings it along. The websocket plugin does exactly this, which is why
 `New(nil)` works for it.
 

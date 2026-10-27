@@ -975,8 +975,8 @@ Plugins: []collage.Plugin{i18n.New(i18n.Options{FS: locales})},
 { "elagoht/i18n": { "dir": "locales", "strict": true } }
 ```
 
-- v0.3.0, collage v0.61.0 ya da sonrasını gerektirir ve `Config.Plugins` içinde olmalıdır:
-  template fonksiyonları ekler. Kataloglar `Options.FS`'ten gelir, bu yüzden
+- v0.4.0, collage v0.61.4 ya da sonrasını gerektirir (v0.3.0 v0.61.0 gerektiriyordu)
+  ve `Config.Plugins` içinde olmalıdır: template fonksiyonları ekler. Kataloglar `Options.FS`'ten gelir, bu yüzden
   plugin Go'da kurulur.
 - Desteklenen her locale için iç içe key'lerden oluşan bir JSON dosyası olur:
   `locales/<locale>.json`. Desteklenen bir locale'in dosyası yoksa uygulama
@@ -986,6 +986,18 @@ Plugins: []collage.Plugin{i18n.New(i18n.Options{FS: locales})},
   data handler `i18n.T(rc, key, pairs...)` çağırır; v0.3.0'dan beri çiftler string'dir
   (`i18n.T(rc, "visits", "n", strconv.Itoa(n))`), template fonksiyonları ise hâlâ
   her değeri yazdırır.
+- **`th` her değeri düştüğü yere göre escape eder** (v0.4.0'dan beri), tıpkı
+  html/template'in orada `{{.Value}}`'yu escape ettiği gibi: katalogdaki markup
+  güvenilirdir, onu dolduran değerler değildir. Metinde bir değer escape edilir; bir
+  URL attribute'unda (`href`, `src`, `action`…) `http:`, `https:`, `mailto:` ya da
+  göreli olmayan bir değer `#ZgotmplZ` olur; tırnaksız bir attribute'ta boşlukları
+  ve `=`'i escape edilir, böylece yeni bir attribute ekleyemez. v0.3.0'a kadar bir
+  değer nerede olursa olsun HTML-escape ediliyordu; bu yüzden `<a href="{url}">`
+  içindeki bir `javascript:` değeri çalışan bir link oluşturuyordu. Bir tag'in ya da
+  attribute'un içinde biten bir entry artık render'ı bir `i18n:` hatasıyla başarısız
+  kılar: tag'i katalogda kapatın. Güvenli bir URL ya da düz metin eskisi gibi render
+  edilir; yalnızca bir URL'nin boşlukları ve ASCII olmayan harfleri artık
+  percent-encode edilir.
 - Eksik bir key önce varsayılan locale'e, sonra key'in kendisine düşer.
   Development'ta page'in üzerinde, static build'de ise build raporunda
   `i18n-missing` olarak raporlanır. Development'ta kataloglar her
@@ -1343,6 +1355,21 @@ private := collage.NewFragment("private", "layouts/private.html").
   Key'ler önceki key'ler üzerinden döndürülür: bunlardan biriyle imzalı bir cookie
   kabul edilir ve güncel key ile yeniden yazılır. Bir session iptal edilemez,
   çünkü okuyucunun cookie'sinde yaşar.
+- **Bir session, verildiği host'a bağlıdır** (v0.7.0'dan beri): küçük harfe çevrilmiş
+  ve port'u atılmış host imzalı payload'un içindedir; başka bir host'ta sunulan bir
+  cookie orada session değildir (yok sayılır, silinmez). Birkaç siteyi tek key'le
+  tek process'ten sunan bir uygulamada, yani elagoht/tenant'ın tenant'larında,
+  `acme.test`'ten `globex.test`'e kopyalanan bir cookie orada anonimdir. Tek siteli
+  bir uygulamada `domain` ayarlanırsa session host yerine domain'e bağlanır, böylece
+  alt domain'leri onu paylaşır; tenant'larla (host'ları origin'lere çözen herhangi
+  bir plugin'le) her host kendi sitesi olarak kalır, bu yüzden orada `domain`
+  ayarlamayın. Host, request'in `Host`'udur: onu yeniden yazan bir proxy'nin
+  arkasında orijinal `Host`'u iletin, yoksa her session proxy'ninkine bağlanır.
+- **v0.7.0'dan önceki cookie'ler** host taşımaz. Tek siteli bir uygulama böyle bir
+  cookie'yi kabul eder ve geldiği host'a bağlı olarak yeniden yazar; böylece
+  yükseltme kimsenin oturumunu kapatmaz. Çok siteli bir uygulama onu hangi tenant'ın
+  verdiğini bilemez, bu yüzden reddeder ve siler: her okuyucu bir kez yeniden giriş
+  yapar. Config'te hiçbir şey değişmez.
 
 #### elagoht/uploads
 
@@ -1876,8 +1903,10 @@ Plugins: []collage.Plugin{consent.New(consent.Options{})}, // plugins-config.jso
   `style-src` onun hash'ine izin vermelidir; güncel hash plugin'in README'sindedir
   (`'unsafe-inline'` de işe yarar). Bekletilen inline script'in kendi `nonce`'u ya
   da metninin `'sha256-…'` hash'i `script-src`'de bulunmalıdır.
-- collage-live ile itilen bir fragment bir kez render edilir ve tüm abonelere
-  gider. Static export script'i page'lerin yanına yazar ve karar tarayıcıda verilir;
+- collage-live ile itilen bir fragment, collage v0.78.0'dan beri kendi path'i için
+  middleware'den geçer: `serverPaths`'in kapsadığı bir path'te okuyucunun kendi
+  seçimini okur ve paylaşılmadan o okuyucu için render edilir (v0.2.1 bunu test
+  eder; değiştirilecek bir şey yok). Static export script'i page'lerin yanına yazar ve karar tarayıcıda verilir;
   bu yüzden export edilmiş page'ler sunucuda her zaman "onaylanmadı" olarak render
   edilir.
 - `Granted`, render ettiği App'in yapılandırmasını okur (v0.2.0'dan beri; öncesinde
@@ -1927,8 +1956,9 @@ Plugins: []collage.Plugin{client.New(), live.New(live.Options{})},
 ```
 
 - `Config.Plugins` içinde olmalıdır, çünkü layout'un client'ı eklemek için çağırdığı
-  `{{liveClient}}`'ı ekler. v0.6.0, collage v0.67.0 ya da sonrasını ve
-  [elagoht/client](#elagohtclient) v0.2.0'ı gerektirir: her cevap page'e
+  `{{liveClient}}`'ı ekler. v0.7.0 collage v0.71.0'ı, her push'un middleware'den
+  geçmesi için de v0.78.0 ya da sonrasını gerektirir; v0.6.0 collage v0.67.0
+  gerektiriyordu. İkisi de [elagoht/client](#elagohtclient) v0.2.0'ı gerektirir: her cevap page'e
   collage-client'ın `collage.put`'u ile girer. `collage plugin add elagoht/live`
   client'ı da ekler; client yoksa `collage.New` başarısız olur. `{{liveClient}}`,
   client'ın script'ini kendi script'inden önce yazar. Bu yüzden layout değişmez,
@@ -2004,16 +2034,28 @@ Plugins: []collage.Plugin{client.New(), live.New(live.Options{})},
 - **Örneklenen veri** (CPU yükü, bir kuyruğun uzunluğu gibi), fragment başına bir
   tag ile bir timer'la invalidate edilerek gönderilir. Böyle bir fragment'i
   `Static()` ile değil, [`Shared()`](/docs/caching#a-page-that-declares-none) ile
-  işaretleyin. Böylece page dynamic kalırken fragment sekme başına değil, her
-  değişiklikte bir kez render edilir. Aynı ölçümü okuyan birkaç fragment onu tag'siz
-  bir `collage.Cached` ile çeker. Böylece bir fragment'in tick'i diğerlerini yeniden
-  render ettirmez. Bir sistem monitörü örneği
+  işaretleyin. Böylece page dynamic kalırken collage fragment'i sekme başına değil,
+  her değişiklikte bir kez render eder. Aynı ölçümü okuyan birkaç fragment onu
+  tag'siz bir `collage.Cached` ile çeker. Böylece bir fragment'in tick'i diğerlerini
+  yeniden render ettirmez. `Shared` olmayan bir fragment her bağlantı için render
+  edilir; data cache açıkken `Cached`, çektiğini bir kez çekilmiş tutar. Bir sistem monitörü örneği
   [README](https://github.com/Elagoht/collage-live#sampled-data-a-system-monitor)'de
   adım adım anlatılır.
-- Framework'ün `Shared` olarak bildirdiği bir render URL başına bir kez yapılır ve o
-  URL'nin her okuyucusuna gönderilir. Diğer render'lar her bağlantı için o
-  bağlantının kendi request'iyle yapılır. Bir bağlantı, açıldığı andaki
-  cookie'lerle render eder. İmzalı, stateless cookie'ler kullanıyorsanız
+- **Her push tek bir bağlantı için yapılır** (v0.7.0'dan beri), o bağlantının kendi
+  request'iyle, ve yalnızca ona gönderilir: collage v0.78.0 altında fragment'in
+  URL'sine giden, uygulamanın ve her plugin'in middleware'inin, ardından guard'ların
+  cevapladığı bir request'tir. Bunlardan birinin artık reddettiği bir okuyucuya (sunucuda
+  iptal edilmiş bir session, değişmiş kimlik bilgileri, bir ban) fragment yerine bir
+  stale mesajı gönderilir. Önceden `Shared` bir render bir kez yapılıp URL'sinin her
+  okuyucusuna gönderiliyordu; bu yüzden böyle bir okuyucu, hiçbir guard'ın kapsamadığı
+  bir fragment'i almaya devam ediyordu. Render'ın kendisi yine her değişiklikte bir
+  kez yapılır ve collage onu kabul ettiği okuyucular arasında paylaşır; bir rate
+  limit her push'u bir request olarak sayar.
+- **Gönderilen bir fragment'teki form kabul edilir** (v0.7.0'dan beri). Bir
+  bağlantının ilkinden sonraki her render, forgery cookie'sinin doğrulamadığı bir
+  token taşıyordu; bu yüzden gönderilen bir form'u submit etmek, bağlantı yeniden
+  açılana kadar reddediliyordu.
+- Bir bağlantı, açıldığı andaki cookie'lerle render eder. İmzalı, stateless cookie'ler kullanıyorsanız
   `maxStreamAge` bağlantıyı bu süre sonunda kapatır ve client onu o anda elinde
   olan cookie'lerle hemen yeniden açar.
 - Stream `<prefix>stream/` adresinde sunulur. Kendi compression middleware'iniz
@@ -2503,7 +2545,7 @@ Plugins: []collage.Plugin{offline.New(offline.Options{
 }
 ```
 
-- v0.2.0, collage v0.61.0 ya da sonrasını gerektirir (v0.1.6, collage v0.60.0 için son sürümdü) ve `Config.Plugins` içinde olmalıdır:
+- v0.2.1, collage v0.61.0 ya da sonrasını gerektirir (v0.1.6, collage v0.60.0 için son sürümdü) ve `Config.Plugins` içinde olmalıdır:
   `/sw.js`'de sunulan worker'ı kuran `{{offlineScript}}`'i ekler.
 - **v0.2.0'da değişenler:** `version` artık `buildID`, `inDev` artık
   `inDevelopment`'tır. Negatif bir `maxPages` ya da `maxAssets` (her şeyi sakla)
@@ -2511,8 +2553,17 @@ Plugins: []collage.Plugin{offline.New(offline.Options{
   olsun olmasın, path segmentlerini bütün olarak kapsar.
 - Page'ler önce ağdan çekilir ve saklanır. `assets` altındaki static dosyalar
   stale-while-revalidate ile sunulur. Ne ulaşılabilen ne de saklanan bir page için
-  `fallback` page'i gösterilir. `no-store` olarak işaretlenmiş bir response asla
-  saklanmaz.
+  `fallback` page'i gösterilir. `no-store` ya da `private` olarak işaretlenmiş bir
+  response asla saklanmaz, precache de edilmez.
+- **Private page'ler offline saklanmaz** (v0.2.1'den beri). Guard'lı bir page
+  (`WithGuard`) `private, no-cache` ile gider; basicauth da page'lerini `private`
+  olarak işaretler. Bir tarayıcı böyle bir page'i saklayabilir, çünkü göstermeden
+  önce sunucuya yeniden sorar; worker ise offline'da kimseye sormadan cevap verir.
+  v0.2.0'a kadar bu page'leri saklıyor ve hiçbir guard'a sormadan cihazı kim
+  kullanıyorsa ona offline gösteriyordu. Cache sürümü plugin'inkiyle değişir, bu
+  yüzden yükseltmeden sonraki ilk ziyaret eski worker'ın sakladıklarını atar.
+  Tek bir okuyucunun verisini taşıyan kendi page'iniz bunu `Cache-Control: private`
+  ya da `no-store` ile söyler.
 - Worker'ın cache'leri her deploy'la değişen bir sürümle adlandırılır. Böylece yeni
   bir build, eskisinin sakladıklarının yerini alır. Build, ayarlanmışsa
   `buildID`'dir; değilse collage'ın `Host.BuildID`'sidir, yani

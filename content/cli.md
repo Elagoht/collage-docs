@@ -304,7 +304,8 @@ collage add command seed            # commands/seed.go + app.RegisterCommand
   registered with `app.RegisterCommand`: `go run . <name>`, or the built binary
   followed by it, runs it instead of the server. `--name` gives it a name that is
   no Go name, `user-add`; a name another `collage.Command` in the project has is
-  refused. A middleware or a command that needs a service takes it as an argument
+  refused, and since v0.78.0 so is one that is not a single shell word, as
+  `RegisterCommand` refuses it. A middleware or a command that needs a service takes it as an argument
   you add. Both go into the register function as statements of their own,
   `if err := app.Use(...); err != nil { return err }`, which needs one that takes
   the `*collage.App` and returns an `error`; otherwise the line to add is printed.
@@ -1515,6 +1516,14 @@ program that would rather serve when no command matches can check
 `errors.Is(err, collage.ErrUnknownCommand)` and carry on instead of exiting.
 `app.Commands()` lists what the plugins registered, if you want to print your own
 usage.
+
+Since v0.78.0 `RegisterCommand` refuses a name it could never run: one that is not a
+single shell word (`collage.ErrInvalidCommandName`), a `collage-` name, which
+`DispatchCommands` answers itself, and, for a plugin's command, one of the
+`collage` binary's own names (both `collage.ErrDuplicateCommand`). Once the
+application has started it is `collage.ErrAppStarted`: a command registered then
+would never run. See
+[Writing a plugin](/docs/writing-plugins#commands).
 
 Dispatching starts the application, which closes registration, and a later
 `ListenAndServe` reuses that start. `DispatchCommands` does not shut the

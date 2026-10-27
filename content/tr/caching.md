@@ -190,8 +190,9 @@ cpu := collage.NewFragment("cpu", "fragments/cpu.html").
 ```
 
 `Shared()` page'in stratejisine dokunmaz. Page dynamic kalır ve bir export, tek bir
-anın ölçümünü page'e yazmaz. Fragment'i okuyuculara gönderen şeye de tek bir
-render'ın hepsine gönderilebileceğini söyler (bkz.
+anın ölçümünü page'e yazmaz. Fragment'i okuyuculara gönderen şeyin de onu her
+değişiklikte bir kez render etmesini sağlar: v0.78.0'dan beri collage, middleware'i
+ve guard'ları kabul eden her okuyucuya o tek render'ın bir kopyasını verir (bkz.
 [Plugin yazmak](/docs/writing-plugins#pushing-fragments)). `Static()` bunu zaten
 içerir. `Static()`'te olduğu gibi, sözünü bozan bir handler bir okuyucunun
 verisini başka bir okuyucuya gönderir.
@@ -442,7 +443,10 @@ Bir invalidation neye ulaştığını da söyler. Bir plugin her invalidation'ı
 `OnCacheInvalidate` üzerinden duyar. Event tag'leri ve `Entries` içinde invalidate
 edilen cache'lenmiş page ve document'ları, her biri bir host ve bir path olarak
 taşır. Bir CDN'in purge etmesi ve bir arama motoruna değiştiği bildirilmesi gereken
-budur. Hiç cache'lenmemiş bir page burada yer almaz. Bkz. [Plugin
+budur. Hiç cache'lenmemiş bir page burada yer almaz. Onu implement eden her plugin,
+kendisinden önceki biri başarısız olsa bile çağrılır (v0.78.0'dan beri) ve hatalar
+`InvalidateTags`'ten join edilmiş olarak döner. Invalidation'ı tetiklemek uygulamanın
+işidir: v0.78.0'dan beri bir plugin'in kendi `InvalidateTags`'i yoktur. Bkz. [Plugin
 yazmak](/docs/writing-plugins#cacheinvalidatehook).
 [elagoht/cdnpurge](/docs/plugins#elagohtcdnpurge) ve
 [elagoht/indexnow](/docs/plugins#elagohtindexnow) bunun üzerine kuruludur.

@@ -138,6 +138,41 @@ A guarded page goes out `private, no-cache`, and a guard's own answer `no-store`
 a CDN never hands one reader's page or refusal to the next. A static export does
 not write guarded pages at all.
 
+A fragment a plugin pushes over a stream is held to the same: since v0.78.0 it is
+rendered as a request to the fragment's own URL, which passes your middleware and
+the plugins' for that path, then the guards, which read that URL's parameters, never
+the stream's. A basicauth on `/admin/` keeps `/admin/stats` out of a live stream,
+and a reader the middleware or a guard now refuses is sent nothing.
+
+## Plugins reach what HTTP reaches
+
+A plugin is trusted code, but its `Host` keeps the promises its documentation makes
+(since v0.78.0):
+
+- **A pushed fragment is a request.** `RenderFragment` runs the middleware, the
+  guards and every `PersonaliseHook` — a CSP nonce, a honeypot marker — and carries
+  none of the caller's context values. A `Shared` render is made once per change
+  and handed only to readers their middleware and guards admitted.
+- **Configuration ends with `Configure`.** A kept `ConfigHost` adds no template
+  function and wraps no mount afterwards (`ErrConfigureClosed`), where a late
+  render function used to crash the process.
+- **A plugin cannot take a name of the template language.** `html`, `js`,
+  `urlquery`, `eq` and the rest are refused, so no plugin's `html` stands in for
+  html/template's escaping; and the application's `Config.Template.Funcs` win over
+  every plugin's function.
+- **A host carries only its own plugin's configuration**, and `Host.Pages` hands out
+  copies of every container a page holds, so a plugin cannot read another's section
+  or change the cache key through its copy.
+- **A plugin's `Host.Handle` body is bounded** at `Server.MaxBodyBytes` before the
+  middleware, as a page's is.
+- **Every `OnCacheInvalidate` runs**, so one failing plugin no longer keeps a CDN
+  purge from happening, and **`PersonaliseEvent.Personal` is sticky**: once a hook
+  set it, a nonce'd body is never answered as public or with a 304.
+- **Command names are one shell word**, and none is the dispatcher's or, for a
+  plugin, the `collage` binary's own.
+
+See [Writing a plugin](/docs/writing-plugins#pushing-fragments).
+
 ## A cached page is nobody's in particular
 
 A render stored in the cache is served to every reader whose request has its key,
@@ -172,8 +207,14 @@ nothing is typed from its content, so an extensionless image upload is still an
 image.
 
 It is never typed into a type that runs: one that looks like HTML or XML is
-`text/plain`, and with `nosniff` the browser keeps to that, so an upload holding
-markup is not served as a page.
+`text/plain`, and with `nosniff` the browser keeps to that, so an extensionless
+upload holding markup is not served as a page.
+
+A file with an extension is served as its extension says, by design: a static
+site's `.html` and `.svg` are pages and images. So never mount a folder of files
+your visitors uploaded with a plain `Mount`: an `.html` or `.svg` there runs its
+script as your site. [elagoht/uploads](/docs/plugins#elagohtuploads) checks each
+file by its content and serves it so that it cannot.
 
 A mount never lists a directory, and never serves or exports a dotfile — `.env`,
 `.git/` — except `.well-known`. `collage serve` does the same.
@@ -213,7 +254,15 @@ nonce.
   older Go. Check a binary with `go version -m`. Go 1.26.10 rejects the compromised
   eMudhra intermediate certificates (CVE-2026-111943).
 - **TLS**, at a proxy that passes `X-Forwarded-Proto` and the browser's `Host` on.
-  See [Deployment](/docs/deployment#tls-behind-a-proxy).
+  See [Deployment](/docs/deployment#tls-behind-a-proxy). Set
+  [`Server.TrustedProxies`](/docs/deployment#behind-a-proxy-trustedproxies): without
+  it `X-Forwarded-Proto` is believed from anyone, so a client reaching the server
+  directly can claim the TLS connection it does not have.
+- **Where your own redirects go.** An action's or a guard's `Location` is written
+  as you set it; check a `next` from the URL with
+  [`collage.SafeRedirect`](#redirects-stay-on-the-site).
+- **What you mount.** A plain `Mount` serves `.html` and `.svg` as they are; keep
+  untrusted uploads out of one (see [above](#files-are-what-they-say-they-are)).
 - **Rate limits** — [elagoht/ratelimit](/docs/plugins#elagohtratelimit).
 - **A handler mounted with `app.Handle`** is your own: no forgery check, no body
   limit, no cache, and since v0.67.0 no middleware — no plugin's authentication, rate

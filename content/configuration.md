@@ -326,7 +326,8 @@ is `ErrTemplateEscapesRoot`.
 
 Added to the built-in functions when the templates are parsed; an entry under a
 built-in name replaces that built-in, and an entry under a name a plugin added
-replaces the plugin's. It must be set before `New`, because a template can only
+replaces the plugin's — since v0.78.0 one added with `AddRenderFunc` too — and
+`New` logs each such name once. It must be set before `New`, because a template can only
 call a function that existed when it was parsed — a template calling an unknown
 name fails in `New`. The functions bound per render (`slot`, `hoist`, `asset`,
 `stylesheet`, `csrfToken`, `pageURL`, `pageURLIn`, `localeURL`, `actionURL`,

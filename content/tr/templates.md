@@ -327,8 +327,10 @@ app, err := collage.New(&collage.Config{
 
 Bir plugin de `Configure` hook'undan fonksiyon ekleyebilir. Ayrıntılar için
 [Plugin yazmak](/docs/writing-plugins) sayfasına bakın. Bir plugin ve `Funcs` aynı
-adı tanımlarsa `Funcs` kazanır, çünkü ikisini birden görebilen uygulamadır. Bir
-plugin built-in bir adı ise hiç alamaz (v0.77.0'dan beri).
+adı tanımlarsa `Funcs` kazanır, çünkü ikisini birden görebilen uygulamadır;
+v0.78.0'dan beri plugin'in her render'da eklediği bir fonksiyon için de. Bir plugin
+built-in bir adı ise hiç alamaz (v0.77.0'dan beri), template dilinin `html` ya da
+`eq` gibi bir adını da (v0.78.0'dan beri).
 
 ## Escaping
 

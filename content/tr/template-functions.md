@@ -665,12 +665,18 @@ built-in bir adı alamaz: v0.77.0'dan beri `AddTemplateFunc` bunu
 yerini sessizce alıyordu. Ayrıntılar için
 [Plugin yazmak](/docs/writing-plugins#template-functions) sayfasına bakın.
 
-Bir plugin'in `AddRenderFunc` ile eklediği fonksiyon iki yönden de istisnadır:
+Bir plugin'in `AddRenderFunc` ile eklediği fonksiyon, yukarıdaki on iki fonksiyon
+gibi her render'da bağlanır, ama aynı iki kurala uyar:
 
-- Yukarıdaki on iki fonksiyon gibi her render'da bağlanır. Bu yüzden uygulamanın
-  aynı adı taşıyan entry'si parse edilir, ama hiçbir zaman çağrılmaz.
+- v0.78.0'dan beri uygulamanın aynı adı taşıyan entry'si, `AddTemplateFunc`'ta
+  olduğu gibi kazanır ve `New` bunu bir kez log'lar. Önceden plugin'in fonksiyonu
+  her render'da uygulamanınkinden sonra bağlanıyordu; bu yüzden çalışan oydu.
 - `AddTemplateFunc` gibi, kırk sekiz built-in addan hiçbirini alamaz.
   `AddRenderFunc` bunları `ErrDuplicateTemplateFunc` ile reddeder.
+
+v0.78.0'dan beri ikisi de template dilinin kendi adlarından birini alamaz: `eq`,
+`len`, `index`, `print`, `html`, `js`, `urlquery` ve Go'nun diğer builtin ve
+escaper'ları. Bu da `ErrDuplicateTemplateFunc`'tır.
 
 Request'e ihtiyaç duyan her şey bir fonksiyona değil, bir data handler'a aittir.
 Page'in verisi de zaten oradan gelir.

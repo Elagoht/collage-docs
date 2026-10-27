@@ -122,6 +122,15 @@ plugin `Config.Plugins` içinde olmalıdır.
 v0.38.0'dan önce her plugin'in middleware'i uygulamanınkinin içinde çalışıyordu ve
 `app.Use` middleware'inde `session.FromContext` `nil` dönüyordu.
 
+Bir plugin'in bir stream üzerinden gönderdiği fragment (elagoht/live,
+elagoht/websocket) da bu zincirden geçer (v0.78.0'dan beri), fragment'in kendi
+path'ine gelen bir request olarak: `/admin/`'i koruyan bir middleware
+`/admin/stats`'ı `/_live/stream/?f=/admin/stats`'tan uzak tutar, next'i çağırmak
+yerine cevap veren bir middleware o okuyucunun fragment'i almasını engeller ve bir
+rate limit her push'u sayar. Stream'in kendi middleware'inin context'e koyduğu şey
+taşınmaz; middleware'iniz fragment'in path'i için yeniden çalışır. Bkz.
+[Plugin yazmak](/docs/writing-plugins#pushing-fragments).
+
 ### Path'ler önce temizlenir
 
 Dot segment'ler ya da çift slash içeren bir path (`/a/../b`, `/a//b`, `/a/./b`),
@@ -155,7 +164,10 @@ Sınır, request'in yönlendirildiği
 - Body'si bir middleware tarafından limitinin ötesine kadar okunmuş bir action `413`
   ile cevap verir. v0.71.0'dan beri middleware body'yi buffer'layıp yerine yeni bir
   reader koymuş olsa da (`io.ReadAll`, ardından `io.NopCloser`) böyledir.
-- `app.Handle` ile mount edilmiş bir handler'a dokunulmaz.
+- `app.Handle` ile mount edilmiş bir handler'a dokunulmaz. Bir plugin'in
+  `Host.Handle` prefix'i ise `Server.MaxBodyBytes` ile sınırlanır (v0.78.0'dan
+  beri): middleware'in içinde çalışır ve middleware önceden onun body'sini
+  sınırsız okuyordu.
 
 v0.71.0'dan beri body, uygulamada middleware olsun olmasın sınırlanır. Öncesinde
 middleware'i olmayan bir uygulamada, bir page'in guard'ı, bir action'ın guard'ı ya

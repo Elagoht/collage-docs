@@ -931,9 +931,9 @@ Plugins: []collage.Plugin{i18n.New(i18n.Options{FS: locales})},
 { "elagoht/i18n": { "dir": "locales", "strict": true } }
 ```
 
-- v0.3.0 needs collage v0.61.0 or later, and must go in `Config.Plugins`: it adds
-  template functions. The catalogs come from `Options.FS`, so it is constructed
-  in Go.
+- v0.4.0 needs collage v0.61.4 or later (v0.3.0 needed v0.61.0), and must go in
+  `Config.Plugins`: it adds template functions. The catalogs come from
+  `Options.FS`, so it is constructed in Go.
 - One JSON file of nested keys per supported locale, `locales/<locale>.json`; the
   application does not start while a supported locale has none.
 - `t` translates a key and fills `{name}` from name and value pairs, `tn` picks a
@@ -941,6 +941,16 @@ Plugins: []collage.Plugin{i18n.New(i18n.Options{FS: locales})},
   calls `i18n.T(rc, key, pairs...)`; since v0.3.0 the pairs are strings
   (`i18n.T(rc, "visits", "n", strconv.Itoa(n))`), while the template functions
   still print any value.
+- **`th` escapes each value for where it lands** (since v0.4.0), as html/template
+  escapes `{{.Value}}` there: the catalog's markup is trusted, the values filling it
+  are not. In text a value is escaped; in a URL attribute (`href`, `src`, `action`…)
+  one that is not `http:`, `https:`, `mailto:` or relative becomes `#ZgotmplZ`; in
+  an unquoted attribute its spaces and `=` are escaped, so it cannot add an
+  attribute. Up to v0.3.0 a value was HTML-escaped wherever it was, so a
+  `javascript:` value in `<a href="{url}">` made a working link. An entry that ends
+  inside a tag or an attribute now fails the render with an `i18n:` error: close
+  the tag in the catalog. A safe URL or plain text renders as before, except that a
+  URL's spaces and non-ASCII letters are now percent-encoded.
 - A missing key falls back to the default locale, then to the key, and is reported
   as `i18n-missing` over the page in development and in a static build's
   report. In development the catalogs are read again on every request.
@@ -1283,6 +1293,21 @@ private := collage.NewFragment("private", "layouts/private.html").
   Keys rotate through the previous keys: a cookie under one is accepted and
   rewritten under the current key. A session cannot be revoked: it lives in the
   reader's cookie.
+- **A session is bound to the host it was issued on** (since v0.7.0): the host,
+  lower-cased and without its port, is inside the signed payload, and a cookie
+  presented on another host is no session there — ignored, not cleared. On one
+  process serving several sites with one key, elagoht/tenant's tenants, a cookie
+  copied from `acme.test` to `globex.test` is anonymous there. With `domain` on a
+  one-site application the session is bound to the domain instead, so its
+  subdomains share it; with tenants (any plugin resolving hosts to origins) each
+  host stays its own, so do not set `domain` there. The host is the request's
+  `Host`: behind a proxy that rewrites it, forward the original, or every session
+  is bound to the proxy's.
+- **Cookies from before v0.7.0** carry no host. A one-site application accepts one
+  and rewrites it bound to the host it arrived on, so the upgrade signs nobody out;
+  a multi-site one cannot tell which tenant issued it, so it is refused and
+  cleared, and every reader signs in again once. Nothing in the configuration
+  changes.
 
 #### elagoht/uploads
 
@@ -1795,8 +1820,10 @@ Plugins: []collage.Plugin{consent.New(consent.Options{})}, // configured from pl
   banner's stylesheet is built by the script, so `style-src` must allow its hash,
   which the plugin's README keeps current (`'unsafe-inline'` also works). A gated
   inline script needs its own `nonce` or a `'sha256-…'` of its text in `script-src`.
-- With collage-live, a pushed fragment is rendered once for every subscriber. A
-  static export writes the script beside the pages and decides in the browser, so
+- With collage-live, a pushed fragment passes the middleware for its own path
+  since collage v0.78.0: on a path `serverPaths` covers, it reads the reader's own
+  choice and is rendered for that reader, never shared (v0.2.1 tests it; nothing
+  to change). A static export writes the script beside the pages and decides in the browser, so
   exported pages always render as "not granted" on the server.
 - `Granted` reads the configuration of the App it renders for (since v0.2.0; before,
   the last App initialised), and is false without a render context, even for a
@@ -1845,7 +1872,8 @@ Plugins: []collage.Plugin{client.New(), live.New(live.Options{})},
 ```
 
 - It must go in `Config.Plugins`: it adds `{{liveClient}}`, which the layout calls
-  to include the client. v0.6.0 needs collage v0.67.0 or later and
+  to include the client. v0.7.0 needs collage v0.71.0, and v0.78.0 or later for
+  each push to meet the middleware; v0.6.0 needed collage v0.67.0. Both need
   [elagoht/client](#elagohtclient) v0.2.0: every answer goes into the page through
   collage-client's `collage.put`. `collage plugin add elagoht/live` adds client
   too; without it, `collage.New` fails. `{{liveClient}}` writes client's script
@@ -1918,15 +1946,26 @@ Plugins: []collage.Plugin{client.New(), live.New(live.Options{})},
   invalidating is the whole API.
 - **Sampled data** — CPU load, a queue's length — is pushed by invalidating on a
   timer, one tag per fragment. Mark such a fragment
-  [`Shared()`](/docs/caching#a-page-that-declares-none), not `Static()`, so that it
-  is rendered once per change rather than once per tab while its page stays
+  [`Shared()`](/docs/caching#a-page-that-declares-none), not `Static()`, so that
+  collage renders it once per change rather than once per tab while its page stays
   dynamic; several fragments reading one measurement fetch it through
   `collage.Cached` with no tags, so that one fragment's tick does not re-render the
-  others. The [README](https://github.com/Elagoht/collage-live#sampled-data-a-system-monitor)
+  others. A fragment that is not `Shared` is rendered for each connection, and
+  `Cached`, with the data cache on, keeps what it fetches fetched once. The [README](https://github.com/Elagoht/collage-live#sampled-data-a-system-monitor)
   walks through a system monitor.
-- A render the framework reports as `Shared` is made once per URL and sent to every
-  reader of it; any other is made for each connection with its own request. A
-  connection renders with the cookies it was opened with; with signed, stateless
+- **Every push is made for one connection** (since v0.7.0), with that
+  connection's own request, and sent to it alone: under collage v0.78.0 it is a
+  request to the fragment's URL, which the application's and every plugin's
+  middleware answer, then the guards. A reader one of them now refuses — a session
+  revoked on the server, changed credentials, a ban — is sent a stale message
+  instead of the fragment. Before, a `Shared` render was made once and sent to
+  every reader of its URL, so such a reader kept receiving one no guard covered.
+  The render itself is still made once per change, which collage shares between
+  the readers it admits; a rate limit counts each push as a request.
+- **A form in a pushed fragment is accepted** (since v0.7.0). Every render after a
+  connection's first used to carry a token its forgery cookie did not verify, so
+  submitting a pushed form was refused until the connection reopened.
+- A connection renders with the cookies it was opened with; with signed, stateless
   cookies, `maxStreamAge` closes it after that long, and the client reopens it at
   once with the cookies it holds then.
 - The stream is served at `<prefix>stream/`. A compression middleware of your own
@@ -2396,7 +2435,7 @@ Plugins: []collage.Plugin{offline.New(offline.Options{
 }
 ```
 
-- v0.2.0 needs collage v0.61.0 or later (v0.1.6 was the last for v0.60.0), and must go in `Config.Plugins`: it adds
+- v0.2.1 needs collage v0.61.0 or later (v0.1.6 was the last for v0.60.0), and must go in `Config.Plugins`: it adds
   `{{offlineScript}}`, which installs the worker served at `/sw.js`.
 - **Changed in v0.2.0:** `version` is `buildID`, `inDev` is `inDevelopment`, and a
   negative `maxPages` or `maxAssets` (keep everything) is an error — write a large
@@ -2404,7 +2443,15 @@ Plugins: []collage.Plugin{offline.New(offline.Options{
   trailing `/`.
 - Pages are fetched network-first and kept; static files under `assets` are served
   stale-while-revalidate; a page neither reachable nor kept gets the `fallback`
-  page. A response marked `no-store` is never kept.
+  page. A response marked `no-store` or `private` is never kept, nor precached.
+- **Private pages are not kept offline** (since v0.2.1). A guarded page
+  (`WithGuard`) goes out `private, no-cache`, and basicauth marks its pages
+  `private`: a browser may keep such a page because it asks the server again
+  before showing it, but the worker answers offline without asking anybody. Up to
+  v0.2.0 it kept them and showed them offline to whoever used the device, with no
+  guard asked. The cache version changes with the plugin's, so the first visit
+  after the upgrade drops what the old worker kept. A page of your own that holds
+  one reader's data says so with `Cache-Control: private` or `no-store`.
 - The worker's caches are named after a version that changes with each deployment,
   so a new build replaces what the old one kept. The build is `buildID` when set,
   and otherwise collage's `Host.BuildID` — `Config.Cache.Version`, or a

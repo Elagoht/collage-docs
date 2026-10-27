@@ -147,6 +147,45 @@ Guard'lı bir page `private, no-cache` ile, bir guard'ın kendi cevabı ise `no-
 ile gider. Böylece bir CDN, bir okuyucunun page'ini ya da aldığı reddi hiçbir zaman
 sonrakine vermez. Static export guard'lı page'leri hiç yazmaz.
 
+Bir plugin'in bir stream üzerinden gönderdiği fragment da aynı kurala tabidir:
+v0.78.0'dan beri fragment'in kendi URL'sine gelen bir request olarak render edilir.
+Bu request o path için sizin ve plugin'lerin middleware'inden, ardından o URL'nin
+parametrelerini (stream'inkileri asla) okuyan guard'lardan geçer. `/admin/` üzerindeki
+bir basicauth, `/admin/stats`'ı bir live stream'in dışında tutar; middleware'in ya da
+bir guard'ın artık reddettiği bir okuyucuya hiçbir şey gönderilmez.
+
+## Plugin'ler HTTP'nin ulaştığı yere ulaşır
+
+Bir plugin güvenilen koddur, ama `Host`'u dokümantasyonunun verdiği sözleri tutar
+(v0.78.0'dan beri):
+
+- **Gönderilen bir fragment bir request'tir.** `RenderFragment` middleware'i,
+  guard'ları ve her `PersonaliseHook`'u (bir CSP nonce'u, bir honeypot marker'ı)
+  çalıştırır ve çağıranın context değerlerinden hiçbirini taşımaz. `Shared` bir
+  render her değişiklikte bir kez yapılır ve yalnızca middleware'i ve guard'ları
+  kabul eden okuyuculara verilir.
+- **Yapılandırma `Configure` ile biter.** Saklanan bir `ConfigHost` sonradan template
+  fonksiyonu eklemez ve mount wrap etmez (`ErrConfigureClosed`); önceden geç gelen
+  bir render fonksiyonu process'i çökertiyordu.
+- **Bir plugin template dilinin bir adını alamaz.** `html`, `js`, `urlquery`, `eq`
+  ve diğerleri reddedilir; böylece hiçbir plugin'in `html`'i html/template'in
+  escaping'inin yerine geçmez. Uygulamanın `Config.Template.Funcs`'ı da her
+  plugin'in fonksiyonuna karşı kazanır.
+- **Bir host yalnızca kendi plugin'inin config'ini taşır**, `Host.Pages` de bir
+  page'in tuttuğu her container'ın kopyasını verir. Böylece bir plugin başka
+  birinin bölümünü okuyamaz ya da kopyası üzerinden cache key'ini değiştiremez.
+- **Bir plugin'in `Host.Handle` body'si**, bir page'inki gibi, middleware'den önce
+  `Server.MaxBodyBytes` ile sınırlanır.
+- **Her `OnCacheInvalidate` çalışır**, böylece başarısız olan tek bir plugin artık
+  bir CDN purge'ünü engellemez. **`PersonaliseEvent.Personal` kalıcıdır**: bir hook
+  onu bir kez ayarladıysa nonce'lu bir body hiçbir zaman public olarak ya da bir
+  304 ile cevaplanmaz.
+- **Komut adları tek bir shell kelimesidir** ve hiçbiri dispatcher'ın ya da bir
+  plugin için `collage` binary'sinin kendi adı değildir.
+
+Ayrıntılar için [Plugin yazmak](/docs/writing-plugins#pushing-fragments) sayfasına
+bakın.
+
 ## Cache'lenmiş bir page kimseye özel değildir
 
 Cache'te saklanan bir render, request'i aynı key'e sahip her okuyucuya sunulur. Bu
@@ -187,7 +226,14 @@ bir görsel yine görsel olarak gider.
 
 Ama hiçbir zaman çalıştırılabilen bir tipe dönüşmez: HTML ya da XML'e benzeyen bir
 dosya `text/plain` olur ve `nosniff` sayesinde tarayıcı buna uyar. Böylece markup
-içeren bir upload bir page olarak sunulmaz.
+içeren uzantısız bir upload bir page olarak sunulmaz.
+
+Uzantısı olan bir dosya ise bilerek uzantısının söylediği gibi sunulur: static bir
+sitenin `.html` ve `.svg` dosyaları page ve görseldir. Bu yüzden ziyaretçilerinizin
+yüklediği dosyaların klasörünü hiçbir zaman düz bir `Mount` ile mount etmeyin: oradaki
+bir `.html` ya da `.svg`, script'ini sizin siteniz olarak çalıştırır.
+[elagoht/uploads](/docs/plugins#elagohtuploads) her dosyayı içeriğine göre kontrol
+eder ve bunu yapamayacağı şekilde sunar.
 
 Mount hiçbir zaman bir dizini listelemez; `.well-known` dışında bir dotfile'ı
 (`.env`, `.git/`) hiçbir zaman sunmaz ya da export etmez. `collage serve` de
@@ -230,6 +276,15 @@ taşımadığı için sıkı bir policy nonce gerektirmez.
   sertifikalarını reddeder (CVE-2026-111943).
 - **TLS**, `X-Forwarded-Proto`'yu ve tarayıcının `Host`'unu ileten bir proxy'de.
   Ayrıntılar için [Deployment](/docs/deployment#tls-behind-a-proxy) sayfasına bakın.
+  [`Server.TrustedProxies`](/docs/deployment#behind-a-proxy-trustedproxies)'i
+  ayarlayın: o olmadan `X-Forwarded-Proto` herkesten kabul edilir ve sunucuya
+  doğrudan ulaşan bir client sahip olmadığı TLS bağlantısını iddia edebilir.
+- **Kendi redirect'lerinizin nereye gittiği.** Bir action'ın ya da bir guard'ın
+  `Location`'ı sizin ayarladığınız gibi yazılır; URL'den gelen bir `next`'i
+  [`collage.SafeRedirect`](#redirects-stay-on-the-site) ile kontrol edin.
+- **Neyi mount ettiğiniz.** Düz bir `Mount`, `.html` ve `.svg` dosyalarını oldukları
+  gibi sunar; güvenilmeyen upload'ları ondan uzak tutun (bkz.
+  [yukarısı](#files-are-what-they-say-they-are)).
 - **Rate limit'ler**: [elagoht/ratelimit](/docs/plugins#elagohtratelimit).
 - **`app.Handle` ile mount edilmiş bir handler** tamamen sizindir: forgery kontrolü,
   body limiti ve cache yoktur, v0.67.0'dan beri middleware de yoktur.

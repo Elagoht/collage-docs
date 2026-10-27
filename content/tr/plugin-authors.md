@@ -185,8 +185,9 @@ Sizden başka bir şey gerekmez.
 
 Plugin'iniz başka bir plugin üzerinden çalışıyorsa, onu kullanıcıdan istemek yerine
 tipiyle bulun. `collage.FindPlugin[T](host)`, uygulamanın plugin'leri arasında `T`
-tipindeki plugin'i döndürür (birden fazlaysa ilkini). `Configure`'dan da `Init`'ten
-de çağrılabilir:
+tipindeki plugin'i döndürür (birden fazlaysa ilkini). Onu `Configure`'dan çağırın ve
+bulduğunu saklayın: v0.78.0'dan beri `Init`'e verilen `Host` plugin'leri listelemez,
+bu yüzden `Init`'ten çağrılan `FindPlugin` false döner.
 
 ```go
 live, ok := collage.FindPlugin[*live.Plugin](host)
@@ -195,8 +196,8 @@ if !ok {
 }
 ```
 
-`FindPlugin` listedeki her plugin'i, o plugin henüz configure ya da initialize
-edilmiş olsun olmasın görür. Sonra diğer plugin'in adını `requires`'a yazın ki
+`FindPlugin` listedeki her plugin'i, o plugin henüz configure edilmiş olsun
+olmasın görür. Sonra diğer plugin'in adını `requires`'a yazın ki
 `add` onu da getirsin. Websocket plugin'i tam olarak bunu yapar; `New(nil)`'in onun
 için çalışmasının nedeni de budur.
 

@@ -317,7 +317,8 @@ collage add command seed            # commands/seed.go + app.RegisterCommand
   `collage.Command` olan `commands/<name>.go` dosyasıdır: `go run . <name>` ya da
   build edilmiş binary'nin ardından bu ad, sunucu yerine onu çalıştırır. `--name`
   ona Go adı olmayan bir ad verir, örneğin `user-add`. Projede başka bir
-  `collage.Command`'ın kullandığı bir ad reddedilir. Bir service'e ihtiyacı olan
+  `collage.Command`'ın kullandığı bir ad reddedilir; v0.78.0'dan beri,
+  `RegisterCommand`'ın reddettiği gibi, tek bir shell kelimesi olmayan bir ad da. Bir service'e ihtiyacı olan
   middleware ya da command, onu sizin ekleyeceğiniz bir argüman olarak alır.
   İkisi de register fonksiyonuna kendi satırı olarak eklenir:
   `if err := app.Use(...); err != nil { return err }`. Bunun için fonksiyonun
@@ -1576,6 +1577,14 @@ Hiçbir komut eşleşmediğinde sunucuyu başlatmayı tercih eden bir program,
 `errors.Is(err, collage.ErrUnknownCommand)` ile kontrol edip çıkmak yerine devam
 edebilir. Kendi kullanım metninizi yazdırmak isterseniz `app.Commands()`
 plugin'lerin register ettiği komutları listeler.
+
+v0.78.0'dan beri `RegisterCommand`, hiçbir zaman çalıştıramayacağı bir adı reddeder:
+tek bir shell kelimesi olmayan bir ad (`collage.ErrInvalidCommandName`),
+`DispatchCommands`'ın kendisinin cevapladığı bir `collage-` adı ve bir plugin'in
+komutu için `collage` binary'sinin kendi adlarından biri (ikisi de
+`collage.ErrDuplicateCommand`). Uygulama başladıktan sonra `collage.ErrAppStarted`'tır:
+o sırada register edilen bir komut hiç çalışmazdı. Bkz.
+[Plugin yazmak](/docs/writing-plugins#commands).
 
 Dispatch işlemi uygulamayı başlatır ve bu da register aşamasını kapatır. Sonradan
 çağrılan `ListenAndServe` aynı başlatmayı yeniden kullanır. `DispatchCommands`

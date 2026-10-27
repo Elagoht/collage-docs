@@ -312,8 +312,10 @@ app, err := collage.New(&collage.Config{
 
 A plugin can contribute functions too, from its `Configure` hook — see
 [Writing a plugin](/docs/writing-plugins). When a plugin and `Funcs` both define a
-name, `Funcs` wins: the application is the one that can see both. A plugin cannot
-take a built-in's name at all (since v0.77.0).
+name, `Funcs` wins: the application is the one that can see both — since v0.78.0
+for a function the plugin adds per render too. A plugin cannot take a built-in's
+name at all (since v0.77.0), nor one of the template language's, such as `html` or
+`eq` (since v0.78.0).
 
 ## Escaping
 

@@ -631,12 +631,18 @@ v0.77.0 `AddTemplateFunc` refuses it with `ErrDuplicateTemplateFunc`, where it u
 to replace the built-in without a word. See
 [Writing a plugin](/docs/writing-plugins#template-functions).
 
-A plugin's `AddRenderFunc` function is the exception on both sides:
+A plugin's `AddRenderFunc` function is bound per render, like the twelve above,
+but follows the same two rules:
 
-- It is bound per render, like the twelve above, so an application's entry under
-  its name is parsed and never called.
+- Since v0.78.0 an application's entry under its name wins, as over
+  `AddTemplateFunc`, and `New` logs it once. Before, the plugin's function was
+  bound after the application's on every render, and so was the one that ran.
 - Like `AddTemplateFunc`, it cannot take any of the forty-eight built-in names.
   `AddRenderFunc` refuses them with `ErrDuplicateTemplateFunc`.
+
+Since v0.78.0 neither may take a name of the template language itself — `eq`,
+`len`, `index`, `print`, `html`, `js`, `urlquery` and the rest of Go's builtins and
+escapers: `ErrDuplicateTemplateFunc` again.
 
 Anything that needs the request belongs in a data handler rather than a function:
 that is where the page's data comes from anyway.

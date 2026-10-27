@@ -347,7 +347,9 @@ dizin varsa onu tercih eder. Var olmayan bir `Root` için `New`
 
 Bu fonksiyonlar template'ler parse edilirken built-in fonksiyonlara eklenir. Built-in
 bir fonksiyonla aynı adı taşıyan bir kayıt o built-in fonksiyonun yerini alır. Bir
-plugin'in eklediği bir adı taşıyan kayıt da plugin'in fonksiyonunun yerini alır. Bu
+plugin'in eklediği bir adı taşıyan kayıt da plugin'in fonksiyonunun yerini alır
+(v0.78.0'dan beri `AddRenderFunc` ile eklenmiş olanınkini de); `New` bu adların her
+birini bir kez log'lar. Bu
 alan `New`'dan önce ayarlanmalıdır. Çünkü bir template yalnızca parse edildiği anda
 var olan bir fonksiyonu çağırabilir. Bilinmeyen bir adı çağıran template `New`'da
 hata verir. Her render'a bağlanan fonksiyonlar (`slot`, `hoist`, `asset`,

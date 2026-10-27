@@ -117,6 +117,15 @@ in `Config.Plugins`.
 Before v0.38.0 every plugin's middleware ran inside the
 application's, and `session.FromContext` was `nil` in `app.Use` middleware.
 
+A fragment a plugin pushes over a stream — elagoht/live, elagoht/websocket — meets
+this chain too (since v0.78.0), as a request to the fragment's own path: a
+middleware protecting `/admin/` keeps `/admin/stats` out of
+`/_live/stream/?f=/admin/stats`, one that answers instead of calling next keeps
+that reader from getting the fragment, and a rate limit counts each push. What the
+stream's own middleware put in the context is not carried over; your middleware
+runs again for the fragment's path. See
+[Writing a plugin](/docs/writing-plugins#pushing-fragments).
+
 ### Paths are cleaned first
 
 A path with dot segments or doubled slashes — `/a/../b`, `/a//b`, `/a/./b` — is
@@ -148,7 +157,9 @@ to, or `Server.MaxBodyBytes` for anything else.
 - An action whose body a middleware already read past its limit answers `413` — since
   v0.71.0 also when the middleware buffered the body and put a fresh reader in its
   place (`io.ReadAll`, then `io.NopCloser`).
-- A handler mounted with `app.Handle` is left alone.
+- A handler mounted with `app.Handle` is left alone. A plugin's `Host.Handle`
+  prefix is bounded at `Server.MaxBodyBytes` (since v0.78.0): it runs inside the
+  middleware, which read its body unbounded before.
 
 Since v0.71.0 the body is bounded whether or not the application has middleware.
 Before, an application with none had nothing bound the body before a page's guard,

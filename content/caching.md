@@ -180,8 +180,9 @@ cpu := collage.NewFragment("cpu", "fragments/cpu.html").
 ```
 
 `Shared()` leaves the page's strategy alone — the page stays dynamic, and an
-export does not write one moment's reading into it — and tells whatever pushes the
-fragment to readers that one render may be sent to all of them (see
+export does not write one moment's reading into it — and lets whatever pushes the
+fragment to readers render it once per change: since v0.78.0 collage hands each
+reader its middleware and guards admit a copy of that one render (see
 [Writing plugins](/docs/writing-plugins#pushing-fragments)).
 `Static()` implies it. As with `Static()`, a handler that breaks the promise sends
 one reader's data to another.
@@ -424,6 +425,9 @@ An invalidation also says what it reached. A plugin hears of every one through
 `OnCacheInvalidate`, and the event carries the tags and — in `Entries`, each a host
 and a path — the cached pages and documents invalidated: what a CDN has to purge,
 and a search engine be told has changed. A page that was never cached is not in it.
+Every plugin implementing it is called, even after one before it failed (since
+v0.78.0), and the failures come back joined from `InvalidateTags`. Triggering one
+is the application's: a plugin has no `InvalidateTags` of its own since v0.78.0.
 
 See [Writing a plugin](/docs/writing-plugins#cacheinvalidatehook);
 [elagoht/cdnpurge](/docs/plugins#elagohtcdnpurge) and
