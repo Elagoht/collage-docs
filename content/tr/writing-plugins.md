@@ -1,6 +1,6 @@
 ---
 description: Plugin sözleşmesi, Host ve ConfigHost'un sundukları, her hook ve neyi değiştirebileceği, testleriyle birlikte eksiksiz bir plugin.
-reference: Plugin, Host, ConfigHost, ConfigReader, PluginConfig, Configurer, Command, BeforeRenderHook, BeforeActionHook, BeforeActionEvent, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, DrainHook, ServeHook, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, BuiltRedirect, RedirectSource, IsCapture, RequestHook, ErrStreamingBody, RouteInfo, Route, ClientIP, IsHTTPS, RouteKindPage, BuiltPage, StageErrorPage, Duration, Key, NewKey, RenderValues
+reference: Plugin, Host, ConfigHost, ConfigReader, PluginConfig, Configurer, Command, BeforeRenderHook, BeforeActionHook, BeforeActionEvent, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, DrainHook, ServeHook, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, BuiltRedirect, RedirectSource, IsCapture, RequestHook, ErrStreamingBody, RouteInfo, Route, ClientIP, IsHTTPS, RouteKindPage, BuiltPage, StageErrorPage, Duration, Key, NewKey, RenderValues, RouteKindRejected, RouteNameNormalise
 ---
 
 # Plugin yazmak

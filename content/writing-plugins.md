@@ -1,6 +1,6 @@
 ---
 description: The plugin contract, what Host and ConfigHost expose, every hook and what it may change, and a complete plugin with its tests.
-reference: Plugin, Host, ConfigHost, ConfigReader, PluginConfig, Configurer, Command, BeforeRenderHook, BeforeActionHook, BeforeActionEvent, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, DrainHook, ServeHook, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, BuiltRedirect, RedirectSource, IsCapture, RequestHook, ErrStreamingBody, RouteInfo, Route, ClientIP, IsHTTPS, RouteKindPage, BuiltPage, StageErrorPage, Duration, Key, NewKey, RenderValues
+reference: Plugin, Host, ConfigHost, ConfigReader, PluginConfig, Configurer, Command, BeforeRenderHook, BeforeActionHook, BeforeActionEvent, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, DrainHook, ServeHook, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, BuiltRedirect, RedirectSource, IsCapture, RequestHook, ErrStreamingBody, RouteInfo, Route, ClientIP, IsHTTPS, RouteKindPage, BuiltPage, StageErrorPage, Duration, Key, NewKey, RenderValues, RouteKindRejected, RouteNameNormalise
 ---
 
 # Writing a plugin
