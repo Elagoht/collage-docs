@@ -152,7 +152,7 @@ beri:
   `/public/secret`'tir. Eskiden router orayı tek bir segment olarak okurdu. Böylece
   `/public/`'i geçiren bir middleware, request'i `/{slug}`'a geçirmiş olurdu.
 
-Middleware'iniz bu request'leri hiç görmez, ama metrikleriniz görür. v0.79.0'dan
+Bunların hiçbiri bir route'a ulaşmaz, ama metrikleriniz onları görür. v0.79.0'dan
 beri temiz path redirect'i, temizlenmesi gereken bir path'teki encoded slash için
 404 ve hiçbir route'un asla eşleşemeyeceği bir path için router'ın 404'ü (`/a%2fb`,
 bir NUL, bozuk percent-encoding), tarayıcı bot'unun gönderdiği path yerine sınırlı

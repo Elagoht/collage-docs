@@ -675,10 +675,11 @@ A client minting variants evicts entries, which costs hit rate, not memory.
 
 Since v0.79.0 a client can no longer split the cache by spelling the host
 differently (see [The cache key](#the-cache-key)); the query is the dimension left
-to it. So declare `WithCacheParams` on every cacheable page, and every cacheable
-document, that reads the query — and `WithCacheParams()` with no names on one that
-reads none, when it is worth keeping its one entry warm. A query value the page
-does not declare still makes an entry of its own.
+to it. A cacheable page that declares nothing keeps the whole raw query in its key,
+so every value a client invents is an entry of its own. Declare `WithCacheParams`
+on every cacheable page and document that reads the query, and
+`WithCacheParams()` with no names on one that reads none, so `?utm_source=` and a
+crawler's variants do not fork it.
 
 It is also expensive. A newsletter link with `?utm_source=newsletter` stores a
 second copy of the page, and a crawler trying variants fills the cache with copies

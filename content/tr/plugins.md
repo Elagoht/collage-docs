@@ -3232,9 +3232,11 @@ app, err := collage.New(&collage.Config{
 - **Bir request'i reddedebilen ya da ona cevap verebilen her plugin'den önce
   listeleyin**, böylece bir probe ona her zaman ulaşır: tenant, bir probe'un pod
   IP'li host'una `404` ile cevap verir, basicauth ondan parola ister, ratelimit ve
-  fail2ban onu reddeder. compress ondan önce durabilir. Ondan sonra listelenen
-  accesslog ne probe'ları ne de shed edilen request'leri loglar; önce
-  listelendiğinde ikisini de loglar.
+  fail2ban onu reddeder. compress ve accesslog ondan önce durabilir. accesslog
+  v0.3.0'dan beri shed edilen bir request, accesslog nerede listelenirse listelensin
+  loglanır: health'ten sonra listelendiğinde `bytes` olmadan, önce listelendiğinde
+  eksiksiz. Probe'lar accesslog'un varsayılan `skip`'i sayesinde log'un dışında
+  kalır.
 
 #### elagoht/jobs
 

@@ -715,11 +715,12 @@ bakın). Varyant üreten bir client entry'lerin dışarı itilmesine yol açar.
 Bunun bedeli bellek değil, hit oranıdır.
 
 v0.79.0'dan beri bir client, host'u farklı yazarak cache'i bölemez
-([Cache key](#the-cache-key) bölümüne bakın); ona kalan boyut query'dir. Bu yüzden
-query okuyan her cacheable page'de ve her cacheable document'ta `WithCacheParams`'ı
-bildirin; hiç okumayan birinde de, tek entry'sini sıcak tutmaya değiyorsa, adsız
-`WithCacheParams()`'ı. Page'in bildirmediği bir query değeri hâlâ kendine ait bir
-entry oluşturur.
+([Cache key](#the-cache-key) bölümüne bakın); ona kalan boyut query'dir. Hiçbir şey
+bildirmeyen cacheable bir page, ham query'nin tamamını key'inde tutar; bu yüzden bir
+client'ın uydurduğu her değer kendine ait bir entry olur. Query okuyan her cacheable
+page'de ve document'ta `WithCacheParams`'ı, hiç okumayan birinde de adsız
+`WithCacheParams()`'ı bildirin; böylece `?utm_source=` ve bir crawler'ın varyantları
+onu bölmez.
 
 Ama bu yaklaşım pahalıdır da. `?utm_source=newsletter` içeren bir bülten linki,
 page'in ikinci bir kopyasının saklanmasına yol açar. Varyantları deneyen bir crawler

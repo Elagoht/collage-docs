@@ -146,7 +146,7 @@ An encoded slash is not a separator to the router, so since v0.34.0:
   `/public/secret`; before, the router read one segment there, and a middleware
   letting `/public/` through let the request through to `/{slug}`.
 
-Your middleware never sees these requests, but your metrics do. Since v0.79.0 the
+None of these reaches a route, but your metrics see them. Since v0.79.0 the
 clean-path redirect, the 404 for an encoded slash in a path that needed cleaning,
 and the router's 404 for a path no route can ever match (`/a%2fb`, a NUL,
 malformed percent-encoding) are timed, traced and counted like any other request,

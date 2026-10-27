@@ -16,7 +16,7 @@ page rendered as if nothing had happened, and error hooks see it as
 An action answers exactly the methods it declares. A page answers `HEAD` as a `GET`
 with the body dropped, because rendering a page is a read; an action's handler may
 change something, so since v0.79.0 `HEAD` no longer falls back to a `GET` action
-and run its handler: it is a 405 with the action's own `Allow` list
+and runs its handler: it is a 405 with the action's own `Allow` list
 (`GET, OPTIONS`). An action that is a read and should answer `HEAD` declares it,
 `WithMethods(http.MethodGet, http.MethodHead)`. A page's fragment URL is a read and
 still answers both.

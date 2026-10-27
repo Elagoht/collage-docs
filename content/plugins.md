@@ -3092,9 +3092,10 @@ app, err := collage.New(&collage.Config{
   refused.
 - **List it before any plugin that can refuse or answer a request**, so a probe
   always reaches it: tenant answers a probe's pod-IP host with `404`, basicauth asks
-  it for a password, ratelimit and fail2ban refuse it. compress may sit before it.
-  accesslog listed after it logs neither probes nor shed requests; listed before,
-  it logs both.
+  it for a password, ratelimit and fail2ban refuse it. compress and accesslog may
+  sit before it. Since accesslog v0.3.0 a shed request is logged wherever accesslog
+  is listed — listed after health, without `bytes`; listed before, in full. The
+  probes stay out of the log through accesslog's default `skip`.
 
 #### elagoht/jobs
 
