@@ -326,6 +326,10 @@ over the size limit is a **413** instead, even when reading the token is what hi
 the limit. See
 [Forms and actions](/docs/forms-and-actions#forgery-protection).
 
+A page whose form needs a token that cannot be issued — the system's random source
+failed — is answered **500**, since v0.79.0; it used to be served with the token's
+placeholder in its form, which every submission was then refused for.
+
 `{{csrfToken}}` in an application with `Security.DisableCSRF` set is
 `ErrCSRFDisabled`; see [Rendering](#rendering).
 
@@ -373,7 +377,7 @@ Returned by `collage.Build`, or recorded in the `BuildReport` it returns. See [S
 | `ErrOutputPathCollision` | `collage: two builds target one output path` | `Build` | Two pages, two documents, or a page and a document would be written to one file — patterns differing only by a trailing slash, `WithStaticParams` listing the same values twice, or a document at a page's `index.html`. The build stops before `OutDir` is touched: nothing is cleaned or written, and `BuildFinishedHook` is not called. Since v0.60.0 it also covers documents, which were skipped as `ErrDuplicateOutputPath` before. |
 | `ErrPathEscapesOutDir` | `collage: resolved path escapes the output directory` | report error | An output path, or a symlink on the way to it, leads outside `OutDir`. Checked before that one file is written; only that path fails. |
 | `ErrDynamicPathUnresolved` | `collage: a path pattern with a {param} needs WithStaticParams to be built` | skip | A page's or document's path has a `{param}` and no `WithStaticParams`. |
-| `ErrRouteParams` | see [Links and URLs](#links-and-urls) | report error | A map `WithStaticParams` returned does not fill the pattern exactly — a name missing, or one the pattern does not have. Only that file fails; the rest are built. |
+| `ErrRouteParams` | see [Links and URLs](#links-and-urls) | report error | A map `WithStaticParams` returned does not fill the pattern exactly — a name missing, or one the pattern does not have — or a value holds a backslash or a NUL (since v0.79.0; on Windows a backslash is a separator). Only that file fails; the rest are built. |
 | `ErrNotStatic` | `collage: a Dynamic() route cannot be built statically` | skip | A page or document is dynamic — declared `Dynamic()`, or declaring no strategy and rendering a data handler — so there is nothing to export. |
 | `ErrGuarded` | `collage: a guarded page cannot be built statically` | skip | A page has a [guard](/docs/pages-and-layouts#private-pages-guards) on its layout chain or content fragment. An export has no reader to ask it about, and a file on a static host is served to anyone. |
 | `ErrDuplicateRedirect` | `collage: two redirects from one path` | report error | Two redirects the router takes for one — `/old` and `/old/`, `/blog/{slug}` and `/blog/{x}` — from pages, documents or a `RedirectSource` plugin (since v0.52.0). A static host would pick one by its own precedence. |

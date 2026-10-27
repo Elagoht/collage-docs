@@ -15,6 +15,21 @@ bir `405` alır. Page, hiçbir şey olmamış gibi render edilmez. Error hook'la
 durumu `collage.ErrMethodNotAllowed` olarak görür. `OPTIONS` da aynı listeden
 cevaplanır.
 
+Bir action tam olarak bildirdiği method'lara cevap verir. Bir page `HEAD`'e,
+body'si atılmış bir `GET` olarak cevap verir, çünkü bir page'i render etmek bir
+okumadır; bir action'ın handler'ı ise bir şeyi değiştirebilir. Bu yüzden
+v0.79.0'dan beri `HEAD` artık bir `GET` action'ına düşüp handler'ını çalıştırmaz:
+action'ın kendi `Allow` listesiyle (`GET, OPTIONS`) bir 405'tir. Okuma olan ve
+`HEAD`'e cevap vermesi gereken bir action onu bildirir:
+`WithMethods(http.MethodGet, http.MethodHead)`. Bir page'in fragment URL'si bir
+okumadır ve ikisine de cevap vermeye devam eder.
+
+Yalnızca `GET` (ya da `GET` ve `HEAD`) bildiren bir action forgery kontrolü olmadan
+çalışır ([Forgery koruması](#forgery-protection) bölümüne bakın); bu yüzden herhangi
+bir site, bir okuyucunun tarayıcısına onu bir link ya da bir `<img>` ile
+çağırtabilir. v0.79.0'dan beri böyle bir action'ı register etmek development'ta bir
+uyarı log'lar (fragment path'leri hariç); bir şey değiştiriyorsa ona `POST` verin.
+
 `OPTIONS`, `TRACE` ve `CONNECT` bir action'a değil, sunucuya aittir. v0.56.0'dan
 beri bunlardan birini bildiren bir action register etmek `collage.ErrInvalidActionMethod`
 ile başarısız olur. Hata, action'ın ve method'un adını verir. Action'ın nasıl

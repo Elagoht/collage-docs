@@ -311,7 +311,10 @@ builder := collage.NewPage("doc").
   v0.34.0'dan beri tek bir `{param}`'ın değerindeki bir `/` da aynı sonucu doğurur.
   Path olan bir değer bir `{rest...}`'te yer almalıdır. Eskiden `../about` gibi bir slug
   (örneğin bir CMS'ten gelen) kendi page'ini output dizininin içindeki başka bir
-  page'in üzerine yazardı.
+  page'in üzerine yazardı. v0.79.0'dan beri ters bölü ya da NUL içeren bir değer de
+  aynı sonucu doğurur: Windows'ta ters bölü bir ayırıcıdır ve `/blog/{slug}` altında
+  `x\..\..\about` başka bir page'in dosyasının üzerine yazılırdı. Build her yerde aynı
+  davransın diye her platformda reddedilir.
 - **Bir hata ya da panic, o page'in o locale'ini başarısız kılar** ve raporda
   adıyla yer alır. Panic `collage.ErrBuildPanic` olarak raporlanır. Hiç map
   dönülmezse hiçbir şey yazılmaz. Bu bir hata sayılmaz.

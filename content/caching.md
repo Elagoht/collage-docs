@@ -233,7 +233,9 @@ A cached page is found by a key made from:
 - the query string (see [below](#query-parameters-in-the-key)),
 - any value your middleware declared with `collage.Vary` (read back in a handler
   with `collage.Varied`),
-- the request's host (since v0.34.0).
+- the request's host (since v0.34.0), normalised (since v0.79.0): lower-case,
+  with no port and no trailing dot, and an IPv6 address in brackets in its
+  canonical form.
 
 Two requests with the same key are, as far as collage is concerned, the same page.
 
@@ -241,11 +243,22 @@ The host is there because a render may build an absolute URL from `r.Host` — a
 canonical link, an `og:url` — and one request naming another host would otherwise
 write that URL into the copy every reader is served.
 
+It is normalised because the client chooses how to spell it. `EXAMPLE.com:8080`,
+`example.com.` and `example.com` are one site, as are `[0:0::1]:9` and `[::1]`;
+before v0.79.0 each spelling was a render and an entry of its own — a cheap way to
+push the pages everyone reads out of a bounded cache. The shared render is handed
+the same normalised host, so the spelling one request used is never written into
+what another is served. **A cacheable page's data handler no longer sees the port
+in `r.Host`.** A site served on a port that is not the scheme's default builds its
+absolute URLs from `Config.BaseURL` — `collage.BaseURL(rc)` — which keeps it. A
+dynamic page sees `Host` as sent, and so does a static build's header capture.
+Entries already on disk stay readable.
+
 ### What a shared render sees
 
 A cached render is served to every reader whose request has its key, so since
-v0.34.0 it is handed only what the key holds: the path, the host, the query
-parameters in the key, and the headers your middleware declared with
+v0.34.0 it is handed only what the key holds: the path, the host (normalised, as
+the key holds it), the query parameters in the key, and the headers your middleware declared with
 `collage.Vary`. Not the reader's cookies, `Authorization`, address or client
 certificate, and not a query parameter `WithCacheParams` left out.
 
@@ -278,7 +291,7 @@ A static build has no request and gets `Config.BaseURL`. A site with no
 `OriginResolver` plugin sees no difference; see
 [Which origin a host has](/docs/writing-plugins#which-origin-a-host-has-originresolver).
 When an invalidation reaches entries, `CacheInvalidateEvent.Entries` names each
-one's host as well as its path.
+one's host — normalised, as the key holds it — as well as its path.
 
 ## Dependency tags
 
@@ -659,6 +672,13 @@ What keeps an unbounded number of query variants from becoming unbounded memory
 is the cache's bounds, not the key: `Cache.MaxEntries`, `Cache.MaxBytes` and the
 tracker's caps (see [the tag index is bounded](#the-tag-index-is-per-process-and-bounded)).
 A client minting variants evicts entries, which costs hit rate, not memory.
+
+Since v0.79.0 a client can no longer split the cache by spelling the host
+differently (see [The cache key](#the-cache-key)); the query is the dimension left
+to it. So declare `WithCacheParams` on every cacheable page, and every cacheable
+document, that reads the query — and `WithCacheParams()` with no names on one that
+reads none, when it is worth keeping its one entry warm. A query value the page
+does not declare still makes an entry of its own.
 
 It is also expensive. A newsletter link with `?utm_source=newsletter` stores a
 second copy of the page, and a crawler trying variants fills the cache with copies

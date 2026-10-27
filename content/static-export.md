@@ -294,7 +294,11 @@ builder := collage.NewPage("doc").
   not have, fails that one file with `collage.ErrRouteParams`; the rest are built.
   So does a `/` in a single `{param}`'s value since v0.34.0 — a value that is a
   path belongs in a `{rest...}`. Before, a slug such as `../about`, from a CMS say,
-  wrote its page over another one inside the output directory.
+  wrote its page over another one inside the output directory. And since v0.79.0
+  so does a value holding a backslash or a NUL: on Windows a backslash is a
+  separator, and `x\..\..\about` under `/blog/{slug}` was written over another
+  page's file. It is refused on every platform, so a build behaves the same
+  wherever it runs.
 - **An error, or a panic, fails that page's locale** and is named in the report —
   a panic as `collage.ErrBuildPanic`. Returning no maps writes nothing, and is not
   an error.

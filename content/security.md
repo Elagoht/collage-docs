@@ -83,6 +83,15 @@ attacker who can make a reader's browser send requests could read the token from
 those lengths (BREACH). Masked, it is different bytes every time. The check takes
 the mask off, from the form and the header, and still accepts an unmasked token.
 
+A token that cannot be issued fails the response with a 500 (since v0.79.0), rather
+than serving the page with the token's placeholder in its form.
+
+`GET` and `HEAD` carry no token, by design, so an action answering only those is a
+change any site can make a reader's browser trigger with a link or an `<img>`.
+Since v0.79.0 registering one logs a warning in development, and `HEAD` no longer
+falls back to a `GET` action: it is a 405 unless the action declares it. See
+[Forms and actions](/docs/forms-and-actions).
+
 ## Redirects stay on the site
 
 No redirect collage writes can send a reader to another site:
@@ -126,6 +135,12 @@ the two could disagree, the request reaches nothing:
   a middleware reads the decoded path, where `/public%2Fsecret` is `/public/secret`:
   two segments to the middleware, one to the router.
 - A malformed escape is a 400, not a 500.
+
+These refusals are not invisible. Since v0.79.0 they are timed, traced and counted
+like any other request, under a bounded label rather than the scanner's path:
+`collage.RouteInfo` reports the kind `"rejected"` and the name `"normalise"`, and
+`Metrics.HTTPResponse` and the request span get no path. A dashboard or a ban
+plugin sees the probing without one time series per probe.
 
 See [Paths are cleaned first](/docs/middleware-and-apis#paths-are-cleaned-first).
 
@@ -184,6 +199,11 @@ so it is handed only what the key holds:
 
 It is never handed a reader's cookies, credentials or address. The host is in the
 key, so a request naming another host cannot poison the copy everyone else gets.
+Since v0.79.0 it is normalised — lower-case, no port, no trailing dot — so
+`EXAMPLE.com:8080` and `example.com` share one entry, and a client varying the
+spelling of `Host` cannot push the pages everyone reads out of a bounded cache. A
+cacheable page builds absolute URLs from `collage.BaseURL(rc)`, not from the port
+in `r.Host`, which it no longer sees.
 
 A degraded render, an error page and a page in development are never publicly
 cacheable. See [What a shared render sees](/docs/caching#what-a-shared-render-sees).
@@ -263,7 +283,14 @@ nonce.
   [`collage.SafeRedirect`](#redirects-stay-on-the-site).
 - **What you mount.** A plain `Mount` serves `.html` and `.svg` as they are; keep
   untrusted uploads out of one (see [above](#files-are-what-they-say-they-are)).
-- **Rate limits** — [elagoht/ratelimit](/docs/plugins#elagohtratelimit).
+- **Rate limits** — [elagoht/ratelimit](/docs/plugins#elagohtratelimit). It, and
+  [elagoht/fail2ban](/docs/plugins#elagohtfail2ban), count an IPv6 client as its
+  `/64` by default; one holder of a `/48` has 65536 of those, so set `ipv6Prefix`
+  to `48` (both since v0.3.0) when such clients are what you face.
+- **Sign-in state before sign-in.** [elagoht/oauth](/docs/plugins#elagohtoauth)
+  keeps a pending sign-in in a short `collage_oauth` cookie of its own since
+  v0.3.1, and starts a session only at a successful callback, so an anonymous visit
+  to the login route no longer hands out a session that turns the page cache off.
 - **A handler mounted with `app.Handle`** is your own: no forgery check, no body
   limit, no cache, and since v0.67.0 no middleware — no plugin's authentication, rate
   limit, ban or access log covers it unless it is mounted `collage.WithMiddleware()`.

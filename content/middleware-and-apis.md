@@ -146,6 +146,15 @@ An encoded slash is not a separator to the router, so since v0.34.0:
   `/public/secret`; before, the router read one segment there, and a middleware
   letting `/public/` through let the request through to `/{slug}`.
 
+Your middleware never sees these requests, but your metrics do. Since v0.79.0 the
+clean-path redirect, the 404 for an encoded slash in a path that needed cleaning,
+and the router's 404 for a path no route can ever match (`/a%2fb`, a NUL,
+malformed percent-encoding) are timed, traced and counted like any other request,
+under a bounded label rather than the path a scanner sent: `collage.RouteInfo`
+reports the kind `"rejected"` and the name `"normalise"`, `Metrics.HTTPResponse` is
+given an empty path, and the request span carries no `http.path`. A `%2f` 404 is no
+longer counted under its decoded path.
+
 ### The body is bounded before it
 
 Since v0.34.0 a request's body is limited before the first middleware runs, at the

@@ -492,6 +492,14 @@ counted once per value or response served; `CacheWarm` (since v0.64.0), that a
 page or document an invalidation reached was rendered again in the background and
 stored, once per key.
 
+`HTTPResponse`'s `path` is the request's path, which a client chooses; label with
+`collage.RouteInfo(ctx)` instead, which is bounded. Since v0.79.0 it is also called
+for a request refused by path normalisation — a dirty path's redirect, a path no
+route can match — with an empty path and `RouteInfo` kind `"rejected"`, name
+`"normalise"`. The `collage.http` span records `http.method` bucketed: the standard
+methods as themselves, anything else as `OTHER`. See
+[Paths are cleaned first](/docs/middleware-and-apis#paths-are-cleaned-first).
+
 ## Validation
 
 `New` returns the first of these it finds, after the defaults are filled in:

@@ -504,10 +504,11 @@ func (p *Plugin) OnRequest(r *http.Request) (context.Context, func(status int)) 
 olarak bildirir: `Kind`'ı (`collage.RouteKindPage`, `RouteKindDocument`,
 `RouteKindAction`, `RouteKindMount` ya da `RouteKindHandler`; v0.61.0'dan beri.
 String olarak `"page"`, `"document"`, `"action"`, `"mount"`, `"handler"`'dır ve
-küme büyüyebilir) ve register edildiği adı ya da prefix'i olan `Name`'i. Bu ad page'in,
+küme büyüyebilir; ya da v0.79.0'dan beri `RouteKindRejected`, `"rejected"`, aşağıda)
+ve register edildiği adı ya da prefix'i olan `Name`'i. Bu ad page'in,
 document'ın ya da action'ın adıdır; mount'ta ve handler'da ise prefix'tir. Request
-henüz resolve edilmemişken ve 404 gibi hiçbir şeye resolve edilmeyen bir request'te
-sıfır `Route`'tur. (v0.60.0'dan önce `collage.RouteOf(ctx)` yalnızca türü ve adı
+henüz resolve edilmemişken ve hiçbir route'un sahip olmadığı bir path'in 404'ü gibi
+hiçbir şeye resolve edilmeyen bir request'te sıfır `Route`'tur. (v0.60.0'dan önce `collage.RouteOf(ctx)` yalnızca türü ve adı
 dönüyordu.)
 
 `collage.RouteInfo`, collage'ın request'i sunduğu
@@ -533,10 +534,22 @@ Bunlar çoğu zaman bir tarayıcı botunun yoklamalarıdır.
 
 Böyle bir request için finish
 fonksiyonu yazılan status ile çağrılır (request sunulurken bir panic olmadıkça bir
-kez), `collage.RouteInfo` sıfır `Route`'tur ve `r.URL` ham path'tir.
-`collage.ClientIP(r)` `OnRequest` içinde çalışır; bu yüzden istemcileri
-sayan ya da banlayan bir plugin bu request'leri görebilir. `Metrics.HTTPResponse` ve
-collage'ın kendi request span'i bu request'leri hâlâ atlar.
+kez) ve `r.URL` ham path'tir. `collage.ClientIP(r)` `OnRequest` içinde çalışır;
+bu yüzden istemcileri sayan ya da banlayan bir plugin bu request'leri görebilir.
+
+v0.79.0'dan beri, response yazıldıktan sonra `collage.RouteInfo` böyle bir
+request'i `Kind` `RouteKindRejected` (`"rejected"`) ve `Name` `RouteNameNormalise`
+(`"normalise"`) ile bildirir; hiçbir route'un asla eşleşemeyeceği bir path için
+router'ın 404'ünü de (encoded slash `/a%2fb`, bir NUL, bozuk percent-encoding)
+aynı şekilde. `RouteInfo`'dan kurulan bir etiket sınırlı kalır; bir tarayıcı
+bot'unun path'inden kurulan kalmaz. `Metrics.HTTPResponse` ve collage'ın kendi
+request span'i de bu request'leri görür, boş bir path ile ve `http.path` olmadan.
+v0.79.0'dan önce `RouteInfo` bunlar için sıfır `Route`'tu, metrikler ve span da
+onları atlardı.
+
+collage'ın kendi `collage.http` span'i v0.79.0'dan beri `http.method`'u gruplayarak
+kaydeder: standart metotlar kendileri olarak, bir istemcinin gönderdiği başka her
+şey `OTHER` olarak.
 
 Hook'lar static bir build'in header yakalamasını da görür (v0.52.0'dan beri).
 `BuildFinishedHook` implement eden bir plugin register edilmişse build, yazdığı her
@@ -653,7 +666,12 @@ func (p *Plugin) OnBeforeAction(_ context.Context, ev *collage.BeforeActionEvent
 ```
 
 `ev.Result` ayarlanırsa request, handler onu döndürmüş gibi onunla cevaplanır ve
-dispatch durur. Sonraki hiçbir plugin ve handler çalışmaz. Dönen bir hata,
+dispatch durur. Sonraki hiçbir plugin ve handler çalışmaz. v0.79.0'dan beri bu
+sonucun tamamı için geçerlidir: `InvalidateTags`'i response'tan önce invalidate
+edilir ve `Location`'ı, bir handler'ınki gibi warm edilir; önceden tag'ler atılır ve
+hiçbir şey warm edilmezdi. `Location`, `Fragment`, `Page` ve `Body`'den birden
+fazlasını ayarlayan bir sonuç 500 ile reddedilir; `Location` ve `Status` verildiği
+gibi gider. Dönen bir hata,
 request'i `"before_action"` altında başarısız kılar. Hata `*http.MaxBytesError`
 sarıyorsa `413`, aksi halde `500` olur. v0.57.0'dan beri body, plugin onu okurken
 yarıda kesildiyse cevap `400` (okuma deadline'ı için `408`) olur. Bu durum debug

@@ -215,6 +215,14 @@ bodies, [elagoht/health](#elagohthealth) before any plugin that can refuse or an
 a request, [elagoht/jobs](#elagohtjobs) after the plugins its work uses, and
 [elagoht/devtoolbar](#elagohtdevtoolbar) last.
 
+The plugins that guard the door have an order of their own. Middleware wraps a
+request in the order the plugins are listed, the first outermost, so a site using
+them lists [elagoht/accesslog](#elagohtaccesslog) (it only observes, and listed
+first it logs every refusal in full), then elagoht/health, then
+[elagoht/fail2ban](#elagohtfail2ban), then [elagoht/ratelimit](#elagohtratelimit),
+then [elagoht/basicauth](#elagohtbasicauth), so a refused password guess is counted
+before its bcrypt check is paid for. `collage plugin add` does not reorder them.
+
 ## Configuring plugins
 
 A plugin that takes settings reads them from `Config.PluginConfig`, a
@@ -1030,7 +1038,7 @@ create(servings.Value(), minutes.Ptr(), steps.Value(), tags.Value()) // int, *in
 }
 ```
 
-- v0.3.0 needs collage v0.61.0 or later (v0.1.7 was the last for v0.60.0). It must go in
+- v0.3.1 needs collage v0.61.0 or later (v0.1.7 was the last for v0.60.0). It must go in
   `Config.Plugins`: it adds `{{fieldError}}`, `{{fieldValue}}` and `{{hasErrors}}`.
 - `{{fieldValue "name" fallback}}` shows what was submitted when a submission was
   refused, and the fallback when the form is shown for the first time — the value
@@ -1051,6 +1059,15 @@ create(servings.Value(), minutes.Ptr(), steps.Value(), tags.Value()) // int, *in
   application knows. A field keeps its first message. Every check but `OneOf`
   takes an optional message of its own, `Required("…")`, as `.Message("…")`
   after it would (since v0.3.0).
+- **Every check sees the trimmed value (since v0.3.1)** — the value `Value()`
+  returns, with the white space around it gone. Before, `MinLen`, `MaxLen`,
+  `Email`, `OneOf`, `Matches`, `Equal` and `Custom` saw it as it arrived, so
+  `MinLen(8)` passed `"       x"` while `Value()` handed back `"x"`. A value padded
+  to reach a minimum length is now refused, `" m "` passes `OneOf("m")`, `Equal`
+  compares both fields trimmed, and `Custom` is given the trimmed value. A value of
+  only white space counts as empty for every check, as it already did for
+  `Required`, so an optional field sent as `"   "` is skipped. `v.Value(name)`
+  still returns the value as it arrived.
 - **Typed values (since v0.3.0).** `Field.Value()` is the string, trimmed.
   `Int()`, `Float()`, `Bool()` (a checkbox), `Date()` (`2026-10-25`), `All()` (every
   value under the name) and `Lines()` (a textarea's lines) turn the field into a
@@ -1104,7 +1121,7 @@ Plugins: []collage.Plugin{honeypot.New(honeypot.Options{})},
 }
 ```
 
-- v0.5.0 needs collage v0.61.0 or later (v0.4.4 was the last for v0.60.0), and must go in
+- v0.6.1 needs collage v0.61.0 or later (v0.4.4 was the last for v0.60.0), and must go in
   `Config.Plugins`: it adds `{{honeypot}}`.
 - **Since v0.6.0** the key is read from `HONEYPOT_KEY` with nothing configured:
   put `HONEYPOT_KEY=` (`openssl rand -hex 32`) in `.env.development` and where
@@ -1133,6 +1150,16 @@ Plugins: []collage.Plugin{honeypot.New(honeypot.Options{})},
   release, until the form's page has gone out again, a bot posting straight to
   the path is not checked. `protect` lists prefixes checked from the first request;
   `["/"]` checks every form the site accepts. Before v0.2.0 that was the default.
+- A process keeps up to 4096 learned paths. **Since v0.6.1** the path whose form
+  was served least recently is forgotten for a new one, with a warning at most once
+  a minute; before, learning stopped at 4096, so a page answering any path with a
+  `{{honeypot}}` form let a client fill the set with junk and leave every form not
+  yet learned unchecked until a restart. A submission that reaches an action through
+  a learned path also marks the action, which is then checked on every path: a
+  comment form for record 2 is checked once one for record 1 was posted to. Until an
+  action's first such submission its path can still be pushed out; `protect` closes
+  that. A full set never means checking every form, since a form that never carried
+  `{{honeypot}}` — a log-out button, another plugin's form — would then be refused.
 - No delay by default. `{{honeypot 0.3}}` asks a form to be open at least that
   many seconds before it is sent, signed into the timestamp so a bot cannot
   shorten it; `minDelay` (`"300ms"`) sets one for every form that does not choose
@@ -1148,8 +1175,11 @@ Plugins: []collage.Plugin{honeypot.New(honeypot.Options{})},
   `keyEnv` names; it never goes in `plugins-config.json`.
 - Only what collage renders is stamped: a page, a fragment, an action's HTML
   answer, an error page. A placeholder a hand-written `app.Handle` handler writes
-  itself goes out as it is, and its form is refused. (Before v0.4.0 such a
-  response was stamped, its type sniffed from the first bytes.)
+  itself goes out as it is, unstamped. A form carrying it that posts to a collage
+  action is refused when the action's path is protected (in `protect`, or learned
+  from another form) or the action is marked, and is not checked otherwise; list
+  such a path in `protect`. (Before v0.4.0 such a response was stamped, its type
+  sniffed from the first bytes.)
 - A refusal is a `400`; with `silent` it is a `303` back to the form, as an accepted
   form answers. It stops careless bots, not a determined one — pair it with
   elagoht/ratelimit.
@@ -1186,7 +1216,7 @@ return collage.SeeOther("/settings"), nil
 }
 ```
 
-- v0.2.0 needs collage v0.61.0 or later (v0.1.4 was the last for v0.50.0), and must go in `Config.Plugins`: it adds
+- v0.3.1 needs collage v0.61.0 or later (v0.1.4 was the last for v0.50.0), and must go in `Config.Plugins`: it adds
   `{{flashes}}`.
 - **Since v0.3.0** the key is read from `FLASH_KEY` with nothing configured:
   put `FLASH_KEY=` (`openssl rand -hex 32`) in `.env.development` and where
@@ -1201,6 +1231,13 @@ return collage.SeeOther("/settings"), nil
   `collage.IsHTTPS` says the request came over HTTPS. Set a key of at least 32
   random bytes, the same on every instance; without one a key is made per process
   and a warning logged.
+- At most eight messages of 300 characters are kept, and **since v0.3.1** the
+  cookie is measured as it is written: a browser drops a cookie over four kilobytes
+  whole, so its `Set-Cookie` line is never written over 4096 bytes. Text that grows
+  when encoded — non-ASCII letters, or `<`, `>` and `&`, six bytes each — can pass
+  that with fewer messages; the oldest are then dropped until the rest fit, a lone
+  message too big is cut short, and a warning is logged. Before, such a cookie
+  reached 6–7 KB and every message was lost silently.
 - A request carrying a message is rendered fresh, neither read from the page cache
   nor written to it, and marked `private, no-store`. Every other request is served
   as it would be without the plugin.
@@ -1498,12 +1535,13 @@ Plugins: []collage.Plugin{ratelimit.New(ratelimit.Options{
 {
   "elagoht/ratelimit": {
     "rules": [{ "pathPrefix": "/login", "rate": 0.1, "burst": 5 }],
-    "skip": ["/_collage/", "/healthz", "/readyz", "/api/webhooks"]
+    "skip": ["/_collage/", "/healthz", "/readyz", "/api/webhooks"],
+    "ipv6Prefix": 48
   }
 }
 ```
 
-- v0.2.0 needs collage v0.61.0 or later (v0.1.8 was the last for v0.60.0). With no options, every form and action — every
+- v0.3.0 needs collage v0.61.4 or later (v0.1.8 was the last for v0.60.0). With no options, every form and action — every
   method but `GET`, `HEAD` and `OPTIONS` — is limited to a burst of ten, then one
   request every two seconds.
 - The first rule a request matches counts it, so put narrow rules first; each rule
@@ -1516,6 +1554,13 @@ Plugins: []collage.Plugin{ratelimit.New(ratelimit.Options{
   `collage.ClientIP`. The plugin's own `trustProxy` and `trustedProxies` are gone
   since v0.2.0, and an old configuration naming them stops at start. `KeyFunc`, in
   Go, keys by something else.
+- **`ipv6Prefix` (since v0.3.0)** sets how many leading bits of an IPv6 address
+  name the client: 32 to 128, 64 by default; IPv4 clients are always one address.
+  A `/64` is not a whole attacker — a tunnel broker hands out a `/48` for free, and
+  many hosts give each server a `/48` or a `/56`, 65536 or 256 buckets of their
+  own. `48` makes a whole `/48` one client and one bucket, shared with everyone
+  else in it; `128` is one address. A value outside the range stops the
+  application from starting.
 - Buckets are kept in memory, so limits are per process.
 - Since v0.1.7 a static build's header capture is not limited and gets no
   `RateLimit` headers.
@@ -1545,8 +1590,24 @@ Plugins: []collage.Plugin{basicauth.New(basicauth.Options{
 }
 ```
 
-- v0.1.9 needs collage v0.61.0 or later (v0.1.8 was the last for v0.60.0). The application does not start with no users,
+- v0.1.11 needs collage v0.67.0 or later (v0.1.8 was the last for v0.60.0). The application does not start with no users,
   unless `disabled` is set. `skip` defaults to `/healthz`, `/readyz` and `/_collage/`.
+- **It covers what goes through collage's middleware**: every page, document,
+  action, mounted directory and plugin handler. A handler the application mounts
+  itself with `app.Handle` is bare since collage v0.67.0 — no middleware runs for
+  it, this plugin's included — so on a "protected" staging host an API, a webhook or
+  an upload handler mounted that way answers anyone. Mount it
+  `app.Handle("/api/", api, collage.WithMiddleware())` to put it behind the
+  password; `protect` and `skip` then apply to it as to any other path. (v0.1.11
+  corrects the documentation, which said every request needs a password; the
+  plugin is unchanged, but moving an application up to collage v0.67.0 takes its
+  plain `app.Handle` mounts out from behind it.)
+- A failed bcrypt check is paid for every time, and anyone can send
+  `Authorization: Basic x:y`. On an exposed site list
+  [elagoht/ratelimit](#elagohtratelimit) **before** basicauth, with a rule counting
+  every method — its default rule leaves out `GET`, which is what a password
+  guesser sends — so a refused guess is counted before the check is paid for:
+  `ratelimit.Rule{Methods: []string{"*"}, Rate: 5, Burst: 50}`.
 - A password is written in plain text, as `sha256:` and its hex, or as a bcrypt
   hash. `COLLAGE_BASICAUTH_USERS` adds users from the environment, keeping secrets
   out of files.
@@ -1605,7 +1666,7 @@ Plugins: []collage.Plugin{
 }
 ```
 
-- v0.2.0 needs collage v0.61.1 or later (v0.1.3 was the last for v0.60.0) and elagoht/session
+- v0.3.1 needs collage v0.61.1 or later (v0.1.3 was the last for v0.60.0) and elagoht/session
   v0.3.0 or later, registered too: without it the login routes answer `500`.
   `collage plugin add elagoht/oauth` adds elagoht/session first. `OnLogin` and
   `Store` are code, so set them in Go. The secret and the key stay in the
@@ -1625,7 +1686,19 @@ Plugins: []collage.Plugin{
   or the site does not start; a discovery document naming an endpoint that is not
   ends the sign-in with `unavailable`. Token and revocation calls never follow a
   redirect. Keep elagoht/session's `sameSite` at `"lax"`, its default: with
-  `"strict"` the cookie misses the provider's return and every sign-in fails.
+  `"strict"` the session cookie misses the provider's return, and a reader's
+  session is replaced rather than signed in.
+- **The pending sign-in is a cookie of its own (since v0.3.1)**, not the session:
+  `collage_oauth`, `Path=/auth/<provider>/` (under the prefix) so it reaches that
+  provider's two routes and never a page, ten minutes, `HttpOnly`, `SameSite=Lax`,
+  `Secure` over HTTPS, and deleted by the callback whatever its outcome. Anybody can
+  start a sign-in, and a session is signed, lasts `maxAge` and turns the page cache
+  off for whoever carries it: before, one anonymous `GET` of the login route handed
+  anybody such a cookie. Now only a successful callback starts a session; a failed
+  sign-in starts none. A `next` that would take the cookie past 4096 bytes ends at
+  `afterLogin`. Nothing to change in configuration; a sign-in in progress during the
+  upgrade fails with `state`, and sessions an earlier version minted this way stay
+  valid until `maxAge` unless the session key is rotated.
 - The `microsoft` preset alone accepts any Entra ID tenant and any personal
   Microsoft account. Set `issuer` to one tenant's
   (`https://login.microsoftonline.com/<tenant-id>/v2.0`) to admit only it: a
@@ -1633,7 +1706,7 @@ Plugins: []collage.Plugin{
   `EmailVerified` is false for it. `offline` asks a provider without a preset for
   the `offline_access` scope.
 - A sign-in uses `state`, a `nonce` and PKCE, checks the id_token's claims, gives
-  the session a new ID, and sends the reader to `next`, checked with
+  the session a new ID (or starts one), and sends the reader to `next`, checked with
   `collage.SafeRedirect` and written as checked. A failure leaves no one signed in: `errorPath` gets
   `?error=<code>` (`state`, `expired`, `denied`, `rejected`, `exchange`, `token`,
   `unavailable`), or the site's status page is shown.
@@ -1684,16 +1757,19 @@ Plugins: []collage.Plugin{f2b /* , the rest */},
       "probe": { "banTime": "6h" },
       "notfound": { "disabled": true }
     },
-    "allow": ["203.0.113.7", "10.0.0.0/8"]
+    "allow": ["203.0.113.7", "10.0.0.0/8"],
+    "ipv6Prefix": 48
   }
 }
 ```
 
-- v0.2.1 needs collage v0.61.4 or later (v0.1.8 was the last for v0.60.0), for `collage.Duration`, `Server.TrustedProxies`, `collage.ClientIP`
+- v0.3.0 needs collage v0.61.4 or later (v0.1.8 was the last for v0.60.0), for `collage.Duration`, `Server.TrustedProxies`, `collage.ClientIP`
   and a `RequestHook` that sees requests collage rejects before routing. List it
   first in `Config.Plugins`, after `elagoht/health` when that is used, so its ban
   check runs before the other plugins' middleware and health's probes are not
-  refused by a ban.
+  refused by a ban. `elagoht/accesslog` may go before it: it only writes the line,
+  and listed first it logs a ban's `403` with its byte count (listed later it still
+  logs the refusal since accesslog v0.3.0, without one).
 - When the client cannot be told from the forwarded chain (an entry that is not an
   address) and the connection's own address, `RemoteAddr`, is used instead, the
   plugin logs it once, at Warn (since v0.2.1). Limiting is unchanged.
@@ -1704,6 +1780,14 @@ Plugins: []collage.Plugin{f2b /* , the rest */},
   whose `ClientIP` is still that address is not counted, and one Warn says
   `TrustedProxies` is probably missing. A client is an IPv4 address, or an IPv6
   `/64`.
+- **`ipv6Prefix` (since v0.3.0)** sets how many leading bits of an IPv6 address
+  name the client: 32 to 128, 64 by default; IPv4 clients are always one address.
+  One holder of a `/48` — a free tunnel-broker allocation, or a server's — has 65536
+  `/64`s, each with strikes and a ban of its own. `48` makes the whole `/48` one
+  client, so its strikes add up and its ban covers all of it, at the cost of banning
+  everyone else in it; `128` is one address. A value outside the range stops the
+  application from starting. An address in `allow` is never refused, even inside a
+  banned block, and a `Ban`'s `Prefix` is the block's.
 - The `probe` jail (3 strikes in `10m`, banned for `1h`) strikes on a request for a
   probe path (`/.env`, `/.git/`, `/wp-login.php` and the like, and anywhere a
   segment starting with `.env` or a `.git` segment; add your own with `probePaths`) or one collage rejects
@@ -1739,6 +1823,15 @@ Plugins: []collage.Plugin{f2b /* , the rest */},
 - Bans are per process and in memory: instances do not share them and a restart
   clears them. In dev mode nothing happens unless `inDevelopment` is set. It reacts
   after strikes; it does not replace `elagoht/ratelimit`.
+- `maxTracked` (10000) bounds the strike counters, dropping the client struck
+  longest ago; `maxBans` (10000) bounds the ban records. **Since v0.3.0 a live ban
+  is never evicted**: at the cap only a ban that has ended (kept so a repeat ban
+  doubles) makes room. While the table is full of live bans a new offender is not
+  banned — its strikes are kept, and it is banned as soon as a ban ends — and a
+  `Warn` at most once a minute says `fail2ban: the ban table is full`; `Ban` from
+  Go is refused the same way. Before, an attacker could lift its own ban by getting
+  `maxBans` other addresses banned. Raise `maxBans`, or set `ipv6Prefix` to `48`
+  when the offenders are the `/64`s of one `/48`.
 
 #### elagoht/consent
 
@@ -2180,12 +2273,31 @@ Plugins: []collage.Plugin{optiimage.New(optiimage.Options{})},
 {
   "elagoht/opti-image": {
     "allowedOrigins": ["https://images.example.com"],
-    "webp": "auto"
+    "webp": "auto",
+    "maxRecipes": 10000,
+    "maxDiskBytes": 1073741824
   }
 }
 ```
 
-- v0.4.1 needs collage v0.61.4 or later (v0.3.7 was the last for v0.60.0), and must go in `Config.Plugins`.
+- v0.5.0 needs collage v0.61.4 or later (v0.3.7 was the last for v0.60.0), and must go in `Config.Plugins`.
+- **Changed in v0.5.0: the output size is bounded.** The size is the `<img>`'s, and
+  a page showing HTML its author did not write — sanitized comments that keep
+  `width` and `height` — lets a visitor declare one: `width="50000"
+  height="50000"` on a 2×2 image was a 10 GB bitmap. An `<img>` declaring more
+  pixels than `maxPixels`, or a side longer than 16384, is now left as it is, with
+  one warning per render, and no name is minted for it; a recipe on disk from an
+  earlier version asking for such a size is refused before its source is read.
+- **`maxRecipes` (10000) and `maxDiskBytes` (1 GiB), since v0.5.0**, bound what is
+  kept. `maxRecipes` caps the images the plugin knows how to make, in memory and
+  as `<name>.json` in `cacheDir`; past it the least recently used is forgotten with
+  its image, and its name is a 404 until a page names it again. `maxDiskBytes` caps
+  the produced images on disk, least recently used removed first and made again
+  when next asked for. Both count what an earlier process left in the directory.
+  Before, a page putting a request's value into an `<img>` minted a name per
+  request, kept forever. A static build lists the recipes after every page has
+  rendered, so a site with more distinct images than `maxRecipes` needs it raised;
+  the warning is in the build's output.
 - An allowed origin that spells its scheme's default port, `https://cms.example.com:443`,
   matches the same host's images whether or not the image's URL writes the port (v0.4.1);
   it was accepted at start but matched nothing.
@@ -2630,10 +2742,26 @@ Plugins: []collage.Plugin{accesslog.New(accesslog.Options{})},
 }
 ```
 
-- v0.2.0 needs collage v0.61.0 or later (v0.1.13 was the last for v0.60.0).
+- v0.3.0 needs collage v0.67.0 or later (v0.1.13 was the last for v0.60.0).
   `/_collage/`, and `/healthz` and `/readyz`, the paths of `elagoht/health`, are
   skipped by default. A `skip` prefix covers whole segments, with or without the
-  trailing `/`: `/healthz` does not cover `/healthz-report`.
+  trailing `/`: `/healthz` does not cover `/healthz-report`. For a request answered
+  before routing it is matched against the cleaned path, so `/_collage/../admin` is
+  not skipped.
+- **Since v0.3.0 every request is logged, wherever it was answered.** The plugin is
+  a `collage.RequestHook` as well as a middleware, and the hook logs the requests
+  the middleware never reached: a ban an `elagoht/fail2ban` listed before it
+  refuses, a request an `elagoht/health` listed before it sheds, a bare
+  `app.Handle` mount's response, and collage's own redirect of a dirty path (under
+  the path as asked) or `404` for an encoded slash. Those lines have **no `bytes`**,
+  and their responses no `X-Request-ID`. Expect more lines than before, a banned
+  client's `403`s among them. `accesslog.RequestID` works in a bare `app.Handle`
+  handler too.
+- **List it first** in `Config.Plugins`, before `elagoht/health` and
+  `elagoht/fail2ban` — it only observes — and mount a handler
+  `collage.WithMiddleware()`, for the full line. A request whose handler panics is
+  logged only when the middleware reached it, and the development reload stream
+  and the dev server's refusal of an unknown `Host` are never logged.
 - The line has the method, path without its query, status, bytes, duration, client
   address, user agent, referer and request id, through the application's logger or
   `Options.Logger`; a `5xx` is logged at `ERROR`.
@@ -2705,19 +2833,38 @@ app, err := collage.New(&collage.Config{
 ```
 
 ```json
-{ "elagoht/otel": { "skip": ["/healthz"] } }
+{ "elagoht/otel": { "skip": ["/healthz"], "trustIncoming": "" } }
 ```
 
-- v0.3.0 needs collage v0.61.0 or later (v0.2.10 was the last for v0.60.0), and
+- v0.4.0 needs collage v0.79.0 or later (v0.2.10 was the last for v0.60.0), and
   `NewTracer(tracer)` is now `New(otel.Options{Tracer: tracer})`. As the tracer it
   turns `collage.http`, `collage.render` and `collage.fragment` into spans; as a
   plugin it reads the caller's trace context from the headers, in a `RequestHook`
   that runs before collage's own span. Each works alone.
-- With both, a request is one trace: a server span, a child of the caller's, with
-  `collage.http` under it and the render and every fragment under that. The server
-  span is named for the route `collage.RouteInfo` reports — the pattern a page, a
-  document or an action was registered with (`GET /blog/{slug}`, `GET /feed.xml`),
-  the prefix of a mount or a handler.
+- With both, a request is one trace: a server span, a child of a trusted caller's,
+  with `collage.http` under it and the render and every fragment under that. The
+  server span is named for the route `collage.RouteInfo` reports — the pattern a
+  page, a document or an action was registered with (`GET /blog/{slug}`,
+  `GET /feed.xml`), the prefix of a mount or a handler. A request collage refused
+  before routing (a dirty path's redirect, an encoded slash's `404`) names no route:
+  its span keeps the method as its name and carries only
+  `collage.route.kind=rejected`, so a scanner's paths never become span names.
+- **Changed in v0.4.0: a client's trace context is continued only when it is
+  trusted.** A `traceparent` is a claim anyone can send: continued from anyone, it
+  lets an internet client decide what a `ParentBased` sampler exports and pick the
+  site's trace ids, and its `baggage` reaches the application. By default the trace
+  is continued only on a request whose connection comes from
+  `Config.Server.TrustedProxies`; any other request's server span is the root of a
+  new trace with a **link** to the caller's span, and its baggage is dropped.
+  `trustIncoming` is `""` (that default), `"always"` (a service only other services
+  reach — the old behaviour) or `"never"`; anything else stops the application. A
+  CDN in front usually forwards the client's `traceparent` as it came, so strip
+  `traceparent`, `tracestate` and `baggage` at the proxy, or set `"never"`, unless
+  the proxy starts the trace.
+- **Since v0.4.0 the method is bounded too**: a method outside RFC 9110's and
+  `PATCH` is `_OTHER` in `http.request.method`, with the method as sent in
+  `http.request.method_original`, and `HTTP` in the span's name
+  (`HTTP /blog/{slug}`), so a client inventing methods does not invent span names.
 - The application owns the SDK: the provider, the exporter, the sampler and the
   propagator. Set a propagator, or every request starts a trace of its own.
 - `skip` prefixes match at a segment boundary, with or without the trailing `/`.
@@ -2797,19 +2944,31 @@ Plugins: []collage.Plugin{tenant.New(tenant.Options{
       { "id": "acme", "origin": "https://acme.app.com", "hosts": ["acme.app.com"] }
     ],
     "bypass": ["app.com"],
-    "ttl": "1m"
+    "ttl": "1m",
+    "unknownTTL": "1m",
+    "maxUnknownPerMinute": 600
   }
 }
 ```
 
-- v0.2.0 needs collage v0.61.2 or later (v0.1.4 was the last for v0.60.0), and `tenants` or a `Resolve` function (Go only).
+- v0.3.0 needs collage v0.61.2 or later (v0.1.4 was the last for v0.60.0), and `tenants` or a `Resolve` function (Go only).
 - A host that is no tenant's is answered 404 with the site's own 404 page. A
   resolver that fails or panics is answered 503 with a `Retry-After`, and that is
-  not cached. A "no tenant" answer is, for `ttl` (`"1m"`, a duration string; a
-  number is an error); `maxHosts` (10000) bounds how many hosts are remembered —
+  not cached. A tenant is cached for `ttl` and, since v0.3.0, a "no tenant" answer
+  for `unknownTTL` (both `"1m"`, duration strings; a number is an error, and so is
+  a negative one); `maxHosts` (10000) bounds how many hosts are remembered —
   since v0.2.1 tenants and "no tenant" answers each up to that many, so a flood of
   made-up hosts cannot push a real tenant out, and concurrent misses for one host
   share one resolver call — and a negative one stops the application. `bypass` hosts are served without a tenant.
+- **`maxUnknownPerMinute` (600, since v0.3.0)** bounds the lookups a minute that
+  may answer "no tenant" or fail: a client sending a new random `Host` on every
+  request used to make one `Resolve` call each. Once the budget is spent, a host
+  with no answer held is answered 503 with a `Retry-After` without calling
+  `Resolve`, until it refills, and a warning is logged once a minute. A host whose
+  tenant is held, even past its `ttl`, is resolved whatever the budget, and a lookup
+  that finds a tenant costs nothing, so a flood cannot take a known tenant's site
+  down. A tenant's host never seen before can get that 503 during a flood: list it
+  under `tenants`, or raise the budget.
 - A handler reads the tenant with `tenant.ID(rc)`, and code that holds only a
   context, such as a page's `StaticParams`, with `tenant.IDFromContext(ctx)`. Both
   are safe in a cached page. `collage.BaseURL(rc)` is the tenant's origin.

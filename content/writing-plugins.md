@@ -477,11 +477,13 @@ func (p *Plugin) OnRequest(r *http.Request) (context.Context, func(status int)) 
 `collage.RouteInfo(ctx)` reports what the request resolved to, as a `collage.Route`:
 its `Kind` — `collage.RouteKindPage`, `RouteKindDocument`, `RouteKindAction`,
 `RouteKindMount` or `RouteKindHandler` (since v0.61.0; the strings `"page"`,
-`"document"`, `"action"`, `"mount"`, `"handler"`, and the set may grow) — and its
+`"document"`, `"action"`, `"mount"`, `"handler"`, and the set may grow), or
+`RouteKindRejected` (`"rejected"`, since v0.79.0, below) — and its
 `Name`, the registered name or prefix: the page's, the document's or the action's
 name, the mount's or the handler's prefix. It is the zero `Route` while the request
-is unresolved, and for a request that resolved to nothing, such as a 404. (Before
-v0.60.0, `collage.RouteOf(ctx)` returned the kind and the name alone.)
+is unresolved, and for a request that resolved to nothing, such as a 404 for a path
+no route has. (Before v0.60.0, `collage.RouteOf(ctx)` returned the kind and the
+name alone.)
 
 It reads the context collage serves the
 request under, which the finish function's context shares and
@@ -504,10 +506,21 @@ These are a scanner's probes more often than not.
 
 For such a request the finish
 function is called with the status written (once, unless serving the request
-panics), `collage.RouteInfo` is the zero `Route`, and
-`r.URL` is the raw path. `collage.ClientIP(r)` works inside `OnRequest`, so a plugin
-that bans or counts clients can see them. `Metrics.HTTPResponse` and collage's own
-request span still skip these requests.
+panics), and `r.URL` is the raw path. `collage.ClientIP(r)` works inside
+`OnRequest`, so a plugin that bans or counts clients can see them.
+
+Since v0.79.0, once the response is written, `collage.RouteInfo` reports such a
+request with `Kind` `RouteKindRejected` (`"rejected"`) and `Name`
+`RouteNameNormalise` (`"normalise"`), as it does the router's 404 for a path no
+route can ever match (an encoded slash `/a%2fb`, a NUL, malformed
+percent-encoding). A label built from `RouteInfo` stays bounded; one built from the
+path, a scanner's, does not. `Metrics.HTTPResponse` and collage's own request span
+see these requests too, with an empty path and no `http.path`. Before v0.79.0
+`RouteInfo` was the zero `Route` for them, and the metrics and the span skipped
+them.
+
+Collage's own `collage.http` span records `http.method` bucketed since v0.79.0: the
+standard methods as themselves, anything else a client sends as `OTHER`.
 
 The hooks also see a static build's header capture (since v0.52.0): when a
 `BuildFinishedHook` plugin is registered, the build asks the handler for each file
@@ -621,7 +634,12 @@ func (p *Plugin) OnBeforeAction(_ context.Context, ev *collage.BeforeActionEvent
 ```
 
 Setting `ev.Result` answers the request with it, exactly as if the handler had
-returned it, and stops dispatch: no later plugin and no handler runs. An error
+returned it, and stops dispatch: no later plugin and no handler runs. Since v0.79.0
+that holds for all of it: its `InvalidateTags` are invalidated before the response
+and its `Location` is warmed, as a handler's are, where before the tags were
+dropped and nothing was warmed. One setting more than one of `Location`,
+`Fragment`, `Page` and `Body` is refused with a 500, and `Location` and `Status` go
+out as given. An error
 fails the request under `"before_action"`, with `413` when it wraps
 `*http.MaxBytesError` and `500` otherwise — or, since v0.57.0, `400` (`408` for a
 read deadline) when the body was cut off while the plugin read it, logged at debug

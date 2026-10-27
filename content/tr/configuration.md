@@ -527,6 +527,15 @@ Sunulan her değer ya da response için bir kez sayılır. `CacheWarm` (v0.64.0'
 invalidation'ın ulaştığı bir page ya da document'ın arka planda yeniden render
 edilip saklandığı anlamına gelir. Her key için bir kez sayılır.
 
+`HTTPResponse`'un `path`'i request'in path'idir ve onu client seçer; bunun yerine
+sınırlı olan `collage.RouteInfo(ctx)` ile etiketleyin. v0.79.0'dan beri path
+normalleştirmesinin reddettiği bir request için de (kirli bir path'in redirect'i,
+hiçbir route'un eşleşemeyeceği bir path) boş bir path ile ve `RouteInfo` türü
+`"rejected"`, adı `"normalise"` olarak çağrılır. `collage.http` span'i
+`http.method`'u gruplayarak kaydeder: standart metotlar kendileri olarak, başka her
+şey `OTHER` olarak. Bkz.
+[Path'ler önce temizlenir](/docs/middleware-and-apis#paths-are-cleaned-first).
+
 ## Validation
 
 `New`, varsayılanları doldurduktan sonra aşağıdaki durumlardan bulduğu ilkini

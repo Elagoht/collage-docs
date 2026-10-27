@@ -88,6 +88,16 @@ gönderttirebilen bir saldırgan da token'ı bu uzunluklardan okuyabilirdi (BREA
 Maskelenmiş token her seferinde farklı byte'lardır. Kontrol maskeyi hem form'dan
 hem header'dan gelen değerden kaldırır ve maskelenmemiş bir token'ı da kabul eder.
 
+Üretilemeyen bir token, page'i form'unda token'ın placeholder'ıyla sunmak yerine
+response'u 500 ile başarısız kılar (v0.79.0'dan beri).
+
+`GET` ve `HEAD` tasarım gereği token taşımaz; bu yüzden yalnızca bunlara cevap veren
+bir action, herhangi bir sitenin bir okuyucunun tarayıcısına bir link ya da bir
+`<img>` ile tetikletebileceği bir değişikliktir. v0.79.0'dan beri böyle bir action'ı
+register etmek development'ta bir uyarı log'lar ve `HEAD` artık bir `GET` action'ına
+düşmez: action onu bildirmedikçe 405'tir. Bkz.
+[Form'lar ve action'lar](/docs/forms-and-actions).
+
 ## Redirect'ler sitede kalır
 
 collage'ın yazdığı hiçbir redirect, okuyucuyu başka bir siteye gönderemez:
@@ -133,6 +143,12 @@ arasında bir fark çıkabilecek her yerde request hiçbir yere ulaşmaz:
   değildir, ama middleware decode edilmiş path'i okur ve orada `/public%2Fsecret`,
   `/public/secret`'tir: middleware için iki segment, router için tek segment.
 - Bozuk bir escape 500 değil 400 döner.
+
+Bu retler görünmez değildir. v0.79.0'dan beri, tarayıcı bot'unun path'i yerine
+sınırlı bir etiket altında, diğer her request gibi süreleri ölçülür, trace edilir ve
+sayılır: `collage.RouteInfo` tür olarak `"rejected"`, ad olarak `"normalise"`
+bildirir; `Metrics.HTTPResponse` ve request span'i path almaz. Bir dashboard ya da
+bir ban plugin'i, yoklama başına bir time series oluşmadan yoklamayı görür.
 
 Ayrıntılar için
 [Path'ler önce temizlenir](/docs/middleware-and-apis#paths-are-cleaned-first)
@@ -197,7 +213,11 @@ yüzden render'a yalnızca key'in içerdikleri verilir:
 
 Bir okuyucunun cookie'leri, credential'ları ya da adresi hiçbir zaman verilmez. Host
 key'de yer aldığı için başka bir host adı veren bir request, diğer herkesin aldığı
-kopyayı zehirleyemez.
+kopyayı zehirleyemez. v0.79.0'dan beri host normalleştirilir (küçük harf, port yok,
+sondaki nokta yok); böylece `EXAMPLE.com:8080` ve `example.com` tek bir entry'yi
+paylaşır ve `Host`'un yazımını değiştiren bir client, herkesin okuduğu page'leri
+sınırlı bir cache'ten dışarı itemez. Cacheable bir page mutlak URL'leri artık
+görmediği `r.Host`'taki porttan değil, `collage.BaseURL(rc)`'den kurar.
 
 Degraded bir render, bir error page ve development'taki bir page hiçbir zaman public
 olarak cache'lenemez. Ayrıntılar için
@@ -285,7 +305,16 @@ taşımadığı için sıkı bir policy nonce gerektirmez.
 - **Neyi mount ettiğiniz.** Düz bir `Mount`, `.html` ve `.svg` dosyalarını oldukları
   gibi sunar; güvenilmeyen upload'ları ondan uzak tutun (bkz.
   [yukarısı](#files-are-what-they-say-they-are)).
-- **Rate limit'ler**: [elagoht/ratelimit](/docs/plugins#elagohtratelimit).
+- **Rate limit'ler**: [elagoht/ratelimit](/docs/plugins#elagohtratelimit). O ve
+  [elagoht/fail2ban](/docs/plugins#elagohtfail2ban) varsayılan olarak bir IPv6
+  istemcisini `/64`'ü olarak sayar; bir `/48` sahibinin bunlardan 65536 tane vardır.
+  Karşınızdaki böyle istemcilerse `ipv6Prefix`'i `48` yapın (ikisinde de v0.3.0'dan
+  beri).
+- **Girişten önceki giriş durumu.** [elagoht/oauth](/docs/plugins#elagohtoauth)
+  v0.3.1'den beri bekleyen bir girişi kendine ait kısa ömürlü `collage_oauth`
+  cookie'sinde tutar ve session'ı yalnızca başarılı bir callback'te başlatır; böylece
+  login route'una anonim bir ziyaret artık page cache'i kapatan bir session
+  dağıtmaz.
 - **`app.Handle` ile mount edilmiş bir handler** tamamen sizindir: forgery kontrolü,
   body limiti ve cache yoktur, v0.67.0'dan beri middleware de yoktur.
   `collage.WithMiddleware()` ile mount edilmedikçe hiçbir plugin'in authentication'ı,

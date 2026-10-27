@@ -334,6 +334,10 @@ header ayarlayamaz, bu yüzden onu `fetch()` ile gönderin. Boyut limitini
 aşan bir body ise **413** ile cevaplanır; limite takılan şey token'ın okunması olsa
 bile böyledir. Bkz. [Form'lar ve action'lar](/docs/forms-and-actions#forgery-protection).
 
+Form'u, üretilemeyen bir token'a ihtiyaç duyan bir page (sistemin rastgele kaynağı
+başarısız olmuştur) v0.79.0'dan beri **500** ile cevaplanır; önceden form'unda
+token'ın placeholder'ıyla sunulurdu ve her gönderim bu yüzden reddedilirdi.
+
 `Security.DisableCSRF` ayarlanmış bir uygulamada `{{csrfToken}}` kullanmak
 `ErrCSRFDisabled` hatasına yol açar; bkz. [Render](#rendering).
 
@@ -385,7 +389,7 @@ Bkz. [Static export](/docs/static-export).
 | `ErrOutputPathCollision` | `collage: two builds target one output path` | `Build` | İki page, iki document ya da bir page ile bir document aynı dosyaya yazılacaktır. Sebep yalnızca sondaki slash'le ayrılan pattern'ler, aynı değerleri iki kez listeleyen bir `WithStaticParams` ya da bir page'in `index.html`'ine düşen bir document olabilir. Build `OutDir`'e dokunmadan durur: hiçbir şey temizlenmez ya da yazılmaz ve `BuildFinishedHook` çağrılmaz. v0.60.0'dan beri document'ları da kapsar; önceden onlar `ErrDuplicateOutputPath` ile atlanıyordu. |
 | `ErrPathEscapesOutDir` | `collage: resolved path escapes the output directory` | report error | Bir output path'i ya da ona giden yoldaki bir symlink `OutDir`'in dışına çıkar. Bu, o dosya yazılmadan önce kontrol edilir; yalnızca o path başarısız olur. |
 | `ErrDynamicPathUnresolved` | `collage: a path pattern with a {param} needs WithStaticParams to be built` | skip | Bir page'in ya da document'ın path'inde bir `{param}` vardır ve `WithStaticParams` yoktur. |
-| `ErrRouteParams` | bkz. [Link'ler ve URL'ler](#links-and-urls) | report error | `WithStaticParams`'ın döndüğü bir map pattern'i tam olarak doldurmaz: bir isim eksiktir ya da pattern'de olmayan bir isim vardır. Yalnızca o dosya başarısız olur, geri kalanlar build edilir. |
+| `ErrRouteParams` | bkz. [Link'ler ve URL'ler](#links-and-urls) | report error | `WithStaticParams`'ın döndüğü bir map pattern'i tam olarak doldurmaz: bir isim eksiktir ya da pattern'de olmayan bir isim vardır; ya da bir değer ters bölü veya NUL içerir (v0.79.0'dan beri; Windows'ta ters bölü bir ayırıcıdır). Yalnızca o dosya başarısız olur, geri kalanlar build edilir. |
 | `ErrNotStatic` | `collage: a Dynamic() route cannot be built statically` | skip | Bir page ya da document dynamic'tir: ya `Dynamic()` olarak tanımlanmıştır ya da strateji tanımlamayıp data handler'ı olan bir şey render eder. Dolayısıyla export edilecek bir şey yoktur. |
 | `ErrGuarded` | `collage: a guarded page cannot be built statically` | skip | Bir page'in layout zincirinde ya da content fragment'inde bir [guard](/docs/pages-and-layouts#private-pages-guards) vardır. Export'ta guard'a sorulacak bir okuyucu yoktur, static host'taki bir dosya ise herkese sunulur. |
 | `ErrDuplicateRedirect` | `collage: two redirects from one path` | report error | Router'ın tek bir redirect saydığı iki redirect vardır: `/old` ile `/old/` ya da `/blog/{slug}` ile `/blog/{x}`. Page'lerden, document'lardan ya da bir `RedirectSource` plugin'inden gelebilirler (v0.52.0'dan beri). Static bir host hangisinin geçerli olacağını kendi önceliğiyle seçerdi. |

@@ -230,6 +230,15 @@ ona cevap verebilen her plugin'den önce, [elagoht/jobs](#elagohtjobs) işinin
 kullandığı plugin'lerden sonra, [elagoht/devtoolbar](#elagohtdevtoolbar) ise en
 sona gelir.
 
+Kapıyı tutan plugin'lerin de kendi sırası vardır. Middleware, request'i plugin'lerin
+listelendiği sırayla sarar, ilki en dışta. Bu yüzden bunları kullanan bir site önce
+[elagoht/accesslog](#elagohtaccesslog)'u (yalnızca gözlemler; ilk sırada her reddi
+eksiksiz loglar), sonra elagoht/health'i, sonra
+[elagoht/fail2ban](#elagohtfail2ban)'ı, sonra [elagoht/ratelimit](#elagohtratelimit)'i,
+sonra da [elagoht/basicauth](#elagohtbasicauth)'u listeler; böylece reddedilen bir
+parola tahmini, bcrypt kontrolünün bedeli ödenmeden önce sayılır.
+`collage plugin add` bunların sırasını değiştirmez.
+
 ## Plugin'leri yapılandırmak
 
 Ayar alan bir plugin, ayarlarını `Config.PluginConfig`'ten okur. Bu alan, plugin'in
@@ -1079,7 +1088,7 @@ create(servings.Value(), minutes.Ptr(), steps.Value(), tags.Value()) // int, *in
 }
 ```
 
-- v0.3.0, collage v0.61.0 ya da sonrasını gerektirir (v0.1.7, collage v0.60.0 için son sürümdü). `Config.Plugins` içinde olmalıdır: `{{fieldError}}`,
+- v0.3.1, collage v0.61.0 ya da sonrasını gerektirir (v0.1.7, collage v0.60.0 için son sürümdü). `Config.Plugins` içinde olmalıdır: `{{fieldError}}`,
   `{{fieldValue}}` ve `{{hasErrors}}`'ı ekler.
 - `{{fieldValue "name" fallback}}`, reddedilen bir gönderimde gönderilen değeri,
   form ilk kez gösterildiğinde ise fallback'i gösterir. Bir profil ya da düzenleme
@@ -1100,6 +1109,15 @@ create(servings.Value(), minutes.Ptr(), steps.Value(), tags.Value()) // int, *in
   durumu raporlar. Bir alan ilk mesajını korur. `OneOf` dışındaki her kontrol
   isteğe bağlı bir mesaj alır: `Required("…")`, arkasından gelen `.Message("…")`
   ile aynı işi görür (v0.3.0'dan beri).
+- **Her kontrol kırpılmış değeri görür (v0.3.1'den beri)**: `Value()`'nun
+  döndürdüğü, kenarlarındaki boşluklar silinmiş değeri. Önceden `MinLen`, `MaxLen`,
+  `Email`, `OneOf`, `Matches`, `Equal` ve `Custom` değeri geldiği gibi görürdü; bu
+  yüzden `Value()` `"x"` döndürürken `MinLen(8)`, `"       x"`'i geçirirdi. En az
+  uzunluğa ulaşmak için boşlukla doldurulmuş bir değer artık reddedilir, `" m "`
+  `OneOf("m")`'den geçer, `Equal` iki alanı da kırpılmış karşılaştırır ve `Custom`
+  kırpılmış değeri alır. Yalnızca boşluktan oluşan bir değer, `Required`'da zaten
+  olduğu gibi, her kontrol için boş sayılır; `"   "` olarak gönderilen isteğe bağlı
+  bir alan atlanır. `v.Value(name)` değeri hâlâ geldiği gibi döndürür.
 - **Tipli değerler (v0.3.0'dan beri).** `Field.Value()`, kenarlarındaki boşluklar
   silinmiş string'dir. `Int()`, `Float()`, `Bool()` (checkbox), `Date()`
   (`2026-10-25`), `All()` (adın altında gelen tüm değerler) ve `Lines()` (bir
@@ -1155,7 +1173,7 @@ Plugins: []collage.Plugin{honeypot.New(honeypot.Options{})},
 }
 ```
 
-- v0.5.0, collage v0.61.0 ya da sonrasını gerektirir (v0.4.4, collage v0.60.0 için son sürümdü) ve
+- v0.6.1, collage v0.61.0 ya da sonrasını gerektirir (v0.4.4, collage v0.60.0 için son sürümdü) ve
   `Config.Plugins` içinde olmalıdır: `{{honeypot}}`'ı ekler.
 - **v0.6.0'dan beri** key, hiçbir şey ayarlanmadan `HONEYPOT_KEY`'dan okunur:
   `.env.development`'a ve production'ın çalıştığı yere `HONEYPOT_KEY=`
@@ -1188,6 +1206,18 @@ Plugins: []collage.Plugin{honeypot.New(honeypot.Options{})},
   POST atan bir bot kontrol edilmez. `protect`, ilk request'ten itibaren kontrol
   edilen prefix'leri listeler. `["/"]` sitenin kabul ettiği her form'u kontrol
   eder. v0.2.0'dan önce varsayılan buydu.
+- Bir process öğrendiği en fazla 4096 path'i tutar. **v0.6.1'den beri** yeni bir
+  path için, form'u en uzun zamandır servis edilmemiş olan path unutulur ve en fazla
+  dakikada bir uyarı log'lanır. Önceden öğrenme 4096'da dururdu: her path'e
+  `{{honeypot}}`'lu bir form'la cevap veren bir page, bir istemcinin kümeyi çöple
+  doldurmasına ve henüz öğrenilmemiş her form'un restart'a kadar kontrolsüz
+  kalmasına izin verirdi. Öğrenilmiş bir path üzerinden bir action'a ulaşan gönderim
+  action'ın kendisini de işaretler; işaretli action artık her path'te kontrol edilir:
+  kayıt 1'in yorum form'una gönderim yapıldıktan sonra kayıt 2'ninki de kontrol
+  edilir. Bir action'ın böyle ilk gönderiminden önce path'i hâlâ dışarı itilebilir;
+  `protect` bunu kapatır. Küme dolduğunda her form'u kontrol etmeye geçilmez, çünkü
+  o zaman hiç `{{honeypot}}` taşımamış bir form (bir çıkış düğmesi, başka bir
+  plugin'in form'u) reddedilirdi.
 - Varsayılan olarak bekleme süresi yoktur. `{{honeypot 0.3}}`, form'un gönderilmeden
   önce en az o kadar saniye açık kalmasını ister. Süre zaman damgasına imzalanır,
   böylece bot onu kısaltamaz. `minDelay`, kendi süresini seçmeyen her form için bir
@@ -1203,7 +1233,10 @@ Plugins: []collage.Plugin{honeypot.New(honeypot.Options{})},
   değişkende hex olarak durur; asla `plugins-config.json`'a girmez.
 - Yalnızca collage'ın render ettiği şey damgalanır: bir page, bir fragment, bir
   action'ın HTML cevabı, bir hata sayfası. `app.Handle` ile bağlanan elle yazılmış
-  bir handler'ın kendi yazdığı placeholder olduğu gibi gider ve form'u reddedilir.
+  bir handler'ın kendi yazdığı placeholder olduğu gibi, damgasız gider. Onu taşıyan
+  ve bir collage action'ına gönderilen form, action'ın path'i korunuyorsa
+  (`protect`'te ya da başka bir form'dan öğrenilmiş) ya da action işaretliyse
+  reddedilir, değilse hiç kontrol edilmez; böyle bir path'i `protect`'e yazın.
   (v0.4.0'dan önce böyle bir response damgalanıyordu; türü ilk byte'lardan tahmin
   ediliyordu.)
 - Ret bir `400`'dür. `silent` ile ise kabul edilmiş bir form'un cevabı gibi, form'a
@@ -1242,7 +1275,7 @@ return collage.SeeOther("/settings"), nil
 }
 ```
 
-- v0.2.0, collage v0.61.0 ya da sonrasını gerektirir (v0.1.4, collage v0.50.0 için son sürümdü) ve `Config.Plugins` içinde olmalıdır:
+- v0.3.1, collage v0.61.0 ya da sonrasını gerektirir (v0.1.4, collage v0.50.0 için son sürümdü) ve `Config.Plugins` içinde olmalıdır:
   `{{flashes}}`'ı ekler.
 - **v0.3.0'dan beri** key, hiçbir şey ayarlanmadan `FLASH_KEY`'dan okunur:
   `.env.development`'a ve production'ın çalıştığı yere `FLASH_KEY=`
@@ -1258,6 +1291,13 @@ return collage.SeeOther("/settings"), nil
   request'in HTTPS ile geldiğini söylediğinde cookie `Secure` olur. En az 32 rastgele
   byte'lık, her instance'ta aynı olan bir key ayarlayın. Key yoksa her process için
   bir key üretilir ve bir uyarı log'lanır.
+- En fazla 300 karakterlik sekiz mesaj tutulur ve **v0.3.1'den beri** cookie
+  yazılırken ölçülür: tarayıcı dört kilobaytı aşan bir cookie'yi bütünüyle atar, bu
+  yüzden `Set-Cookie` satırı asla 4096 byte'ı aşmaz. Encode edilince büyüyen metin
+  (ASCII olmayan harfler ya da her biri altı byte olan `<`, `>` ve `&`) bu sınırı
+  daha az mesajla aşabilir; o zaman geri kalanlar sığana kadar en eski mesajlar
+  atılır, tek başına fazla büyük bir mesaj kısaltılır ve bir uyarı log'lanır.
+  Önceden böyle bir cookie 6–7 KB'a ulaşır ve her mesaj sessizce kaybolurdu.
 - Mesaj taşıyan bir request yeniden render edilir. Page cache'ten okunmaz, ona
   yazılmaz da ve `private, no-store` olarak işaretlenir. Diğer her request,
   plugin yokmuş gibi sunulur.
@@ -1569,12 +1609,13 @@ Plugins: []collage.Plugin{ratelimit.New(ratelimit.Options{
 {
   "elagoht/ratelimit": {
     "rules": [{ "pathPrefix": "/login", "rate": 0.1, "burst": 5 }],
-    "skip": ["/_collage/", "/healthz", "/readyz", "/api/webhooks"]
+    "skip": ["/_collage/", "/healthz", "/readyz", "/api/webhooks"],
+    "ipv6Prefix": 48
   }
 }
 ```
 
-- v0.2.0, collage v0.61.0 ya da sonrasını gerektirir (v0.1.8, collage v0.60.0 için son sürümdü). Hiç seçenek verilmezse her form ve
+- v0.3.0, collage v0.61.4 ya da sonrasını gerektirir (v0.1.8, collage v0.60.0 için son sürümdü). Hiç seçenek verilmezse her form ve
   action, yani `GET`, `HEAD` ve `OPTIONS` dışındaki her metot, önce ondan oluşan bir
   burst'le, ardından iki saniyede bir request'le sınırlanır.
 - Bir request'i, eşleştiği ilk kural sayar. Bu yüzden dar kuralları başa koyun; her
@@ -1587,6 +1628,14 @@ Plugins: []collage.Plugin{ratelimit.New(ratelimit.Options{
   `collage.ClientIP`'dir. Plugin'in kendi `trustProxy` ve `trustedProxies` ayarları
   v0.2.0'da kaldırıldı; bunları içeren eski bir yapılandırma başlangıçta durur.
   Go'daki `KeyFunc` başka bir şeye göre key üretir.
+- **`ipv6Prefix` (v0.3.0'dan beri)**, bir IPv6 adresinin baştaki kaç bitinin
+  istemciyi adlandırdığını belirler: 32 ile 128 arası, varsayılanı 64; IPv4
+  istemcileri her zaman tek bir adrestir. Bir `/64` saldırganın tamamı değildir:
+  bir tunnel broker ücretsiz bir `/48` verir, birçok hosting sağlayıcısı da her
+  sunucuya bir `/48` ya da `/56` verir; bu, her biri kendi bucket'ına sahip 65536 ya
+  da 256 `/64` demektir. `48`, bütün bir `/48`'i tek istemci ve tek bucket yapar; o
+  `/48`'deki herkes onu paylaşır. `128` tek bir adrestir. Aralık dışındaki bir değer
+  uygulamanın başlamasını engeller.
 - Bucket'lar memory'de tutulur, bu yüzden sınırlar process başınadır.
 - v0.1.7'den beri static bir build'in header yakalaması sınırlanmaz ve
   `RateLimit` header'larını almaz.
@@ -1616,9 +1665,25 @@ Plugins: []collage.Plugin{basicauth.New(basicauth.Options{
 }
 ```
 
-- v0.1.9, collage v0.61.0 ya da sonrasını gerektirir (v0.1.8, collage v0.60.0 için son sürümdü). Hiç kullanıcı yoksa,
+- v0.1.11, collage v0.67.0 ya da sonrasını gerektirir (v0.1.8, collage v0.60.0 için son sürümdü). Hiç kullanıcı yoksa,
   `disabled` ayarlanmadıkça uygulama başlamaz. `skip`'in varsayılanı `/healthz`,
   `/readyz` ve `/_collage/`'dır.
+- **collage'ın middleware'inden geçeni kapsar**: her page, document, action,
+  mount edilmiş dizin ve plugin handler'ı. Uygulamanın kendisinin `app.Handle` ile
+  mount ettiği bir handler collage v0.67.0'dan beri çıplaktır: onun için hiçbir
+  middleware, bu plugin'inki de dahil, çalışmaz. Bu yüzden "korunan" bir staging
+  host'ta böyle mount edilmiş bir API, webhook ya da upload handler'ı herkese cevap
+  verir. Parolanın arkasına koymak için
+  `app.Handle("/api/", api, collage.WithMiddleware())` ile mount edin; `protect` ve
+  `skip` ona da her path'e olduğu gibi uygulanır. (v0.1.11, her request'in parola
+  istediğini söyleyen dokümantasyonu düzeltir; plugin değişmedi, ama bir uygulamayı
+  collage v0.67.0'a taşımak düz `app.Handle` mount'larını onun arkasından çıkarır.)
+- Başarısız bir bcrypt kontrolünün bedeli her seferinde ödenir ve herkes
+  `Authorization: Basic x:y` gönderebilir. Dışarıya açık bir sitede
+  [elagoht/ratelimit](#elagohtratelimit)'i basicauth'tan **önce**, her metodu sayan
+  bir kuralla listeleyin (varsayılan kuralı, bir parola tahmincisinin gönderdiği
+  `GET`'i saymaz); böylece reddedilen bir tahmin, kontrolün bedeli ödenmeden önce
+  sayılır: `ratelimit.Rule{Methods: []string{"*"}, Rate: 5, Burst: 50}`.
 - Parola düz metin olarak, `sha256:` ve hex'i olarak ya da bir bcrypt hash'i olarak
   yazılır. `COLLAGE_BASICAUTH_USERS`, kullanıcıları environment'tan ekler ve
   secret'ları dosyaların dışında tutar.
@@ -1678,7 +1743,7 @@ Plugins: []collage.Plugin{
 }
 ```
 
-- v0.2.0, collage v0.61.1 ya da sonrasını (v0.1.3, collage v0.60.0 için son sürümdü) ve elagoht/session
+- v0.3.1, collage v0.61.1 ya da sonrasını (v0.1.3, collage v0.60.0 için son sürümdü) ve elagoht/session
   v0.3.0 ya da sonrasını gerektirir. Session de register edilmelidir: yoksa login
   route'ları `500` döner. `collage plugin add elagoht/oauth` önce elagoht/session'ı
   ekler. `OnLogin` ve `Store` kod olduğu için onları Go'da verin. Secret ve key
@@ -1699,8 +1764,21 @@ Plugins: []collage.Plugin{
   loopback IP'ye), yoksa site başlamaz. Böyle olmayan bir endpoint adlandıran
   discovery document girişi `unavailable` ile bitirir. Token ve revocation
   çağrıları hiçbir redirect'i izlemez. elagoht/session'ın `sameSite` ayarını
-  varsayılanı olan `"lax"`'ta bırakın: `"strict"` ile cookie sağlayıcıdan dönüşte
-  gönderilmez ve her giriş başarısız olur.
+  varsayılanı olan `"lax"`'ta bırakın: `"strict"` ile session cookie'si sağlayıcıdan
+  dönüşte gönderilmez ve okuyucunun session'ı giriş yapmış hale gelmek yerine
+  yenisiyle değiştirilir.
+- **Bekleyen giriş kendi cookie'sinde tutulur (v0.3.1'den beri)**, session'da değil:
+  `collage_oauth`, `Path=/auth/<provider>/` (prefix'in altında; böylece yalnızca o
+  sağlayıcının iki route'una gider, hiçbir page'e gitmez), on dakika, `HttpOnly`,
+  `SameSite=Lax`, HTTPS üzerinden `Secure`, ve sonucu ne olursa olsun callback
+  tarafından silinir. Bir girişi herkes başlatabilir; session ise imzalıdır,
+  `maxAge` boyunca yaşar ve taşıyanı için page cache'i kapatır: önceden login
+  route'una tek bir anonim `GET`, herkese böyle bir cookie verirdi. Artık session'ı
+  yalnızca başarılı bir callback başlatır; başarısız bir giriş hiç session
+  başlatmaz. Cookie'yi 4096 byte'ın üzerine çıkaracak bir `next` `afterLogin`'de
+  biter. Yapılandırmada değiştirilecek bir şey yoktur; yükseltme sırasında süren bir
+  giriş `state` ile başarısız olur. Önceki bir sürümün bu yolla ürettiği session'lar,
+  session key'i değiştirilmezse `maxAge` sonuna kadar geçerli kalır.
 - `microsoft` preset'i tek başına her Entra ID tenant'ını ve her kişisel Microsoft
   hesabını kabul eder. Yalnızca bir tenant'ı kabul etmek için `issuer`'ı onunkine
   ayarlayın (`https://login.microsoftonline.com/<tenant-id>/v2.0`): ayarlanmış bir
@@ -1708,7 +1786,7 @@ Plugins: []collage.Plugin{
   için `EmailVerified` false'tur. `offline`, preset'i olmayan bir sağlayıcıdan
   `offline_access` scope'unu ister.
 - Bir giriş `state`, `nonce` ve PKCE kullanır, id_token'ın claim'lerini kontrol eder,
-  session'a yeni bir ID verir ve okuyucuyu `collage.SafeRedirect` ile kontrol edilmiş
+  session'a yeni bir ID verir (ya da bir session başlatır) ve okuyucuyu `collage.SafeRedirect` ile kontrol edilmiş
   `next`'e, kontrol edildiği haliyle gönderir. Başarısız bir giriş kimseyi giriş yapmış bırakmaz: `errorPath`
   `?error=<kod>` ile açılır (`state`, `expired`, `denied`, `rejected`, `exchange`,
   `token`, `unavailable`), yoksa sitenin status page'i gösterilir.
@@ -1760,16 +1838,20 @@ Plugins: []collage.Plugin{f2b /* , diğerleri */},
       "probe": { "banTime": "6h" },
       "notfound": { "disabled": true }
     },
-    "allow": ["203.0.113.7", "10.0.0.0/8"]
+    "allow": ["203.0.113.7", "10.0.0.0/8"],
+    "ipv6Prefix": 48
   }
 }
 ```
 
-- v0.2.1, collage v0.61.4 ya da sonrasını gerektirir (v0.1.8, collage v0.60.0 için son sürümdü): `collage.Duration`, `Server.TrustedProxies`,
+- v0.3.0, collage v0.61.4 ya da sonrasını gerektirir (v0.1.8, collage v0.60.0 için son sürümdü): `collage.Duration`, `Server.TrustedProxies`,
   `collage.ClientIP` ve collage'ın routing'den önce reddettiği request'leri de gören
   bir `RequestHook` için. `Config.Plugins`'te ilk sıraya koyun, elagoht/health kullanılıyorsa onun
   arkasına; böylece ban kontrolü diğer plugin'lerin middleware'inden önce çalışır ve
-  health'in probe'ları bir ban yüzünden reddedilmez.
+  health'in probe'ları bir ban yüzünden reddedilmez. `elagoht/accesslog` ondan önce
+  gelebilir: yalnızca satırı yazar ve ilk sırada bir ban'ın `403`'ünü byte sayısıyla
+  loglar (sonra listelenirse de accesslog v0.3.0'dan beri reddi loglar, byte sayısı
+  olmadan).
 - İstemci, forwarded zincirinden anlaşılamadığında (adres olmayan bir girdi) ve
   bağlantının kendi adresi, `RemoteAddr`, kullanıldığında plugin bunu bir kez Warn
   seviyesinde loglar (v0.2.1'den beri). Sınırlama değişmez.
@@ -1780,6 +1862,15 @@ Plugins: []collage.Plugin{f2b /* , diğerleri */},
   bir adresten gelen, `X-Forwarded-For` taşıyan ama `ClientIP`'si yine o adres olan
   bir request sayılmaz ve tek bir Warn `TrustedProxies`'in muhtemelen eksik olduğunu
   söyler. Bir istemci bir IPv4 adresidir, IPv6'da ise bir `/64`.
+- **`ipv6Prefix` (v0.3.0'dan beri)**, bir IPv6 adresinin baştaki kaç bitinin
+  istemciyi adlandırdığını belirler: 32 ile 128 arası, varsayılanı 64; IPv4
+  istemcileri her zaman tek bir adrestir. Bir `/48` sahibinin (ücretsiz bir tunnel
+  broker tahsisi ya da bir sunucununki) her biri kendi strike'ları ve ban'ı olan 65536
+  `/64`'ü vardır. `48`, bütün `/48`'i tek istemci yapar: strike'ları toplanır ve ban'ı
+  hepsini kapsar, bedeli o bloktaki herkesin de banlanmasıdır. `128` tek bir
+  adrestir. Aralık dışındaki bir değer uygulamanın başlamasını engeller. `allow`'daki
+  bir adres, banlı bir bloğun içinde olsa da asla reddedilmez; bir `Ban`'ın
+  `Prefix`'i bloğunkidir.
 - `probe` jail'i (`10m` içinde 3 strike, `1h` ban) bir probe path'i isteyen
   (`/.env`, `/.git/`, `/wp-login.php` gibi, ayrıca herhangi bir yerde `.env` ile
   başlayan ya da `.git` olan bir segment; kendinizinkini `probePaths` ile ekleyin) ya da collage'ın
@@ -1819,6 +1910,15 @@ Plugins: []collage.Plugin{f2b /* , diğerleri */},
 - Ban'lar process başınadır ve memory'de tutulur: instance'lar paylaşmaz, restart
   hepsini siler. Dev modunda `inDevelopment` ayarlanmadıkça hiçbir şey olmaz. Strike'lardan
   sonra tepki verir; `elagoht/ratelimit`'in yerine geçmez.
+- `maxTracked` (10000) strike sayaçlarını sınırlar, en uzun zaman önce strike almış
+  istemciyi düşürür; `maxBans` (10000) ban kayıtlarını sınırlar. **v0.3.0'dan beri
+  süren bir ban asla çıkarılmaz**: sınırda yalnızca bitmiş bir ban (tekrarlanan ban
+  iki katına çıksın diye tutulan kayıt) yer açar. Tablo süren ban'larla doluyken yeni
+  bir suçlu banlanmaz; strike'ları tutulur ve bir ban biter bitmez banlanır. En fazla
+  dakikada bir bir `Warn`, `fail2ban: the ban table is full` der; Go'dan `Ban` da aynı
+  şekilde reddedilir. Önceden bir saldırgan, `maxBans` kadar başka adresi banlatarak
+  kendi ban'ını kaldırabilirdi. `maxBans`'i yükseltin ya da suçlular tek bir `/48`'in
+  `/64`'leriyse `ipv6Prefix`'i `48` yapın.
 
 #### elagoht/consent
 
@@ -2285,12 +2385,32 @@ Plugins: []collage.Plugin{optiimage.New(optiimage.Options{})},
 {
   "elagoht/opti-image": {
     "allowedOrigins": ["https://images.example.com"],
-    "webp": "auto"
+    "webp": "auto",
+    "maxRecipes": 10000,
+    "maxDiskBytes": 1073741824
   }
 }
 ```
 
-- v0.4.1, collage v0.61.4 ya da sonrasını gerektirir (v0.3.7, collage v0.60.0 için son sürümdü) ve `Config.Plugins` içinde olmalıdır.
+- v0.5.0, collage v0.61.4 ya da sonrasını gerektirir (v0.3.7, collage v0.60.0 için son sürümdü) ve `Config.Plugins` içinde olmalıdır.
+- **v0.5.0'da değişen: çıktı boyutu sınırlıdır.** Boyut `<img>`'nin boyutudur ve
+  yazarının yazmadığı HTML gösteren bir page (`width` ve `height`'ı koruyan, temizlenmiş
+  yorumlar) bir ziyaretçinin boyut belirtmesine izin verir: 2×2 bir görselde
+  `width="50000" height="50000"`, 10 GB'lık bir bitmap'ti. `maxPixels`'ten fazla piksel
+  ya da 16384'ten uzun bir kenar belirten `<img>` artık olduğu gibi bırakılır, render
+  başına bir uyarı verilir ve onun için ad üretilmez; önceki bir sürümden diskte kalan
+  ve böyle bir boyut isteyen tarif, kaynağı okunmadan reddedilir.
+- **`maxRecipes` (10000) ve `maxDiskBytes` (1 GiB), v0.5.0'dan beri**, tutulanı
+  sınırlar. `maxRecipes`, plugin'in nasıl yapacağını bildiği görselleri, bellekte ve
+  `cacheDir` içinde `<name>.json` olarak sınırlar; aşılınca en uzun zamandır
+  kullanılmayan, görseliyle birlikte unutulur ve adı, bir page onu yeniden anana kadar
+  404'tür. `maxDiskBytes`, diskteki üretilmiş görselleri sınırlar; önce en uzun
+  zamandır kullanılmayan silinir ve yeniden istendiğinde tekrar üretilir. İkisi de
+  önceki bir process'in dizinde bıraktıklarını sayar. Önceden, bir request'in
+  değerini bir `<img>`'ye koyan page her request için bir ad üretir ve sonsuza kadar
+  tutardı. Static build tarifleri her page render edildikten sonra listeler; bu
+  yüzden `maxRecipes`'ten fazla farklı görseli olan bir site için onu yükseltin;
+  uyarı build'in çıktısındadır.
 - Bir allowed origin kendi scheme'inin varsayılan portunu yazıyorsa, `https://cms.example.com:443`, aynı host'un görselleriyle eşleşir; görselin URL'si portu yazsa da yazmasa da. Önceden başlangıçta kabul edilir ama hiçbir görselle eşleşmezdi (v0.4.1).
 - **v0.4.0'da değişenler:** `New()` ve `NewWith(Config{…})` artık
   `New(Options{…})`'dur. `allowedOrigins`, `{scheme, host}` nesneleri değil origin
@@ -2748,10 +2868,27 @@ Plugins: []collage.Plugin{accesslog.New(accesslog.Options{})},
 }
 ```
 
-- v0.2.0, collage v0.61.0 ya da sonrasını gerektirir (v0.1.13, collage v0.60.0 için son sürümdü).
+- v0.3.0, collage v0.67.0 ya da sonrasını gerektirir (v0.1.13, collage v0.60.0 için son sürümdü).
   `/_collage/` ile elagoht/health'in path'leri olan `/healthz` ve `/readyz` varsayılan
   olarak atlanır. Bir `skip` prefix'i, sondaki `/` olsun olmasın segment'lerin
-  tamamını kapsar: `/healthz`, `/healthz-report`'u kapsamaz.
+  tamamını kapsar: `/healthz`, `/healthz-report`'u kapsamaz. Routing'den önce
+  cevaplanan bir request için temizlenmiş path'le eşleştirilir; bu yüzden
+  `/_collage/../admin` atlanmaz.
+- **v0.3.0'dan beri her request, nerede cevaplanırsa cevaplansın log'lanır.** Plugin
+  bir middleware olduğu kadar bir `collage.RequestHook`'tur da; hook, middleware'in
+  hiç ulaşmadığı request'leri log'lar: kendinden önce listelenen bir
+  `elagoht/fail2ban`'ın reddettiği bir ban, kendinden önce listelenen bir
+  `elagoht/health`'in geri çevirdiği bir request, çıplak bir `app.Handle` mount'unun
+  response'u, ve collage'ın kirli bir path için kendi redirect'i (sorulduğu haliyle
+  path altında) ya da encoded slash için `404`'ü. Bu satırlarda **`bytes` yoktur**,
+  response'larında da `X-Request-ID` yoktur. Eskisinden fazla satır bekleyin, banlı
+  bir istemcinin `403`'leri de aralarında. `accesslog.RequestID` çıplak bir
+  `app.Handle` handler'ında da çalışır.
+- Satırın tamamı için onu `Config.Plugins`'te **ilk sıraya** koyun,
+  `elagoht/health` ve `elagoht/fail2ban`'dan önce (yalnızca gözlemler), ve bir
+  handler'ı `collage.WithMiddleware()` ile mount edin. Handler'ı panic eden bir
+  request yalnızca middleware ona ulaştıysa log'lanır; development reload stream'i ve
+  dev sunucusunun bilinmeyen bir `Host`'u reddi hiç log'lanmaz.
 - Satırda metot, query'siz path, status, byte sayısı, süre, istemci adresi, user
   agent, referer ve request id bulunur. Satır uygulamanın logger'ıyla ya da
   `Options.Logger` ile yazılır; bir `5xx`, `ERROR` seviyesinde log'lanır.
@@ -2826,19 +2963,39 @@ app, err := collage.New(&collage.Config{
 ```
 
 ```json
-{ "elagoht/otel": { "skip": ["/healthz"] } }
+{ "elagoht/otel": { "skip": ["/healthz"], "trustIncoming": "" } }
 ```
 
-- v0.3.0, collage v0.61.0 ya da sonrasını gerektirir (v0.2.10, collage v0.60.0 için son
+- v0.4.0, collage v0.79.0 ya da sonrasını gerektirir (v0.2.10, collage v0.60.0 için son
   sürümdü); `NewTracer(tracer)` artık `New(otel.Options{Tracer: tracer})`'dır. Tracer olarak `collage.http`, `collage.render` ve
   `collage.fragment`'i span'lere dönüştürür. Plugin olarak da çağıranın trace
   context'ini header'lardan okur; bunu collage'ın kendi span'inden önce çalışan bir
   `RequestHook` içinde yapar. İkisi de tek başına çalışır.
-- İkisi birlikteyken bir request tek bir trace'tir. Çağıranınkinin child'ı olan bir
-  server span vardır; `collage.http` onun, render ve her fragment de
+- İkisi birlikteyken bir request tek bir trace'tir. Güvenilir bir çağıranınkinin
+  child'ı olan bir server span vardır; `collage.http` onun, render ve her fragment de
   `collage.http`'nin altında yer alır. Server span, `collage.RouteInfo`'nun bildirdiği
   route'a göre adlandırılır: page, document ya da action için register edildiği
   pattern (`GET /blog/{slug}`, `GET /feed.xml`), mount ya da handler için prefix'i.
+  collage'ın routing'den önce reddettiği bir request (kirli bir path'in redirect'i,
+  encoded slash'in `404`'ü) bir route adlandırmaz: span'i adı olarak metodu korur ve
+  yalnızca `collage.route.kind=rejected` taşır; böylece bir tarayıcı bot'un path'leri
+  asla span adı olmaz.
+- **v0.4.0'da değişen: bir istemcinin trace context'i yalnızca güvenilirse
+  sürdürülür.** `traceparent` herkesin gönderebileceği bir iddiadır: herkesten
+  sürdürülürse internetteki bir istemcinin, bir `ParentBased` sampler'ın neyi export
+  edeceğine karar vermesine ve sitenin trace id'lerini seçmesine izin verir;
+  `baggage`'ı da uygulamaya ulaşır. Varsayılan olarak trace yalnızca bağlantısı
+  `Config.Server.TrustedProxies`'ten gelen bir request'te sürdürülür; diğer her
+  request'in server span'i, çağıranın span'ine **link** veren yeni bir trace'in
+  köküdür ve baggage'ı atılır. `trustIncoming` `""` (bu varsayılan), `"always"`
+  (yalnızca başka servislerin ulaştığı bir servis; eski davranış) ya da `"never"`
+  olur; başka bir değer uygulamayı durdurur. Öndeki bir CDN genellikle istemcinin
+  `traceparent`'ını olduğu gibi iletir; proxy trace'i başlatmıyorsa `traceparent`,
+  `tracestate` ve `baggage`'ı proxy'de silin ya da `"never"` ayarlayın.
+- **v0.4.0'dan beri metot da sınırlıdır**: RFC 9110'unkiler ve `PATCH` dışındaki bir
+  metot `http.request.method`'da `_OTHER`'dır, gönderildiği hali
+  `http.request.method_original`'dadır ve span'in adında `HTTP` yazar
+  (`HTTP /blog/{slug}`); böylece metot uyduran bir istemci span adı uyduramaz.
 - SDK uygulamaya aittir: provider, exporter, sampler ve propagator. Bir propagator
   ayarlayın; yoksa her request kendi trace'ini başlatır.
 - `skip` prefix'leri, sondaki `/` olsun olmasın segment sınırında eşleşir.
@@ -2920,21 +3077,33 @@ Plugins: []collage.Plugin{tenant.New(tenant.Options{
       { "id": "acme", "origin": "https://acme.app.com", "hosts": ["acme.app.com"] }
     ],
     "bypass": ["app.com"],
-    "ttl": "1m"
+    "ttl": "1m",
+    "unknownTTL": "1m",
+    "maxUnknownPerMinute": 600
   }
 }
 ```
 
-- v0.2.0, collage v0.61.2 ya da sonrasını ister (v0.1.4, collage v0.60.0 için son sürümdü); `tenants` ya da bir `Resolve` fonksiyonu
+- v0.3.0, collage v0.61.2 ya da sonrasını ister (v0.1.4, collage v0.60.0 için son sürümdü); `tenants` ya da bir `Resolve` fonksiyonu
   (yalnızca Go) gerekir.
 - Hiçbir tenant'a ait olmayan host, site'ın kendi 404 page'iyle 404 alır. Başarısız
   olan ya da panic eden bir resolver `Retry-After` ile 503 alır ve bu cache'lenmez.
-  "Tenant yok" cevabı `ttl` (`"1m"`; bir süre string'i, sayı hatadır) boyunca
-  cache'lenir; `maxHosts` (10000) kaç host'un hatırlanacağını sınırlar, negatif bir
+  Bir tenant `ttl` boyunca, v0.3.0'dan beri "tenant yok" cevabı da `unknownTTL`
+  boyunca cache'lenir (ikisi de `"1m"`; süre string'leri, sayı hatadır, negatif değer
+  de); `maxHosts` (10000) kaç host'un hatırlanacağını sınırlar, negatif bir
   değer uygulamayı durdurur. v0.2.1'den beri tenant'lar ve "tenant yok" cevapları
   ayrı ayrı bu kadar tutulur, böylece uydurma host'larla yapılan bir sel gerçek bir
   tenant'ı dışarı itemez. Aynı host için eşzamanlı cache miss'ler tek bir resolver
   çağrısını paylaşır. `bypass` host'ları tenant'sız sunulur.
+- **`maxUnknownPerMinute` (600, v0.3.0'dan beri)**, dakikada "tenant yok" cevabı
+  verebilecek ya da başarısız olabilecek lookup sayısını sınırlar: her request'te
+  yeni, rastgele bir `Host` gönderen bir istemci önceden her biri için bir `Resolve`
+  çağrısı yaptırırdı. Bütçe bitince, cevabı tutulmayan bir host, bütçe dolana kadar
+  `Resolve` çağrılmadan `Retry-After` ile 503 alır ve dakikada bir uyarı log'lanır.
+  Tenant'ı tutulan bir host, `ttl`'i geçmiş olsa da bütçeden bağımsız çözülür;
+  tenant bulan bir lookup da bütçeden düşmez. Böylece bir sel, bilinen bir tenant'ın
+  sitesini düşüremez. Daha önce hiç görülmemiş bir tenant host'u sel sırasında bu
+  503'ü alabilir: onu `tenants` altında listeleyin ya da bütçeyi yükseltin.
 - Bir handler tenant'ı `tenant.ID(rc)` ile okur; yalnızca context'i olan kod, örneğin
   bir page'in `StaticParams`'ı, `tenant.IDFromContext(ctx)` ile. İkisi de cache'lenen
   bir page'de güvenlidir. `collage.BaseURL(rc)` tenant'ın origin'idir.

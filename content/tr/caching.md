@@ -243,7 +243,9 @@ Cache'lenmiş bir page, şu kısımlardan oluşan bir key ile bulunur:
 - query string ([aşağıya](#query-parameters-in-the-key) bakın),
 - middleware'inizin `collage.Vary` ile bildirdiği her değer (bir handler'da
   `collage.Varied` ile okunur),
-- request'in host'u (v0.34.0'dan beri).
+- request'in host'u (v0.34.0'dan beri), normalleştirilmiş olarak (v0.79.0'dan
+  beri): küçük harfle, portsuz ve sondaki noktasız; bir IPv6 adresi de köşeli
+  parantez içinde, kanonik biçimiyle.
 
 Key'i aynı olan iki request, collage açısından aynı page'dir.
 
@@ -251,11 +253,22 @@ Host key'de yer alır, çünkü bir render `r.Host`'tan mutlak bir URL oluştura
 bir canonical link, bir `og:url`. Host key'de olmasaydı, başka bir host adı veren
 tek bir request bu URL'yi her okuyucuya sunulan kopyaya yazardı.
 
+Normalleştirilir, çünkü nasıl yazılacağını client seçer. `EXAMPLE.com:8080`,
+`example.com.` ve `example.com` tek bir sitedir; `[0:0::1]:9` ve `[::1]` de öyle.
+v0.79.0'dan önce her yazım kendine ait bir render ve entry'ydi: herkesin okuduğu
+page'leri sınırlı bir cache'ten dışarı itmenin ucuz bir yolu. Paylaşılan render'a
+da aynı normalleştirilmiş host verilir; böylece bir request'in kullandığı yazım,
+bir başkasına sunulana asla yazılmaz. **Cacheable bir page'in data handler'ı artık
+`r.Host`'ta portu görmez.** Scheme'in varsayılanı olmayan bir portta sunulan site,
+mutlak URL'lerini portu koruyan `Config.BaseURL`'den, `collage.BaseURL(rc)` ile
+kurar. Dynamic bir page `Host`'u gönderildiği gibi görür, static bir build'in header
+yakalaması da. Diskte zaten duran entry'ler okunabilir kalır.
+
 ### Paylaşılan bir render neyi görür
 
 Cache'lenmiş bir render, request'i aynı key'e sahip her okuyucuya sunulur. Bu
-yüzden v0.34.0'dan beri render'a yalnızca key'in içerdikleri verilir: path, host,
-key'deki query parametreleri ve middleware'inizin `collage.Vary` ile bildirdiği
+yüzden v0.34.0'dan beri render'a yalnızca key'in içerdikleri verilir: path, host
+(key'de durduğu gibi, normalleştirilmiş), key'deki query parametreleri ve middleware'inizin `collage.Vary` ile bildirdiği
 header'lar. Okuyucunun cookie'leri, `Authorization`'ı, adresi ya da client
 sertifikası verilmez. `WithCacheParams`'ın dışarıda bıraktığı bir query parametresi
 de verilmez.
@@ -292,7 +305,8 @@ Static bir build'de request yoktur; bu yüzden `Config.BaseURL` kullanılır.
 `OriginResolver` plugin'i olmayan bir site hiçbir fark görmez; bkz.
 [Bir host'un origin'i](/docs/writing-plugins#which-origin-a-host-has-originresolver).
 Bir invalidation entry'lere ulaştığında `CacheInvalidateEvent.Entries` her birinin
-path'ine ek olarak host'unu da adlandırır.
+path'ine ek olarak host'unu da, key'de durduğu gibi normalleştirilmiş olarak,
+adlandırır.
 
 ## Dependency tag'ler
 
@@ -699,6 +713,13 @@ tracker'ın üst sınırları
 ([tag index'in sınırlı olması](#the-tag-index-is-per-process-and-bounded) bölümüne
 bakın). Varyant üreten bir client entry'lerin dışarı itilmesine yol açar.
 Bunun bedeli bellek değil, hit oranıdır.
+
+v0.79.0'dan beri bir client, host'u farklı yazarak cache'i bölemez
+([Cache key](#the-cache-key) bölümüne bakın); ona kalan boyut query'dir. Bu yüzden
+query okuyan her cacheable page'de ve her cacheable document'ta `WithCacheParams`'ı
+bildirin; hiç okumayan birinde de, tek entry'sini sıcak tutmaya değiyorsa, adsız
+`WithCacheParams()`'ı. Page'in bildirmediği bir query değeri hâlâ kendine ait bir
+entry oluşturur.
 
 Ama bu yaklaşım pahalıdır da. `?utm_source=newsletter` içeren bir bülten linki,
 page'in ikinci bir kopyasının saklanmasına yol açar. Varyantları deneyen bir crawler

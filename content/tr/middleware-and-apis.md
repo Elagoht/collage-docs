@@ -152,6 +152,15 @@ beri:
   `/public/secret`'tir. Eskiden router orayı tek bir segment olarak okurdu. Böylece
   `/public/`'i geçiren bir middleware, request'i `/{slug}`'a geçirmiş olurdu.
 
+Middleware'iniz bu request'leri hiç görmez, ama metrikleriniz görür. v0.79.0'dan
+beri temiz path redirect'i, temizlenmesi gereken bir path'teki encoded slash için
+404 ve hiçbir route'un asla eşleşemeyeceği bir path için router'ın 404'ü (`/a%2fb`,
+bir NUL, bozuk percent-encoding), tarayıcı bot'unun gönderdiği path yerine sınırlı
+bir etiket altında, diğer her request gibi süreleri ölçülür, trace edilir ve
+sayılır: `collage.RouteInfo` tür olarak `"rejected"`, ad olarak `"normalise"`
+bildirir, `Metrics.HTTPResponse`'a boş bir path verilir ve request span'i `http.path`
+taşımaz. Bir `%2f` 404'ü artık decode edilmiş path'i altında sayılmaz.
+
 ### Body middleware'den önce sınırlanır
 
 v0.34.0'dan beri bir request'in body'si, ilk middleware çalışmadan önce sınırlanır.
