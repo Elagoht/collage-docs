@@ -726,67 +726,67 @@ Plugins: []collage.Plugin{indexnow.New(indexnow.Options{
 
 ### Content
 
-Where the words come from and how they are presented: Markdown files as page data,
+Where the words come from and how they are presented: Markdown rendered as HTML,
 coloured code, a table of contents, search on a static site, and translations.
 
 #### elagoht/markdown
 
 [github.com/Elagoht/collage-markdown](https://github.com/Elagoht/collage-markdown)
-makes a directory of Markdown files page data: YAML front matter,
-GitHub-flavoured Markdown with heading ids and footnotes, and one dependency tag
-per file.
+renders Markdown strings as HTML: a `{{markdown}}` template function, `Render`
+from Go, and `Parse`, which also reads a document's front matter into a type of
+the application's own. It reads no files and builds no pages: where the Markdown
+comes from, and the page, its data and its SEO, are the application's.
 
 ```go
 import "github.com/Elagoht/collage-markdown"
 
-//go:embed content
-var content embed.FS
-
-md := markdown.New(markdown.Options{FS: content, Dir: "content/blog"})
+md := markdown.New(markdown.Options{})
 
 Plugins: []collage.Plugin{md},
 ```
 
+```html
+<article>{{markdown .Body}}</article>
+```
+
 ```go
-app.RegisterPage(collage.NewPage("post").
-	WithContent(collage.NewFragment("post", "pages/post.html").
-		WithData(md.Handler()).
-		Required().
-		Build()).
-	WithPath("en", "/blog/{slug}").
-	Static().
-	WithStaticParams(md.StaticParams()).
-	Build())
+type Post struct {
+	Title string    `md:"title"`
+	Date  time.Time `md:"date"`
+	Tags  []string  `md:"tags"`
+}
+
+doc, err := markdown.Parse[Post](md, rc.Locale, src) // doc.Meta, doc.HTML, doc.Text, doc.Headings
 ```
 
 ```json
 {
   "elagoht/markdown": {
-    "dir": "content/blog",
-    "localeDirs": { "tr": "content/blog/tr" },
-    "drafts": false,
+    "extensions": ["table", "strikethrough", "linkify", "taskList", "footnote", "mark", "headingIDs", "headingAttributes"],
     "unsafe": false
   }
 }
 ```
 
-- v0.3.0 needs collage v0.61.0 or later; its handlers are `collage.Data`:
-  `WithData(md.Handler())`. It can go in
-  `Config.Plugins` or `RegisterPlugin`: it reads its configuration and files when
-  the application starts, which a static build does before it lists the pages to
-  write.
-- `md.Handler()` hands the template the `Doc` its `slug` names — `Title`,
-  `Description`, `Date`, `Tags`, `HTML`, `Text`, `Headings` — or
-  `collage.ErrNotFound`. `md.IndexHandler()`, `md.List(ctx, locale)` and
-  `md.Get(ctx, locale, slug)` feed an index page, a feed and a sitemap; `""` is the
-  default locale. Since v0.3.0 `md.List` takes the locale, and `md.ListIn` is gone:
-  `md.ListIn(ctx, "tr")` is `md.List(ctx, "tr")`.
-- An edit is one invalidation, `md.Tag(locale, slug)`; a file added or removed is
-  `md.DirTag(locale)`. In development every request reads the file again.
-- A locale can have its own directory, raw HTML is left out unless `unsafe` is on,
-  and several sets — a blog and the documentation — are several plugins told apart
-  by `Name`. Since v0.3.2 a heading's `{style="…"}` and `on…` attributes are dropped
-  too unless `unsafe` is on; `id` and `class` stay.
+- v0.4.0 needs collage v0.77.0 or later and must be in `Config.Plugins`: it adds a
+  template function.
+- `extensions` picks from `table`, `strikethrough`, `linkify`, `taskList`,
+  `footnote`, `mark` (`==text==` is `<mark>text</mark>`), `headingIDs`,
+  `headingAttributes`, `definitionList` and `typographer`. Left out, it is all but
+  the last two; a list replaces that whole, `[]` turns them all off, and an unknown
+  name stops the application.
+- A front matter key is read into the field tagged `md:"key"`, or the untagged field
+  of that name; a key no field takes is ignored, a value that does not convert is an
+  error. `markdown.FrontMatter[Post](src)` reads it without rendering.
+- Heading ids keep letters of any alphabet and follow the page's locale
+  (`## IŞIK` is `ışık` in Turkish). Code blocks are `<pre><code class="language-go">`,
+  which [elagoht/highlight](#elagohthighlight) colours when it is registered.
+- Raw HTML, and a heading's `{style="…"}` and `on…` attributes, are left out unless
+  `unsafe` is on; `id` and `class` stay.
+- Changed in v0.4.0: the plugin no longer reads a directory. `FS`, `Dir`,
+  `LocaleDirs`, `Drafts`, `Name`, `Handler`, `IndexHandler`, `StaticParams`, `List`,
+  `Get`, `Tag` and `DirTag` are gone; the application reads its own files and builds
+  its pages with `markdown.Parse`. The plugin's README shows a blog built that way.
 
 #### elagoht/highlight
 

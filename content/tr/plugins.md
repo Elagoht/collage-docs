@@ -765,67 +765,69 @@ Plugins: []collage.Plugin{indexnow.New(indexnow.Options{
 
 ### İçerik
 
-Metnin nereden geldiği ve nasıl sunulduğu: page verisi olarak Markdown dosyaları,
+Metnin nereden geldiği ve nasıl sunulduğu: HTML'e çevrilen Markdown,
 renklendirilmiş kod, içindekiler tablosu, static bir sitede arama ve çeviriler.
 
 #### elagoht/markdown
 
 [github.com/Elagoht/collage-markdown](https://github.com/Elagoht/collage-markdown),
-bir Markdown dosyaları dizinini page verisine dönüştürür: YAML front matter,
-heading id'leri ve dipnotlarıyla GitHub-flavoured Markdown, dosya başına bir
-dependency tag.
+Markdown string'lerini HTML'e çevirir: bir `{{markdown}}` template fonksiyonu,
+Go'dan `Render` ve bir dokümanın front matter'ını uygulamanın kendi tipine de
+okuyan `Parse`. Dosya okumaz, page kurmaz: Markdown'ın nereden geldiği, page'in
+kendisi, verisi ve SEO'su uygulamanındır.
 
 ```go
 import "github.com/Elagoht/collage-markdown"
 
-//go:embed content
-var content embed.FS
-
-md := markdown.New(markdown.Options{FS: content, Dir: "content/blog"})
+md := markdown.New(markdown.Options{})
 
 Plugins: []collage.Plugin{md},
 ```
 
+```html
+<article>{{markdown .Body}}</article>
+```
+
 ```go
-app.RegisterPage(collage.NewPage("post").
-	WithContent(collage.NewFragment("post", "pages/post.html").
-		WithData(md.Handler()).
-		Required().
-		Build()).
-	WithPath("en", "/blog/{slug}").
-	Static().
-	WithStaticParams(md.StaticParams()).
-	Build())
+type Post struct {
+	Title string    `md:"title"`
+	Date  time.Time `md:"date"`
+	Tags  []string  `md:"tags"`
+}
+
+doc, err := markdown.Parse[Post](md, rc.Locale, src) // doc.Meta, doc.HTML, doc.Text, doc.Headings
 ```
 
 ```json
 {
   "elagoht/markdown": {
-    "dir": "content/blog",
-    "localeDirs": { "tr": "content/blog/tr" },
-    "drafts": false,
+    "extensions": ["table", "strikethrough", "linkify", "taskList", "footnote", "mark", "headingIDs", "headingAttributes"],
     "unsafe": false
   }
 }
 ```
 
-- v0.3.0, collage v0.61.0 ya da sonrasını gerektirir; handler'ları
-  `collage.Data`'dır: `WithData(md.Handler())`. `Config.Plugins` içinde ya da `RegisterPlugin` ile register
-  edilebilir: config'ini ve dosyalarını uygulama
-  başlarken okur, static build de bunu yazacağı page'leri listelemeden önce yapar.
-- `md.Handler()`, template'e `slug`'ın adlandırdığı `Doc`'u verir (`Title`,
-  `Description`, `Date`, `Tags`, `HTML`, `Text`, `Headings`) ya da
-  `collage.ErrNotFound` döner. `md.IndexHandler()`, `md.List(ctx, locale)` ve
-  `md.Get(ctx, locale, slug)` bir index page'ini, bir feed'i ve bir sitemap'i besler;
-  `""` varsayılan locale demektir. v0.3.0'dan beri `md.List` locale'i kendisi alır
-  ve `md.ListIn` kalktı: `md.ListIn(ctx, "tr")` artık `md.List(ctx, "tr")`.
-- Bir düzenleme tek bir invalidation'dır: `md.Tag(locale, slug)`. Eklenen ya da
-  silinen bir dosya ise `md.DirTag(locale)`'dır. Development'ta her request dosyayı
-  yeniden okur.
-- Bir locale'in kendi dizini olabilir. Ham HTML, `unsafe` açık değilse dışarıda
-  bırakılır. Birden fazla küme, örneğin bir blog ve dokümantasyon, `Name` ile ayırt
-  edilen birden fazla plugin'dir. v0.3.2'den beri `unsafe` açık değilse bir
-  başlığın `{style="…"}` ve `on…` attribute'ları da çıkarılır; `id` ve `class` kalır.
+- v0.4.0, collage v0.77.0 ya da sonrasını gerektirir ve `Config.Plugins` içinde
+  olmalıdır: bir template fonksiyonu ekler.
+- `extensions` şunlardan seçer: `table`, `strikethrough`, `linkify`, `taskList`,
+  `footnote`, `mark` (`==metin==`, `<mark>metin</mark>` olur), `headingIDs`,
+  `headingAttributes`, `definitionList` ve `typographer`. Yazılmazsa son ikisi
+  dışındakilerin hepsidir; bir liste bunun tamamının yerine geçer, `[]` hepsini
+  kapatır, bilinmeyen bir ad uygulamayı durdurur.
+- Front matter'daki bir key, `md:"key"` tag'li alana ya da o adı taşıyan tag'siz
+  alana okunur; hiçbir alanın almadığı key yok sayılır, dönüşmeyen bir değer hatadır.
+  `markdown.FrontMatter[Post](src)` onu render etmeden okur.
+- Heading id'leri her alfabenin harflerini korur ve page'in locale'ini izler
+  (Türkçede `## IŞIK`, `ışık` olur). Code block'lar `<pre><code class="language-go">`
+  biçimindedir; [elagoht/highlight](#elagohthighlight) register edildiyse onları
+  renklendirir.
+- Ham HTML ile bir başlığın `{style="…"}` ve `on…` attribute'ları, `unsafe` açık
+  değilse dışarıda bırakılır; `id` ve `class` kalır.
+- v0.4.0'da değişen: plugin artık bir dizin okumaz. `FS`, `Dir`, `LocaleDirs`,
+  `Drafts`, `Name`, `Handler`, `IndexHandler`, `StaticParams`, `List`, `Get`, `Tag`
+  ve `DirTag` kalktı; uygulama kendi dosyalarını okur ve page'lerini
+  `markdown.Parse` ile kurar. Plugin'in README'si bu şekilde kurulmuş bir blog
+  gösterir.
 
 #### elagoht/highlight
 
