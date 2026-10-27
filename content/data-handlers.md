@@ -346,7 +346,10 @@ siblings. Before v0.50.0 values were shared with `rc.Set(key, value)` and
 
 This works from parent to child, because a parent's handler finishes first. It does
 not work between siblings: they run at the same time, so one cannot count on the
-other having set anything yet.
+other having set anything yet. Nor does it work in a fragment answered at
+[its own URL](/docs/forms-and-actions#a-fragment-at-its-own-url), or pushed: it
+renders without its ancestors, so their `Set` never happens there. Load the value
+in the fragment with `collage.Once`.
 
 ### collage.Once
 

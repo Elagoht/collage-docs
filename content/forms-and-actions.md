@@ -832,6 +832,15 @@ A measurement like this one takes no tags: its TTL keeps it fresh, and each
 fragment reading it returns a tag of its own. Tagged, every fragment would depend on
 every tag, and invalidating one part would re-render them all.
 
+**An ancestor's `Set` is not seen there.** The render starts at the fragment, so
+the data handlers above it in the page do not run, and a value one of them stores
+with `Key.Set` is absent: `Get` reports false and the fragment renders with the
+zero value. The same holds for a fragment a plugin pushes with `RenderFragment`.
+A fragment answered on its own loads what it needs itself — with `collage.Once`,
+or `collage.Cached` — which inside the full page still fetches once per render.
+Since v0.78.0, in development, a fragment rendered on its own whose `Get` finds
+nothing logs a warning naming the page, the fragment and the key, once per process.
+
 Combined with an action that answers `RenderFragment`, a form can post and be
 answered with only the part that changed:
 

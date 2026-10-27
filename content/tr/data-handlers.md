@@ -363,6 +363,10 @@ güvenli olmalarının nedeni budur. v0.50.0'dan önce değerler bir `SharedData
 Bu yöntem parent'tan child'a doğru çalışır, çünkü parent'ın handler'ı önce biter.
 Sibling'ler arasında çalışmaz. Sibling'ler aynı anda çalıştığı için biri, diğerinin
 o ana kadar bir şey set etmiş olmasına güvenemez.
+[Kendi URL'sinde](/docs/forms-and-actions#a-fragment-at-its-own-url) cevaplanan ya
+da push edilen bir fragment'te de çalışmaz: fragment atalarından bağımsız render
+edilir, onların `Set`'i orada hiç gerçekleşmez. Değeri fragment'in içinde
+`collage.Once` ile yükleyin.
 
 ### collage.Once
 

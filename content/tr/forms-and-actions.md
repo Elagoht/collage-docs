@@ -875,6 +875,16 @@ Bu örnekteki gibi bir ölçüme tag verilmez: onu TTL'i güncel tutar, onu okuy
 fragment de kendi tag'ini döner. Tag verilirse her fragment bütün tag'lere bağlı
 olur ve bir kısmı invalidate etmek hepsini yeniden render eder.
 
+**Bir ata fragment'in `Set`'i orada görünmez.** Render fragment'in kendisinden
+başlar. Page'de onun üstündeki data handler'lar çalışmaz, birinin `Key.Set` ile
+sakladığı değer de yoktur: `Get` false döner ve fragment sıfır değerle render
+edilir. Bir plugin'in `RenderFragment` ile push ettiği fragment için de aynısı
+geçerlidir. Kendi başına cevaplanan bir fragment ihtiyacını kendisi yükler:
+`collage.Once` ya da `collage.Cached` ile. Page'in tamamında bu yine render başına
+tek bir fetch'tir. v0.78.0'dan beri development'ta, kendi başına render edilen bir
+fragment'in `Get`'i bir şey bulamazsa page'i, fragment'i ve key'i adlandıran bir
+uyarı loglanır, process başına bir kez.
+
 `RenderFragment` ile cevap veren bir action ile birleştirildiğinde bir form post
 edilebilir ve sadece değişen kısımla cevaplanabilir:
 
