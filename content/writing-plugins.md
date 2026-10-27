@@ -288,9 +288,10 @@ reader, with that reader's request, and send each connection the render made for
 it. A render that is not `Shared` may hold one reader's data. A `Shared` one costs
 one render per change however many readers it reaches (since v0.78.0): once a
 reader's middleware and guards have passed, a `Shared` render already made for the
-same host, URL, locale and cached query is handed over as a copy, with that
-reader's own forgery token and `PersonaliseHook` pass, and readers arriving during
-the render wait for it. It is made again once a tag it depended on — its URL's
+same host, URL, locale and cached query is handed over as a copy, and readers
+arriving during the render wait for it. That reader's forgery token and
+`PersonaliseHook` pass go into the copy, so a copy that took a token, or that a
+hook made personal, is reported not `Shared`. It is made again once a tag it depended on — its URL's
 `PathTag` and its host's among them — is invalidated or purged, after the page's
 cache lifetime, and, for a page rendered per request, with the cache off or with a
 store shared between instances, a second after it was made. At most 4096 renders

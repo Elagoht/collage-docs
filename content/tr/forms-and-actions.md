@@ -953,6 +953,10 @@ set eden bir handler kendi değerini korur; ancak bir `PersonaliseHook` body'yi
 kişisel hale getirdiyse (v0.43.0'dan beri) handler ne set etmiş olursa olsun
 cevap `private, no-cache` olur.
 
+v0.78.0'dan beri form içeren bir fragment de `304` alır: ETag'i forgery token'ı
+maskelenmeden önce hash'lenir. Böylece bir cevaptan diğerine aynı kalır ve
+`RenderFragment`'in gönderilen bir kopya için bildirdiği ETag'e eşittir.
+
 ### Tarayıcıdan yenilemek
 
 Framework bir client script'i ile gelmez. [collage-live](/docs/plugins#elagohtlive)

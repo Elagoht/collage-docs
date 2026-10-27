@@ -1778,7 +1778,7 @@ Plugins: []collage.Plugin{consent.New(consent.Options{})}, // configured from pl
 }
 ```
 
-- v0.2.0 needs collage v0.61.0 or later (v0.1.3 was the last for v0.60.0) and `{{hoist "head"}}` in the layout.
+- v0.2.1 needs collage v0.61.4 or later (v0.2.0 needed v0.61.0; v0.1.3 was the last for v0.60.0) and `{{hoist "head"}}` in the layout.
   Without that marker nothing appears and nothing gated ever runs.
 - Consent is decided in the browser. Every visitor gets the same HTML, so the page
   cache works as before. `version` asks every visitor again when you bump it. A

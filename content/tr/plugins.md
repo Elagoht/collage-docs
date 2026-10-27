@@ -1858,7 +1858,7 @@ Plugins: []collage.Plugin{consent.New(consent.Options{})}, // plugins-config.jso
 }
 ```
 
-- v0.2.0, collage v0.61.0 ya da sonrasını gerektirir (v0.1.3, collage v0.60.0 için son sürümdü) ve layout'ta `{{hoist "head"}}`
+- v0.2.1, collage v0.61.4 ya da sonrasını gerektirir (v0.2.0 v0.61.0 gerektiriyordu; v0.1.3, collage v0.60.0 için son sürümdü) ve layout'ta `{{hoist "head"}}`
   ister. Bu işaret yoksa hiçbir şey görünmez ve bekletilen hiçbir şey çalışmaz.
 - Onay tarayıcıda verilir. Her ziyaretçi aynı HTML'i alır, bu yüzden page cache
   eskisi gibi çalışır. `version`'ı artırmak herkese yeniden sorar. `required` bir

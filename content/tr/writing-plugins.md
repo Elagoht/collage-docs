@@ -302,9 +302,10 @@ için yapılan render'ı gönderin. `Shared` olmayan bir render tek bir okuyucun
 verisini taşıyabilir. `Shared` bir render ise kaç okuyucuya ulaşırsa ulaşsın her
 değişiklikte bir render'a mal olur (v0.78.0'dan beri): bir okuyucunun middleware'i
 ve guard'ları geçtiğinde, aynı host, URL, locale ve cache'lenen query için daha
-önce yapılmış bir `Shared` render, o okuyucunun kendi forgery token'ı ve
-`PersonaliseHook` geçişiyle bir kopya olarak verilir; render sürerken gelen
-okuyucular onu bekler. Bağlı olduğu bir tag (aralarında URL'sinin `PathTag`'i ve
+önce yapılmış bir `Shared` render bir kopya olarak verilir; render sürerken gelen
+okuyucular onu bekler. O okuyucunun forgery token'ı ve `PersonaliseHook` geçişi
+kopyaya girer; bu yüzden token alan ya da bir hook'un kişisel yaptığı bir kopya
+`Shared` olarak bildirilmez. Bağlı olduğu bir tag (aralarında URL'sinin `PathTag`'i ve
 host'unki) invalidate ya da purge edildiğinde, page'in cache süresi geçtiğinde ve
 her request'te render edilen bir page için, cache kapalıyken ya da instance'ların
 paylaştığı bir store'la, yapıldıktan bir saniye sonra yeniden yapılır. En çok 4096

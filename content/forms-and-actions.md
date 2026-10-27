@@ -905,6 +905,10 @@ most of it. A handler that sets `Cache-Control` itself keeps its own, unless a
 `PersonaliseHook` made the body personal (since v0.43.0): then it is
 `private, no-cache` whatever the handler set.
 
+A fragment holding a form earns a `304` too since v0.78.0: its ETag is hashed
+before the forgery token is masked, so it stays the same from one answer to the
+next and equals the one `RenderFragment` reports for a pushed copy.
+
 ### Refreshing it from the browser
 
 The framework ships no client script. [collage-live](/docs/plugins#elagohtlive) is
