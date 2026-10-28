@@ -186,8 +186,7 @@ yerleşimidir:
 pages/<area>/<name>.go            a page: its layouts, content, path, actions
 fragments/layouts/master.go       Master(), the layout every page wraps itself in
 fragments/pages/<area>/<name>.go  each page's content, mirroring pages/
-actions/<area>.go                 action builders, one file per area
-actions/funcs/<area>.go           their handlers
+actions/<area>/<name>.go          an action and its handler, one per file
 documents/<name>.go               routes that are not HTML
 data/<domain>/                    state, by domain
 templates/layouts/                the layouts' HTML
@@ -242,7 +241,7 @@ collage add fragment blog/sidebar   # fragments/blog/sidebar.go, for a slot
 collage add fragment layouts/partials/siteFooter --file
                                     # fragments/layouts/partials/siteFooter.go
                                     # + templates/layouts/partials/siteFooter.html
-collage add action blog/comment     # actions/blog.go + actions/funcs/blog.go
+collage add action blog/comment     # actions/blog/comment.go, the action and its handler
 collage add action blog/ping --path /api/ping
 collage add document feed --path /feed.xml --type application/xml
 collage add action blog/like --page blog/post   # attached to pages/blog/post.go
@@ -274,14 +273,21 @@ collage add command seed            # commands/seed.go + app.RegisterCommand
   içeriğin fonksiyonunun çağırdığı `<name>Data() collage.Data` üretir (v0.73.0'dan
   beri). Bu yüzden handler'ın ihtiyaç duyduğu bir servis, ikisine eklenen bir
   parametredir; bkz. [Data handler'lar](/docs/data-handlers#handlers-with-no-tags).
-- **Bir action** için `actions/<area>.go` dosyasının sonuna bir builder,
-  `actions/funcs/<area>.go` dosyasının sonuna da bir handler eklenir. Bu dosyalar
-  yoksa oluşturulur. `--path` verildiğinde action kendine ait bir URL'de cevap verir
+- **Bir action**, `actions/<area>/<name>.go` dosyasıdır (v0.80.0'dan beri). Page'ler
+  gibi her dosyada bir tane bulunur: önce builder'ı, altında da handler'ı. Handler,
+  `<name>Handler()` adında bir factory'dir; fragment'ın data handler'ı gibi, bu
+  sayede ihtiyaç duyduğu bir servis tek bir parametre uzağındadır. Paketin adı
+  `actions`'tır ve bir alanın page'lerinin `<area>pages` olması gibi
+  `<area>actions` (`blogactions`) adıyla import edilir. Alanı olmayan bir action
+  `actions/<name>.go` dosyasıdır. v0.80.0'dan önceki düzende kurulmuş bir projede
+  `actions/<area>.go` ve `actions/funcs/` dosyalarına dokunulmaz; yeni action'lar
+  onların yanına, klasörlere yazılır. `--path` verildiğinde action kendine ait bir URL'de cevap verir
   ve register edilir. Verilmediğinde ise eklendiği page'de cevap verir ve komut,
   eklemeniz gereken `.WithActionFor(...)` satırını yazdırır.
 - **`--page <[area/]name>`** (v0.69.0'dan beri), yeni action'ı nasıl ekleyeceğinizi
   yazdırmak yerine onu o page'e kendisi ekler: page'in `NewPage` zincirini bitiren
-  `Build()`'den önce `.WithActionFor(actions.Like())` satırını koyar. Birden fazla
+  `Build()`'den önce `.WithActionFor(blogactions.Like())` satırını koyar ve
+  action'ın paketini import eder. Birden fazla
   zincir içeren bir page dosyasına dokunmaz, eklenecek satırı yazdırır. `--path`
   ile birlikte verilemez.
 - **Bir document**, `documents/<name>.go` dosyasıdır.
@@ -417,7 +423,7 @@ ve soluk attribute'larını korur. `collage dev`'in kendi satırları da aynı b
 16:10:23 • collage dev: serving http://localhost:6060
 16:10:24 • collage: listening  addr=localhost:6060
 16:10:29 • collage dev: change detected, rebuilding
-16:10:29 ✗ collage dev: build failed; the last good build is still serving
+16:10:29 ✗ collage dev: build failed; waiting for a change
 ```
 
 Scaffold edilen `main.go`, `COLLAGE_DEV=1` ayarlı olduğunda development modunu açar
@@ -524,8 +530,10 @@ Rebuild şöyle ilerler:
   dizine yazar. Eski process ancak yeni binary derlendikten sonra durdurulur ve
   yenisi başlatılır. Eski process, Ctrl-C'de olduğu gibi elindeki request'leri
   bitirir. 10 saniye içinde çıkmazsa öldürülür.
-- **Derlenmeyen bir değişiklikte son sağlam build çalışmaya devam eder.**
-  Derleyicinin hatası ekranda görünür.
+- **Derlenmeyen bir değişiklikte de eski process durdurulur** (v0.80.0'dan beri).
+  Çalışmaya devam eden bir build artık kodla uyuşmaz ve terminal görünmüyorsa
+  bunu söyleyen bir şey de olmaz. Bunun yerine derleyicinin hatası, aşağıda
+  anlatıldığı gibi tarayıcıda görünür.
 - **Kendiliğinden çıkan bir program** döngü içinde yeniden başlatılmaz. Örneğin
   açılışta panic olabilir ya da bir page'in template'i eksik olabilir. Program bir
   sonraki değişiklikte yeniden başlatılır.
@@ -536,7 +544,7 @@ v0.15.0'dan beri çalışmayan bir program, reddedilen bir bağlantı değil, bi
 page'dir:
 
 - **Program çıktığında** (register sırasında bulunamayan bir template, açılışta bir
-  panic) **ya da ilk build başarısız olduğunda** her page, programın ya da
+  panic) **ya da bir build başarısız olduğunda** her page, programın ya da
   derleyicinin yazdıklarını gösteren bir 503'tür. Açık olan bir page yenilenerek
   bu page'e geçer. Bir değişiklik programı geri getirdiğinde de yeniden yenilenir.
 - **Program başlarken yapılan bir request onu bekler.** Program henüz dinlemediği

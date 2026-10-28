@@ -176,8 +176,7 @@ grows, the rest goes where the demo project puts it:
 pages/<area>/<name>.go            a page: its layouts, content, path, actions
 fragments/layouts/master.go       Master(), the layout every page wraps itself in
 fragments/pages/<area>/<name>.go  each page's content, mirroring pages/
-actions/<area>.go                 action builders, one file per area
-actions/funcs/<area>.go           their handlers
+actions/<area>/<name>.go          an action and its handler, one per file
 documents/<name>.go               routes that are not HTML
 data/<domain>/                    state, by domain
 templates/layouts/                the layouts' HTML
@@ -339,9 +338,9 @@ what the program is made of — `.go` files (tests aside), `go.mod`, `go.sum` an
 environment file — and on a change it rebuilds.
 
 The new build is made first. Only once it compiles is the old process stopped,
-gracefully, and the new one started. A change that does not compile leaves the
-last good build serving and prints the compiler's error in the terminal, so a
-typo never leaves you with nothing at `localhost:6060`.
+gracefully, and the new one started. A change that does not compile stops the
+program, and `localhost:6060` shows the compiler's error until a change compiles
+again — so a typo is never hidden behind a build that no longer matches the code.
 
 A burst of saves is one rebuild. Hidden directories, `bin`, `dist`,
 `node_modules`, `testdata` and `vendor` are never watched, so nothing the running

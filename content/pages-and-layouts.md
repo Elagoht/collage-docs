@@ -662,7 +662,7 @@ func register(app *collage.App) error {
 		pages.Home(),
 		blogpages.Post(),
 		documents.Health(),
-		actions.Logout(),
+		authactions.Logout(),
 	); err != nil {
 		return err
 	}

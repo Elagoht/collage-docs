@@ -182,8 +182,7 @@ büyüdükçe geri kalan her şey demo projesinin koyduğu yere gider:
 pages/<area>/<name>.go            a page: its layouts, content, path, actions
 fragments/layouts/master.go       Master(), the layout every page wraps itself in
 fragments/pages/<area>/<name>.go  each page's content, mirroring pages/
-actions/<area>.go                 action builders, one file per area
-actions/funcs/<area>.go           their handlers
+actions/<area>/<name>.go          an action and its handler, one per file
 documents/<name>.go               routes that are not HTML
 data/<domain>/                    state, by domain
 templates/layouts/                the layouts' HTML
@@ -355,9 +354,10 @@ oluşturan dosyaları izler: `.go` dosyalarını (testler hariç), `go.mod`, `go
 ve environment dosyasını. Bunlardan biri değiştiğinde projeyi yeniden build eder.
 
 Önce yeni build alınır. Eski process ancak yeni build başarıyla derlendikten sonra
-düzgünce durdurulur ve yenisi başlatılır. Derlenmeyen bir değişiklikte son sağlam
-build serve etmeye devam eder ve compiler'ın hatası terminale yazılır. Böylece bir
-yazım hatası yüzünden `localhost:6060` hiçbir zaman boş kalmaz.
+düzgünce durdurulur ve yenisi başlatılır. Derlenmeyen bir değişiklikte program
+durdurulur ve bir değişiklik yeniden derlenene kadar `localhost:6060` derleyicinin
+hatasını gösterir. Böylece bir yazım hatası, artık kodla uyuşmayan bir build'in
+arkasına saklanmaz.
 
 Art arda yapılan kayıtlar tek bir rebuild tetikler. Gizli dizinler, `bin`, `dist`,
 `node_modules`, `testdata` ve `vendor` hiçbir zaman izlenmez. Böylece çalışan

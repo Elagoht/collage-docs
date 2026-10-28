@@ -285,9 +285,9 @@ pages around them if you like.
   you are reading were produced by it.
 - A development server that rebuilds on every Go change and reloads the browser on
   every template change. A page that fails to render shows its error in the
-  browser, template, line and cause first. Go that fails to compile shows it in the
-  terminal while the last good build keeps serving, and a program that cannot
-  start at all shows what it printed in the browser rather than a refused
+  browser, template, line and cause first. Go that fails to compile shows the
+  compiler's error in the browser, and a program that cannot start at all shows
+  what it printed in the browser rather than a refused
   connection.
 
 ## Where to go next

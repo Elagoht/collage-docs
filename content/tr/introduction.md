@@ -299,8 +299,7 @@ collage'ı kullanın.
 - Her Go değişikliğinde yeniden build eden ve her template değişikliğinde tarayıcıyı
   yeniden yükleyen bir development sunucusu. Render'ı başarısız olan bir page,
   hatasını tarayıcıda gösterir ve en başta template, satır ve sebep yer alır.
-  Derlenemeyen Go kodu hatasını terminalde gösterir, bu sırada son başarılı build
-  sunmaya devam eder. Hiç başlayamayan bir program ise reddedilen bir bağlantı
+  Derlenemeyen Go kodu, derleyicinin hatasını tarayıcıda gösterir. Hiç başlayamayan bir program ise reddedilen bir bağlantı
   yerine yazdırdığı çıktıyı tarayıcıda gösterir.
 
 ## Sırada ne var

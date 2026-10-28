@@ -180,8 +180,7 @@ document — a not-found page, tests for each written with
 pages/<area>/<name>.go            a page: its layouts, content, path, actions
 fragments/layouts/master.go       Master(), the layout every page wraps itself in
 fragments/pages/<area>/<name>.go  each page's content, mirroring pages/
-actions/<area>.go                 action builders, one file per area
-actions/funcs/<area>.go           their handlers
+actions/<area>/<name>.go          an action and its handler, one per file
 documents/<name>.go               routes that are not HTML
 data/<domain>/                    state, by domain
 templates/layouts/                the layouts' HTML
@@ -232,7 +231,7 @@ collage add fragment blog/sidebar   # fragments/blog/sidebar.go, for a slot
 collage add fragment layouts/partials/siteFooter --file
                                     # fragments/layouts/partials/siteFooter.go
                                     # + templates/layouts/partials/siteFooter.html
-collage add action blog/comment     # actions/blog.go + actions/funcs/blog.go
+collage add action blog/comment     # actions/blog/comment.go, the action and its handler
 collage add action blog/ping --path /api/ping
 collage add document feed --path /feed.xml --type application/xml
 collage add action blog/like --page blog/post   # attached to pages/blog/post.go
@@ -264,13 +263,18 @@ collage add command seed            # commands/seed.go + app.RegisterCommand
   `<name>Data() collage.Data`, which the content's function calls (since
   v0.73.0), so a service the handler needs is a parameter added to both — see
   [Data handlers](/docs/data-handlers#handlers-with-no-tags).
-- **An action** gets a builder appended to `actions/<area>.go` and a handler to
-  `actions/funcs/<area>.go`, either created when it is not there. With `--path` it
+- **An action** is `actions/<area>/<name>.go` (since v0.80.0), one per file as a
+  page is: its builder, and its handler under it — `<name>Handler()`, a factory
+  like a fragment's data handler, so a service it needs is a parameter away. Its
+  package is `actions`, imported as `<area>actions` (`blogactions`) the way an
+  area's pages are `<area>pages`; with no area it is `actions/<name>.go`. A
+  project laid out before v0.80.0 — `actions/<area>.go` and `actions/funcs/` —
+  keeps those files untouched, and new actions go into folders beside them. With `--path` it
   answers at a URL of its own and is registered; without one it answers at the
   page it is attached to, and the command prints the `.WithActionFor(...)` to add.
 - **`--page <[area/]name>`** (since v0.69.0) attaches a new action to that page
-  instead of printing how: it adds `.WithActionFor(actions.Like())` before the
-  `Build()` that ends the page's `NewPage` chain. A page file with more than one
+  instead of printing how: it adds `.WithActionFor(blogactions.Like())` before the
+  `Build()` that ends the page's `NewPage` chain, importing the action's package. A page file with more than one
   chain is left alone, and the line to add is printed. It cannot go with
   `--path`.
 - **A document** is `documents/<name>.go`.
@@ -398,7 +402,7 @@ both off.
 16:10:23 • collage dev: serving http://localhost:6060
 16:10:24 • collage: listening  addr=localhost:6060
 16:10:29 • collage dev: change detected, rebuilding
-16:10:29 ✗ collage dev: build failed; the last good build is still serving
+16:10:29 ✗ collage dev: build failed; waiting for a change
 ```
 
 The scaffolded `main.go` turns on development mode when `COLLAGE_DEV=1` is set,
@@ -502,8 +506,10 @@ How a rebuild goes:
   directory outside the project; only once it compiles is the old process
   interrupted — it drains its requests as on Ctrl-C, and is killed only if it has
   not exited within 10 seconds — and the new one started.
-- **A change that does not compile leaves the last good build serving**, with the
-  compiler's error on screen.
+- **A change that does not compile stops the old process all the same** (since
+  v0.80.0). A build left serving no longer matches the code, and with the
+  terminal out of sight nothing says so; the browser gets the compiler's error
+  instead, as below.
 - **A program that exits by itself** — a panic at startup, a page whose template
   is missing — is not restarted in a loop. The next change starts it again.
 
@@ -512,7 +518,7 @@ How a rebuild goes:
 Since v0.15.0, a program that is not running is a page, not a refused connection:
 
 - **When the program exits** — a template not found at registration, a panic at
-  startup — **or the first build fails**, every page is a 503 showing what the
+  startup — **or a build fails**, every page is a 503 showing what the
   program or the compiler printed. A page already open reloads onto it, and
   reloads again once a change brings the program back.
 - **A request made while the program starts waits for it**, rather than failing
