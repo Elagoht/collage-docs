@@ -1,5 +1,5 @@
 ---
-description: What a plugin can do, how to register and configure one, and the forty-five published plugins, grouped by what they are for.
+description: What a plugin can do, how to register and configure one, and the forty-six published plugins, grouped by what they are for.
 reference: Plugin, LoadPluginConfig, Env.PluginConfig, ErrUnknownPluginConfig, ErrAppStarted
 ---
 
@@ -301,7 +301,7 @@ names the key whose value failed.
 
 ## The published plugins
 
-Forty-five plugins are published alongside the framework, grouped below by what
+Forty-six plugins are published alongside the framework, grouped below by what
 they are for. Each is its own module, with its own README that is the full
 reference; what follows is enough to set one up.
 
@@ -313,7 +313,7 @@ reference; what follows is enough to set one up.
 | [Security](#security) | secure, ratelimit, basicauth, oauth, fail2ban, consent |
 | [Live updates](#live-updates) | live, websocket, client |
 | [Assets and delivery](#assets-and-delivery) | minimizer, opti-image, bundle, favicon, compress, cdnpurge, offline, deploy |
-| [Operations and development](#operations-and-development) | htmlcheck, devtoolbar, accesslog, prometheus, otel, analytics, tenant, errortrack, health, jobs |
+| [Operations and development](#operations-and-development) | htmlcheck, devtoolbar, accesslog, prometheus, otel, analytics, tenant, errortrack, health, jobs, gesso |
 
 [Libraries that are not plugins](#libraries-that-are-not-plugins) are listed after the groups.
 
@@ -3195,12 +3195,84 @@ if err := mail.Enqueue(r.Context(), Email{To: to}); err != nil {
   the plugin with `j.Start(ctx)`; see
   [Deployment](/docs/deployment#serving-with-your-own-server).
 
+#### elagoht/gesso
+
+[github.com/Elagoht/collage-gesso](https://github.com/Elagoht/collage-gesso) runs
+the lifecycle of a [gesso](https://github.com/Elagoht/gesso) application — a JSON
+API framework, the backend collage itself does not do — when collage serves it in
+the same process. The API's modules (a queue worker, a warmed cache) start when
+`ListenAndServe` has bound its port, through
+[`ServeHook`](/docs/writing-plugins#streams-and-shutdown); after collage's server
+has stopped, they stop in reverse order and the API's `OnShutdown` hooks run.
+Nothing starts in `collage build`, in a plugin command, or in a test that only
+calls `app.Handler()` or `app.Start()`.
+
+The plugin does not mount the API. Mount it with the application's own `Handle`,
+which keeps [middleware](/docs/middleware-and-apis) off it, and give the plugin
+the same app — build it in `newApp`, before `collage.New`:
+
+```go
+// main.go
+api, err := gesso.New(gesso.Config{BasePath: "/api"}, notes.New(notes.Deps{DB: db}))
+if err != nil {
+	return nil, err
+}
+api.OnShutdown(func(context.Context) error { return db.Close() })
+
+app, err := collage.New(&collage.Config{
+	// …
+	Plugins: plugins(api),
+})
+if err != nil {
+	return nil, err
+}
+if err := app.Handle("/api/", api); err != nil {
+	return nil, err
+}
+```
+
+```go
+// plugins.go: collage plugin add imports the plugin as gesso, so the
+// framework takes another name here.
+import (
+	"github.com/Elagoht/collage/pkg/collage"
+	gessoapp "github.com/Elagoht/gesso"
+
+	gesso "github.com/Elagoht/collage-gesso"
+)
+
+func plugins(api *gessoapp.App) []collage.Plugin {
+	return []collage.Plugin{
+		gesso.New(gesso.Options{App: api}),
+	}
+}
+```
+
+- v0.1.1 needs collage v0.80.0 and gesso v0.5.0 or later. It takes nothing from
+  `plugins-config.json`; without `Options.App`, startup fails. `plugins` may take
+  arguments: `collage plugin add` and `del` still edit its list.
+- **A page calls the API in the same process** through an endpoint both sides
+  declare: `notes.GetNote.Call(ctx, gesso.NewLocal(api), in, gesso.Bearer(token))`.
+  The call goes through the API's whole pipeline — authentication, guards,
+  validation — and comes back as JSON or a problem, as over the network, without
+  leaving memory. Moved to a process of its own, the API is called through
+  `gesso.NewRemote(url, nil)` instead, its own `Run` handles its lifecycle, and
+  the plugin is dropped; the calling code does not change.
+- If the API's modules fail to start, the failure is logged at Error and the API
+  answers every request `503`, problem code `unavailable`: its handlers would
+  meet modules that are not running.
+- A request in flight is answered before any module stops, since collage stops
+  its server before it shuts plugins down. The `OnShutdown` hooks also run when
+  the API never started — after a build — so a database they close is closed.
+- In a test built with `collagetest`, nothing serves, so the modules do not start:
+  handlers answer, and a worker's jobs run only when the test runs them.
+
 ## Libraries that are not plugins
 
 The plugins above are all registered in `Config.Plugins`. A library is a module
 your own code uses — from a page, or in the application's configuration — so there
 is nothing to register, no `collage plugin add` and no `plugins-config.json`
-section, and it is not counted among the forty-five plugins.
+section, and it is not counted among the forty-six plugins.
 
 ### elagoht/paginate
 

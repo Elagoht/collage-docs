@@ -1,5 +1,5 @@
 ---
-description: Bir plugin'in neler yapabildiği, bir plugin'in nasıl register edilip yapılandırıldığı ve ne işe yaradıklarına göre gruplanmış, yayımlanmış kırk beş plugin.
+description: Bir plugin'in neler yapabildiği, bir plugin'in nasıl register edilip yapılandırıldığı ve ne işe yaradıklarına göre gruplanmış, yayımlanmış kırk altı plugin.
 reference: Plugin, LoadPluginConfig, Env.PluginConfig, ErrUnknownPluginConfig, ErrAppStarted
 ---
 
@@ -320,7 +320,7 @@ mesaj, değeri decode edilemeyen key'in adını verir.
 
 ## Yayımlanmış plugin'ler
 
-Framework ile birlikte kırk beş plugin yayımlanmıştır. Aşağıda ne işe
+Framework ile birlikte kırk altı plugin yayımlanmıştır. Aşağıda ne işe
 yaradıklarına göre gruplanmışlardır. Her biri ayrı bir modüldür ve her birinin tam
 referans niteliğinde kendi README'si vardır. Aşağıdaki bilgiler bir plugin'i
 kurmanız için yeterlidir.
@@ -333,7 +333,7 @@ kurmanız için yeterlidir.
 | [Güvenlik](#security) | secure, ratelimit, basicauth, oauth, fail2ban, consent |
 | [Canlı güncellemeler](#live-updates) | live, websocket, client |
 | [Asset'ler ve teslimat](#assets-and-delivery) | minimizer, opti-image, bundle, favicon, compress, cdnpurge, offline, deploy |
-| [Operasyon ve development](#operations-and-development) | htmlcheck, devtoolbar, accesslog, prometheus, otel, analytics, tenant, errortrack, health, jobs |
+| [Operasyon ve development](#operations-and-development) | htmlcheck, devtoolbar, accesslog, prometheus, otel, analytics, tenant, errortrack, health, jobs, gesso |
 
 [Plugin olmayan library'ler](#libraries-that-are-not-plugins) grupların ardından listelenir.
 
@@ -3343,12 +3343,87 @@ if err := mail.Enqueue(r.Context(), Email{To: to}); err != nil {
   `http.Server`'ını çalıştıran bir uygulama plugin'i `j.Start(ctx)` ile başlatır;
   bkz. [Deployment](/docs/deployment#serving-with-your-own-server).
 
+#### elagoht/gesso
+
+[github.com/Elagoht/collage-gesso](https://github.com/Elagoht/collage-gesso), bir
+[gesso](https://github.com/Elagoht/gesso) uygulamasını collage aynı process'te
+sunduğunda onun lifecycle'ını çalıştırır. gesso, collage'ın kendisinin yapmadığı
+backend işi için bir JSON API framework'üdür. API'nin modülleri (bir queue
+worker'ı, ısıtılmış bir cache) `ListenAndServe` port'unu bağladığında
+[`ServeHook`](/docs/writing-plugins#streams-and-shutdown) üzerinden başlar.
+collage'ın server'ı durduktan sonra ters sırayla durur, ardından API'nin
+`OnShutdown` hook'ları çalışır. `collage build`'de, bir plugin komutunda ya da
+yalnızca `app.Handler()` veya `app.Start()` çağıran bir test'te hiçbir şey başlamaz.
+
+Plugin API'yi mount etmez. Onu, [middleware](/docs/middleware-and-apis)'i
+dışarıda tutan uygulamanın kendi `Handle`'ı ile mount edin ve plugin'e aynı
+app'i verin. App'i `newApp` içinde, `collage.New`'den önce kurun:
+
+```go
+// main.go
+api, err := gesso.New(gesso.Config{BasePath: "/api"}, notes.New(notes.Deps{DB: db}))
+if err != nil {
+	return nil, err
+}
+api.OnShutdown(func(context.Context) error { return db.Close() })
+
+app, err := collage.New(&collage.Config{
+	// …
+	Plugins: plugins(api),
+})
+if err != nil {
+	return nil, err
+}
+if err := app.Handle("/api/", api); err != nil {
+	return nil, err
+}
+```
+
+```go
+// plugins.go: collage plugin add imports the plugin as gesso, so the
+// framework takes another name here.
+import (
+	"github.com/Elagoht/collage/pkg/collage"
+	gessoapp "github.com/Elagoht/gesso"
+
+	gesso "github.com/Elagoht/collage-gesso"
+)
+
+func plugins(api *gessoapp.App) []collage.Plugin {
+	return []collage.Plugin{
+		gesso.New(gesso.Options{App: api}),
+	}
+}
+```
+
+- v0.1.1, collage v0.80.0 ve gesso v0.5.0 ya da sonrasını ister.
+  `plugins-config.json`'dan hiçbir şey almaz; `Options.App` olmadan startup
+  başarısız olur. `plugins` argüman alabilir: `collage plugin add` ve `del`
+  listesini yine düzenler.
+- **Bir sayfa API'yi aynı process'te çağırır**, iki tarafın da tanımladığı bir
+  endpoint üzerinden: `notes.GetNote.Call(ctx, gesso.NewLocal(api), in, gesso.Bearer(token))`.
+  Çağrı API'nin bütün pipeline'ından geçer (authentication, guard'lar,
+  validation) ve network üzerindeki gibi JSON ya da bir problem olarak döner;
+  yalnızca bellekten hiç çıkmaz. API kendi process'ine taşındığında onun yerine
+  `gesso.NewRemote(url, nil)` ile çağrılır, lifecycle'ını kendi `Run`'ı yönetir
+  ve plugin kaldırılır; çağıran kod değişmez.
+- API'nin modülleri başlayamazsa hata Error seviyesinde loglanır ve API her
+  request'e `503` döner, problem kodu `unavailable`: handler'ları çalışmayan
+  modüllerle karşılaşırdı.
+- Devam eden bir request, hiçbir modül durmadan önce cevaplanır, çünkü collage
+  plugin'leri shutdown etmeden önce server'ını durdurur. `OnShutdown` hook'ları
+  API hiç başlamadığında da (bir build'den sonra) çalışır; böylece kapattıkları
+  bir veritabanı kapanmış olur.
+- `collagetest` ile kurulan bir test'te hiçbir şey hizmet vermez, bu yüzden
+  modüller başlamaz: handler'lar cevap verir, bir worker'ın job'ları ise yalnızca
+  test onları çalıştırdığında çalışır.
+
 ## Plugin olmayan library'ler
 
 Yukarıdaki plugin'lerin hepsi `Config.Plugins` içinde register edilir. Library ise
 kendi kodunuzun bir page'den ya da uygulamanın config'inden kullandığı bir
 modüldür. Bu yüzden register edilecek bir şey, `collage plugin add` ya da
-`plugins-config.json`'da bir bölüm yoktur ve kırk beş plugin'in arasında sayılmaz.
+`plugins-config.json`'da bir bölüm yoktur ve kırk altı plugin'in arasında sayılmaz.
 
 ### elagoht/paginate
 
