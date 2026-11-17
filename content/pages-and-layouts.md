@@ -423,6 +423,10 @@ slash from a real one. So a middleware sees two segments where the router sees o
 A router that matched the one would serve a request the
 middleware had judged as something else, so collage serves neither reading.
 
+A segment that decodes to bytes that are not UTF-8, such as `%c3%28`, is a 404 too:
+`{{pageURL}}` and `App.URL` escape Go strings as UTF-8, so no link of the site's
+holds one.
+
 A value that is itself a path, such as `guide/intro`, belongs in a catch-all:
 `{rest...}`. `{{pageURL}}` and `BuildPath` refuse a `/` in a single segment's
 value.

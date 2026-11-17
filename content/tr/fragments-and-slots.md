@@ -1,6 +1,6 @@
 ---
 description: Fragment'ler, sundukları slot'lar, bir fragment başarısız olduğunda ne olduğu ve render sırasında içerikten doldurulan slot'lar.
-reference: NewFragment, NewInlineFragment, InlineHTML, FragmentBuilder, Fragment, FragmentBuilder.WithFallback, FragmentBuilder.WithSlot, FragmentBuilder.WithData, FragmentBuilder.WithoutTypeCheck, FragmentBuilder.Static, FragmentBuilder.Shared, Data, Value, SlotResolverFunc, SlotRule, SlotRequired, SlotSingle, ErrUnknownSlot
+reference: NewFragment, NewInlineFragment, InlineHTML, FragmentBuilder, Fragment, FragmentBuilder.WithFallback, FragmentBuilder.WithSlot, FragmentBuilder.WithData, FragmentBuilder.WithoutTypeCheck, FragmentBuilder.Static, FragmentBuilder.Shared, Data, Value, SlotResolverFunc, SlotRule, SlotRequired, SlotSingle, ErrUnknownSlot, ErrTooManyInlineSources
 ---
 
 # Fragment'ler ve slot'lar
@@ -173,9 +173,9 @@ resolver](#slots-filled-per-render)'da önemlidir. Resolver'ın fragment'leri
 inline olabilir, ama template'leri sabittir ve veri onlara `collage.Value` ya da bir
 data handler üzerinden ulaşır. Engine, program çalıştığı sürece resolver'ların
 fragment'lerinden gelen en fazla 256 farklı inline template'i kabul eder.
-Sonraki, template set'ini her request'te büyütmek yerine, fragment'ini bir
-template'in request verisinden kurulmayıp sabit olması gerektiğini söyleyen bir
-hatayla başarısız kılar.
+Sonraki, template set'ini her request'te büyütmek yerine, fragment'ini
+`collage.ErrTooManyInlineSources` ile başarısız kılar: bir template sabittir,
+request verisinden kurulmaz.
 
 Bunun dışında üç sınırı daha vardır:
 

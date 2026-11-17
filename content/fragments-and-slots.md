@@ -1,6 +1,6 @@
 ---
 description: Fragments, the slots they expose, what happens when one fails, and slots filled from content at render time.
-reference: NewFragment, NewInlineFragment, InlineHTML, FragmentBuilder, Fragment, FragmentBuilder.WithFallback, FragmentBuilder.WithSlot, FragmentBuilder.WithData, FragmentBuilder.WithoutTypeCheck, FragmentBuilder.Static, FragmentBuilder.Shared, Data, Value, SlotResolverFunc, SlotRule, SlotRequired, SlotSingle, ErrUnknownSlot
+reference: NewFragment, NewInlineFragment, InlineHTML, FragmentBuilder, Fragment, FragmentBuilder.WithFallback, FragmentBuilder.WithSlot, FragmentBuilder.WithData, FragmentBuilder.WithoutTypeCheck, FragmentBuilder.Static, FragmentBuilder.Shared, Data, Value, SlotResolverFunc, SlotRule, SlotRequired, SlotSingle, ErrUnknownSlot, ErrTooManyInlineSources
 ---
 
 # Fragments and slots
@@ -166,9 +166,9 @@ This matters most in a [slot resolver](#slots-filled-per-render), which
 builds fragments per request: its fragments can be inline, but their templates are
 fixed, and the data reaches them through `collage.Value` or a data handler. The
 engine takes in at most 256 distinct inline templates from resolvers' fragments
-while the program runs; the next fails its fragment with an error saying a
-template must be fixed, not built from request data, rather than growing the
-template set a request at a time.
+while the program runs; the next fails its fragment with
+`collage.ErrTooManyInlineSources` — a template must be fixed, not built from request
+data — rather than growing the template set a request at a time.
 
 Three more limits come with it:
 

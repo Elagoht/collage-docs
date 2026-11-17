@@ -1,6 +1,6 @@
 ---
 description: Every exported error value in collage, grouped by where it comes from, with what it means and what to do about it.
-reference: ErrCSRFCrossOrigin, ErrCSRFHeaderRequired, ErrStreamingBody, ErrStreamingBodyMethod, ErrNegativeBodyTimeout, ErrCachedFetchPanicked, PanicError, ErrUnknownSlot, ErrConflictingData, ErrTemplateType, TemplateTypeError, ErrNoDocumentHandler, ErrRouteParams, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath, ErrInvalidGuardDecision, ErrGuardRefused, ErrGuarded, ErrConfigureClosed, ErrInvalidCommandName, ErrRedirectLoop, ErrRedirectShadowsPage, ErrLocaleUnreachable, ErrInvalidPattern, ErrDangerousOutDir, ErrOutputPathCollision, ErrUnknownAsset, ErrInvalidPrefix
+reference: ErrCSRFCrossOrigin, ErrCSRFHeaderRequired, ErrStreamingBody, ErrStreamingBodyMethod, ErrNegativeBodyTimeout, ErrCachedFetchPanicked, PanicError, ErrUnknownSlot, ErrConflictingData, ErrTemplateType, TemplateTypeError, ErrNoDocumentHandler, ErrRouteParams, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath, ErrInvalidGuardDecision, ErrGuardRefused, ErrGuarded, ErrConfigureClosed, ErrInvalidCommandName, ErrRedirectLoop, ErrRedirectShadowsPage, ErrLocaleUnreachable, ErrInvalidPattern, ErrDangerousOutDir, ErrOutputPathCollision, ErrUnknownAsset, ErrInvalidPrefix, ErrTooManyInlineSources
 ---
 
 # Errors
@@ -229,13 +229,12 @@ See [Static assets](/docs/assets) and
 A [`collage.Key`](/docs/data-handlers#collagekey) is its name and its type, so one
 name asked for as two types is two keys holding two values, not an error.
 
-Three render failures carry no sentinel:
+Three render failures to know about:
 
 - **A slot resolver's inline templates past the limit.** The engine takes in at
   most 256 distinct inline templates that slot resolvers' fragments bring while the
-  program runs; the next fails its fragment with `collage: too many inline template
-  sources added while rendering; a Source must be fixed, not built from request
-  data`. An inline template is a constant, never built from data — see
+  program runs; the next fails its fragment with `collage.ErrTooManyInlineSources`,
+  which `errors.Is` recognises. An inline template is a constant, never built from data — see
   [Inline templates](/docs/fragments-and-slots#inline-templates).
 - **A `{{hoist}}` area name** that is not letters, digits, `_` and `-` fails the
   render: `collage: hoist area "…": a name is letters, digits, '_' and '-'`.

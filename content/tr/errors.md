@@ -1,6 +1,6 @@
 ---
 description: collage'ın export ettiği bütün error değerleri, nereden geldiklerine göre gruplanmış hâlde; her birinin ne anlama geldiği ve ne yapmanız gerektiğiyle birlikte.
-reference: ErrCSRFCrossOrigin, ErrCSRFHeaderRequired, ErrStreamingBody, ErrStreamingBodyMethod, ErrNegativeBodyTimeout, ErrCachedFetchPanicked, PanicError, ErrUnknownSlot, ErrConflictingData, ErrTemplateType, TemplateTypeError, ErrNoDocumentHandler, ErrRouteParams, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath, ErrInvalidGuardDecision, ErrGuardRefused, ErrGuarded, ErrConfigureClosed, ErrInvalidCommandName, ErrRedirectLoop, ErrRedirectShadowsPage, ErrLocaleUnreachable, ErrInvalidPattern, ErrDangerousOutDir, ErrOutputPathCollision, ErrUnknownAsset, ErrInvalidPrefix
+reference: ErrCSRFCrossOrigin, ErrCSRFHeaderRequired, ErrStreamingBody, ErrStreamingBodyMethod, ErrNegativeBodyTimeout, ErrCachedFetchPanicked, PanicError, ErrUnknownSlot, ErrConflictingData, ErrTemplateType, TemplateTypeError, ErrNoDocumentHandler, ErrRouteParams, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath, ErrInvalidGuardDecision, ErrGuardRefused, ErrGuarded, ErrConfigureClosed, ErrInvalidCommandName, ErrRedirectLoop, ErrRedirectShadowsPage, ErrLocaleUnreachable, ErrInvalidPattern, ErrDangerousOutDir, ErrOutputPathCollision, ErrUnknownAsset, ErrInvalidPrefix, ErrTooManyInlineSources
 ---
 
 # Hatalar
@@ -234,13 +234,12 @@ Bir [`collage.Key`](/docs/data-handlers#collagekey) ismi ve tipinden oluşur. Bu
 yüzden iki farklı tiple istenen tek bir isim, iki ayrı değer tutan iki key'dir; bir
 hata değildir.
 
-Üç render hatasının sentinel'i yoktur:
+Bilinmesi gereken üç render hatası:
 
 - **Sınırı aşan slot resolver inline template'leri.** Engine, program çalıştığı
   sürece slot resolver'ların fragment'lerinin getirdiği en fazla 256 farklı inline
-  template'i kabul eder; sonraki, fragment'ini `collage: too many inline template
-  sources added while rendering; a Source must be fixed, not built from request
-  data` ile başarısız kılar. Inline bir template bir sabittir, asla veriden
+  template'i kabul eder; sonraki, fragment'ini `errors.Is`'in tanıdığı
+  `collage.ErrTooManyInlineSources` ile başarısız kılar. Inline bir template bir sabittir, asla veriden
   kurulmaz. Bkz. [Inline template'ler](/docs/fragments-and-slots#inline-templates).
 - **Harf, rakam, `_` ve `-` dışında bir şey içeren bir `{{hoist}}` alan ismi**
   render'ı başarısız kılar: `collage: hoist area "…": a name is letters, digits,

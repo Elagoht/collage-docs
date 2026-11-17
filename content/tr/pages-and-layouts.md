@@ -436,6 +436,10 @@ gerçek bir slash'ten ayırt edilemez. Yani router'ın tek segment gördüğü y
 middleware iki segment görür. Tek segment'i eşleyen bir router, middleware'in başka bir şey olarak değerlendirdiği bir request'i
 sunmuş olurdu. Bu yüzden collage iki okumadan hiçbirini sunmaz.
 
+UTF-8 olmayan byte'lara decode edilen bir segment, örneğin `%c3%28`, de 404 döner:
+`{{pageURL}}` ve `App.URL` Go string'lerini UTF-8 olarak escape eder, dolayısıyla
+sitenin hiçbir link'i böyle bir segment içermez.
+
 Kendisi bir path olan bir değer, örneğin `guide/intro`, bir catch-all'da yer
 almalıdır: `{rest...}`. `{{pageURL}}` ve `BuildPath`, tek bir segment'in
 değerindeki `/`'ı reddeder.
