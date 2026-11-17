@@ -1,5 +1,5 @@
 module shopping-list
 
-go 1.26
+go 1.26.11
 
-require github.com/Elagoht/collage v0.68.0
+require github.com/Elagoht/collage v1.0.0

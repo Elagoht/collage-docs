@@ -1,9 +1,9 @@
 module github.com/Elagoht/collage-docs
 
-go 1.26.10
+go 1.26.11
 
 require (
-	github.com/Elagoht/collage v0.80.0
+	github.com/Elagoht/collage v1.0.0
 	github.com/Elagoht/collage-favicon v0.2.0
 	github.com/Elagoht/collage-highlight v0.3.0
 	github.com/Elagoht/collage-htmlcheck v0.2.0
