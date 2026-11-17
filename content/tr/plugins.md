@@ -34,14 +34,14 @@ verilen bir yetenekten geçer. Bu ikisiyle bir plugin şunları yapabilir:
 - Kendine ait **bir handler sunabilir.** Bu bir event stream ya da bir WebSocket
   olabilir. Plugin, bir page'in
   [fragment path'lerini](/docs/forms-and-actions#a-fragment-at-its-own-url) render
-  edip bu bağlantı üzerinden gönderebilir (v0.18.0'dan beri).
+  edip bu bağlantı üzerinden gönderebilir.
 - **Invalidation'lardan haberdar olabilir.** Cache'teki page'leri az önce
   invalidate edilen tag'leri alır; böylece bir CDN'deki kopyaları temizleyebilir
   ya da güncel bir fragment gönderebilir.
 - **Hataları gözlemleyebilir.** Her hatayı, pipeline'ın hangi aşamasında oluştuğu
   bilgisiyle birlikte alır.
-- **Her request'i sarmalayabilir.** Bunu kendi middleware'iyle yapar
-  (v0.21.0'dan beri). `Config.Plugins` içindeki bir plugin'in middleware'i,
+- **Her request'i sarmalayabilir.** Bunu kendi middleware'iyle yapar.
+  `Config.Plugins` içindeki bir plugin'in middleware'i,
   `app.Use`'un eklediği her şeyin dışındadır ve listedeki sırayla çalışır; böylece
   sizin middleware'iniz onun request context'ine koyduğunu okur. `RegisterPlugin`
   ile register edilen bir plugin'in middleware'i ise kendisinden önce eklenen
@@ -51,7 +51,7 @@ verilen bir yetenekten geçer. Bu ikisiyle bir plugin şunları yapabilir:
   [Middleware ve kendi API'niz](/docs/middleware-and-apis#plugins-middleware-and-yours).
 - **Çıktıyı denetleyip finding raporlayabilir.** Finding'ler development'ta page'in
   üzerinde gösterilir, static build'in raporunda listelenir ve error seviyesinde
-  build'i başarısız kılar (v0.21.0'dan beri).
+  build'i başarısız kılar.
 - Programınızın çalıştırdığı **komutlar ekleyebilir.** `collage new` ile oluşturulan
   bir projede bunlar `go run . <command>` ile çalışır. Bkz.
   [collage CLI](/docs/cli#plugin-commands).
@@ -125,7 +125,7 @@ collage plugin del elagoht/minimizer
 
 Tek komutta birden fazla plugin verilebilir, her biri ayrı işlenir: başarısız olan
 geri alınır, diğerleri kalır. `@` ile yazılan paket, tek ad altında toplanmış
-plugin'lerdir; `collage new` da aynısını `--with` ile alır (v0.59.0'dan beri):
+plugin'lerdir; `collage new` da aynısını `--with` ile alır:
 
 ```sh
 collage plugin add elagoht/session elagoht/flash elagoht/validate
@@ -248,7 +248,7 @@ identifier'ı paylaşır.
 
 En yaygın yöntem, programınızın yanında duran bir JSON dosyasıdır. `collage new` ile
 oluşturulan bir projede boş bir `plugins-config.json` dosyası bulunur ve proje bu
-dosyayı `env.PluginConfig(files)` ile (v0.68.0'dan beri) zaten yükler. Çalışma
+dosyayı `env.PluginConfig(files)` ile zaten yükler. Çalışma
 dizininde dosya varsa o okunur, yoksa binary'nin embed ettiği kopya. Böylece dosya
 olmadan deploy edilen bir binary ayarlarını korur. Scaffold edilmiş bir projenin
 dışında `LoadPluginConfig` yalnızca dosyayı okur:
@@ -397,7 +397,7 @@ func loadArticle(ctx context.Context, rc *collage.RenderContext) (*Article, []st
 }
 ```
 
-- v0.3.0, collage v0.61.0 ya da sonrasını gerektirir (v0.2.10, collage v0.60.0 için son sürümdü). `Configure` aşaması yoktur, bu
+- `Configure` aşaması yoktur, bu
   yüzden `RegisterPlugin` de bu plugin'i kabul eder. v0.3.0 `siteURL`'i kaldırdı:
   onun yerine uygulamanın `BaseURL`'ünü ayarlayın.
 - `Emit` mevcut node'lara ekleme yapar ve plugin register edilmiş olsun ya da
@@ -470,7 +470,7 @@ meta.Set(rc, meta.Page{
 }
 ```
 
-- v0.3.0, collage v0.61.0 ya da sonrasını gerektirir (v0.2.4, collage v0.60.0 için son sürümdü). Canonical ve `og:` URL'leri
+- Canonical ve `og:` URL'leri
   sitenin origin'ini izler: `Config.BaseURL`'ü ya da host başına, elagoht/tenant
   gibi bir `OriginResolver` plugin'inin verdiğini. İkisi de yoksa uygulama
   başlamaz. v0.3.0 plugin'in kendi `baseURL`'ünü kaldırdı.
@@ -520,7 +520,7 @@ if err := ogimage.Set(rc, "og/post.html", ogimage.Card{Title: post.Title, Label:
 }
 ```
 
-- v0.4.0, collage v0.61.4 ya da sonrasını (v0.2.4, collage v0.60.0 için son sürümdü) ve uygulamanın `Config.BaseURL`'ünü
+- Uygulamanın `Config.BaseURL`'ünü
   gerektirir. Birden fazla host'a hizmet veren bir sitede kartın URL'si request'in
   origin'ini izler; bu yüzden bir `OriginResolver` plugin'i register edilmişse
   `Config.BaseURL` gerekmez. elagoht/meta'dan sonra register edin ve meta'nın
@@ -570,7 +570,7 @@ Plugins: []collage.Plugin{sitemap.New(sitemap.Options{})},
 }
 ```
 
-- v0.3.0, collage v0.61.0 ya da sonrasını gerektirir (v0.2.3, collage v0.60.0 için son sürümdü). Bir sitemap mutlak URL'ler listelediği
+- Bir sitemap mutlak URL'ler listelediği
   için bir origin'e ihtiyaç duyar: `Config.BaseURL`, birden fazla host'a hizmet veren
   bir sitede ise bir `OriginResolver` plugin'inin adlandırdığı, request'in kendi
   origin'i. İkisi de yoksa uygulama başlamaz. v0.3.0 plugin'in kendi `baseURL`'ünü
@@ -612,7 +612,7 @@ Plugins: []collage.Plugin{robots.New(robots.Options{
 }
 ```
 
-- v0.3.0, collage v0.61.0 ya da sonrasını gerektirir (v0.2.4, collage v0.60.0 için son sürümdü). Hiç kural yoksa her crawler'a her
+- Hiç kural yoksa her crawler'a her
   şeye izin verir. User agent belirtmeyen bir kural `*` içindir. Negatif bir
   `crawlDelay` uygulamayı durdurur. v0.3.0 `(*Plugin).Render`'ı kaldırdı: onun
   yerine `/robots.txt`'yi uygulamadan isteyin.
@@ -646,7 +646,7 @@ Plugins: []collage.Plugin{feed.New(feed.Feed{
 })},
 ```
 
-- v0.3.0, collage v0.61.0 ya da sonrasını gerektirir (v0.2.4, collage v0.60.0 için son sürümdü). `Items` bir fonksiyon olduğu için
+- `Items` bir fonksiyon olduğu için
   yalnızca Go'da yapılandırılır; `collage plugin add` `feed.New()` yazar, hiç feed
   verilmezse plugin bir uyarı log'lar ve hiçbir şey sunmaz.
 - Bir feed RSS olarak `/feed.xml`'de, Atom olarak `/atom.xml`'de sunulur. `RSS` ve
@@ -704,7 +704,6 @@ Plugins: []collage.Plugin{redirects.New(redirects.Options{FS: siteFS})},
 }
 ```
 
-- v0.2.3, collage v0.61.4 ya da sonrasını gerektirir (v0.2.2, collage v0.61.0 için son sürümdü); davranışı değiştirmez.
 - Her satırda bir kural vardır: eski path, gittiği yer ve bir status. Status
   yazılmazsa `301`'dir; `302`, `307`, `308` ya da artık olmayan bir page için `-`
   ile birlikte `410` olabilir. Bu durumda sitenin kendi not-found page'i `410`
@@ -718,7 +717,7 @@ Plugins: []collage.Plugin{redirects.New(redirects.Options{FS: siteFS})},
   uygulamanın başlamasını engeller.
 - v0.2.0'dan beri `_redirects`'i ne sunar ne de yazar. Bu bir breaking
   change'dir: `Options.NoRedirectsFile` ve `RedirectsFile()` kaldırıldı, config'teki
-  `noRedirectsFile` key'i ise collage v0.61.0'dan beri bilinmeyen bir key olarak
+  `noRedirectsFile` key'i ise bilinmeyen bir key olarak
   uygulamayı durdurur. Plugin bir [`RedirectSource`](/docs/writing-plugins#redirectsource)'tur:
   static build kurallarını alır, [elagoht/deploy](#elagohtdeploy) da onları host'un
   biçiminde yazar. Bir deploy plugin'i yoksa hiçbir şey yazılmaz.
@@ -757,7 +756,7 @@ Plugins: []collage.Plugin{indexnow.New(indexnow.Options{
 }
 ```
 
-- v0.3.0, collage v0.61.0 ya da sonrasını gerektirir (v0.2.2, collage v0.60.0 için son sürümdü). `key` zorunludur. URL'ler
+- `key` zorunludur. URL'ler
   `Config.BaseURL`'ü izler; birden fazla host'a hizmet veren bir sitede origin başına
   bir submission gönderilir ve iki host'un paylaştığı bir origin bir kez gönderilir.
 - v0.3.0 `baseURL`'ü kaldırdı ve `exclude`'un adını `skip` yaptı: hiç
@@ -816,7 +815,7 @@ doc, err := markdown.Parse[Post](md, rc.Locale, src) // doc.Meta, doc.HTML, doc.
 }
 ```
 
-- v0.4.0, collage v0.77.0 ya da sonrasını gerektirir ve `Config.Plugins` içinde
+- `Config.Plugins` içinde
   olmalıdır: bir template fonksiyonu ekler.
 - `extensions` şunlardan seçer: `table`, `strikethrough`, `linkify`, `taskList`,
   `footnote`, `mark` (`==metin==`, `<mark>metin</mark>` olur), `headingIDs`,
@@ -860,7 +859,7 @@ Plugins: []collage.Plugin{highlight.New(highlight.Options{})},
 }
 ```
 
-- v0.3.0, collage v0.61.0 ya da sonrasını gerektirir. `Config.Plugins` içinde olmalıdır: `{{highlight}}`'ı ekler.
+- `Config.Plugins` içinde olmalıdır: `{{highlight}}`'ı ekler.
 - `noAuto` açılmadıkça bir page'in içerdiği her `<pre><code class="language-go">`
   bulunduğu yerde, render başına bir kez renklendirilir. elagoht/markdown ve çoğu
   Markdown renderer'ı bu biçimi yazar. Cache'lenen bir page renklendirildiği hâliyle
@@ -903,7 +902,7 @@ Plugins: []collage.Plugin{toc.New(toc.Options{})},
 }
 ```
 
-- v0.2.0, collage v0.61.0 ya da sonrasını gerektirir ve `Config.Plugins` içinde olmalıdır:
+- `Config.Plugins` içinde olmalıdır:
   template fonksiyonları ekler.
 - v0.2.0'dan beri varsayılan locale'in metinleri en üst seviyede değil, `text`
   altındadır (`Options.Text`, gömülü değil, adı olan bir alan); diğer locale'ler
@@ -945,7 +944,7 @@ Plugins: []collage.Plugin{search.New(search.Options{})},
 }
 ```
 
-- v0.2.0, collage v0.61.0 ya da sonrasını gerektirir ve `Config.Plugins` içinde olmalıdır:
+- `Config.Plugins` içinde olmalıdır:
   `{{searchBox}}`'ı ekler.
 - v0.2.0'dan beri `exclude` path prefix'lerini değil, her locale'de dışarıda
   bırakılan page adlarını alır: eski bir `"/admin/"` ya da hiçbir page'in taşımadığı
@@ -984,8 +983,7 @@ Plugins: []collage.Plugin{i18n.New(i18n.Options{FS: locales})},
 { "elagoht/i18n": { "dir": "locales", "strict": true } }
 ```
 
-- v0.4.0, collage v0.61.4 ya da sonrasını gerektirir (v0.3.0 v0.61.0 gerektiriyordu)
-  ve `Config.Plugins` içinde olmalıdır: template fonksiyonları ekler. Kataloglar `Options.FS`'ten gelir, bu yüzden
+- `Config.Plugins` içinde olmalıdır: template fonksiyonları ekler. Kataloglar `Options.FS`'ten gelir, bu yüzden
   plugin Go'da kurulur.
 - Desteklenen her locale için iç içe key'lerden oluşan bir JSON dosyası olur:
   `locales/<locale>.json`. Desteklenen bir locale'in dosyası yoksa uygulama
@@ -1088,7 +1086,7 @@ create(servings.Value(), minutes.Ptr(), steps.Value(), tags.Value()) // int, *in
 }
 ```
 
-- v0.3.1, collage v0.61.0 ya da sonrasını gerektirir (v0.1.7, collage v0.60.0 için son sürümdü). `Config.Plugins` içinde olmalıdır: `{{fieldError}}`,
+- `Config.Plugins` içinde olmalıdır: `{{fieldError}}`,
   `{{fieldValue}}` ve `{{hasErrors}}`'ı ekler.
 - `{{fieldValue "name" fallback}}`, reddedilen bir gönderimde gönderilen değeri,
   form ilk kez gösterildiğinde ise fallback'i gösterir. Bir profil ya da düzenleme
@@ -1173,8 +1171,7 @@ Plugins: []collage.Plugin{honeypot.New(honeypot.Options{})},
 }
 ```
 
-- v0.6.1, collage v0.61.0 ya da sonrasını gerektirir (v0.4.4, collage v0.60.0 için son sürümdü) ve
-  `Config.Plugins` içinde olmalıdır: `{{honeypot}}`'ı ekler.
+- `Config.Plugins` içinde olmalıdır: `{{honeypot}}`'ı ekler.
 - **v0.6.0'dan beri** key, hiçbir şey ayarlanmadan `HONEYPOT_KEY`'dan okunur:
   `.env.development`'a ve production'ın çalıştığı yere `HONEYPOT_KEY=`
   (`openssl rand -hex 32`) yazın. `keyEnv` başka bir değişkenin adını verir ve
@@ -1196,11 +1193,9 @@ Plugins: []collage.Plugin{honeypot.New(honeypot.Options{})},
   body'si action'a ulaşmadan önce kontrol edilir. `{{honeypot}}` taşımayan bir form
   hiç kontrol edilmez ve yapılandırmada form'ları tek tek yazmak gerekmez. JSON
   body'ler ve her `GET` kontrol edilmeden geçer.
-- v0.4.3'ten beri `WithStreamingBody()` ile kurulmuş bir action da kontrol
+- `WithStreamingBody()` ile kurulmuş bir action da kontrol
   edilmeden geçer: form'u hiç parse edilmez, dolayısıyla kontrol edilecek bir şey
-  yoktur. Önceden korunan bir path'teki her streaming upload `400` ile reddedilir,
-  `silent` ile ise sessizce düşürülürdü. Plugin'i collage v0.57.0 ile birlikte
-  yükseltin.
+  yoktur.
 - Process path'leri servis ettiği page'lerden öğrenir. Bir restart'tan ya da yeni
   bir sürümden sonra, form'un page'i yeniden servis edilene kadar, path'e doğrudan
   POST atan bir bot kontrol edilmez. `protect`, ilk request'ten itibaren kontrol
@@ -1275,7 +1270,7 @@ return collage.SeeOther("/settings"), nil
 }
 ```
 
-- v0.3.1, collage v0.61.0 ya da sonrasını gerektirir (v0.1.4, collage v0.50.0 için son sürümdü) ve `Config.Plugins` içinde olmalıdır:
+- `Config.Plugins` içinde olmalıdır:
   `{{flashes}}`'ı ekler.
 - **v0.3.0'dan beri** key, hiçbir şey ayarlanmadan `FLASH_KEY`'dan okunur:
   `.env.development`'a ve production'ın çalıştığı yere `FLASH_KEY=`
@@ -1351,9 +1346,7 @@ private := collage.NewFragment("private", "layouts/private.html").
   ardından Go'dan verilen option'lar, en son bu ikisi gelir. Adı verilen
   değişkenin ayarlı olması gerekir, bu ikisi boş olabilir; hex olmayan bir key
   uygulamanın başlamasını engeller.
-- v0.4.0, collage v0.73.0 ya da sonrasını gerektirir (v0.3.1, collage v0.61.4 için son sürümdü);
-  v0.3.0 collage v0.61.0 gerektiriyordu (v0.2.4, collage v0.60.0 için son sürümdü).
-  Template fonksiyonu eklemediği için `RegisterPlugin` de onu kabul eder.
+- Template fonksiyonu eklemediği için `RegisterPlugin` de onu kabul eder.
 - **v0.3.0'da değişenler:** key'ler artık `plugins-config.json`'a girmez.
   `keyEnv` hex key'i tutan ortam değişkeninin, `previousKeysEnv` ise önceki
   key'leri virgülle ayrılmış olarak tutan değişkenin adını verir. Go'dan
@@ -1368,9 +1361,9 @@ private := collage.NewFragment("private", "layouts/private.html").
   `Require("admin", "/login")`. Plugin uygulamada yoksa guard, request'i
   `ErrNoSession` ile başarısız kılar. Her okuyucuyu, onu asla içeri alamayacak bir
   login'e göndermez. Login action'ı `next`'e redirect etmeden önce `next`'i
-  `collage.SafeRedirect`'ten geçirin (collage v0.44.0):
+  `collage.SafeRedirect`'ten geçirin:
   `collage.SafeRedirect(rc.Request.URL.Query().Get("next"), "/")`.
-- **`RequireUserPage(loginPage)`** (v0.4.0'dan beri), login page'inin path'ini
+- **`RequireUserPage(loginPage)`** login page'inin path'ini
   yazmak yerine adını alan `RequireUser`'dır. Path her request için
   `collage.URL` ile, request'in locale'inde kurulur: Türkçe bir page'den
   `/tr/giris?next=…`. Böylece adı değişen ya da çevrilen bir path, guard'ı eski
@@ -1458,10 +1451,10 @@ app.Handle("/uploads/", u.Handler())
 }
 ```
 
-- v0.2.0, collage v0.61.0 ya da sonrasını gerektirir (v0.1.1, collage v0.58.0 için son sürümdü). Template fonksiyonu
+- Template fonksiyonu
   eklemediği için `RegisterPlugin` de onu kabul eder. Plugin'i bir değişkende
   tutun: action `u.Receive`'i çağırır, uygulama da `u.Handler()`'ı bağlar.
-  collage v0.67.0'dan beri bu mount hiçbir middleware olmadan çalışır. Dosyaları
+  Bu mount hiçbir middleware olmadan çalışır. Dosyaları
   bir basicauth'un, bir session kontrolünün ya da elagoht/compress'in kapsaması
   gerekiyorsa `app.Handle` çağrısına `collage.WithMiddleware()` ekleyin.
 - **v0.2.0'da değişenler:** tek bir constructor var, `uploads.New(uploads.Options{…})`:
@@ -1540,8 +1533,7 @@ Plugins: []collage.Plugin{secure.New(secure.Options{
 }
 ```
 
-- v0.3.1, collage v0.61.4 ya da sonrasını gerektirir (v0.2.5, collage v0.60.0 için son sürümdü) ve
-  `Config.Plugins` içinde olmalıdır: `{{cspNonce}}`'ı ekler. Listedeki yeri fark
+- `Config.Plugins` içinde olmalıdır: `{{cspNonce}}`'ı ekler. Listedeki yeri fark
   etmez: nonce, `PersonaliseHook` ile cache'ten sonra ve sıkıştırmadan önce
   yerleştirilir; bu yüzden elagoht/compress'ten önce de sonra da listelenebilir.
   (v0.2.0'dan önce compress'ten önce listelenirse marker gzip'li body'de kalıyor ve
@@ -1615,7 +1607,7 @@ Plugins: []collage.Plugin{ratelimit.New(ratelimit.Options{
 }
 ```
 
-- v0.3.0, collage v0.61.4 ya da sonrasını gerektirir (v0.1.8, collage v0.60.0 için son sürümdü). Hiç seçenek verilmezse her form ve
+- Hiç seçenek verilmezse her form ve
   action, yani `GET`, `HEAD` ve `OPTIONS` dışındaki her metot, önce ondan oluşan bir
   burst'le, ardından iki saniyede bir request'le sınırlanır.
 - Bir request'i, eşleştiği ilk kural sayar. Bu yüzden dar kuralları başa koyun; her
@@ -1665,19 +1657,17 @@ Plugins: []collage.Plugin{basicauth.New(basicauth.Options{
 }
 ```
 
-- v0.1.11, collage v0.67.0 ya da sonrasını gerektirir (v0.1.8, collage v0.60.0 için son sürümdü). Hiç kullanıcı yoksa,
+- Hiç kullanıcı yoksa,
   `disabled` ayarlanmadıkça uygulama başlamaz. `skip`'in varsayılanı `/healthz`,
   `/readyz` ve `/_collage/`'dır.
 - **collage'ın middleware'inden geçeni kapsar**: her page, document, action,
   mount edilmiş dizin ve plugin handler'ı. Uygulamanın kendisinin `app.Handle` ile
-  mount ettiği bir handler collage v0.67.0'dan beri çıplaktır: onun için hiçbir
+  mount ettiği bir handler çıplaktır: onun için hiçbir
   middleware, bu plugin'inki de dahil, çalışmaz. Bu yüzden "korunan" bir staging
   host'ta böyle mount edilmiş bir API, webhook ya da upload handler'ı herkese cevap
   verir. Parolanın arkasına koymak için
   `app.Handle("/api/", api, collage.WithMiddleware())` ile mount edin; `protect` ve
-  `skip` ona da her path'e olduğu gibi uygulanır. (v0.1.11, her request'in parola
-  istediğini söyleyen dokümantasyonu düzeltir; plugin değişmedi, ama bir uygulamayı
-  collage v0.67.0'a taşımak düz `app.Handle` mount'larını onun arkasından çıkarır.)
+  `skip` ona da her path'e olduğu gibi uygulanır.
 - Başarısız bir bcrypt kontrolünün bedeli her seferinde ödenir ve herkes
   `Authorization: Basic x:y` gönderebilir. Dışarıya açık bir sitede
   [elagoht/ratelimit](#elagohtratelimit)'i basicauth'tan **önce**, her metodu sayan
@@ -1743,8 +1733,7 @@ Plugins: []collage.Plugin{
 }
 ```
 
-- v0.3.1, collage v0.61.1 ya da sonrasını (v0.1.3, collage v0.60.0 için son sürümdü) ve elagoht/session
-  v0.3.0 ya da sonrasını gerektirir. Session de register edilmelidir: yoksa login
+- elagoht/session v0.3.0 ya da sonrasını gerektirir. Session de register edilmelidir: yoksa login
   route'ları `500` döner. `collage plugin add elagoht/oauth` önce elagoht/session'ı
   ekler. `OnLogin` ve `Store` kod olduğu için onları Go'da verin. Secret ve key
   ortam değişkeninde durur: dosya yalnızca değişkenlerin adını `clientSecretEnv`,
@@ -1844,9 +1833,9 @@ Plugins: []collage.Plugin{f2b /* , diğerleri */},
 }
 ```
 
-- v0.3.0, collage v0.61.4 ya da sonrasını gerektirir (v0.1.8, collage v0.60.0 için son sürümdü): `collage.Duration`, `Server.TrustedProxies`,
-  `collage.ClientIP` ve collage'ın routing'den önce reddettiği request'leri de gören
-  bir `RequestHook` için. `Config.Plugins`'te ilk sıraya koyun, elagoht/health kullanılıyorsa onun
+- `collage.Duration`'ı, `Server.TrustedProxies`'i,
+  `collage.ClientIP`'yi ve collage'ın routing'den önce reddettiği request'leri de gören
+  bir `RequestHook`'u kullanır. `Config.Plugins`'te ilk sıraya koyun, elagoht/health kullanılıyorsa onun
   arkasına; böylece ban kontrolü diğer plugin'lerin middleware'inden önce çalışır ve
   health'in probe'ları bir ban yüzünden reddedilmez. `elagoht/accesslog` ondan önce
   gelebilir: yalnızca satırı yazar ve ilk sırada bir ban'ın `403`'ünü byte sayısıyla
@@ -1893,7 +1882,7 @@ Plugins: []collage.Plugin{f2b /* , diğerleri */},
   `403 Forbidden` alır, sitenin error page'ini asla. Encoded slash'li ya da kirli
   path'li bir request için collage'ın kendi `404`'ü ya da redirect'i yine de ona
   ulaşır.
-- **Ban bir middleware'dir.** collage v0.67.0'dan beri düz `app.Handle` ile mount
+- **Ban bir middleware'dir.** Düz `app.Handle` ile mount
   edilmiş bir handler hiçbir middleware çalıştırmaz. Bu yüzden ban'lı bir istemci,
   `/api/`'ye yönelik login brute force'u dahil, ona tam erişimini korur;
   oradaki yoklamaları ise yine sayılır. Onu da kapsamak için handler'ı
@@ -1958,8 +1947,7 @@ Plugins: []collage.Plugin{consent.New(consent.Options{})}, // plugins-config.jso
 }
 ```
 
-- v0.2.1, collage v0.61.4 ya da sonrasını gerektirir (v0.2.0 v0.61.0 gerektiriyordu; v0.1.3, collage v0.60.0 için son sürümdü) ve layout'ta `{{hoist "head"}}`
-  ister. Bu işaret yoksa hiçbir şey görünmez ve bekletilen hiçbir şey çalışmaz.
+- Layout'ta `{{hoist "head"}}` ister. Bu işaret yoksa hiçbir şey görünmez ve bekletilen hiçbir şey çalışmaz.
 - Onay tarayıcıda verilir. Her ziyaretçi aynı HTML'i alır, bu yüzden page cache
   eskisi gibi çalışır. `version`'ı artırmak herkese yeniden sorar. `required` bir
   kategori her zaman onaylıdır ve cookie'ye yazılmaz. `text` varsayılan locale'in
@@ -2003,10 +1991,9 @@ Plugins: []collage.Plugin{consent.New(consent.Options{})}, // plugins-config.jso
   `style-src` onun hash'ine izin vermelidir; güncel hash plugin'in README'sindedir
   (`'unsafe-inline'` de işe yarar). Bekletilen inline script'in kendi `nonce`'u ya
   da metninin `'sha256-…'` hash'i `script-src`'de bulunmalıdır.
-- collage-live ile itilen bir fragment, collage v0.78.0'dan beri kendi path'i için
+- collage-live ile itilen bir fragment kendi path'i için
   middleware'den geçer: `serverPaths`'in kapsadığı bir path'te okuyucunun kendi
-  seçimini okur ve paylaşılmadan o okuyucu için render edilir (v0.2.1 bunu test
-  eder; değiştirilecek bir şey yok). Static export script'i page'lerin yanına yazar ve karar tarayıcıda verilir;
+  seçimini okur ve paylaşılmadan o okuyucu için render edilir. Static export script'i page'lerin yanına yazar ve karar tarayıcıda verilir;
   bu yüzden export edilmiş page'ler sunucuda her zaman "onaylanmadı" olarak render
   edilir.
 - `Granted`, render ettiği App'in yapılandırmasını okur (v0.2.0'dan beri; öncesinde
@@ -2056,9 +2043,7 @@ Plugins: []collage.Plugin{client.New(), live.New(live.Options{})},
 ```
 
 - `Config.Plugins` içinde olmalıdır, çünkü layout'un client'ı eklemek için çağırdığı
-  `{{liveClient}}`'ı ekler. v0.7.0 collage v0.71.0'ı, her push'un middleware'den
-  geçmesi için de v0.78.0 ya da sonrasını gerektirir; v0.6.0 collage v0.67.0
-  gerektiriyordu. İkisi de [elagoht/client](#elagohtclient) v0.2.0'ı gerektirir: her cevap page'e
+  `{{liveClient}}`'ı ekler. [elagoht/client](#elagohtclient) v0.2.0'ı gerektirir: her cevap page'e
   collage-client'ın `collage.put`'u ile girer. `collage plugin add elagoht/live`
   client'ı da ekler; client yoksa `collage.New` başarısız olur. `{{liveClient}}`,
   client'ın script'ini kendi script'inden önce yazar. Bu yüzden layout değişmez,
@@ -2141,20 +2126,17 @@ Plugins: []collage.Plugin{client.New(), live.New(live.Options{})},
   edilir; data cache açıkken `Cached`, çektiğini bir kez çekilmiş tutar. Bir sistem monitörü örneği
   [README](https://github.com/Elagoht/collage-live#sampled-data-a-system-monitor)'de
   adım adım anlatılır.
-- **Her push tek bir bağlantı için yapılır** (v0.7.0'dan beri), o bağlantının kendi
-  request'iyle, ve yalnızca ona gönderilir: collage v0.78.0 altında fragment'in
+- **Her push tek bir bağlantı için yapılır**, o bağlantının kendi
+  request'iyle, ve yalnızca ona gönderilir: fragment'in
   URL'sine giden, uygulamanın ve her plugin'in middleware'inin, ardından guard'ların
-  cevapladığı bir request'tir. Bunlardan birinin artık reddettiği bir okuyucuya (sunucuda
+  cevapladığı bir request'tir. Bunlardan birinin reddettiği bir okuyucuya (sunucuda
   iptal edilmiş bir session, değişmiş kimlik bilgileri, bir ban) fragment yerine bir
-  stale mesajı gönderilir. Önceden `Shared` bir render bir kez yapılıp URL'sinin her
-  okuyucusuna gönderiliyordu; bu yüzden böyle bir okuyucu, hiçbir guard'ın kapsamadığı
-  bir fragment'i almaya devam ediyordu. Render'ın kendisi yine her değişiklikte bir
+  stale mesajı gönderilir, hiçbir guard'ın kapsamadığı bir fragment değil. Render'ın kendisi yine her değişiklikte bir
   kez yapılır ve collage onu kabul ettiği okuyucular arasında paylaşır; bir rate
   limit her push'u bir request olarak sayar.
-- **Gönderilen bir fragment'teki form kabul edilir** (v0.7.0'dan beri). Bir
-  bağlantının ilkinden sonraki her render, forgery cookie'sinin doğrulamadığı bir
-  token taşıyordu; bu yüzden gönderilen bir form'u submit etmek, bağlantı yeniden
-  açılana kadar reddediliyordu.
+- **Gönderilen bir fragment'teki form kabul edilir.** Bir
+  bağlantının ilkinden sonraki her render, forgery cookie'sinin doğruladığı bir
+  token taşır.
 - Bir bağlantı, açıldığı andaki cookie'lerle render eder. İmzalı, stateless cookie'ler kullanıyorsanız
   `maxStreamAge` bağlantıyı bu süre sonunda kapatır ve client onu o anda elinde
   olan cookie'lerle hemen yeniden açar.
@@ -2182,9 +2164,8 @@ Plugins: []collage.Plugin{client.New(), websocket.New(websocket.Options{}), live
 - `collage plugin add elagoht/websocket` collage-live'ı ve collage-client'ı da
   ekler ve websocket'i live'dan önceye koyar. Plugin, uygulamanın live plugin'ini
   listede nerede olursa olsun kendisi bulur; live yoksa `collage.New` başarısız olur.
-  v0.4.2, collage v0.67.0, collage-live v0.6.0 ve collage-client v0.2.0 ya da
-  sonrasını gerektirir; `websocket.New(lv)`,
-  `New(nil)` ve `NewWith` kalktı.
+  collage-live v0.6.0 ve collage-client v0.2.0 ya da
+  sonrasını gerektirir.
 - Başka hiçbir şey değişmez. Layout yine `{{liveClient}}`'ı içerir, bu artık
   client'a buraya bağlanmasını söyler. Element'ler de yine `data-collage-push`
   taşır. collage-live kendi event stream'ini sunmayı bırakır. WebSocket da aynı
@@ -2250,7 +2231,7 @@ document.addEventListener("collage:swap", (event) => {
 });
 ```
 
-- v0.2.0, collage v0.67.0 ya da sonrasını gerektirir ve `Config.Plugins` içinde
+- `Config.Plugins` içinde
   olmalıdır: master layout'un `<head>`'inde bir kez çağırdığı `{{clientjs}}`'i
   ekler. Yapılandırılacak bir şey yoktur.
 - **Script yalnızca `window.collage`'ı tanımlar.** `collage.$` `querySelector`'dır,
@@ -2341,7 +2322,7 @@ Plugins: []collage.Plugin{minimizer.New(minimizer.Options{})},
 }
 ```
 
-- v0.2.0, collage v0.61.0 ya da sonrasını gerektirir (v0.1.11, collage v0.60.0 için son sürümdü) ve `Config.Plugins` içinde olmalıdır.
+- `Config.Plugins` içinde olmalıdır.
   Mount edilen dosya sistemlerini sarmalar ve bu işlem uygulama kurulurken yapılır.
 - Sıfır değerli `Options` HTML, JSON ve CSS'i minify eder; `noHTML`, `noJSON` ve
   `noCSS` bunlardan birini kapatır. JavaScript varsayılan olarak kapalıdır,
@@ -2392,7 +2373,7 @@ Plugins: []collage.Plugin{optiimage.New(optiimage.Options{})},
 }
 ```
 
-- v0.5.0, collage v0.61.4 ya da sonrasını gerektirir (v0.3.7, collage v0.60.0 için son sürümdü) ve `Config.Plugins` içinde olmalıdır.
+- `Config.Plugins` içinde olmalıdır.
 - **v0.5.0'da değişen: çıktı boyutu sınırlıdır.** Boyut `<img>`'nin boyutudur ve
   yazarının yazmadığı HTML gösteren bir page (`width` ve `height`'ı koruyan, temizlenmiş
   yorumlar) bir ziyaretçinin boyut belirtmesine izin verir: 2×2 bir görselde
@@ -2482,7 +2463,7 @@ Plugins: []collage.Plugin{bundle.New(bundle.Options{
 }
 ```
 
-- v0.2.0, collage v0.61.0 ya da sonrasını gerektirir (v0.1.6, collage v0.60.0 için son sürümdü) ve `Config.Plugins` içinde olmalıdır:
+- `Config.Plugins` içinde olmalıdır:
   `{{bundle}}`'ı ekler.
 - `minify` ve `sourcemap` değeri `""` (yazılmazsa; `minify` yalnızca development
   dışında açıktır), `"always"` ya da `"never"` olur. **v0.2.0'da değişenler:**
@@ -2522,8 +2503,7 @@ ikonlar collage'ınkilerdir. Ayarlar manifest ve renkler içindir:
 }
 ```
 
-- v0.3.0, collage v0.68.0 ya da sonrasını gerektirir (v0.61.0–v0.67.x için son
-  sürüm v0.2.0, v0.60.0 için v0.1.7'ydi). Kaynak kare bir PNG, JPEG ya da GIF'tir;
+- Kaynak kare bir PNG, JPEG ya da GIF'tir;
   ideal olarak 512 piksel ya da daha büyüktür.
 - **Kaynak varsayılan olarak `/static/icon.png`'dir** (v0.3.0'dan beri), SVG ise
   varsa `/static/icon.svg`'dir. Bunlar sitenin kendi URL'leridir ve onları sunan
@@ -2564,10 +2544,10 @@ Plugins: []collage.Plugin{
 }
 ```
 
-- v0.2.0, collage v0.61.0 ya da sonrasını gerektirir (v0.1.10, collage v0.60.0 için son sürümdü). **Onu response body'lerini yeniden
+- **Onu response body'lerini yeniden
   yazan her plugin'den önce register edin.** İlk register edilen plugin en dıştaki
-  middleware'dir. elagoht/secure ve elagoht/honeypot artık buna ihtiyaç duymaz
-  (secure v0.2.0, honeypot v0.4.0, collage v0.43.0): `PersonaliseHook` ile, her
+  middleware'dir. elagoht/secure ve elagoht/honeypot buna ihtiyaç duymaz:
+  `PersonaliseHook` ile, her
   middleware'in içinde yeniden yazarlar. elagoht/health, compress'ten önce de sonra da
   listelenebilir.
 - En az `minSize` byte'lık metin türleri, request'in kabul ettiği en iyi encoding ile
@@ -2616,7 +2596,7 @@ Plugins: []collage.Plugin{cdnpurge.New(cdnpurge.Options{
 }
 ```
 
-- v0.3.0, collage v0.61.0 ya da sonrasını gerektirir (v0.2.5, collage v0.60.0 için son sürümdü). `cloudflare` ile `webhook`'tan en az
+- `cloudflare` ile `webhook`'tan en az
   biri ve bir origin zorunludur: `Config.BaseURL` ya da bir origin resolver.
 - **v0.3.0'da değişenler:** `baseURL` kaldırıldı (`Config.BaseURL`'i ayarlayın);
   `force` artık `inDevelopment`'tır. `cloudflare.apiToken` ve `webhook.token` yerine,
@@ -2665,7 +2645,7 @@ Plugins: []collage.Plugin{offline.New(offline.Options{
 }
 ```
 
-- v0.2.1, collage v0.61.0 ya da sonrasını gerektirir (v0.1.6, collage v0.60.0 için son sürümdü) ve `Config.Plugins` içinde olmalıdır:
+- `Config.Plugins` içinde olmalıdır:
   `/sw.js`'de sunulan worker'ı kuran `{{offlineScript}}`'i ekler.
 - **v0.2.0'da değişenler:** `version` artık `buildID`, `inDev` artık
   `inDevelopment`'tır. Negatif bir `maxPages` ya da `maxAssets` (her şeyi sakla)
@@ -2712,8 +2692,7 @@ Plugins: []collage.Plugin{deploy.New(deploy.Options{Target: "netlify"})},
 }
 ```
 
-- v0.2.0, collage v0.61.2 ya da sonrasını gerektirir (v0.1.2, collage v0.60.0 için son
-  sürümdü). Constructor'ı `deploy.New(deploy.Options{…})`'dur, JSON değişmedi. `target` şunlardan biridir:
+- Constructor'ı `deploy.New(deploy.Options{…})`'dur. `target` şunlardan biridir:
   `netlify`, `cloudflare`, `vercel` ya da `github-pages`. Başka bir değer
   uygulamanın başlamasını engeller. Boş bırakılırsa hiçbir şey yazmaz, son
   export'un yazdıklarını siler ve uyarı verir.
@@ -2772,8 +2751,7 @@ Plugins: []collage.Plugin{htmlcheck.New(htmlcheck.Options{})},
 }
 ```
 
-- v0.2.0, collage v0.61.0 ya da sonrasını gerektirir (v0.1.6, collage v0.60.0 için son
-  sürümdü). Artık `inProduction` anahtarı yok: production sunucusundaki bulgular
+- Artık `inProduction` anahtarı yok: production sunucusundaki bulgular
   hiçbir yere ulaşmıyordu; onları development'ta ya da static build'de okuyun.
 - Development'ta her page render edilirken denetlenir ve bulunanlar page'in
   üzerinde gösterilir. Static build'de önce her page, sonra build'in bütünü
@@ -2809,7 +2787,6 @@ Plugins: []collage.Plugin{
 },
 ```
 
-- v0.4.0, collage v0.61.0 ya da sonrasını gerektirir (v0.3.2, collage v0.60.0 için son sürümdü).
 - **Yalnızca yerel client'lar.** Panel, yalnızca geliştiricinin makinesindeki ya da
   özel bir ağdaki client için çizilir (loopback, RFC 1918, IPv6 unique-local,
   link-local). Client'ı `collage.ClientIP` belirler; yani `Server.TrustedProxies`
@@ -2868,8 +2845,7 @@ Plugins: []collage.Plugin{accesslog.New(accesslog.Options{})},
 }
 ```
 
-- v0.3.0, collage v0.67.0 ya da sonrasını gerektirir (v0.1.13, collage v0.60.0 için son sürümdü).
-  `/_collage/` ile elagoht/health'in path'leri olan `/healthz` ve `/readyz` varsayılan
+- `/_collage/` ile elagoht/health'in path'leri olan `/healthz` ve `/readyz` varsayılan
   olarak atlanır. Bir `skip` prefix'i, sondaki `/` olsun olmasın segment'lerin
   tamamını kapsar: `/healthz`, `/healthz-report`'u kapsamaz. Routing'den önce
   cevaplanan bir request için temizlenmiş path'le eşleştirilir; bu yüzden
@@ -2927,8 +2903,7 @@ app, err := collage.New(&collage.Config{
 }
 ```
 
-- v0.3.0, collage v0.61.0 ya da sonrasını gerektirir (v0.2.8, collage v0.60.0 için son
-  sürümdü); `NewMetrics` artık `New`'dur. Tek değeri hem uygulamanın `Metrics`'i hem de bir plugin olarak
+- Constructor'ı `New`'dur. Tek değeri hem uygulamanın `Metrics`'i hem de bir plugin olarak
   verin. Birincisi olmadan hiçbir şey ölçülmez, ikincisi
   olmadan hiçbir şey sunulmaz.
 - Hiçbir label bir request'ten alınmaz. v0.2.0'dan beri `route`, `collage.RouteInfo`'nun
@@ -2966,8 +2941,7 @@ app, err := collage.New(&collage.Config{
 { "elagoht/otel": { "skip": ["/healthz"], "trustIncoming": "" } }
 ```
 
-- v0.4.0, collage v0.79.0 ya da sonrasını gerektirir (v0.2.10, collage v0.60.0 için son
-  sürümdü); `NewTracer(tracer)` artık `New(otel.Options{Tracer: tracer})`'dır. Tracer olarak `collage.http`, `collage.render` ve
+- Constructor'ı `New(otel.Options{Tracer: tracer})`'dır. Tracer olarak `collage.http`, `collage.render` ve
   `collage.fragment`'i span'lere dönüştürür. Plugin olarak da çağıranın trace
   context'ini header'lardan okur; bunu collage'ın kendi span'inden önce çalışan bir
   `RequestHook` içinde yapar. İkisi de tek başına çalışır.
@@ -3028,7 +3002,7 @@ Plugins: []collage.Plugin{analytics.New(analytics.Options{
 }
 ```
 
-- v0.2.3, collage v0.61.0 ya da sonrasını gerektirir (v0.2.2, collage v0.60.0 için son sürümdü) ve layout'ta `{{hoist "head"}}` ister.
+- Layout'ta `{{hoist "head"}}` ister.
   Anahtarları kısaltmaları Go'daki gibi yazar: `respectDNT`, `goatCounter`, Umami'nin
   `websiteID`'si, Google Analytics'in `measurementID`'si.
 - Plausible, Umami ve GoatCounter ziyaretleri cookie olmadan sayar. Google Analytics
@@ -3084,7 +3058,7 @@ Plugins: []collage.Plugin{tenant.New(tenant.Options{
 }
 ```
 
-- v0.3.0, collage v0.61.2 ya da sonrasını ister (v0.1.4, collage v0.60.0 için son sürümdü); `tenants` ya da bir `Resolve` fonksiyonu
+- `tenants` ya da bir `Resolve` fonksiyonu
   (yalnızca Go) gerekir.
 - Hiçbir tenant'a ait olmayan host, site'ın kendi 404 page'iyle 404 alır. Başarısız
   olan ya da panic eden bir resolver `Retry-After` ile 503 alır ve bu cache'lenmez.
@@ -3144,7 +3118,7 @@ Plugins: []collage.Plugin{errortrack.New(errortrack.Options{
 }
 ```
 
-- v0.2.0, collage v0.61.0 ya da sonrasını ister (v0.1.7, collage v0.60.0 için son sürümdü); `ErrorEvent`'i status'ü ve request'i taşır.
+- Status'ü ve request'i `ErrorEvent`'ten okur.
   Ayrıca bir `DSN` ya da `DSNEnv` gerekir: yoksa başlangıç başarısız olur. Bunun tek
   istisnası `inDevelopment` verilmemiş dev moddur; orada hiçbir şey gönderilmez ve DSN
   gerekmez. DSN bir kimlik bilgisidir; `plugins-config.json`'a değil, ortam değişkenine
@@ -3203,8 +3177,7 @@ app, err := collage.New(&collage.Config{
 }
 ```
 
-- v0.2.0, collage v0.61.0 ya da sonrasını ister (v0.1.2, collage v0.60.0 için son
-  sürümdü). Süreler string'dir: `"checkTimeout": 2` anahtarı adlandırarak uygulamayı
+- Süreler string'dir: `"checkTimeout": 2` anahtarı adlandırarak uygulamayı
   durdurur; `"2s"` yazın.
 - `/healthz` (`livePath`), process bir request'e cevap verdiği sürece `200 ok`
   döner ve hiçbir check çalıştırmaz. `/readyz` (`readyPath`) `200 ok` döner; bir
@@ -3282,8 +3255,7 @@ if err := mail.Enqueue(r.Context(), Email{To: to}); err != nil {
 }
 ```
 
-- v0.2.0, collage v0.61.0 ya da sonrasını ister (v0.1.1, collage v0.60.0 için son
-  sürümdü). Plugin'i yukarıdaki `j` gibi bir değişkende tutun: `collage plugin add`
+- Plugin'i yukarıdaki `j` gibi bir değişkende tutun: `collage plugin add`
   `jobs.New(jobs.Options{})`'u doğrudan listeye yazar, orada kimse onun üzerinde
   `Every` çağıramaz.
 - **Her instance kendi zamanlanmış job'larını çalıştırır.** Bir load balancer'ın
@@ -3337,8 +3309,7 @@ if err := mail.Enqueue(r.Context(), Email{To: to}); err != nil {
   paylaşırlar, bu yüzden `ShutdownTimeout`'u queue'daki iş artı onların ihtiyacına
   göre ayarlayın.
 - Data handler'lardan enqueue etmeyin: bir build ya da header yakalaması onları
-  çalıştırır ama hiç hizmet vermez, item da hiçbir zaman işlenmez. collage v0.55.0
-  ya da sonrasıyla scaffold edilmiş bir proje en azından onu dropped olarak loglar,
+  çalıştırır ama hiç hizmet vermez, item da hiçbir zaman işlenmez. Scaffold edilmiş bir proje en azından onu dropped olarak loglar,
   çünkü `main.go`'su build'den sonra uygulamayı shutdown eder. Kendi
   `http.Server`'ını çalıştıran bir uygulama plugin'i `j.Start(ctx)` ile başlatır;
   bkz. [Deployment](/docs/deployment#serving-with-your-own-server).
@@ -3396,7 +3367,7 @@ func plugins(api *gessoapp.App) []collage.Plugin {
 }
 ```
 
-- v0.1.1, collage v0.80.0 ve gesso v0.5.0 ya da sonrasını ister.
+- gesso v0.5.0 ya da sonrasını ister.
   `plugins-config.json`'dan hiçbir şey almaz; `Options.App` olmadan startup
   başarısız olur. `plugins` argüman alabilir: `collage plugin add` ve `del`
   listesini yine düzenler.
@@ -3437,7 +3408,7 @@ kullanılır. Bkz. [Pagination](/docs/static-export#pagination).
 go get github.com/Elagoht/collage-paginate
 ```
 
-- v0.2.0, collage v0.61.0 ya da sonrasını gerektirir. `FromPath(rc, last)`,
+- `FromPath(rc, last)`,
   `PathNamed` ile `StaticParams`'ın yazdığı `n` path parametresini okur; v0.1'de
   parametrenin adını alırdı. `paginate.Version` kaldırıldı.
 
@@ -3466,7 +3437,7 @@ app, err := collage.New(&collage.Config{
 })
 ```
 
-- v0.1.0, collage v0.66.0 ya da sonrasını ve Redis 6 ya da sonrasını gerektirir.
+- Redis 6 ya da sonrasını gerektirir.
   Tek bir node ve Sentinel (`Config.Client` üzerinden) desteklenir, Redis Cluster
   desteklenmez.
 - `New` Redis'e hiç bağlanmaz. Bu yüzden Redis kapalıyken de uygulama açılır ve
@@ -3513,7 +3484,7 @@ Plugin'ler, bir sunucunun render ettiği page'lerden fazlasını görür:
 - **Error page'leri** de aynı render hook'larından geçer. Böylece 404 page'iniz de
   diğer page'ler gibi minify edilir ve zenginleştirilir.
 - **Bir action'ın response olarak döndüğü page** de `OnAfterRender`'dan geçer
-  (v0.10.0'dan beri). Bu page, bir form'un validation sonrası yeniden render'ıdır.
+  Bu page, bir form'un validation sonrası yeniden render'ıdır.
   Böylece `GET` ile gelen page gibi minify edilir. Bkz.
   [Form'lar ve action'lar](/docs/forms-and-actions#the-validation-re-render).
 - **Document'lar** (sitemap'ler, feed'ler, JSON) kendi hook'larından geçer. Böylece
@@ -3521,7 +3492,7 @@ Plugin'ler, bir sunucunun render ettiği page'lerden fazlasını görür:
 - **Static export da sunucudaki render ile aynı render hook'larını çalıştırır.**
   Her plugin önce başlatılır ve yapılandırılır. Böylece export edilen site,
   sunucunun sunduğu siteyle aynı olur. Bkz. [Static export](/docs/static-export).
-- **Static bir build'in header yakalaması** (v0.52.0'dan beri), bir
+- **Static bir build'in header yakalaması** bir
   `BuildFinishedHook` plugin'i register edilmişse yazılan her dosyayı handler'a
   sorar. Bu yüzden middleware ve request hook'ları bir build'in path'lerini görür.
   Trafiği sayan ya da sınırlayan bir plugin bunları
@@ -3535,7 +3506,7 @@ Plugin'ler, bir sunucunun render ettiği page'lerden fazlasını görür:
   middleware'in içinde çalışır. Bkz.
   [İstemedikçe middleware yok](/docs/middleware-and-apis#no-middleware-unless-you-ask).
 - **Yalnızca hizmet verirken çalışan iş** (bir scheduler, bir queue worker'ı)
-  `OnServe`'de başlar (v0.55.0'dan beri). Onu yalnızca `ListenAndServe` çağırır:
+  `OnServe`'de başlar. Onu yalnızca `ListenAndServe` çağırır:
   bir static export, bir plugin komutu ve `app.Handler()` onu hiçbir zaman
   başlatmaz. Bkz. [Plugin yazmak](/docs/writing-plugins#streams-and-shutdown).
 

@@ -95,7 +95,7 @@ There is no `<title>` in the template. The layout declares one with `WithTitle`,
 and `{{hoist "head"}}` is where it lands. A page that declares its own title
 replaces the site's rather than adding a second one — the recipe page will, in a
 moment. See [Head and SEO](/docs/head-and-seo#keys-and-the-innermost-wins).
-The marker comes after the site's stylesheet (since v0.77.0), so a stylesheet a
+The marker comes after the site's stylesheet, so a stylesheet a
 page hoists is linked after it and wins a rule of equal specificity.
 
 ## Look at the home page
@@ -120,8 +120,8 @@ func Home() *collage.Fragment {
 const homeBlock collage.InlineHTML = `<h1>Hello from {{.Name}}</h1>`
 ```
 
-The markup is in the Go file, as a `collage.InlineHTML` constant: since v0.77.0
-the scaffold keeps every page's and fragment's markup inline, and only layouts in
+The markup is in the Go file, as a `collage.InlineHTML` constant: the scaffold
+keeps every page's and fragment's markup inline, and only layouts in
 `templates/`. Editing it is a Go change, which `collage dev` rebuilds for. See
 [Inline templates](/docs/fragments-and-slots#inline-templates).
 
@@ -356,9 +356,10 @@ page written by hand goes here the same way: one more line in the call, and its
 area's package in the imports under an alias like `recipespages`.
 
 Registration is where mistakes are caught. A template path with a typo, a required
-slot with nothing in it, two pages with one name, a malformed path — each one stops
-the program at startup with an error naming the page, rather than waiting for the
-first visitor to find it.
+slot with nothing in it, two pages with one name, a malformed path, a template
+`html/template` cannot escape — a `<script>` string left open, an attribute left
+in two states — each one stops the program at startup with an error naming the
+page or the template, rather than waiting for the first visitor to find it.
 
 ## See it
 

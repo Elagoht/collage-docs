@@ -1,6 +1,6 @@
 ---
 description: How collage caches rendered pages and the data they are made from, and how it knows what to throw away.
-reference: CacheConfig, Cached, App.PurgeTags, CacheStale, CacheWarm, Once, Key, TaggedCache, StaleCache, CacheStatusHeader, SkipCache, Vary, PageBuilder.Static, PageBuilder.Incremental, PageBuilder.Dynamic, FragmentBuilder.Static, FragmentBuilder.Shared, StrategyAuto, PathTag, SharedCache, Reached, WriteOutcome, WriteFresh, WriteStale, WriteSkipped
+reference: CacheConfig, Cache, Varied, Cached, App.PurgeTags, CacheStale, CacheWarm, Once, Key, TaggedCache, StaleCache, CacheStatusHeader, SkipCache, Vary, PageBuilder.Static, PageBuilder.Incremental, PageBuilder.Dynamic, FragmentBuilder.Static, FragmentBuilder.Shared, StrategyAuto, PathTag, SharedCache, Reached, WriteOutcome, WriteFresh, WriteStale, WriteSkipped
 ---
 
 # Caching
@@ -82,10 +82,17 @@ own `Cache-Control`, whatever the strategy:
   cached like any other, but each reader is sent their own token — see
   [Forms and actions](/docs/forms-and-actions#pages-with-forms-are-still-cached).
 - **A degraded render** (see [below](#what-is-cached-and-when)) goes out
-  `no-store`, since v0.34.0. It is not kept by this server, so it must not be kept
+  `no-store`. It is not kept by this server, so it must not be kept
   by a CDN in front of it for the page's TTL either. So does a stale page served
-  in place of a failed render (since v0.63.0).
-- **In development** every page and document goes out `no-store`, since v0.34.0,
+  in place of a failed render.
+- **A response that already carries a `Set-Cookie`** — one your middleware set, a
+  session refresh say — goes out `private, no-store`, as the framework's own
+  forgery cookie makes it. Public, a CDN would store the cookie with the page and
+  hand it to every reader after. The page is still cached and served from this
+  server's cache; only its headers change. A middleware that sets a cookie on
+  every request therefore makes the page private at every CDN: set it only where
+  it is needed.
+- **In development** every page and document goes out `no-store`,
   so the browser does not keep a page from before your edit.
 
 ```go
@@ -113,7 +120,7 @@ error (`collage.ErrInvalidTTL`), and a negative one is too — not a page that
 silently never expires.
 
 [Documents](/docs/documents) — sitemaps, feeds, anything that is not HTML — take
-the same three calls and are stored, keyed, invalidated and — since v0.12.0 —
+the same three calls and are stored, keyed, invalidated and
 [coalesced](#concurrent-misses-render-once) the same way.
 
 ### A page that declares none
@@ -146,7 +153,7 @@ from a cookie, the time.
 
 A fragment whose handler reads only the path's parameters and the locale can say
 so itself, with `Static()` on the fragment, and then it does not make a page
-dynamic. Since v0.17.0.
+dynamic.
 
 ```go
 more := collage.NewFragment("more-recipes", "fragments/more-recipes.html").
@@ -170,7 +177,7 @@ It covers the fragment's own handler and nothing else:
 and it stays the same until something is invalidated. A handler that reads no
 cookie but returns a measurement — CPU load, a queue's length, the time — keeps
 the first promise and not the second: it is the same for every reader, not the
-same over time. Mark it `Shared()` instead. Since v0.19.0.
+same over time. Mark it `Shared()` instead.
 
 ```go
 cpu := collage.NewFragment("cpu", "fragments/cpu.html").
@@ -181,16 +188,15 @@ cpu := collage.NewFragment("cpu", "fragments/cpu.html").
 
 `Shared()` leaves the page's strategy alone — the page stays dynamic, and an
 export does not write one moment's reading into it — and lets whatever pushes the
-fragment to readers render it once per change: since v0.78.0 collage hands each
+fragment to readers render it once per change: collage hands each
 reader its middleware and guards admit a copy of that one render (see
 [Writing plugins](/docs/writing-plugins#pushing-fragments)).
 `Static()` implies it. As with `Static()`, a handler that breaks the promise sends
 one reader's data to another.
 
 A page's declared strategy is never second-guessed, in either direction: a page
-that says `Dynamic()` stays dynamic whatever its fragments say. Until v0.16.0 a
-page that declared nothing was dynamic; one that relied on that, with no handler to
-make it so, now says `Dynamic()`.
+that says `Dynamic()` stays dynamic whatever its fragments say. A page that should render on every request
+but has no handler to make it so says `Dynamic()`.
 
 A [document](/docs/documents#a-fixed-body) resolves the same way: dynamic with a
 handler, static with a fixed body.
@@ -233,9 +239,10 @@ A cached page is found by a key made from:
 - the query string (see [below](#query-parameters-in-the-key)),
 - any value your middleware declared with `collage.Vary` (read back in a handler
   with `collage.Varied`),
-- the request's host (since v0.34.0), normalised (since v0.79.0): lower-case,
-  with no port and no trailing dot, and an IPv6 address in brackets in its
-  canonical form.
+- the request's host, normalised: lower-case, with no port and no trailing dot,
+  and an IPv6 address in brackets in its canonical form,
+- whether the request arrived over TLS: a plain request and a TLS one for the same
+  URL are two entries (see [below](#what-a-shared-render-sees)).
 
 Two requests with the same key are, as far as collage is concerned, the same page.
 
@@ -245,10 +252,10 @@ write that URL into the copy every reader is served.
 
 It is normalised because the client chooses how to spell it. `EXAMPLE.com:8080`,
 `example.com.` and `example.com` are one site, as are `[0:0::1]:9` and `[::1]`;
-before v0.79.0 each spelling was a render and an entry of its own — a cheap way to
-push the pages everyone reads out of a bounded cache. The shared render is handed
+keeping each spelling apart would make each a render and an entry of its own — a
+cheap way to push the pages everyone reads out of a bounded cache. The shared render is handed
 the same normalised host, so the spelling one request used is never written into
-what another is served. **A cacheable page's data handler no longer sees the port
+what another is served. **A cacheable page's data handler does not see the port
 in `r.Host`.** A site served on a port that is not the scheme's default builds its
 absolute URLs from `Config.BaseURL` — `collage.BaseURL(rc)` — which keeps it. A
 dynamic page sees `Host` as sent, and so does a static build's header capture.
@@ -256,34 +263,37 @@ Entries already on disk stay readable.
 
 ### What a shared render sees
 
-A cached render is served to every reader whose request has its key, so since
-v0.34.0 it is handed only what the key holds: the path, the host (normalised, as
-the key holds it), the query parameters in the key, and the headers your middleware declared with
-`collage.Vary`. Not the reader's cookies, `Authorization`, address or client
+A cached render is served to every reader whose request has its key, so it is
+handed only what the key holds: the path, the host (normalised, as the key holds
+it), whether the request is TLS, the query parameters in the key, and the headers
+your middleware declared with `collage.Vary`. Not the reader's cookies, `Authorization`, address or client
 certificate, and not a query parameter `WithCacheParams` left out.
 
-A handler on a static or incremental page that reads a cookie finds none — where
-it used to find the first reader's, and write it into the copy everyone after got.
+A handler on a static or incremental page that reads a cookie finds none: handing it the first reader's would write it into the copy everyone
+after got.
 The request's context is stripped the same way: a value your middleware stored in
 it — a signed-in user, a tenant, a request id — is hidden from a shared render,
 for the same reason the cookie is.
 
+The request's TLS state is shown as it is: a template building an absolute URL
+from the request writes `https://` for a TLS request, which is why a plain request
+and a TLS one are two entries, and so are their `Shared()` fragment renders. It is
+the connection's own TLS state that is keyed, not `X-Forwarded-Proto`, which a
+shared render cannot see: behind a proxy that terminates TLS every request is
+plain.
+
 Read a value your middleware declared with `collage.Vary` back with
 `collage.Varied(ctx, header)`, with the context a data handler, a page's
-`StaticParams`, a sitemap's `LastMod` or a document handler receives (since
-v0.42.0; before v0.60.0 it took the `RenderContext`, and `VariedContext` took a
-context); it is safe there because it is in the key, so each value has its own
+`StaticParams`, a sitemap's `LastMod` or a document handler receives; it is safe there because it is in the key, so each value has its own
 cached page.
 
 A value that is not a cache dimension does not belong in a shared render — a page
 that needs the reader's own request is `Dynamic()`, and a dynamic page sees all of
-it. In development, a hidden context value a handler actually reads is logged, so
-the mistake is visible. Documents follow the same rule (since v0.41.1; before it, a
-cacheable document's render still saw the first reader's context values).
+it. In development, a hidden context value a handler actually reads is logged, so the mistake is visible. Documents follow the same rule.
 
 ### Origins
 
-`collage.BaseURL(rc)` is safe in a shared render (since v0.42.0). The host is in the
+`collage.BaseURL(rc)` is safe in a shared render. The host is in the
 cache key, so every reader served a copy asked for the same host, and the origin
 the render built absolute URLs against is theirs too.
 
@@ -325,10 +335,9 @@ if err := app.InvalidateTags(ctx, "post:"+slug, "blog:posts"); err != nil {
 }
 ```
 
-Every cached page carrying any of those tags is marked stale (since v0.63.0; before,
-it was dropped). It is no longer served as fresh:
+Every cached page carrying any of those tags is marked stale. It is no longer served as fresh:
 
-- it is rendered again in the background right away (since v0.64.0; see
+- it is rendered again in the background right away (see
   [below](#warming-after-an-invalidation)), or by the next request if that has not
   happened yet, and a good render is stored in its place;
 - but the old page is kept, to answer with when that render fails or comes out
@@ -354,6 +363,13 @@ if err := app.PurgeTags(ctx, "post:"+slug); err != nil {
 Use it for data that must not be shown again even once. The cost is that a failed
 fetch, or a failed render, then fails the page, as there is nothing to fall back
 on.
+
+Neither call is cancelled with the context you pass it. `InvalidateTags(r.Context(), …)`
+from a webhook, or an action's `InvalidateTags` for a request whose reader has
+gone, still invalidates: the call runs with that context's values but not its
+cancellation, bounded at 30 seconds (a [`SharedCache`](#a-cache-a-fleet-shares)'s
+drop at five). `InvalidateTagsN` and `PurgeTags` do the same.
+
 
 <figure class="diagram-figure" data-search-ignore>
 <svg class="diagram" viewBox="0 0 320 332" role="img" aria-labelledby="cache-tags-title">
@@ -398,7 +414,7 @@ not an exact figure for live pages reached, and it errs both ways:
   [below](#the-tag-index-is-per-process-and-bounded), or written by another
   instance — is invalidated without being counted. A
   [`collage.SharedCache`](#a-cache-a-fleet-shares) is the exception: the pages its
-  own index reached, whichever instance wrote them, are counted (since v0.66.0).
+  own index reached, whichever instance wrote them, are counted.
 
 It is good for a log line or a metric, not for logic.
 
@@ -412,8 +428,8 @@ admin form (a webhook, end to end, is [below](#example-author-pages-on-a-blog)).
 An action can do it declaratively, with
 [`InvalidateTags` on its result](/docs/forms-and-actions#invalidating-what-an-action-changed),
 which runs before the response is written — so a reader redirected to the page
-they just changed is not served the old page as though it were fresh: since
-v0.64.0 the redirect's own page is rendered again before the redirect is written
+they just changed is not served the old page as though it were fresh: the
+redirect's own page is rendered again before the redirect is written
 (see [Warming](#warming-after-an-invalidation)), and the old one is served only if
 that render fails or is slow: see
 [the note there](/docs/forms-and-actions#invalidating-what-an-action-changed).
@@ -425,7 +441,7 @@ redirect is written.
 ### Invalidating by path
 
 Every cached page and document also depends on a tag naming the URL path it was
-rendered for, `collage.PathTag(path)` (since v0.23.0), so an entry can be
+rendered for, `collage.PathTag(path)`, so an entry can be
 invalidated by its path when that is what you know rather than a tag:
 
 ```go
@@ -438,9 +454,8 @@ An invalidation also says what it reached. A plugin hears of every one through
 `OnCacheInvalidate`, and the event carries the tags and — in `Entries`, each a host
 and a path — the cached pages and documents invalidated: what a CDN has to purge,
 and a search engine be told has changed. A page that was never cached is not in it.
-Every plugin implementing it is called, even after one before it failed (since
-v0.78.0), and the failures come back joined from `InvalidateTags`. Triggering one
-is the application's: a plugin has no `InvalidateTags` of its own since v0.78.0.
+Every plugin implementing it is called, even after one before it failed, and the failures come back joined from `InvalidateTags`. Triggering one
+is the application's: a plugin has no `InvalidateTags` of its own.
 
 See [Writing a plugin](/docs/writing-plugins#cacheinvalidatehook);
 [elagoht/cdnpurge](/docs/plugins#elagohtcdnpurge) and
@@ -459,41 +474,38 @@ With a shared store of your own — `Cache.Store`, a Redis say — implement
 to invalidate by tag as well, and it can reach what another instance wrote. The
 built-in disk cache does this, which is why its tags still work after a restart.
 
-A store that is a [`collage.SharedCache`](#a-cache-a-fleet-shares) (since v0.66.0)
+A store that is a [`collage.SharedCache`](#a-cache-a-fleet-shares)
 closes the gap completely: its own tag index names every page and data value any
 instance wrote, so the count, `CacheInvalidateEvent.Entries` and warming cover the
 fleet's pages, not only this process's.
 
-**The record per tag is capped by `Cache.MaxEntries`** (default 10000; before
-v0.60.0 a field of its own, `MaxKeysPerTag`). The query string is part of the key,
+**The record per tag is capped by `Cache.MaxEntries`** (default 10000). The query string is part of the key,
 so a client can mint any number of keys for one page; without a cap the index would
-grow for ever. When a tag reaches the cap, the oldest key recorded under it is
-forgotten by that index. What that costs depends on the store:
+grow for ever. When a tag reaches the cap, the oldest key recorded under it is dropped from the
+index, and its cache entry is removed with it: a key the index lets go of is one
+`InvalidateTags` could no longer reach, so it is never left cached to be served
+stale. That page renders again on its next request, as if the cache had evicted it.
+This holds whatever the store is, one of your own included.
 
-- The built-in memory and disk caches both implement `collage.TaggedCache`,
-  keeping their own record of tags per entry, so with them invalidating the tag
-  still reaches every entry — only the count `InvalidateTagsN` reports falls short.
-- A store of your own that does not implement `TaggedCache` has only collage's
-  index to go by: a forgotten page stays in it until it expires, and invalidating
-  the tag no longer reaches it.
+The built-in memory and disk caches also implement `collage.TaggedCache`, keeping
+their own record of tags per entry, so with them invalidating a tag still reaches
+every entry; only the count `InvalidateTagsN` reports falls short. A store of your
+own that does not implement `TaggedCache` has only collage's index to go by, and it
+is the removal of the dropped entry that keeps it from serving stale.
 
-Set `MaxEntries` above the number of cached URLs one tag can really cover; a
-negative `MaxEntries` keeps this cap at 10000.
+Set `MaxEntries` above the number of cached URLs one tag can really cover. A zero
+or negative `MaxEntries` caps the index at 10000.
 
-**With a built-in cache the index is also capped as a whole** (since v0.40.0), at
-`MaxEntries` keys. Every cached path is a tag of its own, so a per-tag cap alone
-let the index reach that cap times the number of pages — 10000 keys for each page
-of a large site, flooded with invented queries, while the cache itself held
-10000 entries in all.
-
-No more keys than `MaxEntries` can still be live, so the oldest written go first; a
-negative `MaxEntries` leaves this off. A store of your own keeps the per-tag cap
-only, since collage cannot know its size.
+**The index is also capped as a whole**, at `MaxEntries` keys, whatever the store.
+Every cached path is a tag of its own, so a per-tag cap alone would let the index
+reach that cap times the number of pages: 10000 keys for each page of a large site,
+flooded with invented queries, while the cache itself held 10000 entries in all.
+The oldest written go first, and a key the index drops leaves the cache with it.
 
 ## Warming after an invalidation
 
 An invalidated page is stale until something renders it again, and the first
-visitor would pay for that render. So since v0.64.0, after every `InvalidateTags`
+visitor would pay for that render. So after every `InvalidateTags`
 and `PurgeTags` — yours, a plugin's, an action's — the pages and documents the
 invalidation reached are rendered again in the background, with fresh data, and
 stored: the next visitor is handed a fresh `HIT`.
@@ -520,7 +532,7 @@ until one succeeds.
   not apply to it.)
 - **`Cache.WarmLimit` caps one invalidation.** Zero means 1000, the most
   recently written pages first; a negative value turns warming off. Pages past
-  the cap render on their first request, as before.
+  the cap render on their first request.
 - **A run stops at the first real render failure**, with one warning
   (`collage: warming stopped, a page failed to render`), so a down upstream is
   not asked again for every remaining page; those are left stale, and
@@ -567,6 +579,13 @@ What follows from those rules:
   [name the parameters it reads](#query-parameters-in-the-key), so a junk query is
   the same key as the clean URL.
 
+  Without `WithCacheParams`, what bounds it is that only a key a visitor read
+  since its last warm is warmed, and `WarmLimit`. A client can still read 1000
+  junk variants of a page between two invalidations and have each rendered again by
+  the next: no more renders than the misses it would have cost without warming,
+  but arriving after every invalidation. A page that is invalidated often and whose
+  query can be anything wants `WithCacheParams`, or a lower `WarmLimit`.
+
 The warmed keys are tracked again, so a later invalidation's `OnCacheInvalidate`
 names them again. A run logs one line at info (`collage: warmed pages`, with the
 counts warmed, skipped and failed), and each warmed key is a `CacheWarm` metrics
@@ -589,7 +608,7 @@ to 5 seconds and to its response's write deadline — see
 
 ## Stale pages and `X-Collage-Cache`
 
-Since v0.63.0 a page or document that is stale — marked so by `InvalidateTags`, or
+A page or document that is stale — marked so by `InvalidateTags`, or
 past its TTL — is not thrown away by the built-in stores. (After an invalidation
 it is normally [warmed](#warming-after-an-invalidation) before anyone asks, so
 what follows is what a visitor meets when the warm render failed, was skipped or
@@ -609,9 +628,8 @@ render:
   page's data is stale until the background fetch replaces it.
 - **A render that answers 404** drops the entry: the content is gone.
 
-Before v0.63.0 an invalidated page was gone, so an invalidation followed by a
-failing render was a 500. `PurgeTags` still leaves nothing to fall back on, so a
-purged page that fails to render fails.
+`PurgeTags` leaves nothing to fall back on, so a purged page that fails to render
+fails.
 
 An expired page is stale in the same sense, so an `Incremental` page whose upstream
 is down keeps answering with its last good render after its TTL. There is no
@@ -673,8 +691,7 @@ is the cache's bounds, not the key: `Cache.MaxEntries`, `Cache.MaxBytes` and the
 tracker's caps (see [the tag index is bounded](#the-tag-index-is-per-process-and-bounded)).
 A client minting variants evicts entries, which costs hit rate, not memory.
 
-Since v0.79.0 a client can no longer split the cache by spelling the host
-differently (see [The cache key](#the-cache-key)); the query is the dimension left
+A client cannot split the cache by spelling the host differently (see [The cache key](#the-cache-key)); the query is the dimension left
 to it. A cacheable page that declares nothing keeps the whole raw query in its key,
 so every value a client invents is an entry of its own. Declare `WithCacheParams`
 on every cacheable page and document that reads the query, and
@@ -735,18 +752,18 @@ Cache: collage.CacheConfig{
 somewhere nobody looked. Add it to `.gitignore`. The `collage.Cached` values are
 kept in `Dir/data/` too: see [Across a restart](#across-a-restart).
 
-Since v0.11.0 a directory that cannot be created — a read-only filesystem, a
+A directory that cannot be created — a read-only filesystem, a
 container with nowhere to write — is not a reason not to start: collage logs a
 warning and caches in memory instead.
 
-Since v0.39.0 the disk cache holds at most `MaxEntries` too — the same default of
+The disk cache holds at most `MaxEntries` too — the same default of
 10000, a negative value for a cache you mean to leave unbounded — and evicts the
 oldest by file modification time when it is full. The cache key includes the
 request's host and, by default, its whole query, so without the cap an anonymous
 caller varying either could fill the disk one never-evicted file at a time.
 
-Since v0.40.0 the eviction scan runs outside the lock writes take, so a flood of
-new keys no longer makes every writer wait on a scan of the whole directory; a new
+The eviction scan runs outside the lock writes take, so a flood of
+new keys does not make every writer wait on a scan of the whole directory; a new
 entry that reaches a full cache while a scan is still making room is served and
 not stored, so the cap holds.
 
@@ -756,7 +773,7 @@ not stored, so the cap holds.
 default: one large page asked for under thousands of invented queries
 (`?utm=1`, `?utm=2`, ...) fills the cache with copies of it. Ten thousand copies of
 a 57 KB documentation page is over half a gigabyte of memory; of a 500 KB listing,
-five. `MaxBytes` (since v0.40.0) bounds the weight: past it the oldest entries are
+five. `MaxBytes` bounds the weight: past it the oldest entries are
 evicted, as at `MaxEntries`, and a page larger than the whole cap is served but not
 stored.
 
@@ -781,11 +798,12 @@ ignores the query stores one copy, not thousands.
 
 ### Memory in front of the disk
 
-Since v0.63.0 a `"disk"` cache is two tiers: a [memory cache](#memory-or-disk) in
+A `"disk"` cache is two tiers: a [memory cache](#memory-or-disk) in
 front of the directory. Reading a page from a file is an open, a read and a decode
 on every request, so a hit is served from memory instead.
 
-- A write goes to disk and then to memory.
+- A write goes to disk and then to memory. One that fails on disk is not kept in
+  memory either: the page renders again until the disk recovers.
 - A read asks memory first and copies what it finds on disk into memory as it goes.
 - `MaxEntries` bounds both tiers. `MaxBytes` bounds the disk; the memory tier holds
   256 MiB, or `MaxBytes` when that is smaller.
@@ -799,9 +817,7 @@ must hold less (see
 build's directory, newest entries first, until the next one would make it evict.
 The pages written most recently are `HIT`s from memory at once, and the rest are
 one file read away. Stale entries are warmed too, so a restart in the middle of an
-upstream outage still has them to serve. Files written by v0.62 or earlier carry
-no key in their header and are not warmed; they are still served, on the first
-request that reads them.
+upstream outage still has them to serve. 
 
 **One `Dir` per instance.** Instances that share a `Dir` do not share a cache.
 Each has its own memory tier, and memory's answer is final once it holds a page.
@@ -844,6 +860,12 @@ So a stored page carrying another key's marker — rendered before the key chang
 or by a process that generated its own — is treated as a miss: it is dropped and
 rendered again. Pages without a form are unaffected by the key entirely.
 
+The cache looks after its directory. At startup it removes the directories of other
+builds that nothing has written to for an hour, and the temporary files a crash left
+behind; it touches nothing else under `Dir`. An entry is flushed before it is
+renamed into place, and one whose content does not match its ETag is a miss, so a
+truncated file is never served as a page.
+
 Everything that shares a `Dir` and a build shares the files on disk, including
 two apps in one test binary. Give each test its own directory with `t.TempDir()` — see
 [Testing](/docs/testing#isolate-the-disk-cache).
@@ -855,9 +877,14 @@ ignored. `Enabled` is still the master switch. Do not assign a typed nil pointer
 it — a nil `*myCache` in an interface field is not a nil interface, and collage will
 call straight through it.
 
-`InvalidateKey` and `Invalidate` remove. A store that implements only these keeps
-the behaviour from before v0.63.0: an invalidated page is gone, and a re-render
-that fails fails the request.
+`collage.Cache` has four methods: `Get`, `Set`, `InvalidateKey` and `Clear`.
+Invalidating by tag, `Invalidate`, belongs to `collage.TaggedCache`, because only a
+store that records tags at write time can do it (see
+[the tag index](#the-tag-index-is-per-process-and-bounded)). A store that
+implements only `Cache` has its entries removed on invalidation: an invalidated page
+is gone, and a re-render that fails fails the request. The cache interfaces gain no
+methods within v1; what a store can add arrives as optional interfaces like the
+ones below.
 
 ### Stale pages in your own store
 
@@ -909,7 +936,7 @@ value, until it expires — for a `Static` page, until the instance restarts or 
 it. A `"disk"` cache whose `Dir` they share does not change that (see
 [above](#memory-in-front-of-the-disk)).
 
-Since v0.66.0 a store that implements `collage.SharedCache` is shared by the whole
+A store that implements `collage.SharedCache` is shared by the whole
 fleet. Pages and `collage.Cached` data both live in it, and nothing is kept per
 instance in front of it, so an `InvalidateTags` or `PurgeTags` on any instance
 reaches the next read on every instance.
@@ -963,9 +990,8 @@ app, err := collage.New(&collage.Config{
 ```
 
 `New` never dials Redis. It fails only for a bad config or URL, so an application
-starts, and serves uncached, while its Redis is down. Use `rediss://` for TLS; the
-password and the database number come from the URL too. v0.1.0 needs collage
-v0.66.0 or later and Redis 6 or later.
+starts, and serves uncached, while its Redis is down. Use `rediss://` for TLS; the password and the database number come from the URL too. It needs Redis 6 or
+later.
 
 Only `URL` (or `Client`) is needed:
 
@@ -994,7 +1020,7 @@ Running Redis for it:
 - **Persistence (RDB or AOF)**, or accept a rare stale-as-fresh page: a
   `FLUSHALL`, or a restart without persistence, between an invalidation and the
   write of a render it overlapped erases what lets that write be told apart.
-- **A single node or Sentinel.** Redis Cluster is not supported in v0.1.0.
+- **A single node or Sentinel.** Redis Cluster is not supported.
 - **Clocks in sync** (NTP, say): freshness is judged with each instance's clock.
 
 ### What is shared, and what is not
@@ -1154,15 +1180,19 @@ nothing to configure.
 
 - **Only cached routes coalesce.** A dynamic page has no cache key, so two
   requests are two renders, as the page asked. A cached [document](/docs/documents)
-  coalesces like a page since v0.12.0: an expiring feed that many clients poll runs
+  coalesces like a page: an expiring feed that many clients poll runs
   its handler once.
 - **One reader giving up does not fail the others.** A request whose connection
   closes stops waiting. The render itself belongs to none of the requests waiting
-  on it, so it does not stop when the first of them does: since v0.18.1 it runs
-  detached from that request's cancellation, and since v0.39.0 with its per-reader
-  context values stripped as well, bounded by the fragments' own timeouts.
+  on it, so it does not stop when the first of them does: it runs
+  detached from that request's cancellation, with its per-reader context values
+  stripped as well, bounded by the fragments' own timeouts. A page or document
+  whose first reader left mid-render is still cached and tracked, and a
+  document's handler is not handed that cancellation either.
   One reader pressing stop cannot hand everyone who asked at the same moment a page
   whose parts failed with "context canceled".
+- **A panic does not wedge the key.** If a coalesced render panics, the requests
+  waiting on it get a 500, and the next request renders again.
 - **It is visible.** A request served this way is reported to your metrics twice:
   as a `CacheMiss`, when its lookup found nothing, and then as `CacheCoalesced`,
   when it was served another request's render. So the renders a key cost are its
@@ -1230,7 +1260,7 @@ bounded by `MaxEntries`, not by `MaxBytes`: it holds Go values whose size is the
 application's, so a key taken from a query parameter is one entry per value a
 visitor invents, and on a `"disk"` cache they outlive the process.
 Tags stay plain strings — `"author:" + id` here — because they are what
-`InvalidateTags` is called with. Before v0.50.0 the key was a string.
+`InvalidateTags` is called with.
 
 ### One set of tags for both caches
 
@@ -1253,17 +1283,16 @@ the old author they were meant to replace.
 - **The key is yours.** It names the value across the whole application, so make
   it as specific as the fetch: `authorKey.With(id)`, not `authorKey`. A key is its
   name and its type, so two keys of one name and different types hold two values
-  rather than one read as the wrong type (before v0.50.0, that was
-  `collage.ErrCachedTypeMismatch`).
+  rather than one read as the wrong type.
 - **One fetch per key at a time.** Renders that ask for a key while it is being
   fetched wait for that fetch rather than starting their own.
 - **Errors are not stored.** A fetch with no stale value to fall back on hands
   its error to everyone waiting; the next render tries again. (With a stale value,
   a failed fetch is a failed refresh: see below.)
-  Since v0.34.0 two failures are not handed on: a fetch that failed because the
+  Two failures are not handed on: a fetch that failed because the
   request that started it went away is fetched again by a waiter still being
   served, and a fetch that panicked frees its key and answers its waiters with
-  `collage.ErrCachedFetchPanicked` — before, the key stayed taken until a restart.
+  `collage.ErrCachedFetchPanicked`, so the key is never left taken.
 - **Invalidation keeps the old value, to serve until a new one arrives.**
   `InvalidateTags`, and a value's `ttl` running out, mark it stale rather than
   removing it.
@@ -1276,9 +1305,8 @@ the old author they were meant to replace.
   A fetch that was still running when its tags were invalidated hands its result
   to whoever was waiting and is kept, but as stale; one overtaken by `PurgeTags` is
   not kept at all. A render that began after the invalidation and joined such a
-  fetch gets its value stale too (since v0.66.0, for every store; before, it got
-  it as fresh, and its page could be stored fresh from the data the invalidation
-  replaced), so that render is served `no-store` and not stored. A warm render
+  fetch gets its value stale too (for every store, so its page is never stored fresh from the data the
+  invalidation replaced), so that render is served `no-store` and not stored. A warm render
   instead waits for fresh data and stores a fresh page; one that joins such a
   fetch fetches again.
 - **A failed refresh keeps serving stale.** If the background fetch fails, the

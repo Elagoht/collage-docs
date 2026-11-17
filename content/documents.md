@@ -1,6 +1,6 @@
 ---
 description: Routes that answer with bytes instead of HTML — sitemaps, feeds, robots.txt, JSON — cached and invalidated like pages.
-reference: DocumentBuilder.AtRoot, DocumentBuilder.WithBody, DocumentBuilder.WithTimeout, DocumentBuilder.WithStaticParams, NewDocument, DocumentBuilder, Document, DocumentResult, StaticParamsFunc, ErrConflictingData
+reference: DocumentBuilder.AtRoot, DocumentBuilder.WithBody, DocumentBuilder.WithTimeout, DocumentBuilder.WithStaticParams, NewDocument, DocumentBuilder, Document, DocumentResult, StaticParamsFunc, DocumentBuilder.WithDependencyTags, ErrConflictingData, ErrNoDocumentHandler
 ---
 
 # Documents: sitemaps, feeds, robots.txt
@@ -69,17 +69,17 @@ want a template. The framework serves what you return, byte for byte.
 | Call | What it does |
 | --- | --- |
 | `collage.NewDocument(name, contentType)` | Starts the builder. Both are required. |
-| `AtRoot(pattern)` | The URL pattern that reaches the document outside every locale: no prefix, whatever the locale configuration. For the site's own files — `/robots.txt`, `/llms.txt`. Since v0.14.1. |
-| `WithPath(locale, pattern)` | The URL pattern that reaches the document in `locale`. Placeholders work as they do for pages, text around them included (since v0.41.0): `/feeds/{category}.xml`, or `/blog/{slug}.md` beside a page at `/blog/{slug}` — see [text around a placeholder](/docs/pages-and-layouts#text-around-a-placeholder). |
+| `AtRoot(pattern)` | The URL pattern that reaches the document outside every locale: no prefix, whatever the locale configuration. For the site's own files — `/robots.txt`, `/llms.txt`. |
+| `WithPath(locale, pattern)` | The URL pattern that reaches the document in `locale`. Placeholders work as they do for pages, text around them included: `/feeds/{category}.xml`, or `/blog/{slug}.md` beside a page at `/blog/{slug}` — see [text around a placeholder](/docs/pages-and-layouts#text-around-a-placeholder). |
 | `WithHandler(fn)` | The function that produces the body. |
-| `WithBody(b)` | A body fixed when the program starts, in place of a handler. A document has no template to fall back on, so it needs one of the two, and not both. Since v0.16.0. |
+| `WithBody(b)` | A body fixed when the program starts, in place of a handler. A document has no template to fall back on, so it needs one of the two, and not both. |
 | `Dynamic()` | Run the handler on every request. What a document with a handler and no strategy resolves to. |
 | `Static()` | Run once, serve from cache until a tag invalidates it. |
 | `Incremental(ttl)` | Serve from cache, run again once `ttl` has passed. |
 | `WithCacheParams(names...)` | Which query parameters take part in the cache key, as for a page. |
-| `WithStaticParams(fn)` | The placeholder values a static build writes a `{param}` pattern for; see [below](#documents-in-a-static-export). Since v0.16.0. |
+| `WithStaticParams(fn)` | The placeholder values a static build writes a `{param}` pattern for; see [below](#documents-in-a-static-export). |
 | `WithDependencyTags(tags...)` | Tags every response from this document carries. |
-| `WithTimeout(d)` | Bounds the handler; zero, the default, means `Config.Template.Timeout` (since v0.61.0). |
+| `WithTimeout(d)` | Bounds the handler; zero, the default, means `Config.Template.Timeout`. |
 | `WithRedirect(from, to, status)` / `WithPermanentRedirect(from, to)` | Old paths that redirect here. |
 | `Build()` / `BuildErr()` | The document, and the errors the chain collected. |
 
@@ -88,6 +88,12 @@ was set, and `RegisterDocument` refuses a document with both as
 `collage.ErrConflictingData`. What the builder recorded stays on the document, and
 `RegisterDocument` refuses it by name whether or not you called `BuildErr`, so
 checking it yourself is optional.
+
+A document has one spelling of its path, without a trailing slash in either
+`TrailingSlash` mode, as `app.URL` and `pageURL` build it. The other spelling is a
+`301` to it, with the query kept, so `/sitemap.xml/` ends at `/sitemap.xml`. A
+middleware sees the path as it arrived, so one that guards an exact document path
+must [compare the canonical spelling](/docs/middleware-and-apis#a-trailing-slash-is-the-routers-not-the-middlewares).
 
 ### A fixed body
 
@@ -131,7 +137,7 @@ for a path parameter, `rc.Locale` for the resolved locale, `rc.Request` for the
 request. `rc.Page` is `nil`, because no page is being rendered, and there is no
 head to hoist into.
 
-Two things a data handler has work here too (since v0.10.0).
+Two things a data handler has work here too.
 [`collage.Cached`](/docs/caching#caching-data-across-pages) shares the data cache
 with the pages, so a feed reading the posts every post page already fetched fetches
 none of them again, and the tags it was given join the document's.
@@ -153,7 +159,7 @@ Three rules are worth knowing:
   not take the process down.
 
 A document's handler runs under its own timeout when it sets one with
-`WithTimeout(d)` (since v0.61.0), and under `Config.Template.Timeout` (five seconds
+`WithTimeout(d)`, and under `Config.Template.Timeout` (five seconds
 by default) — the same setting that is the default data-handler timeout for
 fragments — when it does not.
 
@@ -176,7 +182,7 @@ the `ctx` you are given, so pass it on to whatever you call.
 
 A failing document never answers with an HTML error page: a crawler that asked for
 `sitemap.xml` has no use for one. That includes a `405` for a method the document
-does not answer (plain text since v0.11.0).
+does not answer.
 
 It gets `text/plain` with the right status and `Cache-Control: no-store`. The body
 depends on the mode:
@@ -211,11 +217,10 @@ rewrite a document's body before it is cached and served — a minifier, say. Th
 page render hooks (`OnBeforeRender`, `OnAfterRender`) do not fire, since nothing is
 rendered. See [Writing a plugin](/docs/writing-plugins).
 
-An invalidated document is rendered again in the background right away (since
-v0.64.0; see [Caching](/docs/caching#warming-after-an-invalidation)), or on its
+An invalidated document is rendered again in the background right away (see [Caching](/docs/caching#warming-after-an-invalidation)), or on its
 next request if that has not happened yet.
 
-Since v0.63.0 it is kept until then, as stale. When that render fails, it is served
+It is kept until then, as stale. When that render fails, it is served
 the way a stale page is: with `Cache-Control: no-store` and
 `X-Collage-Cache: STALE`. A render that answers 404 drops it. See
 [Caching](/docs/caching#stale-pages-and-x-collage-cache).
@@ -457,8 +462,7 @@ served: `dist/tr/sitemap.xml`.
   does for a page.
 - Two tasks that resolve to one file — `WithStaticParams` listing one set of values
   twice, or a document at a page's `index.html` — stop the build with
-  `collage.ErrOutputPathCollision` before anything is written (since v0.60.0; before,
-  the rest were skipped with `ErrDuplicateOutputPath`). Documents' `WithStaticParams`
+  `collage.ErrOutputPathCollision` before anything is written. Documents' `WithStaticParams`
   run before any page renders, so this is known up front.
 
 `WithStaticParams` works as it does for a

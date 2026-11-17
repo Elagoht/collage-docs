@@ -17,8 +17,7 @@ cevaplanır.
 
 Bir action tam olarak bildirdiği method'lara cevap verir. Bir page `HEAD`'e,
 body'si atılmış bir `GET` olarak cevap verir, çünkü bir page'i render etmek bir
-okumadır; bir action'ın handler'ı ise bir şeyi değiştirebilir. Bu yüzden
-v0.79.0'dan beri `HEAD` artık bir `GET` action'ına düşüp handler'ını çalıştırmaz:
+okumadır; bir action'ın handler'ı ise bir şeyi değiştirebilir. Bu yüzden `HEAD` bir `GET` action'ına düşüp handler'ını çalıştırmaz:
 action'ın kendi `Allow` listesiyle (`GET, OPTIONS`) bir 405'tir. Okuma olan ve
 `HEAD`'e cevap vermesi gereken bir action onu bildirir:
 `WithMethods(http.MethodGet, http.MethodHead)`. Bir page'in fragment URL'si bir
@@ -27,11 +26,10 @@ okumadır ve ikisine de cevap vermeye devam eder.
 Yalnızca `GET` (ya da `GET` ve `HEAD`) bildiren bir action forgery kontrolü olmadan
 çalışır ([Forgery koruması](#forgery-protection) bölümüne bakın); bu yüzden herhangi
 bir site, bir okuyucunun tarayıcısına onu bir link ya da bir `<img>` ile
-çağırtabilir. v0.79.0'dan beri böyle bir action'ı register etmek development'ta bir
+çağırtabilir. Böyle bir action'ı register etmek development'ta bir
 uyarı log'lar (fragment path'leri hariç); bir şey değiştiriyorsa ona `POST` verin.
 
-`OPTIONS`, `TRACE` ve `CONNECT` bir action'a değil, sunucuya aittir. v0.56.0'dan
-beri bunlardan birini bildiren bir action register etmek `collage.ErrInvalidActionMethod`
+`OPTIONS`, `TRACE` ve `CONNECT` bir action'a değil, sunucuya aittir. Bunlardan birini bildiren bir action register etmek `collage.ErrInvalidActionMethod`
 ile başarısız olur. Hata, action'ın ve method'un adını verir. Action'ın nasıl
 oluşturulduğu fark etmez: `NewAction(...).WithMethods`, bir page'in `WithAction`'ı ya da
 `WithActionFor`'u aynı sonucu verir.
@@ -141,7 +139,7 @@ bir page'deki bir form, page'in reddettiği bir okuyucu tarafından gönderileme
 Guard, body okunmadan ve forgery kontrolünden önce çalışır.
 
 Bir action'ın kendi guard'ı da olabilir: `WithGuard`, bir layout'un aldığı
-`GuardFunc`'ın aynısını alır (v0.70.0'dan beri). Page üzerindeki bir action'da,
+`GuardFunc`'ın aynısını alır. Page üzerindeki bir action'da,
 page'in guard'larından sonra sorulur: formu kimin göreceğine page, kimin
 gönderebileceğine action karar verir:
 
@@ -167,22 +165,20 @@ err := app.RegisterAction(collage.NewAction("like").
 ```
 
 Page'i olmadığı için page guard'ları da yoktur. Onu kimin çağırabileceğini
-söylemek için `WithGuard(guards.SignedIn)` ile kendi guard'ını verin
-(v0.70.0'dan beri): bir page'inkiler gibi, body okunmadan ve forgery
+söylemek için `WithGuard(guards.SignedIn)` ile kendi guard'ını verin: bir page'inkiler gibi, body okunmadan ve forgery
 kontrolünden önce sorulur. `collage add action api/like --path /api/like --guard
 signedIn` onu bu şekilde yazar, [`collage routes`](/docs/cli#collage-routes) da
 hangi action'ların kendi guard'ı olduğunu gösterir.
 
 Ona post eden bir form path'i yazmak yerine action'ı adıyla belirtir. Böylece
-action taşındığında form eski adrese post etmeye devam etmez (v0.36.0'dan beri):
+action taşındığında form eski adrese post etmeye devam etmez:
 
 ```html
 <form method="post" action="{{actionURL "like"}}">{{csrfToken}}…</form>
 ```
 
 `actionURL` parametreleri `pageURL` gibi alır ve render'ın locale'ini takip eder.
-Go tarafında render'ın locale'i için `rc.ActionURL("like", params)`
-(v0.37.0'dan beri), başka bir locale için
+Go tarafında render'ın locale'i için `rc.ActionURL("like", params), başka bir locale için
 `app.ActionURL("like", locale, params)` kullanılır. Bir page'in
 action'ı register edildiği adla bulunur (yukarıdaki `WithAction` için
 `"contact:POST"`), ama aynı URL'ye `pageURL` ile de ulaşılır. Ayrıntılar için
@@ -190,11 +186,9 @@ action'ı register edildiği adla bulunur (yukarıdaki `WithAction` için
 
 Bir action bir page ile aynı path'i paylaşabilir. `WithAction`'ın yaptığı da tam
 olarak budur. Ancak page'in cevap verdiği `GET` ve `HEAD` için bu geçerli değildir.
-v0.18.0'dan beri bir page'in ya da bir document'ın path'inde bu iki method'dan
-birine cevap veren bir action, `collage.ErrDuplicateRoute` ile reddedilir. İkisinin
-hangi sırayla register edildiği fark etmez. Önceden böyle bir action önce eşleşir ve
-page'i tek kelime söylemeden gizlerdi. İki action da aynı path'te aynı method'a
-cevap veremez.
+Bir page'in ya da bir document'ın path'inde bu iki method'dan birine cevap veren bir action, `collage.ErrDuplicateRoute` ile reddedilir. İkisinin hangi sırayla register edildiği fark etmez. İki action da aynı path'te aynı method'a cevap veremez.
+
+Kendi URL'sindeki bir action'ın path'inin tek bir yazımı vardır: `actionURL`'in kurduğu gibi, her iki `TrailingSlash` modunda da sondaki slash olmadan. Öbür yazıma gelen bir request `308` ile ona yönlendirilir; bu, method'u ve body'yi korur. Bu yüzden `/api/like/`'a post edilen bir form `/api/like`'a yeniden post edilir. [Belirli bir path'i koruyan bir middleware](/docs/middleware-and-apis#a-trailing-slash-is-the-routers-not-the-middlewares) path'i geldiği gibi görür; bu yüzden kanonik yazımı karşılaştırmalıdır.
 
 `RegisterAction`; adı, path'i, method'u ya da handler'ı olmayan bir action'ı da
 reddeder. Daha önce alınmış bir adla gelen ikinci bir action'ı da reddeder. Her
@@ -208,20 +202,18 @@ Response'u bir `ActionResult` belirler. Onu bir helper ile oluşturun:
 | Helper | Response |
 | --- | --- |
 | `collage.SeeOther(url)` | `url`'e `303 See Other` |
-| `collage.SeeOtherPage(rc, name, params)` | Adıyla belirtilen bir page'e `303 See Other`; path'ini `rc.URL` kurar. `(*ActionResult, error)` döner (v0.68.0'dan beri) |
+| `collage.SeeOtherPage(rc, name, params)` | Adıyla belirtilen bir page'e `303 See Other`; path'ini `rc.URL` kurar. `(*ActionResult, error)` döner |
 | `collage.RenderPage(page)` | Bu request'in `RenderContext`'i ile render edilmiş bütün bir page |
 | `collage.RenderFragment(f)` | Tek bir fragment'in markup'ı, layout olmadan |
 | `collage.JSON(status, v)` | `application/json` olarak marshal edilmiş `v`; `(*ActionResult, error)` döner |
 | `collage.JSONBytes(status, body)` | Zaten encode edilmiş `body`, `application/json` olarak |
 | `collage.Status(status)` | Sadece bir status, body yok |
 
-v0.60.0'dan önce `collage.JSON` encode edilmiş byte'ları, `JSONOf` ise değeri
-alıyordu. Artık `JSON` değeri, `JSONBytes` byte'ları alır; `NoContent` ise `Status`
-oldu.
+
 
 Struct'ı kendiniz de doldurabilirsiniz. Struct'ın body üretmek için dört alanı
 vardır: `Location`, `Fragment`, `Page` ve `Body`. Bunlardan birini set edersiniz:
-v0.60.0'dan beri ikisini ya da daha fazlasını set eden bir result, birinin sessizce
+İkisini ya da daha fazlasını set eden bir result, birinin sessizce
 kazanması yerine `collage.ErrAmbiguousActionResult` olarak bildirilen bir `500`'dür.
 Diğer alanlar bunlarla birlikte kullanılır:
 
@@ -273,13 +265,13 @@ için [elagoht/flash](/docs/plugins#elagohtflash), tek seferlik bir mesajı redi
 Bir script'in `fetch` ile gönderdiği bir form da redirect'i izlerdi. Redirect'in
 gösterdiği page'i indirir, sonra oraya gider ve page ikinci kez render edilirdi.
 
-v0.20.0'dan beri `Collage-Fetch` header'ını (`collage.FetchHeader`) taşıyan bir
+`Collage-Fetch` header'ını (`collage.FetchHeader`) taşıyan bir
 request'e redirect yerine `204 No Content` ile cevap verilir ve hedef
 `Collage-Location` (`collage.LocationHeader`) içinde gönderilir. Script de
 yalnızca bir kez gider. Action eskisi gibi `SeeOther` döndürür. collage-live'ın
 form'ları bu header'ı gönderir.
 
-v0.71.0'dan beri bu yolla yalnızca bir path ya da bir `http`/`https` adresi
+Bu yolla yalnızca bir path ya da bir `http`/`https` adresi
 iletilir. Script `location.assign` ile gider. Bu, bir `Location`'ı izleyen
 tarayıcının çalıştırmayı reddettiği bir `javascript:` URL'sini sayfanın içinde
 çalıştırır. Bu yüzden `javascript:`, `data:` ya da başka bir hedef, `fetch`'in
@@ -359,10 +351,7 @@ işlemidir. Bu yüzden handler içinde oluşturulan bir page, içi boş bir layo
 render edilirdi. collage böyle bir page'i, page'in adını vererek
 `collage.ErrUnregisteredPage` ile reddeder.
 
-Bir page'in URL'sindeki action'da `rc.Page`, o page'in register edilmiş değeridir
-(v0.33.0'dan beri). Bu yüzden yukarıdaki action'a hiçbir şey verilmesi gerekmez;
-bir closure'ın yakalayacağı `var page` de yoktur. Öncesinde bu iş böyle
-yapılıyordu.
+Bir page'in URL'sindeki action'da `rc.Page`, o page'in register edilmiş değeridir. Bu yüzden yukarıdaki action'a hiçbir şey verilmesi gerekmez; bir closure'ın yakalayacağı `var page` de yoktur.
 
 Kendi URL'sinde register edilmiş bir action'ın orada page'i yoktur ve
 `rc.Page`'i `nil`'dir. Böyle bir action, istediği page'in register edilmiş
@@ -371,7 +360,7 @@ bir `422` ile cevaplanan form post'u uyarı olarak log'lanır. Çünkü okuyucu 
 sayfa görür ve bunun olağan sebebi `nil` bir `rc.Page`'dir.
 
 Bir page'e path yerine adıyla redirect etmek için `collage.SeeOtherPage`
-kullanın (v0.68.0'dan beri). Böylece path'i değişen bir page, redirect'i eski path'e
+kullanın. Böylece path'i değişen bir page, redirect'i eski path'e
 yönelmiş hâlde bırakamaz. Path'i
 [`rc.URL`](/docs/links-and-locales#links-from-go) ile, request'in locale'inde ve her
 değeri kendi path segment'i içinde tutarak kurar. Ad bilinmiyorsa hata döner.
@@ -381,11 +370,11 @@ Bunun için de action'a `*App` taşımak gerekmez:
 return collage.SeeOtherPage(rc, "post", map[string]string{"slug": slug})
 ```
 
-v0.68.0'dan önce path'i `rc.URL` ile (v0.37.0'dan beri) kurun ve `SeeOther`'a verin.
+
 
 Okuyucuyu geldiği yere geri gönderen bir login, o yeri `next` query parametresinden
 okur ve bu parametre okuyucunun girdisidir. `Location` olmadan önce
-`collage.SafeRedirect`'ten geçirin (v0.44.0'dan beri):
+`collage.SafeRedirect`'ten geçirin:
 
 ```go
 return &collage.ActionResult{
@@ -419,7 +408,7 @@ hook'ları nedenini de görür:
 | `collage.ErrCSRFMissing` | Token ya da cookie yok |
 | `collage.ErrCSRFMismatch` | Token cookie'deki ile eşleşmiyor |
 | `collage.ErrCSRFInvalid` | Token'ı bu uygulama imzalamamış |
-| `collage.ErrCSRFCrossOrigin` | Tarayıcı, gönderimin başka bir origin'den geldiğini söylüyor (v0.34.0'dan beri) |
+| `collage.ErrCSRFCrossOrigin` | Tarayıcı, gönderimin başka bir origin'den geldiğini söylüyor |
 
 ### Form içinde
 
@@ -433,18 +422,16 @@ tamamını render eder. Yani yanlış yapabileceğiniz bir şey kalmaz:
 </form>
 ```
 
-Kullanılan yöntem imzalı bir double-submit cookie'dir. Token, rastgele bir değer ile
-bu değerin `Security.CSRFKey` ile atılmış imzasından oluşur. Token hem bir cookie'de
-hem de form'da gönderilir. Kontrol etmek için key dışında hiçbir şey gerekmez. Session
-store yoktur, instance'lar arasında paylaşılan hiçbir şey yoktur.
+Kullanılan yöntem imzalı bir double-submit cookie'dir. Token; rastgele bir değerden, verildiği andan ve bunların `Security.CSRFKey` ile atılmış imzasından oluşur. Token hem bir cookie'de hem de form'da gönderilir. Kontrol etmek için key ve saat dışında hiçbir şey gerekmez. Session store yoktur, instance'lar arasında paylaşılan hiçbir şey yoktur.
+
+Token'ın süresi dolar. Verilme zamanı imzanın altındadır, bu yüzden değiştirilemez; `Security.CSRFTokenTTL`'den eski bir token reddedilir ve sonraki form'a yenisi gönderilir. Varsayılan 12 saattir; okuyucunun kendi hızında doldurduğu bir form için yeterince uzundur. Negatif bir değer, bir token'ı imzası doğrulandığı sürece geçerli tutar.
 
 ### Request nereden geldi
 
 İmzalı bir token, saldırgandan saklanan bir secret değildir: form içeren her page,
 onu yükleyen herkese bir token verir. Domain'iniz için cookie yazabilen biri (kardeş
 bir subdomain, düz HTTP üzerinde bir man-in-the-middle) bir ziyaretçinin
-tarayıcısına kendi token'ını yerleştirip onu gönderebilir. Bu yüzden v0.34.0'dan
-beri token tek başına kontrol edilmez.
+tarayıcısına kendi token'ını yerleştirip onu gönderebilir. Bu yüzden token tek başına kontrol edilmez.
 
 Tarayıcı bir request'in nereden geldiğini `Sec-Fetch-Site`'ta, eski bir
 tarayıcıysa `Origin`'de (`Host` ile karşılaştırılarak) söyler. Tarayıcının başka bir origin'den geldiğini işaretlediği bir request, ne
@@ -573,7 +560,7 @@ uygulamanın tamamı için `Server.MaxBodyBytes` ile, tek bir action için
 `WithMaxBodyBytes` ile değiştirin. Negatif bir değer limit olmadığı anlamına gelir.
 
 Limiti handler'ınız uygulamaz, limit handler'ınız çalışmadan önce uygulanır.
-v0.34.0'dan beri [middleware](/docs/middleware-and-apis)'inizden de önce, request'in
+[middleware](/docs/middleware-and-apis)'inizden de önce, request'in
 yönlendirildiği action'ın limitiyle uygulanır.
 
 - Body'yi okuyan ya da parse eden bir middleware onu sınırlı olarak okur.
@@ -591,9 +578,7 @@ if err := rc.Request.ParseForm(); err != nil {
 }
 ```
 
-v0.57.0'dan beri body'si limite ulaşmış bir handler hangi hatayı döndürürse
-döndürsün cevap `413` olur. Bu hata okumanın kendi hatası da olabilir, "upload
-failed" gibi handler'ın kendi hatası da. Eskiden ikincisi `500` olurdu. Handler'ın
+Body'si limite ulaşmış bir handler hangi hatayı döndürürse döndürsün cevap `413` olur. Bu hata okumanın kendi hatası da olabilir, "upload failed" gibi handler'ın kendi hatası da. Handler'ın
 hatası log'da ve error hook'larına verilen hatada `413`'ün yanında korunur ve
 `errors.As` onun üzerinde `*http.MaxBytesError`'ı yine bulur. Bu durum hata olarak
 değil, uyarı olarak log'lanır.
@@ -602,14 +587,15 @@ Token form'dan kontrol edildiğinde kontrol önce body'yi okur. Bu yüzden limit
 bir form daha orada, handler'ınız çalışmadan önce reddedilir. Bu durumda da cevap
 `403` değil `413` olur, çünkü okunamayacak kadar büyük bir body forgery değildir.
 
+Bir limit `MaxBodyBytes` değildir: net/http en fazla 10 MB'lık urlencoded bir form okur. Forgery kontrolü bunu aşan bir form'u okuduğunda, limit ne kadar yüksek olursa olsun cevap yine `413`'tür; `ParseForm`'u kendisi çağıran bir handler net/http'nin hatasını alır. Daha büyük bir gönderim, dosyaları diske taşan bir multipart form'dur.
+
+
 Parser'ın memory'de tuttuğu 32 MiB'tan büyük bir multipart body, dosyalarını diske
-taşır. v0.34.0'dan beri bu dosyalar, handler çalışmış da olsa request reddedilmiş de
-olsa, action cevap verdikten sonra silinir. v0.71.0'dan beri bu, form'u kim parse
-etmiş olursa olsun geçerlidir: bir page'in guard'ı, bir action'ın guard'ı, bir data
+taşır. Bu dosyalar, handler çalışmış da olsa request reddedilmiş de olsa, action cevap verdikten sonra silinir. Bu, form'u kim parse etmiş olursa olsun geçerlidir: bir page'in guard'ı, bir action'ın guard'ı, bir data
 handler ya da bir middleware. Bir action'ın guard'ları da body'yi zaten sınırlanmış
 olarak görür.
 
-v0.71.0'dan beri `Content-Length`'i limitin üstünde olan bir body, forgery kontrolü
+`Content-Length`'i limitin üstünde olan bir body, forgery kontrolü
 ve handler çalışmadan önce `413` ile reddedilir. Böylece forgery kontrolü olmayan bir
 action hiçbir zaman yarıda kesilmiş bir form üzerinde çalışmaz. Uzunluğunu
 söylemeyen chunked bir body limite takılırsa, başarılı gibi cevaplanmak yerine
@@ -625,7 +611,7 @@ diye reddedilir. Böyle bir action'a dosya ve form'un geri kalanı için yer aç
 ## Streaming body'ler
 
 Büyük bir upload alan action, body'sini bir stream olarak okur ve body'yi ondan önce
-hiçbir şey okumamalıdır. v0.57.0'dan beri `WithStreamingBody()` bunu garanti eder:
+hiçbir şey okumamalıdır. `WithStreamingBody()` bunu garanti eder:
 
 ```go
 app.RegisterAction(collage.NewAction("upload").
@@ -701,7 +687,7 @@ upload'u da sınırlar. Bundan yavaş bir upload başarısız olur. `WriteTimeou
 artırılmış bir `ReadTimeout`'u aşmayan bir upload daha da kötüdür: handler dosyayı
 kaydeder, client ise cevap alamaz ve yeniden dener.
 
-`WithBodyTimeout(d)` (v0.57.0'dan beri) tek bir action'a kendi deadline'ını verir.
+`WithBodyTimeout(d)` tek bir action'a kendi deadline'ını verir.
 O action'a gelen bir request için iki deadline'ı da şimdi artı `d` ile değiştirir.
 Böylece sitenin geri kalanı kısa deadline'larını korur. Bunu page'in guard'larından
 sonra ve body'yi herhangi bir şey okumadan önce yapar. Sıradan bir action'da bu,
@@ -763,8 +749,7 @@ Tag'ler tam olarak [Caching](/docs/caching#dependency-tags) sayfasında anlatıl
 gibi çalışır ve `collage.Cached` ile saklanan değerlere de ulaşır.
 
 Page'ler de, onları oluşturan `collage.Cached` değerleri de stale olarak
-işaretlenir. İkisi de tutulur (page'ler v0.63.0'dan beri). v0.64.0'dan beri
-invalidate edilen page'ler ardından [warm edilir](/docs/caching#warming-after-an-invalidation)
+işaretlenir. İkisi de tutulur. Invalidate edilen page'ler ardından [warm edilir](/docs/caching#warming-after-an-invalidation)
 ve önce redirect'in kendi page'i gelir.
 
 `Location` aynı origin'deyse onun varyantı, redirect yazılmadan önce taze veriyle
@@ -834,10 +819,7 @@ Etrafında bir layout yoktur ve response'u framework tarafından asla cache'lenm
 "Yok" ile "bozuk" burada da page'deki gibi birbirinden ayrı kalır. Data handler'ı
 `collage.ErrNotFound`'u wrap eden required bir fragment `404` ile cevap verir.
 Başka her hatanın cevabı `500`'dür. Fragment path bir action gibi cevaplandığı için
-hatası düz metindir, asla cache'lenmez ve içinde page'den hiçbir şey yoktur. Onu
-çeken bir script'in okuyabileceği de budur. v0.39.2'den önce fragment path ikisinde
-de `500` ile cevap veriyordu. Bu yüzden bir script "görme yetkiniz yok" ile
-"bozuk"u birbirinden ayıramıyordu.
+hatası düz metindir, asla cache'lenmez ve içinde page'den hiçbir şey yoktur. Onu çeken bir script'in okuyabileceği de budur ve iki status, onun "yok" ile "bozuk"u ayırt etme yoludur.
 
 ```js
 const input = document.querySelector('input[name="q"]');
@@ -850,15 +832,11 @@ input.addEventListener("input", async () => {
 Tanımlanmamış hiçbir şeye erişilemez. Her fragment'i otomatik olarak dışarı açan bir
 framework, her page'in her iç kısmını public web'e açmış olurdu.
 
-Bir fragment path, onu açan page'in bir kısmıdır. v0.34.0'dan beri önce page'in
-[guard](/docs/pages-and-layouts#private-pages-guards)'larından geçer: en dıştaki
+Bir fragment path, onu açan page'in bir kısmıdır. önce page'in [guard](/docs/pages-and-layouts#private-pages-guards)'larından geçer: en dıştaki
 layout'tan içe doğru, ardından content fragment'inin guard'ı. Sonra fragment'in kendi
 guard'ı çalışır. Private bir page'in fragment path'i de private'tır.
 
-v0.34.0'dan önce yalnızca fragment'in kendi guard'ı çalışıyordu. Bu yüzden
-içeriği kendi URL'sinde açılmış guard'lı bir layout, o içeriği herkese sunuyordu.
-Bir fragment, page'den daha sıkı olması gereken bir kısım için hâlâ kendi
-guard'ını taşıyabilir:
+Bir fragment, page'den daha sıkı olması gereken bir kısım için kendi guard'ını da taşıyabilir:
 
 ```go
 results := collage.NewFragment("results", "fragments/results.html").
@@ -896,7 +874,7 @@ sakladığı değer de yoktur: `Get` false döner ve fragment sıfır değerle r
 edilir. Bir plugin'in `RenderFragment` ile push ettiği fragment için de aynısı
 geçerlidir. Kendi başına cevaplanan bir fragment ihtiyacını kendisi yükler:
 `collage.Once` ya da `collage.Cached` ile. Page'in tamamında bu yine render başına
-tek bir fetch'tir. v0.78.0'dan beri development'ta, kendi başına render edilen bir
+tek bir fetch'tir. Development'ta, kendi başına render edilen bir
 fragment'in `Get`'i bir şey bulamazsa page'i, fragment'i ve key'i adlandıran bir
 uyarı loglanır, process başına bir kez.
 
@@ -920,7 +898,7 @@ eklenen yorumu görür. Handler'ın oraya `rc.Set` ile koyduğu her şeyi de gö
 ### Ona link vermek
 
 Path'i bir kez, `WithFragmentPath` içinde yazın. Ona giden her link'i, `pageURL`'in
-page'ler için yaptığı gibi adıyla oluşturun (v0.18.0'dan beri):
+page'ler için yaptığı gibi adıyla oluşturun:
 
 ```html
 <div data-live="{{fragmentURL "search" "results"}}">{{slot "results"}}</div>
@@ -933,8 +911,7 @@ page'ler için yaptığı gibi adıyla oluşturun (v0.18.0'dan beri):
 Page'in açmadığı bir fragment `collage.ErrUnknownFragmentPath` olur. Geri kalanı
 [Link'ler ve locale'ler](/docs/links-and-locales#a-fragments-url) sayfasındadır.
 
-Fragment'in içindeki link'ler ise ters yöne, page'e gider. v0.77.0'dan beri kendi
-path'inden cevap verilen bir fragment, `rc.Page` olarak onu açan page ile render
+Fragment'in içindeki link'ler ise ters yöne, page'e gider. Kendi path'inden cevap verilen bir fragment, `rc.Page` olarak onu açan page ile render
 edilir.
 Bu yüzden içindeki `localeURL` page'in başka bir locale'deki hâlidir;
 [`withQuery`](/docs/template-functions#withquery) ise request'in query'si
@@ -946,14 +923,12 @@ arama sonuçlarının sayfalayıcısı sonuçların bir sonraki sayfasına link 
 ```
 
 `/search/results?q=grid&page=1` üzerinde bu link `/search?page=2&q=grid` olur.
-v0.77.0'dan önce fragment'in orada bir page'i yoktu ve `localeURL` başarısız
-oluyordu.
 
 ### Hoist ettikleri
 
 Tek başına cevap olarak verilen bir fragment'in etrafında layout yoktur.
 Fragment'in kendi yazdığı bir `{{hoist}}` marker'ı page'deki gibi doldurulur. Başka
-herhangi bir alana hoist ettiği şeyler ise markup'tan önce gelir (v0.18.0'dan beri).
+herhangi bir alana hoist ettiği şeyler ise markup'tan önce gelir.
 Örneğin `{{stylesheet}}` ile istenen bir stylesheet ya da bir title böyledir. Her
 item için etkisiz bir `<template>` gönderilir:
 
@@ -969,16 +944,16 @@ template element'leri ekler. Bunlar hiçbir şey render etmez ve hiçbir şey
 
 ### Revalidation
 
-v0.18.0'dan beri bir GET'e verilen cevap bir `ETag` taşır. Bu, body'nin gönderildiği
+Bir GET'e verilen cevap bir `ETag` taşır. Bu, body'nin gönderildiği
 hâliyle hash'idir. Cevap ayrıca `Cache-Control: private, no-cache` taşır. Eşleşen
 bir `If-None-Match` ile gelen request'e body olmadan `304` ile cevap verilir. Render
 yine de çalışır. Kazanılan şey, kablodaki body ve client'ın yapacağı iştir. Birkaç
 saniyede bir yenilenen bir panel için bu, işin çoğudur. `Cache-Control`'ü kendisi
 set eden bir handler kendi değerini korur; ancak bir `PersonaliseHook` body'yi
-kişisel hale getirdiyse (v0.43.0'dan beri) handler ne set etmiş olursa olsun
+kişisel hale getirdiyse handler ne set etmiş olursa olsun
 cevap `private, no-cache` olur.
 
-v0.78.0'dan beri form içeren bir fragment de `304` alır: ETag'i forgery token'ı
+Form içeren bir fragment de `304` alır: ETag'i forgery token'ı
 maskelenmeden önce hash'lenir. Böylece bir cevaptan diğerine aynı kalır ve
 `RenderFragment`'in gönderilen bir kopya için bildirdiği ETag'e eşittir.
 
@@ -995,7 +970,7 @@ sunucuyla çalışır.
 kısım kısım izler: cevap form'un hedefine yalnızca başarı durumunda ya da `422`
 geldiğinde yerleştirilir. Bu yüzden bir action, bir gönderimin validation'dan
 geçmediğini form'un fragment'ini hatalarla birlikte yeniden ve 422 status'uyla
-döndürerek söyler (collage-live v0.2.0'dan beri):
+döndürerek söyler:
 
 ```go
 var problemsKey = collage.NewKey[[]string]("problems")
@@ -1010,8 +985,7 @@ if problems := validate(rc); len(problems) > 0 {
 
 Başka her hata (bir 500, reddedilen bir forgery token) hedefi olduğu gibi bırakır
 ve onu bir hata page'iyle doldurmak yerine stale olarak işaretler. Bir redirect,
-tarayıcının izleyeceği gibi ve tek request'te izlenir (collage-live v0.2.1'den
-beri). Form [`Collage-Fetch`](#failure-renders-success-redirects) gönderir, collage
+tarayıcının izleyeceği gibi ve tek request'te izlenir. Form [`Collage-Fetch`](#failure-renders-success-redirects) gönderir, collage
 da redirect yerine action'ın nereye redirect ettiğiyle cevap verir. Aksi halde
 `fetch` redirect'i izler ve page'i indirirdi, ardından sayfaya gidildiğinde page
 yeniden çekilirdi.

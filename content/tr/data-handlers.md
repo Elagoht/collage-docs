@@ -65,12 +65,6 @@ Bu şekilde yazılan bir loader'ı bir test'ten ya da bir sitemap handler'ından
 alır. Constructor'ların `WithData`'nın bir biçimi değil de ayrı fonksiyonlar
 olmasının nedeni, Go method'larının type parameter alamamasıdır.
 
-v0.49.0'dan önce bir handler `WithDataHandler` ile verilir ve
-`(any, []string, error)` dönerdi. Sabit veri ise `WithData(v)` ile verilirdi. İkisi
-de kaldırıldı: handler'ı gerçek tipini dönecek şekilde `collage.LoadTagged` ile,
-değeri de `collage.Value` ile sarın. (`LoadTagged`'ın adı v0.60.0'a kadar
-`DataHandler` idi.)
-
 Bir `LoadTagged`'ın üç dönüş değerinin her birinin ayrı bir görevi vardır.
 
 - **Veri:** Template'in `.` olarak render ettiği şeydir. Template için yazılmış bir
@@ -153,8 +147,7 @@ strateji tanımlamayan bir page'i static bırakır.
 Bir fragment'in tek bir veri kaynağı vardır. `WithData`'yı veriyle iki kez
 çağırmak, register sırasında `collage.ErrConflictingData` ile reddedilir. Hata
 mesajı fragment'in adını verir: `fragment "home-content" has its data set twice`.
-Kastettiğiniz çağrıyı tutun, diğerini silin. v0.49.0'dan önce ikinci çağrı sessizce
-kazanırdı.
+Kastettiğiniz çağrıyı tutun, diğerini silin.
 
 nil bir `Data` (`WithData(nil)` ya da nil bir fonksiyon verilmiş bir constructor)
 veri yok demektir ve hiçbir şeyle çakışmaz.
@@ -198,7 +191,7 @@ func postData(posts *blog.Service) collage.Data {
 ```
 
 `collage add page` ve `collage add fragment` handler'ı bu biçimde, henüz parametresiz
-olarak yazar (v0.73.0'dan beri). Böylece bir servis eklemek, iki fonksiyona birer
+olarak yazar. Böylece bir servis eklemek, iki fonksiyona birer
 parametre eklemekten ibarettir. VS Code'da eklentinin `cdata` snippet'i böyle bir
 handler yazar ve dönüş tipi olarak dosyada tanımlı `…View` tipini kullanır.
 
@@ -269,7 +262,10 @@ Garanti edilen sıra şudur:
   sıra olmadan çalışır.
 - **Template'ler yine de tek tek, ağaç sırasıyla render edilir.** Çıktı bir
   request'ten diğerine aynıdır. Sıraya bağlı her şeye (örneğin `<head>`'de hangi
-  title'ın kazanacağına) hangi handler'ın önce bittiği değil, ağaç karar verir.
+  title'ın kazanacağına) hangi handler'ın önce bittiği değil, ağaç karar verir:
+  en içteki tanım kazanır, aynı derinlikte ise page'de daha sonra gelen. Bir slot
+  içinde daha sonra bağlanan fragment, slot'lar arasında ise template'in daha
+  sonra render ettiği kazanır.
 
 Bunun yazdığınız koda üç etkisi vardır.
 
@@ -280,8 +276,9 @@ Bunun yazdığınız koda üç etkisi vardır.
   metotları render'ın lock'unu tutar. Ayrıntılar
   [aşağıda](#sharing-data-between-fragments).
 - **Template'in render etmediği bir slot'taki fragment de yine başlar.** Template
-  biter bitmez bu fragment'in context'i cancel edilir ve hatası yok sayılır.
-  Pahalı olan ve çoğu zaman atlanan bir handler'ı template'teki bir koşulun
+  biter bitmez bu fragment'in context'i cancel edilir ve hatası yok sayılır;
+  tanımladığı her şey de öyle: hiçbir title'ı, meta'yı ya da tag'i değiştirmez ve
+  hiçbir şey hoist etmez. Pahalı olan ve çoğu zaman atlanan bir handler'ı template'teki bir koşulun
   arkasına değil, başka bir mekanizmanın arkasına koyun.
 
 ## Render context'i
@@ -294,12 +291,12 @@ her şeydir.
 | `rc.Request` | Cevaplanan `*http.Request`. Static export'ta, page'in path'i için oluşturulmuş sentetik bir `GET` |
 | `rc.Locale` | URL'nin çözüldüğü locale |
 | `rc.Param(name)`, `rc.PathParams` | Route'taki `{name}` placeholder'larının yakaladığı değerler |
-| `rc.Page` | Render edilen page. Bir action'da, action'ın cevap verdiği URL'nin page'i (v0.33.0'dan beri). Page'inin onun için açtığı bir URL'den sunulan fragment'te, o page (v0.77.0'dan beri). **Yalnızca okunur** |
+| `rc.Page` | Render edilen page. Bir action'da, action'ın cevap verdiği URL'nin page'i. Page'inin onun için açtığı bir URL'den sunulan fragment'te, o page. **Yalnızca okunur** |
 | `key.Get(rc)`, `key.Set(rc, value)` | Tek bir render'daki fragment'ler arasında bir `collage.Key` üzerinden paylaşılan değerler |
 | `rc.Context()` | Render context'inin taşıdığı context |
 | `rc.HoistTitle`, `rc.HoistMeta`, `rc.HoistProperty`, `rc.HoistLink`, `rc.HoistAlternate`, `rc.HoistStylesheet`, `rc.Hoist` | Page'in `<head>`'i için tanımlar. Bkz. [Head ve SEO](/docs/head-and-seo) |
 | `rc.Asset(path)` | Mount edilmiş bir dosyanın content-addressed URL'si. Bkz. [Static asset'ler](/docs/assets) |
-| `rc.URL(name, params)`, `rc.ActionURL(name, params)` | Bir page'in ya da action'ın adıyla bulunan, render'ın locale'indeki URL'si (v0.37.0'dan beri). Bkz. [Go'dan link'ler](/docs/links-and-locales#links-from-go) |
+| `rc.URL(name, params)`, `rc.ActionURL(name, params)` | Bir page'in ya da action'ın adıyla bulunan, render'ın locale'indeki URL'si. Bkz. [Go'dan link'ler](/docs/links-and-locales#links-from-go) |
 
 Handler'ın içinde `rc.Context()`, `ctx` argümanıyla aynı context'tir ve
 fragment'in timeout'unu taşır. `ctx`'i kullanın, zaten elinizde olan odur.
@@ -350,15 +347,16 @@ değer tutar. Farklı dosyalarda tanımlanmış iki `NewKey[*Post]("post")` ise 
 key'dir. Key'ler uygulamanızın kendi namespace'idir. Çakışmayacak isimler seçin.
 
 `With`, tanımlanmış bir key'den her değer için ayrı bir key türetir:
-`postKey.With(slug)` key'inin adı `post:<slug>` olur ve aynı tipi tutar. `NewKey`
-boş bir isimle çağrılırsa key'in tanımlandığı satırda panic eder. Zero value olan
-bir `Key` de (`NewKey` ile hiç oluşturulmamış bir struct field'ı) kullanıldığı yerde
-panic eder.
+`postKey.With(slug)` key'inin adı `post:<slug>` olur ve aynı tipi tutar; zincir
+hâlinde de kullanılabilir: `boardKey.With(id).With("filter")`. Bir parçadaki `:` ve
+`\` escape edilir, bu yüzden `With("b:c")` ile `With("b").With("c")` iki ayrı
+key'dir; bunları içermeyen bir parça adını yazıldığı gibi korur. `NewKey` boş bir
+isimle çağrılırsa key'in tanımlandığı satırda panic eder. Zero value olan bir `Key`
+de (`NewKey` ile hiç oluşturulmamış bir struct field'ı) kullanıldığı yerde panic
+eder.
 
 `Get` ve `Set` render'ın lock'unu alır. Eşzamanlı çalışan sibling'lere karşı
-güvenli olmalarının nedeni budur. v0.50.0'dan önce değerler bir `SharedData` map'i
-üzerinde `rc.Set(key, value)` ve `collage.Get[T](rc, key)` ile paylaşılıyordu. Bu
-üçü de kaldırıldı.
+güvenli olmalarının nedeni budur.
 
 Bu yöntem parent'tan child'a doğru çalışır, çünkü parent'ın handler'ı önce biter.
 Sibling'ler arasında çalışmaz. Sibling'ler aynı anda çalıştığı için biri, diğerinin
@@ -395,13 +393,21 @@ sibling de bu boşluğa düşer ve ikisi de veriyi çeker.
 - **Hata da bir sonuçtur.** Bekleyen herkes aynı hatayı alır. Çekme işlemi her
   fragment için yeniden denenmez. Aksi hâlde tek bir yavaş hata birkaç hataya
   dönüşürdü.
+- **İptal bunun dışındadır.** Yalnızca onu çalıştıran fragment'in context'i sona
+  erdiği için başarısız olan bir çekme işlemi (örneğin template'in render etmediği
+  bir slot için yapılan spekülatif bir prefetch) key hakkında hiçbir şey söylemez:
+  bir sonraki çağıran o hatayla başarısız olmak yerine veriyi yeniden çeker.
+- **Panic herkesi serbest bırakır.** Panic'e düşen bir çekme işlemi, onu bekleyen
+  fragment'leri bunu söyleyen birer hatayla hemen serbest bırakır. Panic'in kendisi
+  çekme işlemi kendisine ait olan fragment'e gider ve o fragment bir
+  `*collage.PanicError` ile başarısız olur.
 - **Bir render boyunca geçerlidir.** Ayarlamanız ya da temizlemeniz gereken hiçbir
   şey yoktur.
 - **Kendi context'i sona eren bekleyen taraf beklemeyi bırakır** ve o hatayı
   döner.
 - **Değerleri kendine aittir.** `Once`'ın çektiği değer `Get` ile okunamaz, `Set`'in
   sakladığı değer de `Once`'a verilmez. Adı aynı, tipi farklı iki key iki ayrı çekme
-  işlemidir. v0.50.0'dan önce bu durum `ErrOnceTypeMismatch` hatasıydı.
+  işlemidir.
 
 ### collage.Cached
 
@@ -458,7 +464,9 @@ ekleyin.
 
 Program başlarken belli olan bir title (layout'taki site adı gibi) hiç handler
 gerektirmez. Fragment üzerindeki `WithTitle(s)` onu tanımlar ve strateji
-tanımlamayan bir page'i static bırakır. Ayrıntılar için
+tanımlamayan bir page'i static bırakır. Page'de, fragment'inin bulunduğu yerde tam
+olarak bir handler'ın `HoistTitle`'ı gibi sayılır; bu yüzden daha özel bir
+fragment'in title'ı yine de onun önüne geçer. Ayrıntılar için
 [Head ve SEO](/docs/head-and-seo) sayfasına bakın.
 
 ## Örnek: bir katalogdaki ürün page'i
@@ -697,9 +705,8 @@ bırakır.
 Hata, hangi deadline'ın dolduğunu söyler. Yalnızca fragment'in kendi timeout'u
 timeout olarak bildirilir: `collage: execution exceeded 5s`. Daha yukarıda biten
 bir context (iptal edilen bir request ya da daha kısa bir deadline) ise varsa
-nedeniyle birlikte `collage: execution stopped by context` olarak bildirilir.
-v0.18.1'den önce ikisi de timeout gibi görünürdü ve iptal edilen bir request sizi
-hiç yavaş olmamış bir handler'ı aramaya gönderirdi.
+nedeniyle birlikte `collage: execution stopped by context` olarak bildirilir. Böylece
+iptal edilen bir request sizi hiç yavaş olmamış bir handler'ı aramaya göndermez.
 
 ## Panic'ler
 
@@ -715,7 +722,7 @@ Bir template verisini isimle okur: `{{.Title}}`, `{{.Author.Name}}`.
 page'inin her render'ını başarısız kılar. Kimsenin ziyaret etmediği bir page'de
 ise hiç ortaya çıkmaz.
 
-v0.49.0'dan beri her fragment'in verisi tipli bir constructor'dan gelir. Bu
+Her fragment'in verisi tipli bir constructor'dan gelir. Bu
 yüzden register işlemi her template'in hangi Go tipiyle çalışacağını bilir ve
 template'i bu tipe göre dolaşır. `RegisterPage`,
 template'leri verilerine uymayan bir page'i reddeder. Hata mesajında page'in,
@@ -726,9 +733,17 @@ collage: page "post": fragment "post-body" (post.html:1:6): {{.Titel}}: type blo
 ```
 
 Kontrol yalnızca kesin olarak başarısız olacak şeyleri bildirir: her bulgu, render ona
-ulaştığında `text/template`'in başarısız olacağı bir ifadedir. Artık başlangıçta
-başarısız olan bir uygulamanın template'i, render edildiğinde zaten başarısız
-olacaktı. Kontrol bunu daha erken bildirir ve kendinden bir kural eklemez.
+ulaştığında `text/template`'in başarısız olacağı bir ifadedir. Kontrolün reddettiği
+bir template, render edildiğinde zaten başarısız olacaktı. Kontrol bunu daha erken
+bildirir ve kendinden bir kural eklemez.
+
+Escaping de register sırasında, tiplerin yanında kontrol edilir: her fragment'in
+kök template'i, ilk render'ı nasıl escape edecekse öyle bir kez escape edilir.
+`html/template`'in escape edemediği bir template (hiç kapanmayan bir `<script>`
+string'i, bir attribute'u farklı durumlarda bırakan `{{if}}` dalları) page'i,
+fragment'i ve template'i adlarıyla belirten bir hatayla reddedilir.
+`WithoutTypeCheck()` bunu kapatmaz. Bkz.
+[Template'ler](/docs/templates#loaded-once-checked-early).
 
 ### Neler dolaşılır
 
@@ -784,7 +799,7 @@ boyunca verildiği tipi korur.
   `1.5` bir `float64`, `1i` bir `complex128`, `'a'` bir `int`'tir. Bu yüzden
   `{{(1.5).Nope}}` ve `{{len 1}}` bildirilir. `int`'e sığmayacak kadar büyük bir
   sabit ve komut olarak kullanılan `nil` de bildirilir.
-- **Parametresinin alamayacağı bir argüman** (v0.51.0'dan itibaren).
+- **Parametresinin alamayacağı bir argüman**.
   `text/template` bir template fonksiyonunu ya da method'u çağırırken argümanı
   nasıl değerlendiriyorsa kontrol de öyle değerlendirir:
   - Bir sabit, parametrenin türüne göre değerlendirilir. Tamsayı parametresi

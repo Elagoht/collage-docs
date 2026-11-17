@@ -65,7 +65,7 @@ author := collage.NewFragment("author", "fragments/author.html").
 - **Template path'i** template root'una göredir ve uzantıyı da içerir:
   `"fragments/author.html"`, `templates/fragments/author.html` dosyasıdır. Template
   engine'in yüklemediği bir path, fragment'i içeren page register edilirken
-  `ErrTemplateNotFound` hatası verir. v0.11.0'dan beri bu kural, page'in
+  `ErrTemplateNotFound` hatası verir. Bu kural, page'in
   `WithFragmentPath` ile kendi URL'sinde açtığı fragment'ler için de geçerlidir.
   Yalnızca bir [slot resolver](#slots-filled-per-render)'ın döndüğü fragment daha
   sonra, render edilirken kontrol edilir. Bkz. [Template'ler](/docs/templates).
@@ -75,7 +75,7 @@ Geri kalan her şey isteğe bağlıdır:
 | Metot | Neyi ayarlar |
 | --- | --- |
 | `WithData(d)` | Template'in verisini: `collage.LoadTagged` ya da `collage.Load` ile bir handler'ı, `collage.Value` ile program başlarken sabitlenen bir değeri ya da `collage.Effect`'i. Bkz. [Data handler'lar](/docs/data-handlers) |
-| `WithoutTypeCheck()` | Template'i, verisinin tipine göre yapılan kontrolün dışında bırakır. Bkz. [Template'ler nasıl kontrol edilir](/docs/data-handlers#how-templates-are-checked). v0.49.0'dan beri |
+| `WithoutTypeCheck()` | Template'i, verisinin tipine göre yapılan kontrolün dışında bırakır. Bkz. [Template'ler nasıl kontrol edilir](/docs/data-handlers#how-templates-are-checked) |
 | `WithTitle(s)` | Page'in `<title>`'ını, handler olmadan. Bkz. [Head ve SEO](/docs/head-and-seo) |
 | `WithSlot(name, rules...)` | Bir slot'u required yapar ya da tek fragment'le sınırlar |
 | `WithSlotFragment(slot, child)` | Bir child fragment'i bir slot'a bağlar |
@@ -83,8 +83,8 @@ Geri kalan her şey isteğe bağlıdır:
 | `Required()` | Bu fragment başarısız olursa page de başarısız olur |
 | `WithFallback(f)` | Bu fragment başarısız olduğunda neyin render edileceğini |
 | `WithTimeout(d)` | Data handler'ının ne kadar sürebileceğini |
-| `Static()` | Data handler'ının aynı URL'e gelen her request'e aynı sonucu döndürdüğünü, böylece page'i dynamic yapmadığını. v0.17.0'dan beri |
-| `Shared()` | Data handler'ının belli bir anda her okuyucuya aynı sonucu döndürdüğünü, ama bu sonucun zamanla değiştiğini. Böylece render'ı birçok okuyucuya gönderilebilir ve page'in stratejisine dokunulmaz. v0.19.0'dan beri |
+| `Static()` | Data handler'ının aynı URL'e gelen her request'e aynı sonucu döndürdüğünü, böylece page'i dynamic yapmadığını |
+| `Shared()` | Data handler'ının belli bir anda her okuyucuya aynı sonucu döndürdüğünü, ama bu sonucun zamanla değiştiğini. Böylece render'ı birçok okuyucuya gönderilebilir ve page'in stratejisine dokunulmaz |
 
 Page builder'da olduğu gibi fragment builder da hataları zinciri durdurmadan kaydeder
 ve `BuildErr()` bunları döner.
@@ -119,8 +119,8 @@ gönderir. Bir fragment'in verisini iki kez ayarlamak, register sırasında
 
 ### Inline template'ler
 
-Küçük bir fragment, bir dosya belirtmek yerine template'ini kendisi taşıyabilir
-(v0.29.0'dan beri). `collage.NewInlineFragment(name, html)` aynı builder'ı döner,
+Küçük bir fragment, bir dosya belirtmek yerine template'ini kendisi taşıyabilir.
+`collage.NewInlineFragment(name, html)` aynı builder'ı döner,
 bu yüzden zincirin geri kalanı değişmez:
 
 ```go
@@ -136,15 +136,16 @@ row := collage.NewInlineFragment("post-row", `
 Bir dosya template'i gibi render edilir: slot'lar, `hoist`, her
 [template fonksiyonu](/docs/template-functions) ve template dizinine yapılan
 `{{template}}` çağrıları aynen çalışır. Register işlemi de onu bir dosya template'i
-gibi parse edip kontrol eder. Bir parse hatası ya da template'in hiç çağırmadığı bir
-slot, page'i ve fragment'i adıyla belirterek startup'ı durdurur.
+gibi parse edip kontrol eder. Bir parse hatası, `html/template`'in escape edemediği
+bir template ya da template'in hiç çağırmadığı bir slot, page'i ve fragment'i adıyla
+belirterek startup'ı durdurur.
 
 İki fragment aynı ismi paylaşıp farklı template'ler taşıyabilir; her biri kendi
 template'ini render eder. Development error panel'i onu `inline template of fragment "post-row"`
 olarak adlandırır.
 
 Daha uzun bir template, `collage.InlineHTML` olarak tanımlanmış ayrı bir sabit
-olabilir (v0.30.0'dan beri). Bu, `string` için bir addır ve
+olabilir. Bu, `string` için bir addır ve
 [VS Code extension'ı](/docs/installation#editor-support) onu HTML olarak
 renklendirir ve düzenler:
 
@@ -170,7 +171,11 @@ bir template'e dönüşür.
 Bu en çok, fragment'leri her request'te oluşturan bir [slot
 resolver](#slots-filled-per-render)'da önemlidir. Resolver'ın fragment'leri
 inline olabilir, ama template'leri sabittir ve veri onlara `collage.Value` ya da bir
-data handler üzerinden ulaşır.
+data handler üzerinden ulaşır. Engine, program çalıştığı sürece resolver'ların
+fragment'lerinden gelen en fazla 256 farklı inline template'i kabul eder.
+Sonraki, template set'ini her request'te büyütmek yerine, fragment'ini bir
+template'in request verisinden kurulmayıp sabit olması gerektiğini söyleyen bir
+hatayla başarısız kılar.
 
 Bunun dışında üç sınırı daha vardır:
 
@@ -229,8 +234,7 @@ bağlamalardan önce de sonra da gelebilir. Her kural bir `collage.SlotRule`'dur
 - **`collage.SlotSingle`**: Slot en fazla bir fragment tutar. İkinci bir fragment
   bağlamak `ErrSlotOccupied` kaydeder.
 
-Başka herhangi bir değer `ErrInvalidSlotDefinition` kaydeder. v0.60.0'dan önce bu
-ikisi boolean'dı: `WithSlot(name, required, allowMultiple)`.
+Başka herhangi bir değer `ErrInvalidSlotDefinition` kaydeder.
 
 `WithSlotFragment`, nil bir child için `ErrNilFragment` kaydeder. `WithSlot`'u aynı
 isimle iki kez çağırmak `ErrDuplicateSlot` kaydeder.
@@ -310,6 +314,11 @@ related := collage.NewFragment("related", "fragments/related.html").
   işaretlenmiş olsa bile fallback'in kendi başarısızlığı da sınırlanır.
 - **Hiçbiri**: Fragment hiçbir şey render etmez ve page onsuz sunulur.
 
+Hangisi olursa olsun, başarısız bir fragment'in hoist ettikleri markup'ıyla
+birlikte gider: title'ı, meta tag'leri ve stylesheet'leri page'e hiç ulaşmaz.
+Böylece bir fallback, başarısız fragment'in title'ı altında render edilmez.
+Dependency tag'leri ise kalır, çünkü page'in neye bağlı olduğunu söylerler.
+
 `collage.ErrNotFound` yalnızca required bir fragment'te "404" anlamına gelir. Optional
 bir fragment'te diğerleri gibi sıradan bir başarısızlıktır, çünkü page onsuz da
 render edilebilir.
@@ -332,7 +341,7 @@ Development'ta bir hata asla sessiz kalmaz:
 
 Development dışında bunların hiçbiri yoktur.
 
-v0.36.0'dan beri, page'in onsuz sunulduğu bir hata her mode'da
+Page'in onsuz sunulduğu bir hata her mode'da
 [`Config.Logger`](/docs/configuration) üzerinden bir uyarı olarak log'lanır:
 `collage: fragment failed; the page is served without it`. Log satırı page'i,
 fragment'i, locale'i, bir fallback'in yerini tutup tutmadığını ve hatayı söyler.
@@ -349,6 +358,12 @@ Bu yüzden template'in render etmemeye karar verdiği bir slot'taki fragment'in 
 handler'ı başlatılmış olur: `{{if .ShowComments}}{{slot "comments"}}{{end}}`.
 Template biter bitmez bu fragment'in context'i cancel edilir ve hatası yok sayılır. Hiç render edilmemiş bir
 fragment, `Required()` olsa bile page'i başarısız kılamaz.
+
+Tanımladıkları da onunla birlikte atılır. Page'de hiçbir şeyi değiştirmez: ne
+title'ını, ne meta tag'lerini, ne de dependency tag'lerini (handler'ının döndükleri
+de, `collage.Cached` çağrılarınınkiler de) ve hiçbir şey hoist etmez. `Key.Set` ile
+sakladığı bir değer ise geri alınmaz. Bu yüzden böyle bir değeri yalnızca render
+edilen bir fragment'ten okuyun.
 
 ## Timeout'lar
 
@@ -524,7 +539,7 @@ neyin nereye gideceği konusunda veriyle uyumlu kalması gereken bir kod yazman�
 gerekir.
 
 `WithSlotResolver`, bir slot'u her render'da doldurur. Resolver, render'ın
-context'ini ve `RenderContext`'ini alır (context'i v0.60.0'dan beri) ve slot'un bu render'da tutacağı fragment'leri döner:
+context'ini ve `RenderContext`'ini alır ve slot'un bu render'da tutacağı fragment'leri döner:
 
 ```go
 type block struct {
@@ -603,7 +618,7 @@ Kurallar şunlardır:
   failure policy'si uygulanır ve hata, döndürülen fragment'in ismini içerir. Hatayı
   resolver'ın içinde ele almak isterseniz `BuildErr()`'ü kendiniz kontrol edin.
   Register işlemi diğer bütün fragment'lerin template'lerini verilerinin tipine
-  göre kontrol eder, bunlarınkini ise etmez. Template'lerin hepsi başlangıçta
+  göre kontrol eder ve render'dan önce escape eder, bunlarınkini ise etmez. Template'lerin hepsi başlangıçta
   yüklenir. Bu yüzden bir resolver'ın kullanabileceği block türleri yine de
   program tarafından belirlenir.
 

@@ -11,7 +11,7 @@ bir Go testi bütün siteyi çalıştırabilir. Routing, data handler'lar, templ
 cache, form'lar, document'lar, plugin'ler ve middleware testte de production'daki gibi
 çalışır.
 
-`pkg/collagetest` (v0.40.0'dan beri) bunu bir tarayıcının yaptığı gibi yapan
+`pkg/collagetest` bunu bir tarayıcının yaptığı gibi yapan
 client'tır: bir response'un set ettiği cookie'leri saklar ve bir form'u, page'in
 içine koyduğu bütün gizli alanlarla birlikte gönderir.
 
@@ -94,7 +94,7 @@ func client(t *testing.T) *collagetest.Client {
 `newApp(collage.Env{CacheDir: t.TempDir()})` production config'ini kurar. `Dev`
 kapalıdır ve port `0`'dır. collage bu `0` değerini kendi varsayılan portuyla
 değiştirir. Zaten hiçbir şey bu portu dinlemez. Disk cache'i de teste özeldir.
-v0.68.0'dan önce scaffold edilmiş bir projede bunun yerine
+Eski bir release'le scaffold edilmiş bir projede bunun yerine
 `newApp(devMode bool, port int)` ve bir `cacheDir` değişkeni bulunur. Projeyi
 taşımak için [CLI](/docs/cli#the-contract-with-maingo) sayfasına bakın.
 
@@ -173,7 +173,7 @@ ister. Test, arkasındaki page ile ilgiliyse redirect'i `Follow` takip eder.
 
 ## Invalidation ve warming
 
-v0.64.0'dan beri uygulama, bir `InvalidateTags` ya da `PurgeTags` çağrısından sonra
+Uygulama, bir `InvalidateTags` ya da `PurgeTags` çağrısından sonra
 ulaştığı page'leri arka planda yeniden render eder (bkz.
 [Caching](/docs/caching#warming-after-an-invalidation)). Bir invalidation'ın hemen
 ardından `X-Collage-Cache: STALE` (ya da `MISS`) geldiğini doğrulayan bir test bu
@@ -229,7 +229,7 @@ atın ve ikincisinin cache'ten sunulduğunu kontrol edin. Ya da iki request aras
 
 [Paylaşılan bir cache](/docs/caching#a-cache-a-fleet-shares) üzerinde birkaç
 instance olarak çalışan bir uygulama, tek bir store'u paylaşan iki App olarak test
-edilir. `collagetest.NewSharedCache()` (v0.66.0'dan beri), Redis'in yerine geçen
+edilir. `collagetest.NewSharedCache()`, Redis'in yerine geçen
 memory'de bir `collage.SharedCache`'tir: bir App'in render ettiği page'i öteki sunar,
 birinin gönderdiği invalidation'ı ikisi de görür.
 
@@ -247,7 +247,44 @@ b.Get("/").WantStatus(http.StatusOK) // X-Collage-Cache: HIT, from the store
 
 Kendi store'unuz, `Cache`, `TaggedCache` ve `StaleCache` sözleşmeleri için
 `collagetest.CacheSuite` ile, `SharedCache` için de `collagetest.SharedCacheSuite`
-ile kontrol edilir. Bkz. [Caching](/docs/caching#writing-your-own-sharedcache).
+ile kontrol edilir. Bkz. [Caching](/docs/caching#writing-your-own-sharedcache). Bir
+suite her zaman bir "Cache" bölümü çalıştırır; store ayrıca `TaggedCache`'i implement
+ediyorsa bir "Tagged", `StaleCache`'i implement ediyorsa bir "Stale" bölümü de
+çalıştırır ve bir hata, bozulan kuralı adıyla söyler. Bir store'un geçmek için yapması
+gerekenler:
+
+- **Gidiş-dönüş ve izolasyon.** `Set`'in sakladığı şey ETag'iyle birlikte `Get`'ten
+  döner ve store çağıranın slice'ını tutmaz: `Set`'ten sonra onu değiştirmek hiçbir
+  şeyi değiştirmez. UTF-8 olmayan, içinde NUL ve newline byte'ları bulunan içerik
+  girdiği gibi geri gelir.
+- **Ömür.** TTL'i geçmiş bir entry bir miss'tir; sıfır ya da daha küçük bir TTL,
+  "zaten süresi dolmuş" değil, store'un kendi varsayılanı demektir; yaşayan bir
+  key'e ikinci bir `Set`, ilkinin yerine içeriği ve ETag'iyle birlikte geçer.
+- **Silme.** `InvalidateKey` ve `Clear` bir entry'yi siler. Sonrasında `GetStale` onu
+  bulmamalıdır; silmek yerine işaretleyen bir store bu yüzden başarısız olur. Var
+  olmayan bir key'i invalidate etmek hata değildir.
+- **Tag'ler.** `Invalidate`, tag'lerden herhangi birini taşıyan her entry'yi siler;
+  taze olsun ya da zaten stale işaretli olsun. Yani bir stale işareti entry'nin
+  tag'lerini düşürmemelidir.
+- **Stale.** İşaretlenmiş ya da süresi dolmuş bir entry `Get` için bir miss'tir ve
+  `GetStale` onu stale olarak yine bulur; `found` yalnızca hiç entry'si olmayan bir
+  key için false'tur. Taze bir yazma işareti kaldırır.
+- **Eşzamanlılık.** Store eşzamanlı kullanıma güvenlidir; onu `-race` ile çalıştırın.
+
+`SharedCacheSuite` bir de, bir handle üzerinden yazıp öteki üzerinden kontrol eden bir
+"Shared" bölümü ekler:
+
+- **Epoch yalnızca büyür** ve `Clear` boyunca asla geri gitmez: temizlenebilir bir
+  veritabanına dayanan ve sıfırdan yeniden başlayan bir store başarısız olur.
+- **Bir invalidation'la yarışan bir yazma** stale olarak düşer, purge için atlanır ve
+  daha yeni bir taze entry'nin yerine asla daha eski içerik koymaz; ilgisiz bir tag
+  entry'leri taze bırakır.
+- **`DropTags` ve purge'ler öteki handle'a ulaşır**, binlerce entry'lik bir drop dahil,
+  tam olarak ulaştıkları entry'leri bildirir ve bir purge doğrudan siler.
+- **Data değerleri** (`collage.Cached`) gidip döner, TTL'i geçmiş bir değer stale'dir,
+  sıfır TTL asla dolmaz, bir invalidation değeri stale işaretler, bir delete onu
+  siler ve üst üste binen bir yazma bir page'inki gibi davranır.
+- **Her iki handle'dan eşzamanlı kullanım.**
 
 ## Form'lar ve forgery token
 
@@ -462,7 +499,7 @@ if len(report.Warnings) > 0 {
 }
 ```
 
-`skip.Err`, v0.10.0'dan beri her atlamanın arkasındaki sentinel error'dır. Ayrıntılar
+`skip.Err`, her atlamanın arkasındaki sentinel error'dır. Ayrıntılar
 için [Hatalar](/docs/errors#static-builds) sayfasına bakın.
 
 ## HTTP olmadan render etmek
@@ -493,7 +530,7 @@ aldığını test ederler. Bu iki metot tek bir render'a ayrıntılı bakmak iç
 
 Adla kurulan bir link (`{{pageURL "post" "slug" .Slug}}`, `{{actionURL "logout"}}`)
 yalnızca template render edildiğinde ve yalnızca ona ulaşan page'de hata verir.
-`app.Check()` (v0.40.0'dan beri) hiçbir şey render etmeden her template'in link'lerini
+`app.Check()` hiçbir şey render etmeden her template'in link'lerini
 tek seferde kontrol eder. [`collage check`](/docs/cli#collage-check) komutunun
 çalıştırdığı da budur:
 
@@ -512,7 +549,7 @@ func TestLinks(t *testing.T) {
 ## Bir plugin'i kendine ait bir site ile test edin
 
 Bir plugin'in kurabileceği kendine ait bir uygulaması yoktur.
-`collagetest.NewSite(t, ...)` (v0.61.0'dan beri) onun etrafında gerçek bir uygulama
+`collagetest.NewSite(t, ...)` onun etrafında gerçek bir uygulama
 kurar — bir layout, `/` adresinde bir home page ve yakalanan bir debug log'u —,
 uygulamayı başlatır, test bitince kapatır; size uygulamayı, onun üzerinde bir
 `Client`'ı ve `Logs`'unu verir:

@@ -1,6 +1,6 @@
 ---
 description: What a repository needs for collage plugin add to install it — a name, a manifest, a New with no setup, a release tag — and how collage plugin check proves it.
-reference: Plugin, Host, FindPlugin, Configurer, PluginConfig
+reference: Plugin, Host, FindPlugin, Configurer, PluginConfig, NoopMetrics, NoopTracer, NoopSpan
 ---
 
 # Writing a plugin: the repository contract
@@ -181,7 +181,7 @@ the section. Nothing else is needed from you.
 When your plugin works through another one, find it by type instead of asking
 the user to pass it in. `collage.FindPlugin[T](host)` looks through the
 application's plugins and returns the plugin of type `T` (the first, if there are
-several). Call it from `Configure` and keep what it finds: since v0.78.0 the `Host`
+several). Call it from `Configure` and keep what it finds: the `Host`
 given to `Init` lists no plugins, so `FindPlugin` from `Init` reports false.
 
 ```go
@@ -195,6 +195,28 @@ It sees every plugin in the list, whether that one has been configured yet or
 not. Then name the other plugin in `requires`, so that `add`
 brings it along. The websocket plugin does exactly this, which is why
 `New(nil)` works for it.
+
+## What v1 promises a plugin
+
+A plugin depends on `github.com/Elagoht/collage` at v1 and stays compatible with every
+later v1 release: `pkg/collage` and `pkg/collagetest` break nothing within v1, and a
+break would be a v2 module path. What that lets you rely on, and what it asks of you:
+
+- `Plugin`, `Metrics`, `Tracer`, `Span` and the cache interfaces gain no methods. A
+  plugin that implements `Metrics` or a `Tracer` embeds `collage.NoopMetrics`,
+  `collage.NoopTracer` and `collage.NoopSpan`; one that lists every method works too.
+- A new capability arrives as an optional interface, found by type assertion, so a
+  plugin that does not implement it is unaffected.
+- `Host` and `ConfigHost` are sealed and may grow; only collage implements them. Test
+  a plugin through a real application (`collagetest.NewSite`), not a hand-written
+  `Host`.
+- A plugin that provides a cache store runs `collagetest.CacheSuite`, or
+  `collagetest.SharedCacheSuite` for a shared one, in its tests. The suites check the
+  documented contract in full — removal against `GetStale`, tags that survive a stale
+  mark, an epoch that never goes back across `Clear` — and a store that marks instead of
+  removing, or resets its epoch, fails them.
+
+See [Stable within v1](/docs/writing-plugins#stable-within-v1) for the full list.
 
 ## Check it before you tag
 

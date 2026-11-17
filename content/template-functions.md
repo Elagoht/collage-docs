@@ -45,10 +45,14 @@ Templates are Go's `html/template`, so everything it provides is there: `if`,
 | [`keys`, `hasKey`](#lists-and-maps) | `keys map`, `hasKey map key` | a map's keys, sorted; whether it holds one |
 | [`dig`](#dig) | `dig value key...` | the value at a path through maps and structs, or nothing |
 
-Everything from `withQuery` down is new in v0.77.0. Every function is typed, so the
+Every function is typed, so the
 [template checker](/docs/data-handlers#how-templates-are-checked) — at
 registration and in `collage check` — reports `{{add .Title 1}}` with a string
-`Title` before any request does.
+`Title` before any request does. Registration also runs `html/template`'s escaper
+over every fragment's template: one it cannot escape — a `<script>` string that
+never closes, `{{if}}` branches that leave an attribute in different states — is
+an error naming the page and the fragment, rather than a fragment that fails on
+its first request.
 
 A function that returns an error fails the template, and the fragment fails with
 it — under the fragment's own failure policy:
@@ -59,8 +63,7 @@ it — under the fragment's own failure policy:
 
 In development mode "nothing" is an HTML comment naming the fragment and its
 error, and the development panel on top of the page names every failed fragment,
-fallback or not. In every mode, since v0.36.0, the failure is also logged as a
-warning. See [Fragments and slots](/docs/fragments-and-slots).
+fallback or not. In every mode the failure is also logged as a warning. See [Fragments and slots](/docs/fragments-and-slots).
 
 ## Bound per render
 
@@ -86,7 +89,7 @@ render. A placeholder that somehow runs outside a render returns an error rather
 than guessing.
 
 One consequence: an entry under one of these names in `Config.Template.Funcs` is
-parsed but never called, and since v0.77.0 `New` logs a warning naming it. The
+parsed but never called, and `New` logs a warning naming it. The
 other thirty-six can be replaced from `Config.Template.Funcs`. A plugin can replace
 none of the forty-eight: see [Adding your own](#adding-your-own).
 
@@ -180,6 +183,18 @@ the whole tree has rendered, every marker is replaced with what was declared for
 its area, so a declaration made deep inside the page still reaches the head. An
 area nothing was declared for is replaced with nothing.
 
+- **An area's name is letters, digits, `_` and `-`.** Anything else fails the
+  template: the marker is an HTML comment, and a name such as `{{hoist .Area}}`
+  fed from a request could otherwise close it.
+- **Two declarations under one key keep one.** The innermost fragment's wins; at
+  equal depth, the one later in the page — within a slot, the fragment bound later;
+  between slots, the one the template renders later.
+- **Only a fragment that rendered declares anything.** For a fragment behind a
+  slot the template never calls, its title, its `Hoist*` calls and the tags of its
+  `Cached` calls never reach the page. A fragment that fails takes its hoists with
+  it, so an optional fragment's fallback does not render under the failed one's
+  title.
+
 `HoistTitle`, `HoistMeta`, `HoistProperty`, `HoistLink`, `HoistAlternate` and
 `HoistStylesheet` write to the `"head"` area; `rc.Hoist(area, key, html)` writes
 to any area you name. **A plugin that contributes to the head needs this
@@ -208,6 +223,10 @@ name, and the old one is simply never requested again.
   alternative is a page that renders fine and links a stylesheet that 404s.
 - A path no mount serves, or an application with no mounts, is `ErrUnknownAsset`
   too; the message says when no mount's prefix covers the path at all.
+- So is a name the mount would answer with a 404: a dotfile such as
+  `/static/.env`, or one that is not a valid path within the mount.
+- Each segment of the file name is escaped, so a `#`, `?` or `%` in it stays part
+  of the path: `/static/100%.css` links as `/static/100%25.<hash>.css`.
 - A static export writes exactly the fingerprinted copies that pages asked for,
   alongside the originals.
 
@@ -292,8 +311,7 @@ its path changes.
   arguments, a missing or empty parameter, or a parameter the pattern has no
   placeholder for (`ErrRouteParams`) fails the render. A link that cannot be built
   is a bug to find in development, not a 404 for a reader.
-- **Values are strings, integers or `fmt.Stringer`s** (integers and Stringers
-  since v0.36.0), and are escaped.
+- **Values are strings, integers or `fmt.Stringer`s**, and are escaped.
 - **Some values are refused.** A value of `.` or `..`, which a browser would
   resolve as a path step, is refused. So is a float, a bool or nil, with
   `ErrRouteParams` naming its type, since none has one obvious spelling in a URL:
@@ -335,7 +353,7 @@ a language switcher is made of.
   mistake in the template, not a missing translation.
 - It fails in a render that is not a page's: a document's, or an action's at a URL
   of its own. A fragment served at a URL its page opened for it renders with that
-  page (since v0.77.0), so there it links the page.
+  page, so there it links the page.
 - For the `<link rel="alternate" hreflang>` search engines read, declare them from
   Go with `rc.HoistAlternate` — see
   [Head and SEO](/docs/head-and-seo#canonical-and-alternate-links).
@@ -348,7 +366,7 @@ a language switcher is made of.
 ```
 
 The URL of the [action](/docs/forms-and-actions#an-action-at-its-own-url)
-registered under `name` (since v0.36.0), built as `pageURL` builds a page's: the
+registered under `name`, built as `pageURL` builds a page's: the
 path is written once, in Go, and every form posting to it follows it.
 
 - **In this render's locale**, falling back to the default one, as `pageURL` does.
@@ -370,7 +388,7 @@ From Go it is `app.ActionURL(name, locale, params)`.
 
 The path a page opened for one of its fragments with
 [`WithFragmentPath`](/docs/forms-and-actions#a-fragment-at-its-own-url), built from
-the page's name and the fragment's (since v0.18.0). The path is written once, in
+the page's name and the fragment's. The path is written once, in
 Go, and every link to it follows it.
 
 - **In this render's locale**, falling back to the default one, as `pageURL` does.
@@ -400,8 +418,7 @@ path in that locale is `ErrNoPathInLocale`, and a locale no URL can reach is
 <a href="{{withQuery "page" 1 "sort" "new"}}">Newest first</a>
 ```
 
-The page being rendered, with the request's query and those parameters set (since
-v0.77.0). A value of `""` removes a parameter, and the others stay as they were.
+The page being rendered, with the request's query and those parameters set. A value of `""` removes a parameter, and the others stay as they were.
 On `/blog?tag=go&page=2`, the three links above are `/blog?page=3&tag=go`,
 `/blog?page=2` and `/blog?page=1&sort=new&tag=go`: the query is written with its
 names sorted.
@@ -512,7 +529,7 @@ in the data handler if you want another.
 ```
 
 `url.PathEscape`: the string escaped to sit in one segment of a path, so a `/` in it
-becomes `%2F` rather than a step down (since v0.77.0). A link to one of your own
+becomes `%2F` rather than a step down. A link to one of your own
 pages needs none of this: `pageURL` escapes its parameters itself.
 
 ### json
@@ -521,7 +538,7 @@ pages needs none of this: `pageURL` escapes its parameters itself.
 <script type="application/json" id="chart-data">{{json .Series 2 false}}</script>
 ```
 
-The value as JSON (since v0.77.0), indented by two spaces unless told otherwise:
+The value as JSON, indented by two spaces unless told otherwise:
 `{{json v 4}}` indents by four, and `{{json v 2 false}}` writes one line. The
 spaces are 0 to 16.
 
@@ -536,8 +553,7 @@ value `encoding/json` cannot encode, such as a channel, fails the render.
 {{pre .}}
 ```
 
-The value in a `<pre>` block, for looking at what a template was given (since
-v0.77.0). A string or a `[]byte` is shown as it is; anything else as `json` writes
+The value in a `<pre>` block, for looking at what a template was given. A string or a `[]byte` is shown as it is; anything else as `json` writes
 it, with the same optional spaces and `pretty`. The content is always escaped.
 
 ### Arithmetic
@@ -548,7 +564,7 @@ it, with the same optional spaces and `pretty`. The content is always escaped.
 ```
 
 `add`, `sub`, `mul`, `div`, `mod`, `min` and `max` take two `int`s, and `addf`,
-`subf`, `mulf` and `divf` two `float64`s (since v0.77.0). `div`, `mod` and `divf`
+`subf`, `mulf` and `divf` two `float64`s. `div`, `mod` and `divf`
 by zero fail the render.
 
 ### Strings
@@ -561,7 +577,7 @@ by zero fail the render.
 
 `trim` is `strings.TrimSpace`. `replace old new s`, `contains sub s`,
 `hasPrefix prefix s`, `hasSuffix suffix s` and `split sep s` are the `strings`
-functions with the string last, so each reads in a pipeline (since v0.77.0).
+functions with the string last, so each reads in a pipeline.
 `replace` replaces every `old`, and `split` returns a `[]string`.
 
 `truncate n s` cuts `s` to its first `n` characters and puts `…` after them when
@@ -576,8 +592,6 @@ split in half. A negative `n` fails the render.
 {{range keys .Counts}}<li>{{.}}: {{index $.Counts .}}</li>{{end}}
 {{if hasKey .Flags "beta"}}<span class="badge">beta</span>{{end}}
 ```
-
-All since v0.77.0:
 
 - `first list` and `last list` are a slice's or an array's first and last element,
   and nothing for an empty one, so `{{with}}` skips it.
@@ -596,7 +610,7 @@ All since v0.77.0:
 ```
 
 The value at that path through maps with string keys and the exported fields of
-structs, following pointers (since v0.77.0). A path that leads nowhere — a missing
+structs, following pointers. A path that leads nowhere — a missing
 key, an unexported field, a nil pointer on the way — is nothing rather than an
 error, so `{{with dig …}}` handles a value that is optional.
 
@@ -619,28 +633,26 @@ app, err := collage.New(&collage.Config{
 
 They are merged over the built-ins, so an entry under a built-in name — other than
 the per-render ones — replaces it. An entry under a per-render name is accepted and
-never runs; since v0.77.0 `New` logs a warning naming it.
+never runs, and `New` logs a warning naming it.
 
 They must be there before `New` because `html/template` can only call a name that
 was in its function map when the template was parsed; a template calling a name
 nobody registered fails in `New`, not at the first request.
 
 A plugin adds functions the same way, from its `Configure` phase; an application's
-entry under the same name wins. A plugin cannot take a built-in's name: since
-v0.77.0 `AddTemplateFunc` refuses it with `ErrDuplicateTemplateFunc`, where it used
-to replace the built-in without a word. See
+entry under the same name wins. A plugin cannot take a built-in's name:
+`AddTemplateFunc` refuses it with `ErrDuplicateTemplateFunc`. See
 [Writing a plugin](/docs/writing-plugins#template-functions).
 
 A plugin's `AddRenderFunc` function is bound per render, like the twelve above,
 but follows the same two rules:
 
-- Since v0.78.0 an application's entry under its name wins, as over
-  `AddTemplateFunc`, and `New` logs it once. Before, the plugin's function was
-  bound after the application's on every render, and so was the one that ran.
+- An application's entry under its name wins, as over `AddTemplateFunc`, and
+  `New` logs it once.
 - Like `AddTemplateFunc`, it cannot take any of the forty-eight built-in names.
   `AddRenderFunc` refuses them with `ErrDuplicateTemplateFunc`.
 
-Since v0.78.0 neither may take a name of the template language itself — `eq`,
+Neither may take a name of the template language itself — `eq`,
 `len`, `index`, `print`, `html`, `js`, `urlquery` and the rest of Go's builtins and
 escapers: `ErrDuplicateTemplateFunc` again.
 

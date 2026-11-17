@@ -1,6 +1,6 @@
 ---
 description: collage.Config ve alt struct'larının her alanı, varsayılan değerleri ve validation'ın neleri kontrol ettiği.
-reference: Config, CacheConfig, ServerConfig, SecurityConfig, TemplateConfig, LocaleConfig, ObservabilityConfig, CacheType, ParseOrigin
+reference: Config, CacheConfig, ServerConfig, SecurityConfig, TemplateConfig, LocaleConfig, ObservabilityConfig, CacheType, ParseOrigin, DocumentBuilder.WithTimeout, Metrics, Tracer, Span, NoopMetrics, NoopTracer, NoopSpan
 ---
 
 # Config
@@ -36,7 +36,7 @@ yazılıdır:
 
 <figure class="diagram-figure" data-search-ignore>
 <svg class="diagram" viewBox="0 0 320 456" role="img" aria-labelledby="config-shape-title">
-<title id="config-shape-title">Scaffold edilmiş main.go, collage.Config'in her alanını nereden alır. Ortamdan: DevMode COLLAGE_DEV=1'den, BaseURL BASE_URL'den, Server.Host HOST'tan, Server.Port varsayılanı PORT ya da 6060 olan -port flag'inden, Security.CSRFKey COLLAGE_CSRF_KEY'den. main.go'da ve yanındaki dosyalarda: PluginConfig plugins-config.json'dan, Plugins plugins.go'daki plugins()'ten, Template embed edilmiş templates dizininden, Cache ise .cache altında beş dakikalık TTL'li bir disk cache. Atanmayan ve varsayılanında kalanlar: Locale (yalnızca en), Logger, DevWatch, TrailingSlash ve Observability. Değerin tamamı collage.New'a gider; New varsayılanları doldurur, validation yapar ve uygulamayı kurar.</title>
+<title id="config-shape-title">Scaffold edilmiş main.go, collage.Config'in her alanını nereden alır. Ortamdan: DevMode COLLAGE_DEV=1'den, BaseURL BASE_URL'den, Server.Host HOST'tan, Server.Port varsayılanı PORT ya da 6060 olan -port flag'inden, Security.CSRFKey COLLAGE_CSRF_KEY'den. main.go'da ve yanındaki dosyalarda: PluginConfig plugins-config.json'dan, Plugins plugins.go'daki plugins()'ten, Template embed edilmiş templates dizininden, Cache ise .cache altında varsayılan TTL'i beş dakika olan bir disk cache. Atanmayan ve varsayılanında kalanlar: Locale (yalnızca en), Logger, DevWatch, TrailingSlash ve Observability. Değerin tamamı collage.New'a gider; New varsayılanları doldurur, validation yapar ve uygulamayı kurar.</title>
 <defs><marker id="config-shape-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
 <text class="d-small" x="78" y="14" text-anchor="middle">scaffold'un main.go'sunda</text>
 <text class="d-small" x="242" y="14" text-anchor="middle">collage.Config alanı</text>
@@ -88,7 +88,7 @@ ise production'daki bir uygulamanın ona ne eklediğini gösterir.
 | Alan | Tip | Varsayılan | Anlamı |
 | --- | --- | --- | --- |
 | `DevMode` | `bool` | `false` | Framework genelinde development modu. |
-| `DevWatch` | `[]string` | yok | Değiştiğinde development'taki page'i yeniden yükleyen ek dizinler. v0.10.0'dan beri. |
+| `DevWatch` | `[]string` | yok | Değiştiğinde development'taki page'i yeniden yükleyen ek dizinler. |
 | `Logger` | `*slog.Logger` | başlangıçta seçilir | Framework'ün ve plugin'lerin log yazdığı logger. |
 | `Server` | `ServerConfig` | | HTTP sunucusu. |
 | `BaseURL` | `string` | yok | Sitenin public origin'i, `https://example.com`; bir render'ın başka türlü bilemeyeceği mutlak URL'ler için. |
@@ -96,7 +96,7 @@ ise production'daki bir uygulamanın ona ne eklediğini gösterir.
 | `Template` | `TemplateConfig` | | Template'lerin yüklenmesi ve render edilmesi. |
 | `Cache` | `CacheConfig` | | Page cache. |
 | `Locale` | `LocaleConfig` | | URL'lerin hangi locale'leri taşıdığı. |
-| `TrailingSlash` | `bool` | `false` | Her page'in URL'si `/` ile biter. v0.13.0'dan beri. |
+| `TrailingSlash` | `bool` | `false` | Her page'in URL'si `/` ile biter. |
 | `Observability` | `ObservabilityConfig` | | Metric'ler ve tracing. |
 | `Plugins` | `[]Plugin` | yok | Uygulama kurulurken register edilen plugin'ler. |
 | `PluginConfig` | `map[string]json.RawMessage` | yok | Her plugin'in kendi config'i, plugin adına göre key'lenmiş. |
@@ -112,13 +112,12 @@ Development modunu açar. Bu modda:
 - `DevWatch`'ta adı geçen dizinler izlenir;
 - built-in error page hatanın hangi fragment'te başladığını söyler, hatanın
   sebebiyle başlar (template kaynaklı bir hatada başarısız olan çağrının dosyası,
-  satırı ve sütunu; v0.15.0'dan beri) ve hata zincirinin tamamını gösterir.
+  satırı ve sütunu) ve hata zincirinin tamamını gösterir.
 
 **Production'da kapalı olmalıdır.** Bu tanı bilgileri dosya yollarını, host
 adlarını ve hata mesajlarında ne varsa hepsini içerir.
 
-Tek şalter `DevMode`'dur: v0.60.0'dan önce aynı işi yapan `Template.DevMode`
-kaldırıldı. Bir plugin onu `host.DevMode()` ile okur. Scaffold edilmiş bir proje
+Tek şalter `DevMode`'dur; development modunu başka hiçbir şey açmaz. Bir plugin onu `host.DevMode()` ile okur. Scaffold edilmiş bir proje
 bu alanı `COLLAGE_DEV=1`'e göre ayarlar. `collage dev` bu değişkeni sizin yerinize
 set eder.
 
@@ -126,7 +125,7 @@ set eder.
 
 Template'ler ve mount'lar dışında, değiştiğinde development'taki page'i yeniden
 yükleyen dizinlerdir. Uygulamanızın diskten kendisinin okuduğu Markdown ya da JSON
-gibi içerikler için kullanılır. v0.10.0'dan beri vardır.
+gibi içerikler için kullanılır.
 
 ```go
 app, err := collage.New(&collage.Config{
@@ -150,7 +149,7 @@ kurarken seçer:
   değiştirmemişse, insanların okuması için tasarlanmış kompakt bir handler
   kullanılır. Bu handler her kaydı tek satırda ve renkli bir level işaretiyle yazar.
 - **Diğer bütün ortamlarda** `slog.Default()` olduğu gibi kullanılır. İstisnası,
-  `NO_COLOR` ayarlı değilken `FORCE_COLOR`'ın ayarlı olmasıdır (v0.32.0'dan beri):
+  `NO_COLOR` ayarlı değilken `FORCE_COLOR`'ın ayarlı olmasıdır:
   [`collage dev`](/docs/cli#collage-dev) renkli bir terminalde çalıştırdığı program
   için bunu ayarlar.
 
@@ -169,10 +168,10 @@ verilmelidir.
 okumaz. Bu alanı istediğiniz gibi doldurabilir ya da
 `collage.LoadPluginConfig("plugins-config.json")`'u kullanabilirsiniz. Bu fonksiyon
 dosya yoksa `nil` döner. Scaffold edilmiş bir `newApp`'in çağırdığı
-`Env.PluginConfig`'i de kullanabilirsiniz (v0.68.0'dan beri): çalışma dizininde
+`Env.PluginConfig`'i de kullanabilirsiniz: çalışma dizininde
 dosya varsa onu, yoksa binary'ye embed edilmiş kopyayı okur. Register edilmiş
 hiçbir plugin'in adına karşılık gelmeyen bir key, uygulamanın başlamasını
-`ErrUnknownPluginConfig` ile engeller; v0.61.0'dan beri bir bölümün içinde
+`ErrUnknownPluginConfig` ile engeller; bir bölümün içinde
 plugin'in tanımadığı bir key de aynısını yapar. Ayrıntılar için
 [Plugin'leri yapılandırmak](/docs/plugins#configuring-plugins) bölümüne bakın.
 
@@ -193,22 +192,24 @@ iç link bir redirect'e işaret eder.
 
 Bu ayar yalnızca page'lere uygulanır. Bir [document](/docs/documents) bir dosyadır ve
 path'ini yazıldığı gibi korur, yani iki durumda da `/sitemap.xml` olarak kalır. Bir
-action ise hangi yazıma post edildiyse o adreste cevap verir.
+action ise her zaman sonda slash olmadan yazılır. Yine de her birinin tek bir
+adresi vardır: `/sitemap.xml/` oraya `301` ile redirect edilir, `/login/` adresine
+yapılan bir `POST` ise `308` ile; böylece body yeniden gönderilir.
 
 ## ServerConfig
 
 | Alan | Tip | Varsayılan | Anlamı |
 | --- | --- | --- | --- |
 | `Host` | `string` | `"localhost"` | Sunucunun dinlediği adres. |
-| `Port` | `int` | `6060` (v0.32.0'dan önce `3000`) | TCP port'u, `1`–`65535`. |
+| `Port` | `int` | `6060` | TCP port'u, `1`–`65535`. |
 | `ReadTimeout` | `time.Duration` | `15s` | Bir request'i okumanın en fazla ne kadar sürebileceği. |
-| `ReadHeaderTimeout` | `time.Duration` | `0` | Yalnızca request header'larını okumanın en fazla ne kadar sürebileceği. Sıfır, `ReadTimeout`'u kullanır (v0.56.0'dan beri). |
+| `ReadHeaderTimeout` | `time.Duration` | `0` | Yalnızca request header'larını okumanın en fazla ne kadar sürebileceği. Sıfır, `ReadTimeout`'u kullanır. |
 | `WriteTimeout` | `time.Duration` | `30s` | Bir response'u yazmanın en fazla ne kadar sürebileceği. |
 | `IdleTimeout` | `time.Duration` | `60s` | Bir keep-alive bağlantısının en fazla ne kadar boşta bekleyebileceği. |
 | `ShutdownTimeout` | `time.Duration` | `10s` | Graceful shutdown'ın devam eden request'leri ne kadar beklediği. |
-| `DrainDelay` | `time.Duration` | `0` | Bir shutdown başladıktan sonra, port kapanmadan önce sunucunun keep-alive'lar kapalı olarak ne kadar daha hizmet verdiği; development'ta yok sayılır (v0.53.0'dan beri). Bkz. [Deployment](/docs/deployment#graceful-shutdown-and-draining). |
-| `MaxBodyBytes` | `int64` | 4 MiB | Request'in yönlendirildiği action kendi sınırını koymadığında request body'sine uygulanan sınır. v0.34.0'dan beri middleware'den önce uygulanır. |
-| `TrustedProxies` | `[]string` | yok | Sunucunun önündeki proxy'lerin adresleri ve CIDR aralıkları; bunların `X-Forwarded-For`'una inanılır (v0.47.0'dan beri). Liste set edilmişse `X-Forwarded-Proto`'suna da inanılır (v0.56.0'dan beri). |
+| `DrainDelay` | `time.Duration` | `0` | Bir shutdown başladıktan sonra, port kapanmadan önce sunucunun keep-alive'lar kapalı olarak ne kadar daha hizmet verdiği; development'ta yok sayılır. Bkz. [Deployment](/docs/deployment#graceful-shutdown-and-draining). |
+| `MaxBodyBytes` | `int64` | 4 MiB | Request'in yönlendirildiği action kendi sınırını koymadığında request body'sine uygulanan sınır. Middleware'den önce uygulanır. |
+| `TrustedProxies` | `[]string` | yok | Sunucunun önündeki proxy'lerin adresleri ve CIDR aralıkları; bunların `X-Forwarded-For`'una inanılır. Liste set edilmişse `X-Forwarded-Proto`'suna da inanılır. |
 
 `Host`'un varsayılanı `localhost`'tur ve bu adrese makinenin dışından erişilemez.
 Container içinde bu alanı `0.0.0.0` yapın.
@@ -255,37 +256,37 @@ işlettiğiniz proxy'leri ya da platformunuzun belgelediği aralıkları yazın.
 adresi kendine vermesine izin vermektir. Sıfır bitlik bir aralık (`0.0.0.0/0`,
 `::/0`) herkese güvenir ve `collage.New` bunun için bir Warn log'lar.
 
-v0.56.0'dan beri forgery cookie'sinin kimden gelen bir `X-Forwarded-Proto` ile
-`Secure` olarak işaretleneceğine de aynı liste karar verir. Liste boşken bu header'a,
-önceden olduğu gibi, herkesten inanılır.
+Forgery cookie'sinin kimden gelen bir `X-Forwarded-Proto` ile `Secure` olarak
+işaretleneceğine de aynı liste karar verir. Liste boşken bu header'a herkesten
+inanılır; bu, yalnızca bir proxy'nin ulaşabildiği bir sunucu için doğrudur.
 Bkz. [Deployment](/docs/deployment#behind-a-proxy-trustedproxies).
 
 ## SecurityConfig
 
 | Alan | Tip | Varsayılan | Anlamı |
 | --- | --- | --- | --- |
-| `CSRFKey` | `[]byte` | her process için üretilir | Forgery token'larını imzalayan key. |
+| `CSRFKey` | `[]byte` | her process için üretilir | Forgery token'larını imzalayan key. Production'da ayarlayın. |
 | `CSRFCookieName` | `string` | `"collage_csrf"` | Token'ı taşıyan cookie. |
 | `CSRFFieldName` | `string` | `"_csrf"` | Token'ın gönderildiği form alanı. |
 | `CSRFHeaderName` | `string` | `"X-CSRF-Token"` | Token'ın alternatif olarak gönderilebileceği header. |
-| `CSRFTrustedOrigins` | `[]string` | yok | Form'ları buraya post edebilecek diğer origin'ler. Her biri `scheme://host[:port]` biçimindedir (v0.34.0'dan beri). |
+| `CSRFTrustedOrigins` | `[]string` | yok | Form'ları buraya post edebilecek diğer origin'ler. Her biri `scheme://host[:port]` biçimindedir. |
 | `DisableCSRF` | `bool` | `false` | Forgery kontrolünü bütün uygulama için kapatır. |
-| `CSRFTokenTTL` | `time.Duration` | `12h` | Bir forgery token'ının üretildikten sonra ne kadar geçerli kaldığı; negatif değer sona ermeyi kapatır (v0.39.0'dan beri). |
-| `FrameOptions` | `string` | `"SAMEORIGIN"` | Her response'ta gönderilen `X-Frame-Options`; `"-"` hiçbirini göndermez (v0.39.0'dan beri). |
-| `DisableNoSniff` | `bool` | `false` | Her response'ta gönderilen `X-Content-Type-Options: nosniff` header'ını durdurur (header v0.39.0'dan beri; v0.60.0'dan önce bu alan `NoSniff *bool` idi). |
+| `CSRFTokenTTL` | `time.Duration` | `12h` | Bir forgery token'ının üretildikten sonra ne kadar geçerli kaldığı. Sıfır varsayılan demektir; negatif bir değer, token'ı imzası doğrulandığı sürece geçerli tutar. |
+| `FrameOptions` | `string` | `"SAMEORIGIN"` | Her response'ta gönderilen `X-Frame-Options`; `"-"` hiçbirini göndermez, başka her değer olduğu gibi gönderilir. |
+| `DisableNoSniff` | `bool` | `false` | Her response'ta gönderilen `X-Content-Type-Options: nosniff` header'ını durdurur. |
 
-**Form içeren herhangi bir şeyi deploy etmeden önce `CSRFKey`'i ayarlayın.** Key en
-az 32 byte rastgele veri olmalı, diğer secret'larınızla birlikte saklanmalı ve her
+**Production'da `CSRFKey`'i ayarlayın.** Key en az 32 byte rastgele veri olmalı, diğer secret'larınızla birlikte saklanmalı ve her
 instance'ta aynı olmalıdır.
 
 Boş bırakılırsa her process için yeni bir key üretilir.
-Bu ilk çalıştırma için yeterlidir ama deploy için yanlıştır. Çünkü restart'tan önce ya
-da başka bir instance tarafından üretilmiş bir token reddedilir. Uygulama key
+Bu ilk çalıştırma için yeterlidir ama deploy için yanlıştır. Çünkü üretilen key her
+process'te farklıdır: restart'tan önce üretilmiş bir token restart'tan sonra, bir
+instance'ın ürettiği token da bir sonrakinde reddedilir. Böylece bir restart'ı
+aşan ya da bir filonun başka bir instance'ına giden form gönderimi başarısız olur. Uygulama key
 ürettiğini log'lar. Development dışında bu bir uyarı, development'ta ise info
 seviyesinde bir kayıttır. Bu log yalnızca unsafe bir method'a (`POST`, `PUT`, `PATCH`,
 `DELETE`) cevap veren ve `WithoutCSRF` ile muaf tutulmamış bir action varsa yazılır.
-Çünkü token'ı yalnızca böyle bir action doğrular (`WithoutCSRF` muafiyeti v0.11.0'dan
-beri vardır).
+Çünkü token'ı yalnızca böyle bir action doğrular.
 
 Key disk cache'in namespace'ine dahil değildir, bu yüzden cache yeni bir key'e
 rağmen korunur. İçinde form olan ve eski key ile saklanmış cache'lenmiş bir page
@@ -299,11 +300,14 @@ belirtir. Diğer her origin, geçerli bir token taşısa bile reddedilir. Ayrın
 [Form'lar ve action'lar](/docs/forms-and-actions#where-the-request-came-from)
 sayfasına bakın.
 
-Yukarıdaki isim varsayılanlarını `New` değil forgery guard uygular. Bu
-yüzden bu alanlar `Config`'inizde boş kalır. `CSRFFieldName` alanın adını iki tarafta
+Yukarıdaki isim varsayılanlarını ve `CSRFTokenTTL`'in `12h`'ini `New` değil
+forgery guard uygular. Bu yüzden bu alanlar `Config`'inizde boş kalır. `CSRFFieldName` alanın adını iki tarafta
 birden değiştirir. `{{csrfToken}}` kontrolün okuduğu adı yazdığı için form'larınızda
 değişiklik gerekmez. Ancak token'ı form'dan okuyan script'lerin
 (`input[name="_csrf"]`) yeni adı kullanması gerekir.
+
+`CSRFTokenTTL`, her token'a imzalanmış üretilme zamanına göre kontrol edilir: bu
+yaşı geçmiş bir token reddedilir ve bir sonraki form için yenisi üretilir.
 
 `DisableCSRF`, tarayıcıdan gönderilen hiçbir form'u olmayan uygulamalar içindir,
 örneğin kendi authentication'ının arkasında duran bir API. Bu ayar açıkken
@@ -319,7 +323,7 @@ başarısız kılar. Yalnızca tek bir action'ı muaf tutmak istiyorsanız o act
 | `Root` | `string` | diskte `"./templates"` | Template'lerin yüklendiği dizin. Her template adının başından çıkarılır. |
 | `Extension` | `string` | `".html"` | Template dosyalarının uzantısı. |
 | `Funcs` | `template.FuncMap` | yok | Built-in fonksiyonların üzerine eklenen ek template fonksiyonları. |
-| `Timeout` | `time.Duration` | `5s` | Data handler'ların varsayılan timeout'u ve her document handler'ın toplam süre bütçesi. |
+| `Timeout` | `time.Duration` | `5s` | Data handler'ların varsayılan timeout'u; kendi timeout'unu koymayan her document handler'ın da varsayılanı. |
 
 ### FS ve Root
 
@@ -348,23 +352,24 @@ dizin varsa onu tercih eder. Var olmayan bir `Root` için `New`
 Bu fonksiyonlar template'ler parse edilirken built-in fonksiyonlara eklenir. Built-in
 bir fonksiyonla aynı adı taşıyan bir kayıt o built-in fonksiyonun yerini alır. Bir
 plugin'in eklediği bir adı taşıyan kayıt da plugin'in fonksiyonunun yerini alır
-(v0.78.0'dan beri `AddRenderFunc` ile eklenmiş olanınkini de); `New` bu adların her
+(`AddTemplateFunc` ya da `AddRenderFunc` ile eklenmiş olsun); `New` bu adların her
 birini bir kez log'lar. Bu
 alan `New`'dan önce ayarlanmalıdır. Çünkü bir template yalnızca parse edildiği anda
 var olan bir fonksiyonu çağırabilir. Bilinmeyen bir adı çağıran template `New`'da
 hata verir. Her render'a bağlanan fonksiyonlar (`slot`, `hoist`, `asset`,
 `stylesheet`, `csrfToken`, `pageURL`, `pageURLIn`, `localeURL`, `actionURL`,
 `fragmentURL`, `fragmentURLIn`, `withQuery`) her render'da yeniden bağlanır. Bu
-yüzden onları override etmenin hiçbir etkisi olmaz; v0.77.0'dan beri `New`, verilen
+yüzden onları override etmenin hiçbir etkisi olmaz; `New`, verilen
 her birini adıyla anan bir uyarı log'lar. Ayrıntılar için
 [Template fonksiyonları](/docs/template-functions) sayfasına bakın.
 
 ### Timeout
 
 Fragment'i `WithTimeout` ile kendi süresini koymamış bir data handler'ın deadline'ıdır.
-Bir [document](/docs/documents) handler'ın kendi timeout'u yoktur ve bu değer onun
-tek sınırıdır. Bu yüzden yavaş tek bir fragment için değeri yükseltirseniz her sitemap
-ve feed için de yükseltmiş olursunuz. collage'daki bütün timeout'lar gibi bu da
+`DocumentBuilder.WithTimeout` ile kendi süresini koymamış her
+[document](/docs/documents) handler'ın da deadline'ıdır. Bu yüzden yavaş bir feed
+kendi bütçesini orada yükseltir; bunu her fragment ve document için bu değeri
+yükselterek yapmaz. collage'daki bütün timeout'lar gibi bu da
 handler'a verilen context'i sınırlar. `ctx.Done()`'ı hiç kontrol etmeyen bir handler
 bu süreyi aşabilir.
 
@@ -375,12 +380,12 @@ bu süreyi aşabilir.
 | `Enabled` | `bool` | `false` | Page cache'in ana şalteri. |
 | `Store` | `Cache` | `nil` | Kendi cache implementasyonunuz. |
 | `Type` | `CacheType` | açıksa `CacheMemory` | `Store` `nil` olduğunda kullanılan built-in cache: `collage.CacheMemory` ya da `collage.CacheDisk`. |
-| `DefaultTTL` | `time.Duration` | `5m` | Page bir süre koymadığında entry'nin ömrü. |
-| `MaxEntries` | `int` | `10000` | Cache entry sayısının ve tek bir tag altında izlenen key sayısının üst sınırı; memory ve disk için de geçerli. Negatif değer sınırsız entry demektir (disk için v0.39.0'dan beri). |
-| `MaxBytes` | `int64` | memory için 256 MiB, disk için 1 GiB | Built-in bir cache'in sakladığı toplam boyutun üst sınırı. Negatif değer sınırsız demektir (v0.40.0'dan beri). Bir disk cache'in memory katmanı 256 MiB tutar, `MaxBytes` bundan küçükse de `MaxBytes` kadar tutar (v0.63.0'dan beri). |
+| `DefaultTTL` | `time.Duration` | `5m` | Built-in bir store'un, sıfır ya da daha küçük bir TTL ile yazılan bir entry'ye verdiği ömür. |
+| `MaxEntries` | `int` | `10000` | Cache entry sayısının ve tek bir tag altında izlenen key sayısının üst sınırı; memory ve disk için de geçerli. Negatif değer sınırsız entry demektir. |
+| `MaxBytes` | `int64` | memory için 256 MiB, disk için 1 GiB | Built-in bir cache'in sakladığı toplam boyutun üst sınırı. Negatif değer sınırsız demektir. Bir disk cache'in memory katmanı 256 MiB tutar, `MaxBytes` bundan küçükse de `MaxBytes` kadar tutar. |
 | `Dir` | `string` | yok | Disk cache'in entry'leri, `Dir/data/` altında ise `collage.Cached` değerlerini sakladığı yer. `CacheDisk` için zorunludur. Her instance'ın kendi dizini olmalıdır: bir dizini paylaşan instance'lar bir cache'i paylaşmaz. |
 | `Version` | `string` | binary'den türetilir | Disk cache'teki entry'lerin hangi build'e ait olduğunu belirler. |
-| `WarmLimit` | `int` | `1000` | Tek bir invalidation'ın arka planda yeniden render ettiği page sayısının üst sınırı; en yeniler önce gelir. Negatif değer warming'i kapatır (v0.64.0'dan beri). |
+| `WarmLimit` | `int` | `1000` | Tek bir invalidation'ın arka planda yeniden render ettiği page sayısının üst sınırı; en yeniler önce gelir. Negatif değer warming'i kapatır. |
 
 **Caching varsayılan olarak kapalıdır.** `Enabled` false iken bir `Store` ayarlı olsa
 bile hiçbir şey cache'lenmez. `Type`'ın varsayılanı yalnızca `Enabled` true ve `Store`
@@ -388,16 +393,24 @@ bile hiçbir şey cache'lenmez. `Type`'ın varsayılanı yalnızca `Enabled` tru
 derlenir; bir değişkenden okunan string'in ise dönüştürülmesi gerekir:
 `Type: collage.CacheType(v)`.
 
+**`DefaultTTL` built-in bir store'un yedeğidir, bir page'in ömrü değildir.** Memory
+ve disk cache'ler onu sıfır ya da daha küçük bir TTL ile yazılan bir entry'ye
+verir; negatif bir değeri `New` reddeder. Bir page ya da document ona hiç
+ulaşmaz: `Incremental(ttl)` ve document'taki karşılığı pozitif olmayan bir TTL'i
+reddeder, static bir page ise invalidate edilene kadar saklanır. Yani framework'ün
+yazdığı her entry kendi TTL'ini taşır. Kendi `Store`'unuza bu değer verilmez; o,
+TTL'i sıfır olan bir `Set`'e kendi varsayılanını uygular. `collage.Cached` kendi
+TTL'ini alır ve orada sıfır, değerin hiç expire olmaması demektir.
+
 **Bir `Store`, validation dahil `Type`'ın yerini tamamen alır.** Page'leri Redis'e
 ya da başka bir yere koymak için `collage.Cache`'i (`Get`, `Set`, `InvalidateKey`,
 `Clear`) implement edin. `collage.TaggedCache`'i (`SetTagged`, `Invalidate`) de
 implement eden bir store'a her entry yazılırken o entry'nin tag'leri de verilir ve
-tag'e göre invalidate etmesi istenir. v0.60.0'dan önce `Invalidate`, `Cache`'in
-kendi metoduydu. Ayrıca `collage.StaleCache`'i (`GetStale`, `MarkStaleKey`,
-`MarkStale`, v0.63.0'dan beri) implement eden bir store'dan, invalidate edilen
+tag'e göre invalidate etmesi istenir. Ayrıca `collage.StaleCache`'i (`GetStale`,
+`MarkStaleKey`, `MarkStale`) implement eden bir store'dan, invalidate edilen
 entry'leri silmek yerine stale olarak işaretlemesi istenir. Böyle bir store
 başarısız bir yeniden render'a eski page'le cevap verebilir. Bkz. [Caching](/docs/caching#stale-pages-in-your-own-store).
-`collage.SharedCache`'i (v0.66.0'dan beri) implement eden bir store, örneğin
+`collage.SharedCache`'i implement eden bir store, örneğin
 [collage-redis](/docs/plugins#elagohtredis), bir filo tarafından paylaşılır:
 page'ler ve `collage.Cached` verisi onda tutulur ve herhangi bir instance'taki
 invalidation hepsine ulaşır. Bkz. [Caching](/docs/caching#a-cache-a-fleet-shares).
@@ -410,14 +423,14 @@ stale hiçbir şey bulmaz. `Version`'ı boş bırakırsanız değeri çalışan 
 hash'i olur. Bu hash tam da çıktının değişebileceği durumlarda değişir. Page'lerin
 nasıl görüneceğini binary dışındaki bir şey belirliyorsa `Version`'ı kendiniz
 ayarlayın, örneğin bir commit ya da release tag'i ile. Executable'ın hash'i
-alınamazsa bir uyarıyla birlikte memory cache kullanılır. v0.11.0'dan beri dizin
+alınamazsa bir uyarıyla birlikte memory cache kullanılır. Dizin
 oluşturulamadığında da (örneğin salt okunur bir dosya sisteminde) aynısı olur:
 `collage.New` başarısız olmak yerine bir uyarı verir ve memory ile devam eder.
 Uygulama çalışırken başarısız olan bir yazma log'lanır ve page cache'lenmeden sunulur.
 Development'ta disk cache hiç kullanılmaz, onun yerine bir memory cache devreye
 girer.
 
-**Disk cache'in önünde memory vardır** (v0.63.0'dan beri). Bir hit, memory
+**Disk cache'in önünde memory vardır.** Bir hit, memory
 katmanından sunulur. Bu katmanı `MaxEntries` ve 256 MiB (`MaxBytes` bundan küçükse
 `MaxBytes`) sınırlar. Katman açılışta geçerli build'in dizininden, en yenilerden
 başlanarak doldurulur. Böylece bir restart son page'lerini hemen memory'den sunar.
@@ -431,33 +444,28 @@ uygulama restart'tan sonra boş bir data cache'le başlamaz. Entry'lerin aksine 
 değerler build'in alt dizininde durmaz ve şifrelenmez. Bkz.
 [Caching](/docs/caching#across-a-restart).
 
-**`MaxEntries`**, `collage.Cached`'in request'ler arasında tuttuğu değerleri ve
-built-in bir cache'le dependency tracker'ın toplamda tuttuğu key sayısını da
-sınırlar (v0.40.0'dan beri).
+**`MaxEntries`**, `collage.Cached`'in request'ler arasında tuttuğu değerleri de
+sınırlar.
 
 **`MaxBytes`**, built-in bir cache'in ne kadar yer kapladığını sınırlar: sıfır,
 tipin varsayılanını seçer. Sınırın tamamından büyük bir page sunulur ama
 saklanmaz. Kendi `Store`'unuz bunu yok sayar. Bkz.
 [Caching](/docs/caching#bounded-in-bytes-too).
 
-**`MaxEntries` framework'ün dependency tracker'ını tag başına da sınırlar.**
-Bu tracker, her process'te bir tag'i cache key'lerine eşleyen bir index'tir.
-v0.60.0'dan önce bu ayrı bir alandı: `MaxKeysPerTag`.
+**`MaxEntries` framework'ün dependency tracker'ını da sınırlar.** Bu tracker,
+her process'te bir tag'i cache key'lerine eşleyen bir index'tir. Store ne olursa
+olsun, kendi `Store`'unuz dahil, hem tag başına hem de toplamda sınırlanır.
+Negatif bir `MaxEntries` iki sınırı da 10000'de tutar.
 
 Her farklı query string ayrı bir key'dir. Cache bir entry'yi evict ettiğinde ya da
 entry'nin süresi dolduğunda key tracker'dan silinmez. Bu yüzden bir üst sınır
-olmasa bir client bu index'i sınırsızca büyütebilirdi. Bir tag sınıra ulaştığında
-o tag'in en eski key'i yalnızca tracker'dan düşürülür, cache'ten silinmez. Negatif
-bir `MaxEntries`, tag başına bu sınırı 10000'de tutar.
-
-Bunun bedeli store'a göre değişir. Built-in memory ve disk cache'ler tag'leri
-kendileri index'ler (`TaggedCache`'i implement ederler). Bu yüzden `InvalidateTags`
-tuttukları her entry'ye yine ulaşır. Yalnızca `InvalidateTagsN`'in raporladığı sayı,
-yani tracker'ın çözümlediği sayı, daha düşük çıkabilir. `TaggedCache`'i implement
-etmeyen custom bir `Store` ise yalnızca tracker'a güvenir. Onun için düşürülen bir
-key, `InvalidateTags`'in artık ulaşamadığı bir entry demektir ve bu entry süresi
-dolana kadar sunulmaya devam eder. Böyle bir store kullanıyorsanız `MaxEntries`'i,
-tek bir tag'in kapsayabileceği canlı entry sayısının üzerinde bir değere ayarlayın.
+olmasa bir client bu index'i sınırsızca büyütebilirdi. Bir tag sınıra ulaştığında,
+yeni bir key kaydedilirken o tag'in en eski key'i düşürülür ve o key'in cache
+entry'si de onunla birlikte silinir: tracker'ın bıraktığı bir key, `InvalidateTags`'in
+artık ulaşamayacağı bir key'dir, bu yüzden stale olarak sunulmak üzere cache'te
+bırakılmaz. Page, cache onu evict etmiş gibi bir sonraki request'te yeniden render
+edilir. Bkz.
+[Caching](/docs/caching#the-tag-index-is-per-process-and-bounded).
 
 `MaxEntries` ve `MaxBytes`'ta sıfır varsayılan değer demektir. Sınırsız anlamına
 gelen tek değer negatif bir değerdir. Ayrıntılar için [Caching](/docs/caching)
@@ -469,7 +477,7 @@ sayfasına bakın.
 | --- | --- | --- | --- |
 | `Default` | `string` | `"en"` | Locale prefix'i olmayan bir URL'nin locale'i. |
 | `Supported` | `[]string` | `[Default]` | Uygulamanın sunduğu bütün locale'ler. |
-| `PrefixDefault` | `bool` | `false` | `Default`'un page'leri de prefix alır: `/en/about`. v0.14.0'dan beri. |
+| `PrefixDefault` | `bool` | `false` | `Default`'un page'leri de prefix alır: `/en/about`. |
 
 Locale'i seçen tek şey URL'dir. `/about` `Default` locale'indedir, `/tr/hakkinda` ise
 `"tr"` locale'indedir. collage locale'i hiçbir zaman `Accept-Language`'ten ya da bir
@@ -496,7 +504,12 @@ sayfasına bakın.
 | `Tracer` | `Tracer` | no-op | Request'lerin, render'ların ve fragment'lerin etrafında span başlatır. |
 
 İkisi de collage'ı kendi backend'inize bağlamak için implement ettiğiniz
-interface'lerdir. `nil` no-op demektir.
+interface'lerdir. `nil` no-op demektir. `Metrics`, `Tracer` ve `Span` v1 boyunca
+yeni method kazanmaz: framework'ün ileride raporladığı bir sinyal ayrı, opsiyonel
+bir interface olarak gelir ve type assertion ile bulunur. Bir implementasyona
+`collage.NoopMetrics`, `NoopTracer` ve `NoopSpan`'i embed edin ve yalnızca
+ihtiyaç duyduğu method'ları tanımlayın; ne eklenirse eklensin derlenmeye devam
+eder.
 
 ```go
 type Metrics interface {
@@ -518,17 +531,30 @@ type Span interface {
 }
 ```
 
+Yalnızca response'ları sayan, başka hiçbir şeyle ilgilenmeyen bir metrics köprüsü:
+
+```go
+type responseCounter struct {
+	collage.NoopMetrics
+	responses atomic.Int64
+}
+
+func (m *responseCounter) HTTPResponse(ctx context.Context, status int, path string, d time.Duration) {
+	m.responses.Add(1)
+}
+```
+
 `CacheEvent` şu değerlerden biridir: `collage.CacheHit`, `CacheMiss`, `CacheSet`,
 `CacheEvict`, `CacheInvalidate`, `CacheCoalesced`, `CacheStale` ve `CacheWarm`.
 `CacheCoalesced`, bir request'in aynı key için zaten çalışmakta olan bir render
 tarafından karşılandığı anlamına gelir. `CacheStale` ise bir `collage.Cached`
 değerinin ya da cache'lenmiş bir page'in stale olarak sunulduğu anlamına gelir.
-Sunulan her değer ya da response için bir kez sayılır. `CacheWarm` (v0.64.0'dan beri) ise bir
+Sunulan her değer ya da response için bir kez sayılır. `CacheWarm` ise bir
 invalidation'ın ulaştığı bir page ya da document'ın arka planda yeniden render
 edilip saklandığı anlamına gelir. Her key için bir kez sayılır.
 
 `HTTPResponse`'un `path`'i request'in path'idir ve onu client seçer; bunun yerine
-sınırlı olan `collage.RouteInfo(ctx)` ile etiketleyin. v0.79.0'dan beri path
+sınırlı olan `collage.RouteInfo(ctx)` ile etiketleyin. Path
 normalleştirmesinin reddettiği bir request için de (kirli bir path'in redirect'i,
 hiçbir route'un eşleşemeyeceği bir path) boş bir path ile ve `RouteInfo` türü
 `"rejected"`, adı `"normalise"` olarak çağrılır. `collage.http` span'i
@@ -557,7 +583,7 @@ validation'a hiç ulaşmaz. Yalnızca açıkça set ettiğiniz bir değer hataya
 açabilir. Bu hataları `errors.Is` ile karşılaştırın. Tam liste
 [Hatalar](/docs/errors#configuration) sayfasındadır.
 
-Varsayılanları doldurmak ve validation v0.60.0'dan beri ayrı ayrı export edilmez.
+Varsayılanları doldurmak ve validation ayrı ayrı export edilmez.
 İkisinin çalıştığı tek yer `New`'dur, bu yüzden bir test bir config'i onu çağırarak
 kontrol eder:
 
@@ -603,8 +629,8 @@ app, err := collage.New(&collage.Config{
 })
 ```
 
-`env`, `collage.Main`'in scaffold edilmiş `newApp`'e verdiği `collage.Env`'dir
-(v0.68.0'dan beri): `Dev`, `COLLAGE_DEV=1` demektir; `Host`, `HOST` ya da
+`env`, `collage.Main`'in scaffold edilmiş `newApp`'e verdiği `collage.Env`'dir:
+`Dev`, `COLLAGE_DEV=1` demektir; `Host`, `HOST` ya da
 `localhost`'tur; `Port`, `-port`, `PORT` ya da `6060`'tır; `CacheDir` ise
 `.cache`'tir. `files` projenin embed edilmiş dosya sistemidir, development
 build'inde ise proje dizininin kendisidir. `plugins()` ise `collage plugin add` ve
@@ -634,7 +660,7 @@ func newApp(env collage.Env) (*collage.App, error) {
 
 	cfg := &collage.Config{
 		DevMode: env.Dev,
-		BaseURL: os.Getenv("BASE_URL"), // collage dev's own address unless .env.development sets it
+		BaseURL: os.Getenv("BASE_URL"), // collage dev's own address unless the environment file sets it
 		Server: collage.ServerConfig{
 			Host:              env.Host,
 			Port:              env.Port,
@@ -686,7 +712,7 @@ Her ayarın iki ortamdaki değeri ve bunun nedeni şöyledir:
 | --- | --- | --- | --- |
 | `DevMode` | açık: `collage dev`, `COLLAGE_DEV=1` set eder | kapalı: değişken set edilmez | Development'ın error page'leri dosya yollarını ve hata zincirlerini taşır. Bir development sunucusu ayrıca yalnızca `Host`'u bu makineyi adlandıran request'lere cevap verir; bkz. [Deployment](/docs/deployment#development-mode-stays-on-this-machine). |
 | `Server.Host`, `Server.Port` | `collage dev`'in seçtiği loopback adresi | `HOST` ve `PORT`, ya da `-port` | Sizin adresinizde `collage dev`'in kendisi dinler ve request'leri iletir; bkz. [CLI](/docs/cli#collage-dev). |
-| `BaseURL` | `.env.development` `BASE_URL`'i set etmedikçe `collage dev`'in kendi adresi, `http://localhost:6060` (v0.68.0'dan beri) | `BASE_URL`'den `https://tasks.example.com` | Boş olması hata değildir: hiç mutlak URL üretmeyen bir site için gerekmez. Set edilmişse yalın bir origin olmalıdır, yoksa `New` `ErrInvalidOrigin` ile başarısız olur. |
+| `BaseURL` | environment dosyası `BASE_URL`'i set etmedikçe `collage dev`'in kendi adresi, `http://localhost:6060` | `BASE_URL`'den `https://tasks.example.com` | Boş olması hata değildir: hiç mutlak URL üretmeyen bir site için gerekmez. Set edilmişse yalın bir origin olmalıdır, yoksa `New` `ErrInvalidOrigin` ile başarısız olur. |
 | `Security.CSRFKey` | boş: her process'e bir key, info seviyesinde log'lanır | en az 32 byte rastgele veri, iki sunucuda da aynı | Üretilmiş bir key, bir restart'tan önce ya da diğer sunucunun ürettiği her token'ı reddeder. |
 | `Security.CSRFTrustedOrigins` | yok | admin panelinin origin'i | Diğer her origin, geçerli bir token taşısa bile reddedilir. |
 | `Server.TrustedProxies` | yok | load balancer | Bu olmadan her istemcinin adresi load balancer'ınkidir. |
@@ -698,13 +724,13 @@ Her ayarın iki ortamdaki değeri ve bunun nedeni şöyledir:
 
 Development tarafında hiçbir şey yazmanız gerekmez: `collage dev`, `COLLAGE_DEV`,
 `HOST` ve `PORT`'u set eder. Go kodu değiştiğinde `collage dev`'in yaptığı
-restart'larda bir form açık kalsın istiyorsanız development'a `.env.development`'ta
-kendine ait bir key verin. Bu key hiçbir zaman production'daki key olmamalıdır;
-bkz. [CLI](/docs/cli#environment-files).
+restart'larda bir form açık kalsın istiyorsanız development'a environment dosyasında
+(`.env`'de, ya da tutuyorsanız `.env.development`'ta) kendine ait bir key verin.
+Bu key hiçbir zaman production'daki key olmamalıdır; bkz. [CLI](/docs/cli#environment-files).
 
 Production tarafı, binary'nin çalıştığı yerde set edilen dört değişkendir: `HOST`,
 `PORT`, `BASE_URL` ve `COLLAGE_CSRF_KEY`. Bunlara bir plugin'in `KeyEnv` ile
 adlandırdığı değişkenler eklenir. Bunlar binary'nin çalışma dizinindeki bir `.env`
-dosyasında da set edilebilir. Bu dosyayı `collage.Main` yükler (v0.68.0'dan beri),
+dosyasında da set edilebilir. Bu dosyayı `collage.Main` yükler,
 sunucunun kendi değişkenleri ise dosyadakileri ezer; bkz.
 [Deployment](/docs/deployment#environment).

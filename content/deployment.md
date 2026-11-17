@@ -52,7 +52,7 @@ CGO_ENABLED=0 GOOS=<os> GOARCH=<arch> go build -trimpath -ldflags="-s -w" -o bin
 - **`-trimpath`**, so the binary does not carry the paths of the machine that built
   it.
 - **`-s -w`** drops the debug tables, which is most of the size.
-- **This machine by default** (since v0.32.0; linux/amd64 before). A binary built
+- **This machine by default.** A binary built
   for a Mac does not run in a Linux container, so for a server name the target:
   `collage build -os linux -arch amd64`.
 
@@ -69,6 +69,14 @@ The binary goes in `bin/`, not `dist/`: `dist/` belongs to `collage export`, who
 There is no `collage start`. Running a compiled binary needs nothing remembered, and
 a start command could only run `go run .` — which puts the Go toolchain in your
 production image and compiles on every boot.
+
+**Build with Go 1.26.11 or later.** A binary carries the standard library it was built
+with, and Go 1.26.11 (or 1.27.4) fixes GO-2026-6859, a race in `http.MaxBytesReader`
+that can crash an HTTP/1 server and that collage's body limit is built on. `go.mod`
+and the scaffold require 1.26.11, so with the default `GOTOOLCHAIN=auto` the go
+command fetches it where the installed Go is older. A build image sets
+`GOTOOLCHAIN=local` and must carry it itself: the `golang:1.26` tag the Dockerfile
+below uses follows the latest patch release. Check a binary with `go version -m`.
 
 ### `collage build -i`: a Dockerfile and a systemd unit
 
@@ -96,9 +104,11 @@ edit — and a scaffolded project's `.gitignore` ignores only the binary, so you
 them like any other file.
 
 The Dockerfile has two stages: it builds in the Go image and ships the binary alone
-on a distroless base:
+on a distroless base (comments in the generated file are left out here, and the
+`plugins-config.json` line is written only for a project that has one):
 
 ```dockerfile
+# Built by "collage build -i".
 FROM golang:1.26 AS build
 WORKDIR /src
 COPY go.mod go.sum* ./
@@ -109,7 +119,11 @@ RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /mysite .
 FROM gcr.io/distroless/static-debian12
 WORKDIR /srv
 COPY --from=build /mysite /usr/local/bin/mysite
+COPY --from=build /src/plugins-config.json /srv/plugins-config.json
 ENV HOST=0.0.0.0 PORT=8080
+# Set this to at least 32 random bytes, kept with your other secrets. Without
+# it a key is generated per process, and every form submitted before a restart
+# is refused after it.
 # ENV COLLAGE_CSRF_KEY=
 EXPOSE 8080
 ENTRYPOINT ["/usr/local/bin/mysite"]
@@ -117,8 +131,8 @@ ENTRYPOINT ["/usr/local/bin/mysite"]
 
 Build it from the project root with `docker build -f bin/Dockerfile .`. There is no
 `COPY` of templates or static files, because they are inside the binary. The final
-stage copies the binary — and, since v0.11.1, `plugins-config.json` when the project
-has one when the Dockerfile is written; see [Plugin configuration](#plugin-configuration). The `WORKDIR`
+stage copies the binary and `plugins-config.json`, when the project has one at the
+time the Dockerfile is written; see [Plugin configuration](#plugin-configuration). The `WORKDIR`
 matters for the page cache and for that file; see below. Set `COLLAGE_CSRF_KEY` from
 your platform's secrets rather than in the file.
 
@@ -135,14 +149,13 @@ systemctl daemon-reload && systemctl enable --now mysite
 
 The scaffolded `main.go` reads five variables. Set them wherever the binary runs,
 or in a `.env` file in its working directory: `collage.Main`, which the scaffolded
-`main` calls, loads it before `newApp` runs (since v0.68.0; before, only
-`collage dev` read such files). What the server's environment already sets wins
+`main` calls, loads it before `newApp` runs. What the server's environment already sets wins
 over the file, a missing file is no error, and a malformed line stops the program
 with the file and the line. Keep secrets such as `COLLAGE_CSRF_KEY` out of a file
 you commit; `.gitignore` ignores `.env` for that reason.
 
 One more is read by the framework itself, not by `main.go`: `COLLAGE_DEV_HOST`, which
-names extra hosts a development server answers (since v0.56.0). Leave it unset in
+names extra hosts a development server answers. Leave it unset in
 production; see [Development mode stays on this machine](#development-mode-stays-on-this-machine).
 
 | Variable | Default | Set it to |
@@ -191,25 +204,24 @@ is read, so what you tested is what runs, wherever the process starts.
 Content your pages read at runtime — Markdown files, a JSON catalogue — is yours to
 embed the same way. collage-docs embeds its `content/` directory for exactly that
 reason, and reads it from disk in development. Name such a directory in
-[`Config.DevWatch`](/docs/configuration#devwatch) (since v0.10.0) and editing a file
+[`Config.DevWatch`](/docs/configuration#devwatch) and editing a file
 in it reloads the browser too.
 
 ## Plugin configuration
 
-Since v0.68.0 the scaffolded `newApp` reads `plugins-config.json` with
+The scaffolded `newApp` reads `plugins-config.json` with
 `env.PluginConfig(files)`: the file in the working directory when there is one, so
 a deployment can change a setting without a rebuild, and otherwise the copy the
 binary embeds. A binary deployed without the file keeps the settings it was built
 with.
 
-A project scaffolded earlier reads it with
+A project scaffolded by an old release reads it with
 `collage.LoadPluginConfig("plugins-config.json")` — a path relative to the working
 directory, not to the binary, and not embedded. A missing file is not an error: every
 plugin silently runs on its defaults. So a server started somewhere the file is not
 ignores your plugin settings without a word. Move to `env.PluginConfig`, or copy the
 file where the process starts. The Dockerfile `collage build -i` writes copies it
-when the project has one at the time the Dockerfile is written (since v0.11.1;
-earlier ones copied only the binary). Add the line yourself if you create the file
+when the project has one at the time the Dockerfile is written. Add the line yourself if you create the file
 later — `collage build -i` never overwrites a Dockerfile — beside the `WORKDIR` the
 process starts in:
 
@@ -229,13 +241,12 @@ fixed:
 
 1. **Drain.** The ctx `ListenAndServe` gave
    [`ServeHook`](/docs/writing-plugins#streams-and-shutdown) plugins in `OnServe` is
-   cancelled, so a scheduler starts no new work (since v0.55.0). Every plugin
+   cancelled, so a scheduler starts no new work. Every plugin
    implementing [`DrainHook`](/docs/writing-plugins#streams-and-shutdown) is told,
    once — a health plugin turns its readiness check false here. Keep-alives are
    turned off: idle kept-alive connections close at once, busy ones after their
    current response, and their clients reconnect through the load balancer. The
-   port stays open and requests are served as normal for `Server.DrainDelay`
-   (since v0.53.0).
+   port stays open and requests are served as normal for `Server.DrainDelay`.
 2. **Streams.** Development reload streams and plugin streams are closed; they
    never end on their own.
 3. **Server.** The port closes, and requests in flight get up to
@@ -264,7 +275,7 @@ fixed:
 </figure>
 
 `DrainDelay` is 0 by default: no wait, and a single instance behind nginx, Caddy or
-Cloudflare stops as fast as it did before v0.53.0. Set it when a load balancer has
+Cloudflare stops at once. Set it when a load balancer has
 to notice the instance is leaving before the port closes — a few seconds longer
 than its readiness check takes to fail:
 
@@ -294,8 +305,7 @@ ctx that is done.
 
 In development mode `DrainDelay` is ignored, so restarts stay instant, though
 `OnDrain` still fires. A `Shutdown` before anything serves does not wait, since
-there is no traffic to drain, and tells no plugin, since none has started (since
-v0.61.4).
+there is no traffic to drain, and tells no plugin, since none has started.
 
 Whatever stops the process has to wait longer than that sum before it kills it:
 
@@ -416,19 +426,27 @@ cache. What a new build finds depends on what changed:
 
 - **The cache is namespaced by a hash of the binary.** A new build reads a different
   directory, `.cache/<hash>`, so it never serves pages the previous build rendered.
-  Nothing has to be cleared for correctness — but nothing clears it for space
-  either: the directories of earlier builds are never removed, so a server that is
-  redeployed in place, rather than as a fresh container, accumulates one per build.
-  Delete the old ones from your deploy script. Set `Cache.Version` — a commit, a
+  Nothing has to be cleared for correctness, or for space: at startup the disk
+  cache removes the directories other builds left in `Cache.Dir` once nothing has
+  been written to them for an hour — it touches only the
+  directories it names itself, never `data/` or anything else you keep there. The
+  hour is the margin for a rolling deploy, where the previous build is still serving
+  beside the new one. Set `Cache.Version` — a commit, a
   release tag — if something outside the binary decides what pages look like.
 - **The directory is relative to the working directory.** It is the one thing about
   a scaffolded project that depends on where it was started. Set `WORKDIR` in the
   container or `WorkingDirectory` in the unit, or give `Dir` an absolute path, and
   make sure the process can write there.
+- **A damaged entry is a miss.** An entry is checked against its own ETag when it is
+  read, so a file cut short by a full disk or a crash is rendered again instead of
+  being served; entries are flushed to disk before they are renamed into place, and
+  a write that fails is not kept in memory either, so the page renders again until
+  the disk recovers.
 - **A cache it cannot write to is not an error.** At startup, a directory that
   cannot be created — a read-only filesystem, a working directory the process may
   not write to — makes collage fall back to an in-memory cache with a warning,
-  rather than fail to start (since v0.11.0). Once running, a write that fails is
+  rather than fail to start (the warning is `collage: cannot use the disk cache
+  directory, using an in-memory cache instead`). Once running, a write that fails is
   logged, the page is served uncached, and the next request renders it again: slow,
   not broken. Look for the warning, and check that the directory fills up after a
   deploy.
@@ -440,14 +458,14 @@ cache. What a new build finds depends on what changed:
   for a `Static` page, until a restart or an eviction — where a CDN refetching it
   can pick it up again. A fleet that must share one cache uses a
   [shared store](/docs/caching#a-cache-a-fleet-shares) instead.
-- **It has memory in front of it, and a restart starts warm** (since v0.63.0). A
+- **It has memory in front of it, and a restart starts warm.** A
   hit is served from a memory tier, filled from the directory at startup, newest
   pages first, so a restarted instance serves its recent pages from memory at once.
   That tier is up to 256 MiB of the process, or `MaxBytes` when that is smaller:
   see [below](#a-memory-cache-and-the-containers-limit).
 - **An invalidated page is kept** to be served, marked `STALE`, if its re-render
   fails or is degraded — see [Caching](/docs/caching#stale-pages-and-x-collage-cache).
-  Since v0.64.0 it is also re-rendered in the background right after the
+  It is also re-rendered in the background right after the
   invalidation, which costs CPU for a moment; see
   [warming](/docs/caching#warming-after-an-invalidation). Keep `Server.WriteTimeout`
   above 5 seconds, so an action's redirect can wait for its page to warm.
@@ -480,8 +498,7 @@ is what the runtime aims for, not a cap it enforces, so leave `MaxBytes` well be
 it — what the cache holds is live and cannot be collected however hard the runtime
 tries. A cache sized at a third to a half of the limit leaves room for the renders
 themselves; in a 512 MiB container, lower `MaxBytes` from its default to
-128–192 MiB. The scaffold's disk cache keeps its pages on disk, but since v0.63.0
-it has a memory tier in front of them that this applies to as well: up to 256 MiB,
+128–192 MiB. The scaffold's disk cache keeps its pages on disk, but it has a memory tier in front of them that this applies to as well: up to 256 MiB,
 or `MaxBytes` when that is smaller. Set `GOMEMLIMIT`, and lower `MaxBytes` or
 `MaxEntries` if the tier must hold less.
 
@@ -498,8 +515,9 @@ across the fleet. A `"disk"` cache whose `Dir` the instances share is not that:
 each instance's memory tier keeps serving what it holds. See
 [Caching](/docs/caching#memory-in-front-of-the-disk).
 
-Since v0.66.0 a store in `Cache.Store` that implements `collage.SharedCache`, such
-as [collage-redis](/docs/plugins#elagohtredis), is the third answer. Pages and
+A store in `Cache.Store` that implements `collage.SharedCache`, such as
+[collage-redis](/docs/plugins#elagohtredis), is the third answer, and the only one that
+shares a cache: a fleet that must see one another's invalidations needs it. Pages and
 [`collage.Cached`](/docs/caching#caching-data-across-pages) values both live in it,
 with no per-instance copy in front, so a webhook that reaches instance A reaches
 B's next read too, and a render B began from the data A was invalidating is stored
@@ -532,7 +550,7 @@ collage uses it to mark the forgery-token cookie `Secure`, so a site served over
 HTTPS never sends that cookie over plain HTTP.
 
 A proxy that appends to the header
-rather than replacing it sends a list, `https, http`; since v0.34.0 its first
+rather than replacing it sends a list, `https, http`; its first
 entry, the reader's own connection, is what counts.
 
 Pass the `Host` the browser sent on as well: the forgery check compares an older
@@ -576,7 +594,7 @@ call `app.Shutdown(ctx)` once your server has stopped, so plugins shut down. See
 
 Behind a proxy, every request's `RemoteAddr` is the proxy's. The proxy names the real
 client in `X-Forwarded-For`, but so can anyone else: a client sending its own
-`X-Forwarded-For` is not to be believed. `Server.TrustedProxies` (since v0.47.0) says
+`X-Forwarded-For` is not to be believed. `Server.TrustedProxies` says
 whose to believe:
 
 ```go
@@ -610,7 +628,7 @@ documented ranges: trusting a range a client can send from lets that client name
 address it likes. An entry with zero bits (`0.0.0.0/0`, `::/0`) trusts everyone;
 `collage.New` accepts it but logs a Warn saying so.
 
-The same list decides whose `X-Forwarded-Proto` is believed (since v0.56.0). The
+The same list decides whose `X-Forwarded-Proto` is believed. The
 forgery cookie is `Secure` when the request arrived over TLS, and behind a proxy that
 terminates TLS the proxy says so in that header.
 
@@ -620,7 +638,7 @@ directly over plain http gets a cookie it can send back over plain http. Empty, 
 header is believed from anyone, as it was before the list existed, and that is right
 only when nothing but your proxy can reach the server.
 
-Since v0.61.0 that decision is one function, `collage.IsHTTPS(r)`, which the
+That decision is one function, `collage.IsHTTPS(r)`, which the
 forgery guard's cookie and plugins setting `Secure` cookies or HSTS all ask —
 elagoht/session, flash, secure and the rest. So the list protects their cookies and
 headers as well: list your proxy, and a client cannot claim the TLS connection it
@@ -633,10 +651,10 @@ does not have.
 | Field | Default | Bounds |
 | --- | --- | --- |
 | `ReadTimeout` | 15s | Reading a request, headers included — a client that sends headers slowly cannot hold a connection open. |
-| `ReadHeaderTimeout` | 0 | Reading the request headers alone, so a client sending them a byte at a time is dropped early while a large body still gets the whole `ReadTimeout`. Zero uses `ReadTimeout` (since v0.56.0). |
+| `ReadHeaderTimeout` | 0 | Reading the request headers alone, so a client sending them a byte at a time is dropped early while a large body still gets the whole `ReadTimeout`. Zero uses `ReadTimeout`. |
 | `WriteTimeout` | 30s | Writing the response. It starts when the request's headers have been read, so it bounds an upload's body too. A page whose data takes longer than this is cut off. |
 | `IdleTimeout` | 60s | A keep-alive connection waiting for its next request. |
-| `DrainDelay` | 0 | Serving on after a `SIGTERM`, keep-alives off, so a load balancer can stop sending traffic (since v0.53.0). |
+| `DrainDelay` | 0 | Serving on after a `SIGTERM`, keep-alives off, so a load balancer can stop sending traffic. |
 | `ShutdownTimeout` | 10s | Requests in flight finishing once the port has closed, after the drain. |
 | `MaxBodyBytes` | 4 MiB | An action's request body, unless the action sets its own. Negative is unbounded. |
 
@@ -672,7 +690,7 @@ every limit between the browser and the handler, and the defaults of most of the
 are sized for forms.
 
 **The server's deadlines.** The defaults above end any upload after 15s of reading.
-`WithBodyTimeout(d)` (since v0.57.0) on the upload action replaces both deadlines
+`WithBodyTimeout(d)` on the upload action replaces both deadlines
 with now plus `d` for that action alone, after its page's guards (and, for a
 streaming action, its forgery check). Make `d` at least `MaxBodyBytes` divided by
 the slowest connection you serve, plus the time to answer. An upload whose client
@@ -731,7 +749,7 @@ OpenTelemetry traces.
 ## Development mode stays on this machine
 
 `DevMode` serves things production must not: error pages with stacks and source, the
-reload stream, a development toolbar. Two guards keep them here (since v0.56.0):
+reload stream, a development toolbar. Two guards keep them here:
 
 - **A foreign `Host` is refused.** In development the server answers `403` to a
   request whose `Host` is not localhost (or a name under `.localhost`), an IP
@@ -925,10 +943,14 @@ directories earlier builds left in `/srv/tasks/.cache`.
 
 ## A checklist
 
-- `COLLAGE_CSRF_KEY` set, the same on every instance.
+- `COLLAGE_CSRF_KEY` set, the same on every instance and across restarts — without it
+  forms break at every restart and between instances.
 - `HOST=0.0.0.0` in a container; `PORT` from the platform.
-- A writable working directory for `.cache`, and old `.cache/<hash>` directories
-  removed on deploy.
+- A writable working directory for `.cache`; the disk cache removes other builds'
+  directories once they are idle for an hour.
+- A `collage.SharedCache` store in `Cache.Store` if there is more than one instance and
+  they must see one another's invalidations.
+- Go 1.26.11 or later in the build image.
 - `plugins-config.json` in the working directory, or embedded, if you configure
   plugins.
 - `COLLAGE_DEV` unset.

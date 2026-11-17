@@ -1,6 +1,6 @@
 ---
 description: app.Use ile standart net/http middleware'leri, collage.Vary ile bir header'a bağlı cache key'leri ve app.Handle ile kendi http.Handler'ınız.
-reference: Vary, SkipCache, ErrVaryTooLate, ErrMountShadowsRoute, WithMiddleware, HandleOption
+reference: Vary, Varied, ErrInvalidPrefix, SkipCache, ErrVaryTooLate, ErrMountShadowsRoute, WithMiddleware, HandleOption
 ---
 
 # Middleware ve kendi API'niz
@@ -31,7 +31,7 @@ Middleware standart `func(http.Handler) http.Handler` imzasına sahiptir. Bu yü
 `net/http` için yazılmış her middleware hiç değişmeden çalışır. İlk register edilen
 middleware en dıştakidir.
 `collage add middleware loadUser` bir middleware yazar ve onu var olanlardan sonra
-register eder (v0.69.0'dan beri).
+register eder.
 
 Diğer bütün register işlemleri gibi bu da uygulama başlamadan önce yapılmalıdır.
 Uygulama başladıktan sonra `app.Use` `collage.ErrAppStarted` döner.
@@ -42,8 +42,7 @@ Middleware'in nerede çalıştığıyla ilgili iki nokta var:
   action'ları, mount edilmiş static dosyaları, bir plugin'in handler'larını ve
   `WithMiddleware` ile mount edilmiş bir handler'ı. 404 ile biten request'ler de
   buna dahildir. Middleware bir request'e 401 ya da redirect ile kendisi cevap
-  verebilir. Bu durumda arkasındaki hiçbir şey çalışmaz. v0.67.0'dan beri düz
-  `app.Handle` ile mount edilmiş bir handler bunun istisnasıdır: ona hiçbir
+  verebilir. Bu durumda arkasındaki hiçbir şey çalışmaz. Düz `app.Handle` ile mount edilmiş bir handler bunun istisnasıdır: ona hiçbir
   middleware olmadan cevap verilir ([aşağıda](#no-middleware-unless-you-ask)).
 - **Framework'ün koruması içinde.** Middleware, collage'ın span'i, metric'leri ve
   panic recovery'si içinde çalışır. `app.Handler()`'ı kendi middleware'inizle
@@ -83,10 +82,7 @@ Middleware'in nerede çalıştığıyla ilgili iki nokta var:
 
 ### Plugin'lerin middleware'i ve sizinki
 
-v0.38.0'dan beri bir plugin'in middleware'i, plugin'in register edildiği yerde
-register edilmiş sayılır. `Config.Plugins` içindeki plugin'ler `collage.New`'da
-register edilir. Bu yüzden onların middleware'i `app.Use` ile eklenen her şeyin
-dışındadır.
+Bir plugin'in middleware'i, plugin'in register edildiği yerde register edilmiş sayılır. `Config.Plugins` içindeki plugin'ler `collage.New`'da register edilir. Bu yüzden onların middleware'i `app.Use` ile eklenen her şeyin dışındadır ve kendi aralarında liste sırasıyla çalışır.
 
 Sizin middleware'iniz de bu sayede onların request context'ine koyduklarını okur:
 session'ı, bir flash mesajını. Giriş yapmış kullanıcıyı her request'te bir kez
@@ -119,11 +115,10 @@ app.RegisterPlugin(ratelimit.New(ratelimit.Options{KeyFunc: userID}))
 `RegisterPlugin`, template fonksiyonu ekleyen bir plugin'i reddeder. Böyle bir
 plugin `Config.Plugins` içinde olmalıdır.
 
-v0.38.0'dan önce her plugin'in middleware'i uygulamanınkinin içinde çalışıyordu ve
-`app.Use` middleware'inde `session.FromContext` `nil` dönüyordu.
+
 
 Bir plugin'in bir stream üzerinden gönderdiği fragment (elagoht/live,
-elagoht/websocket) da bu zincirden geçer (v0.78.0'dan beri), fragment'in kendi
+elagoht/websocket) da bu zincirden geçer, fragment'in kendi
 path'ine gelen bir request olarak: `/admin/`'i koruyan bir middleware
 `/admin/stats`'ı `/_live/stream/?f=/admin/stats`'tan uzak tutar, next'i çağırmak
 yerine cevap veren bir middleware o okuyucunun fragment'i almasını engeller ve bir
@@ -136,34 +131,37 @@ taşınmaz; middleware'iniz fragment'in path'i için yeniden çalışır. Bkz.
 Dot segment'ler ya da çift slash içeren bir path (`/a/../b`, `/a//b`, `/a/./b`),
 middleware ve plugin'ler dahil hiçbir şey onu okumadan önce temiz yazımına redirect
 edilir. `GET` ve `HEAD` için 301, body taşıyan bir metot için 308 kullanılır; query
-korunur (v0.24.0'dan beri).
+korunur.
 
 Bu yüzden `/_collage/`'ı atlayan ya da `/admin/`'i koruyan bir middleware
 `/_collage/../admin` ile hiç karşılaşmaz. Bir prefix kontrolü, router'ın route
 edeceği path'in kontrolüdür.
 
-Encode edilmiş bir slash router için bir ayırıcı değildir. Bu yüzden v0.34.0'dan
-beri:
+Encode edilmiş bir slash router için bir ayırıcı değildir. Bu yüzden:
 
 - `%2F` içeren bir path hiçbir route'a ulaşmaz ve router ona 404 ile cevap verir.
 - Aynı zamanda temiz olmayan bir path (`/blog/%2Fhello`) `/blog/hello`'ya
   temizlenmez; middleware'iniz çalışmadan önce 404 ile cevaplanır.
 - Middleware'iniz decode edilmiş `r.URL.Path`'i okur ve orada `/public%2Fsecret`,
-  `/public/secret`'tir. Eskiden router orayı tek bir segment olarak okurdu. Böylece
-  `/public/`'i geçiren bir middleware, request'i `/{slug}`'a geçirmiş olurdu.
+  `/public/secret`'tir. 
 
-Bunların hiçbiri bir route'a ulaşmaz, ama metrikleriniz onları görür. v0.79.0'dan
-beri temiz path redirect'i, temizlenmesi gereken bir path'teki encoded slash için
+Bunların hiçbiri bir route'a ulaşmaz, ama metrikleriniz onları görür. Temiz path redirect'i, temizlenmesi gereken bir path'teki encoded slash için
 404 ve hiçbir route'un asla eşleşemeyeceği bir path için router'ın 404'ü (`/a%2fb`,
 bir NUL, bozuk percent-encoding), tarayıcı bot'unun gönderdiği path yerine sınırlı
 bir etiket altında, diğer her request gibi süreleri ölçülür, trace edilir ve
 sayılır: `collage.RouteInfo` tür olarak `"rejected"`, ad olarak `"normalise"`
 bildirir, `Metrics.HTTPResponse`'a boş bir path verilir ve request span'i `http.path`
-taşımaz. Bir `%2f` 404'ü artık decode edilmiş path'i altında sayılmaz.
+taşımaz. Bir `%2f` 404'ü decode edilmiş path'i altında sayılmaz.
+
+### Sondaki slash router'ındır, middleware'in değil
+
+Her route'un tek bir yazımı vardır ve router öbürünü yönlendirir; ama bunu sizin middleware'inizden *sonra* yapar, middleware path'i geldiği gibi görür. Bir page'in öbür yazımı kendi tek yazımına `301` olur; bir document'ınki de öyle, bir action'ınki ise method'u ve body'yi koruyan bir `308` olur. Bu yüzden `/admin/delete/`'e post edilen bir form `/admin/delete`'e yeniden post edilir. Document'lar ve action'lar, `app.URL` ve `{{actionURL}}`'in kurduğu gibi, her iki `TrailingSlash` modunda da sondaki slash olmadan yazılır; yalnızca page'ler `Config.TrailingSlash`'i izler.
+
+Belirli bir path'i koruyan bir middleware için sonuç şudur: kanonik yazımı karşılaştırın ya da önce slash'i kırpın (`strings.TrimSuffix(r.URL.Path, "/")`) ve mümkün olduğunda `/admin/` gibi bir prefix tercih edin. Yalnızca `"/admin/delete"` üzerinden yapılan bir kontrol `/admin/delete/` ile atlatılır: handler o yazımda çalışmaz, ama middleware yine de gelen request'i değerlendirir.
 
 ### Body middleware'den önce sınırlanır
 
-v0.34.0'dan beri bir request'in body'si, ilk middleware çalışmadan önce sınırlanır.
+Bir request'in body'si, ilk middleware çalışmadan önce sınırlanır.
 Sınır, request'in yönlendirildiği
 [action](/docs/forms-and-actions#request-bodies-are-bounded)'ın limitidir; diğer her
 şey için `Server.MaxBodyBytes`'tır.
@@ -171,16 +169,12 @@ Sınır, request'in yönlendirildiği
 - Body'yi okuyan bir middleware (bir signature kontrolü, bir logger, form'u parse
   eden bir method override) onu sınırlı olarak okur.
 - Body'si bir middleware tarafından limitinin ötesine kadar okunmuş bir action `413`
-  ile cevap verir. v0.71.0'dan beri middleware body'yi buffer'layıp yerine yeni bir
+  ile cevap verir. Middleware body'yi buffer'layıp yerine yeni bir
   reader koymuş olsa da (`io.ReadAll`, ardından `io.NopCloser`) böyledir.
 - `app.Handle` ile mount edilmiş bir handler'a dokunulmaz. Bir plugin'in
-  `Host.Handle` prefix'i ise `Server.MaxBodyBytes` ile sınırlanır (v0.78.0'dan
-  beri): middleware'in içinde çalışır ve middleware önceden onun body'sini
-  sınırsız okuyordu.
+  `Host.Handle` prefix'i ise `Server.MaxBodyBytes` ile sınırlanır: middleware'in içinde çalışır; bu yüzden body'si, middleware onu okumadan önce sınırlanır.
 
-v0.71.0'dan beri body, uygulamada middleware olsun olmasın sınırlanır. Öncesinde
-middleware'i olmayan bir uygulamada, bir page'in guard'ı, bir action'ın guard'ı ya
-da bir data handler body'yi okumadan önce onu sınırlayan hiçbir şey yoktu.
+Body, uygulamada middleware olsun olmasın sınırlanır.
 
 ### Data handler'lara değer aktarmak
 
@@ -222,7 +216,7 @@ cache'lenmemelidir. Aksi hâlde ilk okuyucunun gördüğü versiyon herkese gös
 Cache'lenmiş bir render ne okuyucunun cookie'lerini ve credential'larını, ne de
 middleware'inizin context'e koyduğu değerleri görür
 ([paylaşılan bir render neyi görür](/docs/caching#what-a-shared-render-sees)):
-v0.39.0'dan beri, yanlışlıkla cache'lediğiniz kullanıcıya özel bir page — `userKey`
+yanlışlıkla cache'lediğiniz kullanıcıya özel bir page — `userKey`
 değeri gizlendiği için — ilk okuyucunun hesabını herkese göstermek yerine herkese
 oturum kapalıymış gibi render edilir. Onu dynamic bırakın.
 
@@ -230,7 +224,7 @@ Static export request olmadan render eder, bu yüzden yazdığı dosyalar için 
 middleware çalışmaz. Context'ten değer okuyan bir data handler, bu değer olmadığında
 da doğru çalışmalıdır. Oturum açmamış bir okuyucu için bunu zaten yapması gerekir.
 
-v0.52.0'dan beri build ardından [her dosyanın
+Build ardından [her dosyanın
 header'larını](/docs/static-export#headers-and-redirects) handler üzerinden
 yakalayabilir ve bu request'ler middleware'den geçer:
 
@@ -273,8 +267,7 @@ func languageData(ctx context.Context, rc *collage.RenderContext) (string, []str
   tercihlerini yüz farklı şekilde yazar: `tr-TR,tr;q=0.9`, `tr`, `tr-TR`. Bunların
   hepsi aynı page'dir. Header'ı, page'lerinizin gerçekten farklılaştığı birkaç
   değere indirin. Cache de o sayıda entry tutar. Asla `Cookie`'nin ya da
-  `Authorization`'ın kendisine göre vary etmeyin: v0.64.0'dan beri bu değer
-  memory'de tutulur ve her [warm render](/docs/caching#warming-after-an-invalidation)
+  `Authorization`'ın kendisine göre vary etmeyin: bu değer memory'de tutulur ve her [warm render](/docs/caching#warming-after-an-invalidation)
   ile yeniden gönderilir.
 - **Değeri context'ten değil, `collage.Varied` ile okuyun.** Cache'lenebilir bir
   page'de tek bir render birçok okuyucuya sunulur. Bu yüzden middleware'inizin
@@ -286,17 +279,14 @@ func languageData(ctx context.Context, rc *collage.RenderContext) (string, []str
 - **Header'ın adı response'un `Vary` header'ına eklenir.** Böylece sizinle okuyucu
   arasındaki bir CDN ya da proxy de versiyonları birbirinden ayrı tutar. Bu header
   yalnızca public olarak cache'lenebilen response'larda set edilir. `no-store` bir
-  response'ta ayrı tutulacak bir şey yoktur. v0.34.0'dan beri header'ın adı,
-  middleware'inizin yazdığı bir `Vary`'nin yanına eklenir. Eskiden onun yerine
-  geçerdi.
+  response'ta ayrı tutulacak bir şey yoktur. Header'ın adı, middleware'inizin yazdığı bir `Vary`'nin yanına eklenir, onun yerine geçmez.
 - **`Vary`'yi middleware'den çağırın.** Middleware bittiğinde ve routing
   başladığında bildirimler kapanır. Bu, her route için geçerlidir: cache'lenen ya
   da cache'lenmeyen bir page, bir document, bir action, bir mount ya da bir `app.Handle`
   handler'ı. Routing'den sonra, örneğin bir data handler'dan çağrılırsa `Vary`
-  çalışıyormuş gibi yapmaz, `collage.ErrVaryTooLate` döner. Bu davranış v0.11.0'dan
-  beri böyledir. Öncesinde bu hatayı yalnızca cache'lenen bir page'de dönüyor, diğer
-  yerlerde sessizce hiçbir şey yapmıyordu. collage'ın sunmadığı bir request'te
+  çalışıyormuş gibi yapmaz, `collage.ErrVaryTooLate` döner. collage'ın sunmadığı bir request'te
   çağrılırsa `collage.ErrVaryOutsideRequest` döner.
+- **Middleware'inizin set ettiği bir cookie response'u private yapar.** Response'u, cache header'ları yazıldığında zaten bir `Set-Cookie` taşıyan cache'lenebilir bir page `Cache-Control: private, no-store` ile ve `Vary` olmadan gönderilir; böylece bir CDN, bir okuyucunun cookie'sini herkes için tutmaz. Page burada yine cache'lenir; bkz. [Caching](/docs/caching#render-strategies). Her request'te cookie set eden bir middleware her page'i CDN'de private yapar: onu yalnızca gerektiği yerde set edin.
 - Aynı header'ı iki kez bildirirseniz son değer geçerli olur.
 
 Dil seçimi de bu yolla yapılır. collage locale'i yalnızca URL'den seçer,
@@ -342,8 +332,7 @@ sorumluluğundadır.
 
 ### İstemedikçe middleware yok
 
-v0.67.0'dan beri `app.Handle` ile mount edilmiş bir handler için hiçbir middleware
-çalışmaz: ne `app.Use` ile eklenenler ne de herhangi bir plugin'inki. Session,
+`app.Handle` ile mount edilmiş bir handler için hiçbir middleware çalışmaz: ne `app.Use` ile eklenenler ne de herhangi bir plugin'inki. Session,
 flash, i18n, consent, secure, ratelimit, basicauth, fail2ban, accesslog,
 redirects, tenant, compress ve development toolbar'ı da buna dahildir.
 
@@ -379,8 +368,7 @@ Sitenin middleware'ine gerçekten dayanan bir handler, onu
 `collage.WithMiddleware()` ile geri ister. Bu middleware, örneğin onu korumak için
 register ettiğiniz bir basicauth plugin'i, okuyucunun session'ı, zaten
 yapılandırdığınız bir rate limit ya da `app.Use` middleware'inizin context'e
-koyduğu bir değer olabilir. Bu handler, v0.67.0'dan önce her mount'un yaptığı
-gibi, zincirin içinde tam bir page gibi ve aynı sırayla çalışır:
+koyduğu bir değer olabilir. Bu handler, zincirin içinde tam bir page gibi ve aynı sırayla çalışır:
 
 ```go
 if err := app.Handle("/admin/api/", adminAPI, collage.WithMiddleware()); err != nil {
@@ -403,9 +391,9 @@ middleware'inizi koyun. Özellikle:
 - Prefix'inin altındaki bir elagoht/redirects kuralı çalışmaz.
 - elagoht/tenant'ın tenant'ı onun context'inde bulunmaz.
 
-v0.67.0'dan önce bir mount için bunlardan birine dayanan bir uygulama, bunu korumak
-için o çağrıya `collage.WithMiddleware()` ekler. Eklemezse, eskiden bir basicauth'un
-ya da bir rate limit'in koruduğu mount artık açıktır.
+Bunlardan birine dayanan bir mount, çağrısında `collage.WithMiddleware()` ister: o olmadan, sitenin bir basicauth ya da rate limit ile korunması mount'u korumaz.
+
+
 
 Hangi request'lerin middleware'i atlayacağına, path
 [temizlendikten](#paths-are-cleaned-first) sonra, routing'in kullandığı eşleşmeyle
@@ -428,12 +416,12 @@ session'ı okuyabilir ya da önlerindeki bir basicauth'a dayanabilirler.
 ### Prefix'ler ve çakışmalar
 
 Prefix `/` ile başlamalıdır ve tek başına `/` olamaz
-(`collage.ErrInvalidPrefix`).
+(`collage.ErrInvalidPrefix`). `/.well-known/…` sorun değildir; yalnızca nokta ile başlayan her segment de öyle. Reddedilen şey bir `.` ya da `..` segment'i ve çift slash'tir (`/a/./b/`, `/a//b/`): temiz path redirect'i bunları bir handler'a sorulmadan önce kaldırır, bu yüzden böyle bir prefix hiçbir zaman eşleşemez; hata hangisi olduğunu söyler.
+
 
 - **`/` ile biterse** altındaki her path'i üstlenir.
 - **Sonunda `/` yoksa** tek bir tam path'tir ve yalnızca o path'e cevap verir:
-  `app.Handle("/metrics", h)`, `/metrics`'i sunar, `/metrics/x`'i sunmaz
-  (v0.24.0'dan beri; öncesinde prefix'in `/` ile bitmesi gerekiyordu).
+  `app.Handle("/metrics", h)`, `/metrics`'i sunar, `/metrics/x`'i sunmaz.
 
 `/`'deki bir handler bütün page'lerin bütün request'lerini alırdı. Gerçekten
 istediğiniz buysa `app.Handler()`'ı kendi mux'ınızın içine koyun.

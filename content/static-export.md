@@ -1,6 +1,6 @@
 ---
 description: Render the site to static files with collage export — what is written, what is skipped and why, dynamic paths, and publishing to a static host.
-reference: Build, BuildOptions, BuildReport, PrintBuildReport, StaticParamsFunc, SkipRecord, ErrNotStatic, ErrGuarded, ErrDynamicPathUnresolved, ErrRouteParams, ErrBuildFindings, ErrDuplicateRedirect, ErrRedirectShadowsFile, IsCapture, BuiltFile, BuiltRedirect, RedirectSource
+reference: Build, BuildOptions, BuildReport, PrintBuildReport, StaticParamsFunc, SkipRecord, ErrNotStatic, ErrGuarded, ErrDynamicPathUnresolved, ErrRouteParams, ErrBuildFindings, ErrDuplicateRedirect, ErrRedirectShadowsFile, ErrDangerousOutDir, ErrOutputPathCollision, IsCapture, BuiltFile, BuiltRedirect, RedirectSource
 ---
 
 # Static export
@@ -32,10 +32,9 @@ go run . -collage-build -out dist        # plus -clean when you passed it
 | Flag | Default | Meaning |
 | --- | --- | --- |
 | `-out dir` | `dist` | Where the files are written. |
-| `-clean` | off | Remove the directory's existing contents first. |
+| `-clean` | off | Remove the directory's existing contents first, if a previous export made it ([see below](#safety)). |
 
-The scaffolded `main.go` honours that contract through `collage.Main` (since
-v0.68.0): on `-collage-build` it builds the application as usual and, instead of
+The scaffolded `main.go` honours that contract through `collage.Main`: on `-collage-build` it builds the application as usual and, instead of
 serving it, hands it to collage's builder and prints what happened. A `main` of
 your own does it with a function like this one, the collage-docs version; which
 pages exist is not its business, because each page says that
@@ -54,8 +53,7 @@ func staticBuild(app *collage.App, outDir string, clean bool) error {
 }
 ```
 
-`collage.Build` (before v0.60.0, `collage.NewBuilder` and then `Build` on what it
-returned) returns a report even when it also returns an error: one failing page does
+`collage.Build` returns a report even when it also returns an error: one failing page does
 not stop the others, and every failure is in `report.Errors`.
 
 The returned error is all of them joined, and `main` exits non-zero on it, so a CI
@@ -194,7 +192,7 @@ renders differently for each of them. A file has no query string: a static host
 answers `/blog?page=2` with the `/blog` file. The page is written without a query,
 and the report says so, rather than letting a paginated archive look like it works.
 A document with `WithCacheParams` — a paginated feed — is warned about the same way
-(since v0.10.0; before, only pages were).
+
 
 If pagination has to work in an export, put the page number in the path —
 `/blog/page/{n}` — and list the pages with `WithStaticParams`. [Pagination](#pagination)
@@ -225,24 +223,24 @@ These are errors: the page is not written, the build reports it and exits non-ze
   page's `index.html`. One pattern in two locales is not this — each locale is
   written under its own prefix. The build stops before `OutDir` is touched: nothing
   is cleaned or written, no `404.html` or mounted file is copied, and
-  `BuildFinishedHook` is not called. Since v0.60.0 documents are checked too; before,
-  a second document on one file was skipped as `ErrDuplicateOutputPath`. Documents'
-  `WithStaticParams` run before any page renders, so the check covers them.
+  `BuildFinishedHook` is not called. Documents' `WithStaticParams` run before any
+  page renders, so the check covers them. Paths that differ only in case, `/About`
+  and `/about`, collide too: on macOS and Windows they are one file, so a site
+  that builds on Linux builds on a laptop too.
 
-- **Two redirects from one path**, `collage.ErrDuplicateRedirect` (since v0.52.0) —
+- **Two redirects from one path**, `collage.ErrDuplicateRedirect` —
   `/old` and `/old/`, or `/blog/{slug}` and `/blog/{x}`, which the router takes for
   one, whether they come from pages, documents or a plugin. On a static host the
   host's own precedence would pick one. Remove one of the two.
-- **A redirect over a written file**, `collage.ErrRedirectShadowsFile` (since
-  v0.52.0) — `/about` or `/about/` beside `about/index.html`, `/docs/{rest...}`
+- **A redirect over a written file**, `collage.ErrRedirectShadowsFile` — `/about` or `/about/` beside `about/index.html`, `/docs/{rest...}`
   beside `docs/intro/index.html`. A placeholder `From` such as `/{slug}` matches
   every file at its depth, `404.html` included. Narrow the pattern, or drop the page.
 
 Both redirect checks run on every build, with or without a plugin to read the
 redirects, and the files are still written.
 
-**An error-level finding** fails the build as well, with `collage.ErrBuildFindings`
-(since v0.21.0), but differently: the pages are written either way, and the
+**An error-level finding** fails the build as well, with `collage.ErrBuildFindings`,
+but differently: the pages are written either way, and the
 findings are in the report. See [Reading the report](#reading-the-report).
 
 ## Dynamic paths: `WithStaticParams`
@@ -292,13 +290,12 @@ builder := collage.NewPage("doc").
   a live request to that path would have.
 - **The map must fill the pattern exactly.** A name missing, or one the pattern does
   not have, fails that one file with `collage.ErrRouteParams`; the rest are built.
-  So does a `/` in a single `{param}`'s value since v0.34.0 — a value that is a
-  path belongs in a `{rest...}`. Before, a slug such as `../about`, from a CMS say,
-  wrote its page over another one inside the output directory. And since v0.79.0
-  so does a value holding a backslash or a NUL: on Windows a backslash is a
-  separator, and `x\..\..\about` under `/blog/{slug}` was written over another
-  page's file. It is refused on every platform, so a build behaves the same
-  wherever it runs.
+  So does a `/` in a single `{param}`'s value — a value that is a path belongs in
+  a `{rest...}` — so a slug such as `../about`, from a CMS say, cannot write its
+  page over another one inside the output directory. So does a value holding a
+  backslash or a NUL: on Windows a backslash is a separator, and `x\..\..\about`
+  under `/blog/{slug}` would reach another page's file. It is refused on every
+  platform, so a build behaves the same wherever it runs.
 - **An error, or a panic, fails that page's locale** and is named in the report —
   a panic as `collage.ErrBuildPanic`. Returning no maps writes nothing, and is not
   an error.
@@ -321,8 +318,7 @@ are still rendered and written, and the error is in the report.
 
 Pagination is a library, not a plugin: [elagoht/paginate](/docs/plugins#libraries-that-are-not-plugins)
 has nothing to register and nothing to configure. A data handler and a template
-use it. Add it with `go get github.com/Elagoht/collage-paginate`; v0.2.0 needs
-collage v0.61.0 or later.
+use it. Add it with `go get github.com/Elagoht/collage-paginate`.
 
 `paginate.New(total, perPage, current)` returns a `Pager` with `Current`, `Last`,
 `Offset`, `Limit`, `Prev`, `Next` and a `Window` of page numbers (`1 … 4 5 [6] 7 8
@@ -459,31 +455,48 @@ scope.
 | Field | Meaning |
 | --- | --- |
 | `OutDir` | Where to write. Required. |
-| `Clean` | Remove `OutDir`'s contents (not the directory itself) first. |
+| `Clean` | Remove `OutDir`'s contents (not the directory itself) first, when a previous build made it ([below](#safety)). |
 | `Locales` | Build only these locales. Empty builds every locale a page declares. |
 | `Concurrency` | How many pages render and write at once. `0` or `1` is one at a time. The report is in the same order either way. |
 | `AllowDegraded` | Write pages whose render had a failed fragment. |
 
-The builder refuses an `OutDir` that resolves to the root of the file system, and
-refuses to `Clean` one that is the root of a repository
-(`collage.ErrDangerousOutDir`) — `-out .` with `-clean` would otherwise delete your
-project.
+The builder refuses an `OutDir` that resolves to the root of the file system,
+`Clean` or not (`collage.ErrDangerousOutDir`).
+
+### Safety
+
+`-clean` (`BuildOptions.Clean`) deletes only what a build of this program made. A
+build leaves a `.collage-export` file in an output directory it created, or
+found empty, and `Clean` empties a directory only when that marker is there (the
+marker itself stays). Otherwise it fails with `collage.ErrDangerousOutDir` before
+anything is deleted or written, for:
+
+- the project's own directory, and any directory above it (`-out .. -clean`);
+- a repository root, or the working directory or module root;
+- a non-empty directory with no marker, such as `static/` (`-out static -clean`).
+
+A `dist/` exported before the marker existed needs one command, once:
+
+```sh
+touch dist/.collage-export
+```
+
+After that `collage export -clean` empties it as before. A fresh directory, as on a CI runner, gets its marker from the first build.
 
 ### Plugins in an export
 
 The export renders in the state the server does. A build starts the application
-first, running every plugin's `Init` before pages are enumerated (since v0.24.0), so
+first, running every plugin's `Init` before pages are enumerated, so
 a document a plugin registers, or the `WithStaticParams` of data a plugin loads, is
 built, and a plugin reads the same configuration.
 
 `OnBeforeRender`, `OnAfterRender` and `OnDocumentRendered` fire for every page and
 document, so what a minifier or a structured-data plugin does to a served page it
-does to the file. Since v0.21.0 `OnBuildFinished` runs once every file is written,
+does to the file. `OnBuildFinished` runs once every file is written,
 for a plugin that checks the build as a whole.
 
 When such a plugin is registered, the build first
-[captures every file's headers](#headers-and-redirects) through `App.Handler()`
-(since v0.52.0). Those are requests: middleware and `OnRequest`
+[captures every file's headers](#headers-and-redirects) through `App.Handler()`. Those are requests: middleware and `OnRequest`
 see them, and the page renders again with `OnBeforeRender` and `OnAfterRender` —
 with `ev.Static` false. A plugin that counts or limits traffic, or writes files
 from a render hook, skips them when `collage.IsCapture(ctx)` is true. See
@@ -517,12 +530,12 @@ Written files are summarised after ten, because a build that wrote three hundred
 must not bury the one page it skipped. Skips, warnings and failures are never
 truncated. The last line has every count and is coloured by the worst of them.
 Skips are counted as routes, pages and documents together — `3 skipped`, not
-`3 pages skipped`, since v0.10.0.
+`3 pages skipped`.
 
 To act on the report in code, read `report.Skipped`, `report.Warnings`,
 `report.Findings` and `report.Errors` yourself. Each skip is a
-`collage.SkipRecord` with the route's `Name` (`Page` before v0.60.0), its `Locale`, a `Reason` for
-people and, since v0.10.0, an `Err` to match with `errors.Is` — see
+`collage.SkipRecord` with the route's `Name`, its `Locale`, a `Reason` for
+people and an `Err` to match with `errors.Is` — see
 [Errors](/docs/errors#static-builds).
 [Testing](/docs/testing#testing-the-export) turns that into a test.
 
@@ -532,7 +545,7 @@ is set. In a CI log the marks are plain ASCII (`+ ! * x`).
 ### Findings
 
 A plugin that checks the output — [elagoht/htmlcheck](/docs/plugins#elagohthtmlcheck)
-is one — reports what it finds as findings, and since v0.21.0 the report lists them
+is one — reports what it finds as findings, and the report lists them
 under the page they are about, errors first:
 
 ```sh
@@ -698,7 +711,7 @@ things to check on any of them:
 
 A server sends headers with every page and answers redirects itself. A static host
 sends what its own configuration files say: Netlify's `_headers` and `_redirects`,
-Vercel's `vercel.json`. Since v0.52.0 a build carries what the server would have
+Vercel's `vercel.json`. A build carries what the server would have
 said, for a plugin to write those files. Collage writes none of them itself.
 
 **Headers are captured.** When a plugin implementing

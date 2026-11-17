@@ -1,6 +1,6 @@
 ---
 description: The plugin contract, what Host and ConfigHost expose, every hook and what it may change, and a complete plugin with its tests.
-reference: Plugin, Host, ConfigHost, ConfigReader, PluginConfig, Configurer, Command, BeforeRenderHook, BeforeActionHook, BeforeActionEvent, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, DrainHook, ServeHook, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, BuiltRedirect, RedirectSource, IsCapture, RequestHook, ErrStreamingBody, RouteInfo, Route, ClientIP, IsHTTPS, RouteKindPage, BuiltPage, StageErrorPage, Duration, Key, NewKey, RenderValues, RouteKindRejected, RouteNameNormalise
+reference: Plugin, Host, ConfigHost, ConfigReader, PluginConfig, Configurer, Command, BeforeRenderHook, BeforeActionHook, BeforeActionEvent, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, DrainHook, ServeHook, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, BuiltRedirect, RedirectSource, IsCapture, RequestHook, ErrStreamingBody, RouteInfo, Route, ClientIP, IsHTTPS, RouteKindPage, BuiltPage, StageErrorPage, Duration, Key, NewKey, RenderValues, RouteKindRejected, RouteNameNormalise, NoopMetrics, NoopTracer, NoopSpan, Metrics, Tracer, Span, SharedCache, Cache
 ---
 
 # Writing a plugin
@@ -69,7 +69,7 @@ type Plugin interface {
 - **`Init`** runs once when the application starts, after the application has
   registered its own pages and before the first request.
 - **`Shutdown`** releases whatever `Init` acquired. It is called once, and only for
-  a plugin whose `Init` succeeded (since v0.61.0); keep it idempotent anyway — see
+  a plugin whose `Init` succeeded; keep it idempotent anyway — see
   [Lifecycle](#lifecycle).
 
 Because hooks are discovered by type assertion, a misspelled hook method is not a
@@ -82,6 +82,30 @@ var (
 	_ collage.AfterRenderHook = (*Plugin)(nil)
 )
 ```
+
+### Stable within v1
+
+`pkg/collage` follows semantic versioning, and for a plugin that means this:
+
+- **`Plugin` gains no methods.** Nor do `Metrics`, `Tracer`, `Span` and the cache
+  interfaces — `Cache`, `TaggedCache`, `StaleCache` and `SharedCache` — a plugin may
+  implement or bridge to. A new method would break every implementation, so none
+  arrives within v1.
+- **Embed the no-op types.** A `Metrics` implementation embeds `collage.NoopMetrics`,
+  a `Tracer` embeds `collage.NoopTracer` and its spans `collage.NoopSpan`, and
+  each defines only the methods that measure something. An implementation that
+  lists every method itself works too, and has nothing to gain from it.
+- **New capabilities are optional interfaces**, found by type assertion like a hook:
+  a signal the framework reports later arrives as an interface a plugin may
+  implement, and one that does not simply never hears of it.
+- **`Host` and `ConfigHost` are sealed and may grow.** Only collage's own hosts
+  implement them, so a new method breaks no plugin; what a plugin may call on one
+  stays callable. This is also why a test double cannot stand in for a `Host`: test
+  through a real application, as [Testing a plugin](#testing-a-plugin) shows.
+- A store a plugin provides is checked with `collagetest.CacheSuite` or
+  `collagetest.SharedCacheSuite`, which test the whole documented contract; a store
+  that marks an entry stale where the contract says it is removed, or that resets its
+  epoch on `Clear`, fails.
 
 ## Two phases: Configure and Init
 
@@ -128,7 +152,7 @@ already parsed the templates, so it refuses such a plugin with
 registered nothing, so pages would be an empty list, and a site's origins are not
 known until every plugin, an `OriginResolver` among them, is.
 
-v0.78.0 narrowed both before v1, taking off what no plugin used:
+`ConfigHost` and `Host` are narrow on purpose, and leave off what no plugin used:
 
 - `Host.InvalidateTags` is gone. Invalidating is the application's —
   `App.InvalidateTags`, `ActionResult.InvalidateTags` — and a plugin hears of it
@@ -147,17 +171,15 @@ v0.78.0 narrowed both before v1, taking off what no plugin used:
 | `DevMode() bool` | Whether the application runs in development mode. |
 | `Logger() *slog.Logger` | The application's logger. |
 | `ConfigReader` (embedded) | What `collage.PluginConfig(host, defaults)` reads this plugin's configuration section through — see [Configuration](#configuration). |
-| `AddTemplateFunc(name, fn) error` | Adds a template function. Returns `ErrDuplicateTemplateFunc` when the name was already added — by another plugin, or by this one earlier — or is a built-in's (since v0.77.0) or the template language's (since v0.78.0). |
+| `AddTemplateFunc(name, fn) error` | Adds a template function. Returns `ErrDuplicateTemplateFunc` when the name was already added — by another plugin, or by this one earlier — or is a built-in's or the template language's. |
 | `WrapMount(wrap func(fs.FS) fs.FS)` | Registers a transformation applied to every mounted filesystem, in the order wrappers were registered. |
-| `AddRenderFunc(name, factory) error` | Adds a template function made anew for each render from its `*RenderContext` — see [Template functions](#template-functions) (since v0.21.0). |
+| `AddRenderFunc(name, factory) error` | Adds a template function made anew for each render from its `*RenderContext` — see [Template functions](#template-functions). |
 
-A `ConfigHost` closes when the plugin's `Configure` returns (since v0.78.0). A
+A `ConfigHost` closes when the plugin's `Configure` returns. A
 plugin that kept it gets `collage.ErrConfigureClosed` from a later
 `AddTemplateFunc` or `AddRenderFunc`, a later `WrapMount` wraps nothing and is
 logged, and `collage.FindPlugin` through it finds nothing: templates are parsed
 once construction finishes, and requests render with what was registered by then.
-Before, a late render function was written into the map every render reads, which
-the Go runtime aborts the process on.
 
 ### Host
 
@@ -170,37 +192,28 @@ the Go runtime aborts the process on.
 | `Page(name) (*collage.Page, bool)` | One page by name, a defensive copy. |
 | `RegisterDocument(doc) error` | Registers a document the plugin contributes. |
 | `Mount(prefix, fsys, opts...) error` | Serves a filesystem under a URL prefix. |
-| `OpenMounted(urlPath) (fs.File, error)` | Opens one of the site's own files by the URL it is served at — `/static/icon.png` — through the mount whose prefix it is under: from disk in development, embedded in a built binary. A missing file is `fs.ErrNotExist` (since v0.68.0). |
-| `Handle(prefix, handler) error` | Serves an `http.Handler` under a URL prefix ending in `/`, or at one exact path without it (`/metrics`, since v0.24.0), as `App.Handle` does — an event stream, a WebSocket (since v0.18.0). Unlike a plain `App.Handle` mount since v0.67.0, it runs inside the middleware, and since v0.78.0 its request body is bounded at `Server.MaxBodyBytes` before the middleware, as a page's is. |
-| `RenderFragment(r, req) (*collage.FragmentRender, error)` | Renders a fragment a page opened with `WithFragmentPath`, in parts — see [Pushing fragments](#pushing-fragments) (since v0.18.0). |
+| `OpenMounted(urlPath) (fs.File, error)` | Opens one of the site's own files by the URL it is served at — `/static/icon.png` — through the mount whose prefix it is under: from disk in development, embedded in a built binary. A missing file is `fs.ErrNotExist`. |
+| `Handle(prefix, handler) error` | Serves an `http.Handler` under a URL prefix ending in `/`, or at one exact path without it (`/metrics`), as `App.Handle` does — an event stream, a WebSocket. Unlike a plain `App.Handle` mount, it runs inside the middleware, and its request body is bounded at `Server.MaxBodyBytes` before the middleware, as a page's is. |
+| `RenderFragment(r, req) (*collage.FragmentRender, error)` | Renders a fragment a page opened with `WithFragmentPath`, in parts — see [Pushing fragments](#pushing-fragments). |
 | `RegisterCommand(cmd) error` | Contributes a command — see [Commands](#commands). |
-| `Use(middleware) error` | Wraps every request (since v0.21.0), where the plugin was registered: for one in `Config.Plugins`, outside the application's own middleware (since v0.38.0; inside it before). Since v0.67.0 not a request for a handler the application mounted with plain `App.Handle`. |
-| `URL(name, locale, params) (string, error)` | The path of a page or document, as `App.URL` builds it (since v0.21.0). |
+| `Use(middleware) error` | Wraps every request, where the plugin was registered: for one in `Config.Plugins`, outside the application's own middleware. Not a request for a handler the application mounted with plain `App.Handle`. |
+| `URL(name, locale, params) (string, error)` | The path of a page or document, as `App.URL` builds it. |
 | `BaseURL() string` | `Config.BaseURL`, without a trailing slash; empty when none is set. |
-| `OriginFor(ctx, host) string` | The public origin of a host: an `OriginResolver`'s, else `Config.BaseURL` — see [Which origin a host has](#which-origin-a-host-has-originresolver) (since v0.60.0). |
-| `MultiOrigin() bool` | Whether an `OriginResolver` is registered, so origins vary by host (since v0.60.0). |
-| `Locales() (default, supported)` | The default locale and every supported one, the default included (since v0.21.0). |
-| `PageURLs(ctx, name) ([]collage.PageURL, error)` | Every URL a page answers, in every locale, a pattern expanded through its `WithStaticParams` — a sitemap's contents (since v0.21.0). |
-| `BuildID() string` | The build serving — `Config.Cache.Version`, or a fingerprint of the executable — for versioning what a browser keeps across deploys: a service worker's caches, an asset's query string (since v0.24.0). |
-| `ServeStatus(w, r, status)` | Answers the request with the status and the site's own page for it — the not-found page for 404 and 410, the error page otherwise — for a plugin answering a request itself that should look like the site (since v0.24.0). |
+| `OriginFor(ctx, host) string` | The public origin of a host: an `OriginResolver`'s, else `Config.BaseURL` — see [Which origin a host has](#which-origin-a-host-has-originresolver). |
+| `MultiOrigin() bool` | Whether an `OriginResolver` is registered, so origins vary by host. |
+| `Locales() (default, supported)` | The default locale and every supported one, the default included. |
+| `PageURLs(ctx, name) ([]collage.PageURL, error)` | Every URL a page answers, in every locale, a pattern expanded through its `WithStaticParams` — a sitemap's contents. |
+| `BuildID() string` | The build serving — `Config.Cache.Version`, or a fingerprint of the executable — for versioning what a browser keeps across deploys: a service worker's caches, an asset's query string. |
+| `ServeStatus(w, r, status)` | Answers the request with the status and the site's own page for it — the not-found page for 404 and 410, the error page otherwise — for a plugin answering a request itself that should look like the site. |
 
-v0.60.0 took `RegisterPage` and `FragmentURL` off `Host` — the application keeps
-both, as `App.RegisterPage` and `App.FragmentURL` — and made the `collage.Origins`
-capability, which a plugin reached by type assertion, the two methods `OriginFor`
-and `MultiOrigin`.
+`RegisterPage` and `FragmentURL` are the application's (`App.RegisterPage`,
+`App.FragmentURL`), not the `Host`'s.
 
 What `Init` receives is not the `*App`. It is a narrow value that forwards these
 methods and nothing else, so a plugin cannot assert its way to `ListenAndServe`,
 `Shutdown`, the router, the cache or the template set.
 
-`Handle` and
-`RenderFragment` were added in v0.18.0, and `Use`, `URL`, `Locales`
-and `PageURLs` in v0.21.0, with `AddRenderFunc` on `ConfigHost`, and `BuildID` and
-`ServeStatus` in v0.24.0. **Each of these is a breaking change for a test double:**
-one implementing `Host` or `ConfigHost` needs the new methods too — since v0.24.0,
-`BuildID` and `ServeStatus`.
-
-Since v0.50.0 both include `collage.ConfigReader`, whose
+`Host` and `ConfigHost` are sealed: both include `collage.ConfigReader`, whose
 one method is unexported, so only collage's own hosts satisfy it; test a plugin
 through a real application instead — see [Testing a plugin](#testing-a-plugin).
 
@@ -208,9 +221,7 @@ through a real application instead — see [Testing a plugin](#testing-a-plugin)
 `Page` return copies of the page struct, of every slice and map it holds —
 `Paths`, `CacheParams`, `FragmentPaths` and its per-locale maps, `DependencyTags`,
 `LayoutChain` — and of its `Redirect` and `Action` values, so editing those does
-not touch the application's own page (since v0.78.0; before, `CacheParams`,
-`FragmentPaths` and the actions were shared, so a plugin writing its copy changed
-the cache key and the fragment URLs). The fragments inside a copy are still
+not touch the application's own page, its cache key or its fragment URLs. The fragments inside a copy are still
 shared, and the events below
 carry the *live* page, not a copy — copying a page and its fragment tree on every
 request would cost the hot path.
@@ -238,8 +249,8 @@ returns an error when it fails:
 | `HTML` | The markup, with the reader's forgery token in any form it holds |
 | `Head` | What the fragment hoisted into an area it placed no marker for, as `HoistItem`s with their area and key |
 | `DependencyTags` | The tags the render depended on — match them against `CacheInvalidateEvent.Tags` to know what to push |
-| `Shared` | The render is the same for every reader on the same host at this moment: the page is cached for everyone, or every handler in the subtree is declared `Static()` or `Shared()` and there is no slot resolver — and there is no form token, and (since v0.78.0) nothing a `PersonaliseHook` made personal. (since v0.19.0; before, a handler counted as reading the request unless it was `Static()`) Since v0.71.0 such a render is made from a request with the reader's cookies, headers and context values stripped, as the page cache's is |
-| `ETag` | The ETag a request to the fragment's path would get for the same body, so a client can tell a pushed copy from one it already shows, or recognise the two as the same (since v0.19.0) |
+| `Shared` | The render is the same for every reader on the same host at this moment: the page is cached for everyone, or every handler in the subtree is declared `Static()` or `Shared()` and there is no slot resolver — and there is no form token, and nothing a `PersonaliseHook` made personal. Such a render is made from a request with the reader's cookies, headers and context values stripped, as the page cache's is |
+| `ETag` | The ETag a request to the fragment's path would get for the same body, so a client can tell a pushed copy from one it already shows, or recognise the two as the same |
 | `Cookie` | The forgery cookie the forms in `HTML` need, when the request carried none |
 
 A `FragmentRequest` names the fragment either by `Page`, `Fragment`, `Locale` and
@@ -253,12 +264,12 @@ out, err := host.RenderFragment(r, collage.FragmentRequest{Path: "/live/cpu"})
 ```
 
 Only fragments the page opened are rendered: a stream reaches exactly what HTTP
-reaches. Since v0.78.0 each call is served as a request to the fragment's URL
+reaches. Each call is served as a request to the fragment's URL
 would be: a `GET` to it carrying `r`'s host, client address, headers and cookies —
 not its path values, body or method — passes the application's and every
 plugin's middleware for the fragment's path, in the order a request does, then the
 fragment's own [guard](/docs/pages-and-layouts#private-pages-guards) and the
-page's (since v0.28.0), which read the fragment URL's parameters with
+page's, which read the fragment URL's parameters with
 `r.PathValue`, never the caller's own.
 
 - **A refusal is `collage.ErrGuardRefused`** instead of a render: a guard that
@@ -278,7 +289,7 @@ page's (since v0.28.0), which read the fragment URL's parameters with
   error rather than render without the middleware.
 
 By `Page` and `Fragment`, the URL is built from the page's pattern in the
-requested locale, as `FragmentURL` builds it (since v0.78.0): a parameter no
+requested locale, as `FragmentURL` builds it: a parameter no
 request could carry — an undeclared name, a value with `/` outside a catch-all,
 `.`, `..`, empty — a locale the fragment has no path in, and a path a request
 would be redirected to its clean spelling from are `ErrUnknownFragmentPath`.
@@ -286,7 +297,7 @@ would be redirected to its clean spelling from are `ErrUnknownFragmentPath`.
 To ask each reader's middleware and guards about a change, call it once per
 reader, with that reader's request, and send each connection the render made for
 it. A render that is not `Shared` may hold one reader's data. A `Shared` one costs
-one render per change however many readers it reaches (since v0.78.0): once a
+one render per change however many readers it reaches: once a
 reader's middleware and guards have passed, a `Shared` render already made for the
 same host, URL, locale and cached query is handed over as a copy, and readers
 arriving during the render wait for it. That reader's forgery token and
@@ -307,7 +318,7 @@ that its render counts, without making its page static.
 
 A plugin's `Shutdown` runs after the server has stopped, and the server stops by
 waiting for every open request to end — which an event stream or a WebSocket never
-does by itself. A plugin serving one implements `StreamCloser` (since v0.18.0):
+does by itself. A plugin serving one implements `StreamCloser`:
 
 ```go
 var _ collage.StreamCloser = (*Plugin)(nil)
@@ -321,7 +332,7 @@ write deadline forward with `http.NewResponseController(w).SetWriteDeadline`, an
 take the connection over with `Hijack`, as it could on a bare `net/http` server.
 
 A plugin that must know the server is about to stop taking traffic — readiness
-turning false, new work refused — implements `DrainHook` (since v0.53.0):
+turning false, new work refused — implements `DrainHook`:
 
 ```go
 var _ collage.DrainHook = (*Plugin)(nil)
@@ -335,16 +346,15 @@ and before `CloseStreams`, and even when `DrainDelay` is 0. It must not block �
 server goes on serving while the drain lasts, and a slow hook delays every step
 after it. A panic in it is contained and logged at Warn with the plugin's name.
 Like `Shutdown` and `CloseStreams`, it reaches only plugins whose `Init`
-succeeded (since v0.61.4).
+succeeded.
 
 A `Shutdown` before `Start`, or after a `Start` that
-failed, tells none of them: before v0.61.4 it called `OnDrain` and `CloseStreams`
-on plugins that never ran, so a plugin reused for a second start — as
-`collagetest.TrySite` followed by `NewSite` does with the same plugin value — began
-already draining.
+failed, tells none of them, so a plugin reused for a second start — as
+`collagetest.TrySite` followed by `NewSite` does with the same plugin value — does
+not begin already draining.
 
 A plugin that does work only while the application is serving — a scheduler, a
-queue worker — implements `ServeHook` (since v0.55.0):
+queue worker — implements `ServeHook`:
 
 ```go
 var _ collage.ServeHook = (*Plugin)(nil)
@@ -376,16 +386,16 @@ and logged at Warn with the plugin's name, and the server still serves.
 
 | Interface | Method | Event | Fires | May change |
 | --- | --- | --- | --- | --- |
-| `RequestHook` | `OnRequest` | the `*http.Request` | First on every request, before collage's request span, middleware and routing (since v0.25.0) | the request's context |
+| `RequestHook` | `OnRequest` | the `*http.Request` | First on every request, before collage's request span, middleware and routing | the request's context |
 | `BeforeRenderHook` | `OnBeforeRender` | `BeforeRenderEvent` | Before a fresh page render | nothing on the event; may hoist through `ev.Context` |
-| `BeforeActionHook` | `OnBeforeAction` | `BeforeActionEvent` | Before an action's handler, after its guards, body limit and forgery check (since v0.31.0) | `ev.Result`, which answers in the handler's place |
+| `BeforeActionHook` | `OnBeforeAction` | `BeforeActionEvent` | Before an action's handler, after its guards, body limit and forgery check | `ev.Result`, which answers in the handler's place |
 | `AfterRenderHook` | `OnAfterRender` | `AfterRenderEvent` | After a page render succeeded, with `ev.Values` (read with a key's `In`) | `ev.HTML`; reports with `ev.Warn`, `ev.Error` |
-| `PersonaliseHook` | `OnPersonalise` | `PersonaliseEvent` | For every HTML response on its way to one reader, after the cache (since v0.43.0) | `ev.Body`, `ev.Header`, `ev.Personal` |
+| `PersonaliseHook` | `OnPersonalise` | `PersonaliseEvent` | For every HTML response on its way to one reader, after the cache | `ev.Body`, `ev.Header`, `ev.Personal` |
 | `DocumentRenderedHook` | `OnDocumentRendered` | `DocumentRenderedEvent` | After a document handler produced its body | `ev.Body` |
 | `CacheInvalidateHook` | `OnCacheInvalidate` | `CacheInvalidateEvent` | After entries were invalidated by tag | nothing |
-| `OriginResolver` | `Origin` | the host, as a string | When `collage.BaseURL` or `Host.OriginFor` names a host's origin (since v0.42.0) | the origin returned |
+| `OriginResolver` | `Origin` | the host, as a string | When `collage.BaseURL` or `Host.OriginFor` names a host's origin | the origin returned |
 | `ErrorHook` | `OnError` | `ErrorEvent` | On a failure while serving a request | nothing |
-| `BuildFinishedHook` | `OnBuildFinished` | `BuildFinishedEvent` | Once, when a static build has written every file and captured its headers (since v0.21.0) | reports with `ev.Warn`, `ev.Error` |
+| `BuildFinishedHook` | `OnBuildFinished` | `BuildFinishedEvent` | Once, when a static build has written every file and captured its headers | reports with `ev.Warn`, `ev.Error` |
 
 On a request, the hooks run in this order:
 
@@ -438,9 +448,8 @@ On a request, the hooks run in this order:
 </figure>
 
 Every hook method has the shape `func(ctx context.Context, ev *Event) error`, except
-`OnRequest`. v0.60.0 removed `PageResolvedHook` and `CacheWriteHook`, which nothing
-used: a request a plugin wants to see is `OnRequest`'s, and a render about to run
-is `OnBeforeRender`'s.
+`OnRequest`. A request a plugin wants to see is `OnRequest`'s, and a render about to
+run is `OnBeforeRender`'s.
 
 ### RequestHook
 
@@ -450,7 +459,7 @@ type RequestHook interface {
 }
 ```
 
-Runs before anything else on a request (since v0.25.0): before collage starts its
+Runs before anything else on a request: before collage starts its
 request span, before middleware, before routing. It returns the context the request
 is served under — derived from `r.Context()` — and a function collage calls with
 the status when the response is written: once, unless serving the request panics.
@@ -476,14 +485,13 @@ func (p *Plugin) OnRequest(r *http.Request) (context.Context, func(status int)) 
 
 `collage.RouteInfo(ctx)` reports what the request resolved to, as a `collage.Route`:
 its `Kind` — `collage.RouteKindPage`, `RouteKindDocument`, `RouteKindAction`,
-`RouteKindMount` or `RouteKindHandler` (since v0.61.0; the strings `"page"`,
+`RouteKindMount` or `RouteKindHandler` (the strings `"page"`,
 `"document"`, `"action"`, `"mount"`, `"handler"`, and the set may grow), or
-`RouteKindRejected` (`"rejected"`, since v0.79.0, below) — and its
+`RouteKindRejected` (`"rejected"`, below) — and its
 `Name`, the registered name or prefix: the page's, the document's or the action's
 name, the mount's or the handler's prefix. It is the zero `Route` while the request
 is unresolved, and for a request that resolved to nothing, such as a 404 for a path
-no route has. (Before v0.60.0, `collage.RouteOf(ctx)` returned the kind and the
-name alone.)
+no route has.
 
 It reads the context collage serves the
 request under, which the finish function's context shares and
@@ -499,7 +507,7 @@ Hooks run in registration order, and each is handed the request under the contex
 the one before it made; the finish functions run in the reverse order. One that
 panics is skipped, and the request is served under the context before it.
 
-Since v0.47.0 the hooks also see a request collage answers before routing: a path
+The hooks also see a request collage answers before routing: a path
 with an encoded slash (`/a%2f..%2fb`), answered with a 404, and a dirty path
 (`/a/../b`), redirected with 301 (308 for a method other than `GET` and `HEAD`).
 These are a scanner's probes more often than not.
@@ -509,20 +517,18 @@ function is called with the status written (once, unless serving the request
 panics), and `r.URL` is the raw path. `collage.ClientIP(r)` works inside
 `OnRequest`, so a plugin that bans or counts clients can see them.
 
-Since v0.79.0, once the response is written, `collage.RouteInfo` reports such a
+Once the response is written, `collage.RouteInfo` reports such a
 request with `Kind` `RouteKindRejected` (`"rejected"`) and `Name`
 `RouteNameNormalise` (`"normalise"`), as it does the router's 404 for a path no
 route can ever match (an encoded slash `/a%2fb`, a NUL, malformed
 percent-encoding). A label built from `RouteInfo` stays bounded; one built from the
 path, a scanner's, does not. `Metrics.HTTPResponse` and collage's own request span
-see these requests too, with an empty path and no `http.path`. Before v0.79.0
-`RouteInfo` was the zero `Route` for them, and the metrics and the span skipped
-them.
+see these requests too, with an empty path and no `http.path`.
 
-Collage's own `collage.http` span records `http.method` bucketed since v0.79.0: the
+Collage's own `collage.http` span records `http.method` bucketed: the
 standard methods as themselves, anything else a client sends as `OTHER`.
 
-The hooks also see a static build's header capture (since v0.52.0): when a
+The hooks also see a static build's header capture: when a
 `BuildFinishedHook` plugin is registered, the build asks the handler for each file
 it wrote, and `collage.IsCapture(r.Context())` is true for those requests. A plugin
 that counts or bans clients skips them. See
@@ -536,7 +542,7 @@ the client the proxy reports. It is unmapped and has no zone, and is the zero
 request has no `RemoteAddr`, and behind a trusted proxy whose `X-Forwarded-For`
 names no usable client (`unknown`). Never count that one.
 
-`collage.IsHTTPS(r)` (since v0.61.0) is whether the request arrived over TLS: on
+`collage.IsHTTPS(r)` is whether the request arrived over TLS: on
 its own connection, or at a proxy that says so in `X-Forwarded-Proto`. With
 `Server.TrustedProxies` listed, the header is believed only from one of them, so a
 client cannot claim a TLS connection it does not have; with none listed it is
@@ -578,7 +584,7 @@ key replaces it: the plugin provides the default, the page provides the specific
 thing. It lands only where the layout calls `{{hoist "head"}}`. An error fails the
 request with a 500, under `"before_render"`.
 
-`Static` (since v0.22.0) says the page is being rendered for a static build —
+`Static` says the page is being rendered for a static build —
 through `App.RenderPath` — rather than for a request. It is on `AfterRenderEvent`
 too. A render for the build's header capture is a request, so `Static` is false
 for it; `collage.IsCapture(ctx)` tells it apart.
@@ -596,11 +602,9 @@ type BeforeActionEvent struct {
 func (ev *BeforeActionEvent) Form() (url.Values, error)
 ```
 
-`Page` is gone since v0.78.0: nothing read it.
-
 Fires once per action request, immediately before the handler: after the page's
-guards, after the action's body limit is in place, and after the forgery check
-(since v0.31.0). It is where a plugin checks a submission, a spam filter or a
+guards, after the action's body limit is in place, and after the forgery check.
+It is where a plugin checks a submission, a spam filter or a
 quota, because the body there is bounded by the action's own limit, and a plugin
 that read it earlier, in middleware, would need a limit of its own.
 
@@ -610,7 +614,7 @@ being read twice. Use it rather than `ParseMultipartForm` alone, which for a
 URL-encoded body discards the error of reading it, a body past the limit among
 them.
 
-For an action built with `WithStreamingBody()` (since v0.57.0), `ev.Form()` reads
+For an action built with `WithStreamingBody()`, `ev.Form()` reads
 nothing and returns `collage.ErrStreamingBody`, so a plugin cannot consume the
 stream the handler reads. A plugin that inspects forms must treat that error as
 "this action has no form to check" and let the request through; one that returns
@@ -634,14 +638,12 @@ func (p *Plugin) OnBeforeAction(_ context.Context, ev *collage.BeforeActionEvent
 ```
 
 Setting `ev.Result` answers the request with it, exactly as if the handler had
-returned it, and stops dispatch: no later plugin and no handler runs. Since v0.79.0
-that holds for all of it: its `InvalidateTags` are invalidated before the response
-and its `Location` is warmed, as a handler's are, where before the tags were
-dropped and nothing was warmed. One setting more than one of `Location`,
+returned it, and stops dispatch: no later plugin and no handler runs. That holds for all of it: its `InvalidateTags` are invalidated
+before the response and its `Location` is warmed, as a handler's are. One setting more than one of `Location`,
 `Fragment`, `Page` and `Body` is refused with a 500, and `Location` and `Status` go
 out as given. An error
 fails the request under `"before_action"`, with `413` when it wraps
-`*http.MaxBytesError` and `500` otherwise — or, since v0.57.0, `400` (`408` for a
+`*http.MaxBytesError` and `500` otherwise — or `400` (`408` for a
 read deadline) when the body was cut off while the plugin read it, logged at debug
 and handed to no error hook.
 
@@ -695,9 +697,9 @@ request state.
 Begin a key's name with the plugin's own name — `"jsonld:article"`,
 `"validate:errors"`. A key is only its name and its type, so two plugins that each
 declare `NewKey[string]("errors")` hold one value between them, and whichever sets
-it last wins. Before v0.50.0 this was `ev.Data`, the render's shared map.
+it last wins.
 
-`ev.Fragments` and `ev.DependencyTags` (since v0.24.0) report how the render went,
+`ev.Fragments` and `ev.DependencyTags` report how the render went,
 for a development tool to show beside the page. Each `collage.FragmentReport` has
 the fragment's `Name`; its `Duration`, the fragments in its slots included;
 `Failed`, even when a fallback stood in; `UsedFallback`; and `Err`, what it failed
@@ -711,15 +713,14 @@ Two consequences of where it sits:
 - **An empty result is a failure.** If `ev.HTML` is empty after dispatch, the
   request fails with a 500 rather than serving a blank page.
 
-A page an action answers with through `RenderPage` runs it too (since v0.10.0;
-before, it ran `BeforeRender` only), so a validation page is minified like any
+A page an action answers with through `RenderPage` runs it too, so a validation page is minified like any
 other. An error fails the request with a 500, under `"after_render"`.
 
 ### Adding to the head after the render
 
 A plugin that learns what a page needs only from its finished markup — the code
 blocks it highlighted need a stylesheet — adds it with `ev.Hoist(area, key, html)`
-in `OnAfterRender` (since v0.25.0):
+in `OnAfterRender`:
 
 ```go
 if highlighted {
@@ -740,7 +741,7 @@ plugin replaced `ev.HTML` — or you did, in the same hook — `"head"` lands be
 
 A plugin that checks what a page renders — a heading level skipped, an image
 without `alt`, a form field without a label — reports what it finds rather than
-failing the render (since v0.21.0):
+failing the render:
 
 ```go
 func (p *Plugin) OnAfterRender(_ context.Context, ev *collage.AfterRenderEvent) error {
@@ -783,7 +784,7 @@ both.
 
 `OnAfterRender` runs once, before the cache, so it cannot give each reader
 something of their own. A plugin that must, such as a Content-Security-Policy nonce
-or a per-visitor token, implements `PersonaliseHook` (since v0.43.0), called for
+or a per-visitor token, implements `PersonaliseHook`, called for
 every HTML response on its way to one reader:
 
 ```go
@@ -817,9 +818,9 @@ runs before the dev overlay; on an error page, or a page an action answers with,
 the overlay is already in the body.
 Plugins run in registration order and each sees the previous body. It covers a
 page (from the cache or fresh), a fragment path or fragment read, an action's HTML
-answer, an error page and, since v0.78.0, what `RenderFragment` returns — the
+answer, an error page and what `RenderFragment` returns — the
 markup and each hoisted item — never a document. Once a hook sets `Personal`, a
-later one cannot clear it (since v0.78.0).
+later one cannot clear it.
 
 `Personal` treats the response as a forgery token does: its ETag is recomputed
 from the body sent, a page answers `private, no-store`, and neither a page from
@@ -830,7 +831,7 @@ with the recomputed ETag and an action's HTML `private, no-store`, overriding ev
 a `Cache-Control` the handler set. A compressing middleware that keeps compressed
 bodies per ETag, such as elagoht/compress, gains nothing from a personal
 response: its ETag is new every time. elagoht/compress compresses it for each
-reader and keeps nothing (since v0.1.3).
+reader and keeps nothing.
 
 A body changed without `Personal`
 still gets an ETag naming the bytes sent. A hook that returns an error or panics is
@@ -877,19 +878,18 @@ type InvalidatedEntry struct {
 Fires after `InvalidateTags` or `PurgeTags` reached the entries for some tags —
 whether the application or an action called it. It is dispatched from that call,
 not from a request. Every plugin implementing it is called, even after one before
-it failed or panicked (since v0.78.0; one failing plugin used to keep a CDN purge
-or a live update from running), and each failure is logged and joined into what
-`InvalidateTags` returns. A plugin does not invalidate: `Host.InvalidateTags` is
-gone since v0.78.0.
+it failed or panicked, so one failing plugin cannot keep a CDN purge or a live update
+from running, and each failure is logged and joined into what
+`InvalidateTags` returns. A plugin does not invalidate: the `Host` has no `InvalidateTags`.
 
 `Entries` names the cached pages and documents the invalidation reached — what a
 CDN has to purge, and a search engine be told has changed. On the built-in stores
-an `InvalidateTags` entry was marked stale, not removed (since v0.63.0): it is no
+an `InvalidateTags` entry was marked stale, not removed: it is no
 longer served as fresh, and is served again only, marked `STALE`, when its
 re-render fails or is degraded. A page that was not cached is never in it: nothing of it was
 reached. Nor is a page an earlier invalidation already marked stale, until it is
 rendered and stored again — except with a store a fleet shares, a
-[`collage.SharedCache`](/docs/caching#a-cache-a-fleet-shares) (since v0.66.0): its
+[`collage.SharedCache`](/docs/caching#a-cache-a-fleet-shares): its
 own tag index names every page any instance wrote, and keeps a page invalidated
 and not yet re-rendered, so a second invalidation names it again.
 
@@ -902,8 +902,7 @@ invalidates what is cached there with
 Each entry is a host and a URL path, sorted by host and then path. A path cached
 under two hosts is two entries, and the host keeps its port if the request had one.
 A plugin that purges a CDN or pings a search engine reads it to build each URL
-against the right origin. (Paths came in v0.23.0 as `Paths`, hosts in v0.42.0 as
-`Entries`; v0.60.0 kept `Entries` alone.) The host is recorded as a
+against the right origin. The host is recorded as a
 `collage:host:<host>` dependency tag beside `collage:path:`; host tags are exempt
 from the tracker's per-tag cap, and `MaxEntries` still bounds memory.
 
@@ -911,7 +910,7 @@ from the tracker's per-tag cap, and `MaxEntries` still bounds memory.
 
 A plugin that serves several sites from one process, a host per customer, says
 which public origin absolute URLs for a host are built against by implementing
-`OriginResolver` (since v0.42.0):
+`OriginResolver`:
 
 ```go
 func (p *Plugin) Origin(ctx context.Context, host string) (string, bool) {
@@ -933,10 +932,8 @@ which is safe in a cached render because the host is in the cache key, and a sta
 build, which has no request, gets `Config.BaseURL`. A site without a resolver sees no
 change.
 
-A plugin that builds absolute URLs itself asks the `Host` it was given in `Init`
-(since v0.60.0; before, through the `collage.Origins` capability, by type
-assertion). `ConfigHost` has no `BaseURL`, `OriginFor` or `MultiOrigin` since
-v0.78.0: during `Configure` not every resolver is known.
+A plugin that builds absolute URLs itself asks the `Host` it was given in `Init`.
+`ConfigHost` has no `BaseURL`, `OriginFor` or `MultiOrigin`: during `Configure` not every resolver is known.
 
 ```go
 origin := host.OriginFor(ctx, "acme.test") // a resolver's, else Config.BaseURL
@@ -945,7 +942,7 @@ varies := host.MultiOrigin()               // is a resolver registered?
 
 A plugin that takes origins in its own configuration validates them with
 `collage.ParseOrigin` rather than a copy of the rule; what it refuses is
-`collage.ErrInvalidOrigin` (`ErrInvalidBaseURL` before v0.60.0). Code that holds
+`collage.ErrInvalidOrigin`. Code that holds
 only a context reads a header declared with `collage.Vary` through
 `collage.Varied(ctx, header)`.
 
@@ -964,16 +961,16 @@ type ErrorEvent struct {
 Fires on a failure while serving a request: a page, a document, an action, a mount
 or a handler registered with `App.Handle`. `Stage` names where it happened.
 
-Since v0.78.0 the event carries no `Page`; read `Path` to tell what failed.
+The event carries no `Page`; read `Path` to tell what failed.
 
-The stages the framework uses each have a constant (since v0.61.0), to compare
+The stages the framework uses each have a constant, to compare
 against instead of the literal:
 
 | Stage | Constant |
 | --- | --- |
 | `"route"` | `collage.StageRoute` |
 | `"not_found"` | `collage.StageNotFound` |
-| `"guard"` (since v0.28.0: a page's guard failed or answered with a decision it cannot write) | `collage.StageGuard` |
+| `"guard"` (a page's guard failed or answered with a decision it cannot write) | `collage.StageGuard` |
 | `"before_render"` | `collage.StageBeforeRender` |
 | `"before_action"` | `collage.StageBeforeAction` |
 | `"render"` | `collage.StageRender` |
@@ -1001,17 +998,17 @@ for a refused submission, `collage.ErrAssetFailed` for a mount answering 4xx or
 [Errors](/docs/errors#reported-to-error-hooks).
 
 A panic recovered while serving a request (stage `"panic"`) is a
-`*collage.PanicError` (since v0.45.0). It still matches `errors.Is(err, collage.ErrPanic)`;
+`*collage.PanicError`. It still matches `errors.Is(err, collage.ErrPanic)`;
 `errors.As` reaches the panic value and the stack it was raised on, and `errors.Is`
 reaches the value itself when the code panicked with an error. The stack is no longer
 in the error's message, only in a separate `stack` attribute of the framework's
 `collage: request failed` log line, so code that matched the stack in the message
 reads `PanicError.Stack` instead.
 
-`Status` (since v0.45.0) is the HTTP status the failure is answered with: 404 for a
+`Status` is the HTTP status the failure is answered with: 404 for a
 missing asset, 500 for a failed render or a panic, and 0 when no response is written
 for it, as for a cache write that failed after the page was served, or a failed
-render a stale page was served in place of (since v0.63.0). That one keeps the
+render a stale page was served in place of. That one keeps the
 stage it failed in, `"render"` say, and reaches `OnError` once per failed render,
 however many readers were waiting on it and were served the stale page; see
 [Caching](/docs/caching#stale-pages-and-x-collage-cache). An
@@ -1062,8 +1059,8 @@ type BuiltRedirect struct {
 }
 ```
 
-Fires once, when a static build has written every page, document and asset (since
-v0.21.0), for checks across pages. Read a file with `os.ReadFile` when its content
+Fires once, when a static build has written every page, document and asset,
+for checks across pages. Read a file with `os.ReadFile` when its content
 is needed. `ev.Warn(path, rule, message)` and `ev.Error` report a finding against
 the page at `path`, or against the build as a whole with an empty one.
 
@@ -1071,7 +1068,7 @@ An error
 returned from the hook fails the build too, beside the files already written. It
 never fires on a server, and a build whose context ended is not handed to it.
 
-**Headers.** Since v0.52.0, before the hook runs, the build asks the application's
+**Headers.** Before the hook runs, the build asks the application's
 handler for each file's path twice and puts the answer on the file: `Status` and
 `Headers`, without the headers about one response (`Date`, `ETag`,
 `Set-Cookie`, …) and without any that differ between the two answers, such as a
@@ -1109,7 +1106,7 @@ type RedirectSource interface {
 ```
 
 A plugin that serves redirects of its own — from a file, a database — implements
-`RedirectSource` (since v0.52.0), so a static export carries its rules to the host.
+`RedirectSource`, so a static export carries its rules to the host.
 The build asks it once, after every file is written, and adds its rules to
 `ev.Redirects` with `Source` set to the plugin's name. Each is checked as a
 registered redirect is: `From` starts with one `/` and parses as a route pattern,
@@ -1120,9 +1117,8 @@ be an absolute `http` or `https` URL, and a `410` (a path that is gone) has no `
 Any other `Status` fails the build with
 `collage.ErrInvalidRedirectStatus`, and a malformed rule, or one with a control
 character, with `collage.ErrInvalidRedirect`, naming the rule and the plugin.
-Since v0.78.0 a `From` or `To` holding a space, which a host's redirect file reads
-as a field separator, is malformed, and each bad rule is reported, every plugin's,
-where one used to drop every plugin's rules. A
+A `From` or `To` holding a space, which a host's redirect file reads
+as a field separator, is malformed, and each bad rule is reported, every plugin's. A
 plugin rule from the same path as another redirect, or over a written file, fails
 the build like any other ([What fails](/docs/static-export#what-fails)).
 [elagoht/redirects](/docs/plugins#elagohtredirects) is one.
@@ -1139,8 +1135,7 @@ the build like any other ([What fails](/docs/static-export#what-fails)).
 - For `OnBeforeAction`, the first error stops dispatch and fails the request, and
   so does the first plugin to set `ev.Result`, which answers it.
 - For `OnCacheInvalidate`, every plugin is called, even after one failed or
-  panicked; the errors are logged and returned joined from `InvalidateTags` (since
-  v0.78.0; before, the first error stopped dispatch).
+  panicked; the errors are logged and returned joined from `InvalidateTags`.
 - For `OriginResolver`, the first plugin that returns `ok` with a valid origin wins;
   a resolver that panics is logged and skipped.
 - For `OnError`, errors are logged and dispatch continues.
@@ -1172,27 +1167,24 @@ Every template can then call `{{readingTime .Words}}`. The function is any value
   plugins, and one of them has to give way.
 - **The application wins** otherwise. An entry in `Config.Template.Funcs` under a
   name a plugin added replaces the plugin's function: the application can see both
-  and decide, and `New` logs each such name once. Since v0.78.0 that holds for
-  `AddRenderFunc` too, whose function used to be bound again on every render, after
-  the application's, and so was the one that ran.
-- **A built-in's name is not a plugin's to take.** Since v0.77.0 `AddTemplateFunc`
+  and decide, and `New` logs each such name once. That holds for
+  `AddRenderFunc` too.
+- **A built-in's name is not a plugin's to take.** `AddTemplateFunc`
   refuses the name of any [built-in function](/docs/template-functions), `json` or
-  `truncate` as much as `pageURL`, with `ErrDuplicateTemplateFunc`. Before, the
-  plugin's function replaced the built-in without a word, under every template
-  written against it, or never ran when the built-in is bound per render. Pick a
-  name of your own; `Config.Template.Funcs` is where an application replaces a
+  `truncate` as much as `pageURL`, with `ErrDuplicateTemplateFunc`: the
+  plugin's function would replace the built-in under every template written against
+  it. Pick a name of your own; `Config.Template.Funcs` is where an application replaces a
   built-in.
-- **Nor is a name of the template language.** Since v0.78.0 `AddTemplateFunc` and
+- **Nor is a name of the template language.** `AddTemplateFunc` and
   `AddRenderFunc` refuse Go's builtins (`eq`, `len`, `index`, `print`…) and
   escapers (`html`, `js`, `urlquery`, html/template's own) with
-  `ErrDuplicateTemplateFunc`: a plugin's `html` was all the escaping a value piped
-  through it got.
+  `ErrDuplicateTemplateFunc`: a plugin's `html` would be all the escaping a value
+  piped through it got.
 - It must be called from `Configure`. There is no way to add one later, because a
   function added after parsing is one no template can call; a call through a kept
-  `ConfigHost` after `Configure` returned is `ErrConfigureClosed` (since v0.78.0).
+  `ConfigHost` after `Configure` returned is `ErrConfigureClosed`.
 
-`AddTemplateFunc`'s function is one value for the life of the application. Since
-v0.21.0 `AddRenderFunc` takes a factory instead, called for each render with its
+`AddTemplateFunc`'s function is one value for the life of the application. `AddRenderFunc` takes a factory instead, called for each render with its
 `*RenderContext`, so the function it returns can read what that render holds — a
 nonce a `BeforeRender` hook set, the render's locale:
 
@@ -1229,30 +1221,28 @@ Changing bytes per response shifts every offset, and a range request would retur
 the wrong slice of a file whose advertised length no longer matches. A wrapper
 whose files *are* the transformed ones keeps that arithmetic true.
 Wrappers run in the order they were registered, and a `nil` wrapper is ignored.
-It is called from `Configure`; since v0.78.0 a later call wraps nothing and is
-logged.
+It is called from `Configure`; a later call wraps nothing and is logged.
 
 ## Contributing documents and mounts
 
 From `Init`, a plugin can add routes of its own through `Host.RegisterDocument`
-and `Host.Mount`, built with the same builders an application uses. Since v0.60.0
-a plugin registers no pages: `Host.RegisterPage` is gone, and pages are the
-application's. `Host.Handle` serves a plain `http.Handler` under a prefix, for
+and `Host.Mount`, built with the same builders an application uses. A plugin
+registers no pages: pages are the application's. `Host.Handle` serves a plain `http.Handler` under a prefix, for
 what is not a page — an event stream, a WebSocket. A prefix ending in `/` claims
-every path beneath it; since v0.24.0 one without, `/metrics`, is a single exact
+every path beneath it; one without, `/metrics`, is a single exact
 path. It always runs inside the middleware, the application's and every plugin's:
 it is part of the site, and may read the session or rely on a basicauth in front of
-it. Since v0.78.0 its request body is bounded at `Server.MaxBodyBytes` before the
+it. Its request body is bounded at `Server.MaxBodyBytes` before the
 middleware, as a page's is, so no middleware reads an unbounded body there;
 `App.Handle` is unchanged.
 
-`Host.Use` (since v0.21.0) wraps
-every request, as `App.Use` does, where the plugin was registered. Since v0.38.0 a
+`Host.Use` wraps
+every request, as `App.Use` does, where the plugin was registered. A
 plugin in `Config.Plugins` is outside the application's own middleware, so what it
 puts in the request's context, a session, is there for the application's
 middleware to read, and its headers and cookies wrap what that middleware
 produced. One registered with `App.RegisterPlugin` sits among the application's
-middleware where the call was made. Since v0.67.0 it does not run for a handler the
+middleware where the call was made. It does not run for a handler the
 application mounted with plain `App.Handle`, which brings its own middleware: a
 plugin that bans, limits, guards or logs cannot answer for such a mount. See
 [No middleware, unless you ask](/docs/middleware-and-apis#no-middleware-unless-you-ask).
@@ -1266,8 +1256,7 @@ what a sitemap is made of. `App.Locales` and `App.PageURLs` are the same, for an
 application's own code.
 
 A plugin that *reads* one of the site's own files — a source image, a stylesheet —
-asks for it by the URL the site serves it at, with `Host.OpenMounted` (since
-v0.68.0), rather than by a path on disk:
+asks for it by the URL the site serves it at, with `Host.OpenMounted`, rather than by a path on disk:
 
 ```go
 f, err := host.OpenMounted("/static/icon.png")
@@ -1292,7 +1281,7 @@ way.
 A plugin that answers a request itself — a page that is gone, a request it
 refuses — can answer with the site's own page rather than a line of text:
 `host.ServeStatus(w, r, http.StatusGone)` serves the not-found page for 404 and
-410, and the error page for any other status (since v0.24.0).
+410, and the error page for any other status.
 
 A plugin versioning
 what a browser keeps across deploys — a service worker's caches, an asset's query
@@ -1313,7 +1302,7 @@ type Command struct {
 }
 ```
 
-`RegisterCommand` refuses a name it could never run (since v0.78.0):
+`RegisterCommand` refuses a name it could never run:
 
 - an empty name;
 - one that is not a single shell word — letters and digits of any script, `-` `_`
@@ -1328,8 +1317,7 @@ type Command struct {
   may still take one.
 
 It stays open while every plugin's `Init` runs, and is closed with `ErrAppStarted`
-once the application has started (since v0.78.0; before, it stayed open, and a
-command registered then was never dispatched).
+once the application has started.
 
 `Usage` and `Short` are data. Neither the framework nor the `collage` binary prints
 them; a program that wants a help listing builds it from `app.Commands()`.
@@ -1363,8 +1351,7 @@ the commands. The exit codes are:
 - `2` for a nil app, no arguments, or an unclaimed name (`ErrUnknownCommand`).
 
 Say in your plugin's README that its commands
-run through the application — a project scaffolded before v0.10.0 has to add that
-block itself. See [The collage CLI](/docs/cli#plugin-commands).
+run through the application. See [The collage CLI](/docs/cli#plugin-commands).
 
 ## Configuration
 
@@ -1394,7 +1381,7 @@ func (p *Plugin) Configure(_ context.Context, host collage.ConfigHost) error {
   returned with the defaults. The operator wrote something, and running on defaults
   silently would hide it. The section is decoded into a copy, so a failure leaves
   the defaults as they were.
-- **A key your options do not have is an error** (since v0.61.0), at any depth,
+- **A key your options do not have is an error**, at any depth,
   and so is one named after a field tagged `json:"-"`: `collage: acme/stamp:
   unknown key "generater" in plugins-config.json; remove it, or rename it to a key
   the plugin documents`. It stops the application at `Configure` or `Init`. Keys
@@ -1403,13 +1390,13 @@ func (p *Plugin) Configure(_ context.Context, host collage.ConfigHost) error {
   type it decodes into, and a type with its own `UnmarshalJSON` checks its own keys,
   or none. A renamed or removed key therefore fails loudly by itself.
 - A scalar in the JSON replaces your default. **A top-level list replaces the
-  default list whole** (since v0.61.2): its elements are new, so a field an element
+  default list whole**: its elements are new, so a field an element
   leaves out is that field's zero value, not the default element's. A top-level map
   adds its entries to a copy of yours. Neither writes into your slices or maps.
   Below the top level, a JSON object is decoded over the default's, setting only the
   fields it names, and a nested map is still filled in place: write the defaults as
   a literal rather than sharing one value between calls.
-- **A duration is a `collage.Duration`** (since v0.61.0), not a `time.Duration`. It
+- **A duration is a `collage.Duration`**, not a `time.Duration`. It
   reads a string `time.ParseDuration` understands — `"10s"`, `"1h30m"` — and writes
   one back. A bare number is refused with an error naming its key, where
   `time.Duration` would have read `3600` as 3.6µs without a word, and so is a
@@ -1418,8 +1405,6 @@ func (p *Plugin) Configure(_ context.Context, host collage.ConfigHost) error {
 - The application sees a key that names no registered plugin as a startup error
   (`ErrUnknownPluginConfig`). Your `Name` is therefore the whole of your
   configuration's address; changing it is a breaking change.
-
-Before v0.50.0 a plugin set its defaults on a field and called `host.Config(&cfg)`.
 
 Document every key, its type and its default in your README. Take the same
 options in Go through one constructor, `func New(opts Options) *Plugin`, and decode
@@ -1438,7 +1423,7 @@ value from Go.
 
 ## Editor support: collage.json
 
-Since v0.27.0 a plugin can describe itself to editors in a `collage.json` at its
+A plugin can describe itself to editors in a `collage.json` at its
 module's root. The file ships in the module like any other, and an editor extension
 finds it through the project's module graph — `go list -m -json all` — so a plugin
 the project depends on is described whether it is published or not. The extension
@@ -1597,20 +1582,20 @@ app, err := collage.New(&collage.Config{
 
 1. **Registration.** `Config.Plugins` inside `New`, or `RegisterPlugin` before the
    application starts. After that, `RegisterPlugin` returns `ErrAppStarted` — also
-   after any start that failed (since v0.12.0).
+   after any start that failed.
 2. **Configure**, inside `New`, for plugins that implement it — in registration
    order, stopping at the first error.
 3. **Init**, when the application starts, in registration order. If one fails,
    startup is aborted and every plugin already initialised is shut down in reverse
    order. The failing plugin is not, since it never finished initialising.
 4. **OnServe**, for a `ServeHook`, once `ListenAndServe` has bound its port and
-   before it serves, in registration order (since v0.55.0). Only `ListenAndServe`
+   before it serves, in registration order. Only `ListenAndServe`
    calls it; its ctx is cancelled when the drain starts — see
    [Streams and shutdown](#streams-and-shutdown).
 5. **Shutdown**, from `App.Shutdown` — which `ListenAndServe` calls on `SIGINT` or
    `SIGTERM` — in reverse registration order.
 
-   - Since v0.61.0 it calls `Shutdown`
+   - It calls `Shutdown`
      **once, and only for a plugin whose `Init` succeeded**: a plugin whose `Init`
      never ran or failed is not called, and one already shut down is not called
      again.
@@ -1618,15 +1603,15 @@ app, err := collage.New(&collage.Config{
      a page, an error page never registered — shuts the plugins down there and then,
      as a failing `Init` rolls back the ones before it.
    - A `Shutdown` before `Start`
-     initialises no plugin at all (since v0.61.1): `Start` then fails, and
+     initialises no plugin at all: `Start` then fails, and
      `ListenAndServe` returns nil. A `Start` after `Shutdown` fails whether or not
-     plugins are registered (since v0.61.3).
+     plugins are registered.
    - Every plugin gets its turn even if one fails, and
      the errors are joined.
    - A plugin implementing `StreamCloser` has its
      `CloseStreams` called earlier, when shutdown begins, and a plugin implementing
      `DrainHook` has its `OnDrain` called before that, when the drain starts — both
-     only for plugins whose `Init` succeeded (since v0.61.4); a `Shutdown` before
+     only for plugins whose `Init` succeeded; a `Shutdown` before
      `Start` tells none — see
      [Streams and shutdown](#streams-and-shutdown).
 
@@ -1642,13 +1627,12 @@ app, err := collage.New(&collage.Config{
 
    A static build or
    a plugin command serves nothing, so nothing calls `App.Shutdown` for it either:
-   a scaffolded `main.go` calls it once the build or the command is done (since
-   v0.55.0).
+   a scaffolded `main.go` calls it once the build or the command is done.
 
 ## Testing a plugin
 
 Test a plugin the way an application would use it: in a real application, driven
-through its handler. `collagetest.NewSite` (since v0.61.0) builds one with the
+through its handler. `collagetest.NewSite` builds one with the
 least configuration a test needs — a layout with `{{hoist "head"}}` and
 `{{slot "content"}}`, a `home` page at `/`, a debug-level logger whose records it
 keeps — puts your plugin in it, and starts it, so `Configure` and `Init` run at once
@@ -1748,19 +1732,19 @@ from other goroutines. A test adds what its plugin needs:
 | `WithRegister(items...)` | Registers pages, documents and actions after the home page |
 | `WithoutHome()` | Leaves the home page out, so `/` is the test's |
 | `WithConfig(func(*collage.Config))` | Edits the configuration before the application is built: locales, a cache, `BaseURL`, development mode, anything |
-| `WithSetup(func(*collage.App) error)` | Registers on the application itself before it starts — `Handle`, `Mount`, `Use`, `RegisterNotFoundPage`, `RegisterErrorPage` (since v0.61.1). Runs after the default registrations; several run in order; an error fails the site |
+| `WithSetup(func(*collage.App) error)` | Registers on the application itself before it starts — `Handle`, `Mount`, `Use`, `RegisterNotFoundPage`, `RegisterErrorPage`. Runs after the default registrations; several run in order; an error fails the site |
 
 `collagetest.TrySite` is `NewSite` for a test that expects building or starting to
 fail — a plugin refusing a bad configuration — and returns the error instead of
 failing the test. When building the site fails — a `WithRegister` item, a
-`WithSetup` or `Start` — it shuts the application down first (since v0.61.3), so a
+`WithSetup` or `Start` — it shuts the application down first, so a
 plugin value can be used again for the next site.
 
 A `collagetest.Site` can be
 copied (`s := *site`); `go vet`'s copylocks check no longer objects.
 
 A test that shuts the application down itself — to check what your `Shutdown`
-returns — calls `site.Shutdown(ctx)` (since v0.61.1), not `site.App.Shutdown(ctx)`.
+returns — calls `site.Shutdown(ctx)`, not `site.App.Shutdown(ctx)`.
 `App.Shutdown` runs once and returns its first error on every later call, so the
 cleanup would report the error the test expected; `site.Shutdown` closes the site
 and the cleanup does nothing more.

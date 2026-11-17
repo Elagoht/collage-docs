@@ -10,7 +10,7 @@ server listening and no port to choose, so an ordinary Go test drives the whole
 site: routing, data handlers, templates, the cache, forms, documents, plugins and
 middleware, exactly as they run in production.
 
-`pkg/collagetest` (since v0.40.0) is the client that does it the way a browser
+`pkg/collagetest` is the client that does it the way a browser
 does: it keeps the cookies a response sets, and submits a form with every hidden
 field the page put in it.
 
@@ -92,8 +92,7 @@ func client(t *testing.T) *collagetest.Client {
 
 `newApp(collage.Env{CacheDir: t.TempDir()})` builds the production configuration:
 `Dev` off, a port of `0`, which collage replaces with its default — nothing
-listens anyway — and a disk cache of the test's own. A project scaffolded before
-v0.68.0 has `newApp(devMode bool, port int)` and a `cacheDir` variable instead;
+listens anyway — and a disk cache of the test's own. A project scaffolded by an old release has `newApp(devMode bool, port int)` and a `cacheDir` variable instead;
 see [the CLI](/docs/cli#the-contract-with-maingo) for moving it.
 
 A test is then a request and a look at the response:
@@ -169,7 +168,7 @@ points. `Follow` takes it when the page behind it is what the test is about.
 
 ## Invalidation and warming
 
-Since v0.64.0, after an `InvalidateTags` or `PurgeTags` the application
+After an `InvalidateTags` or `PurgeTags` the application
 re-renders the pages it reached in the background (see
 [Caching](/docs/caching#warming-after-an-invalidation)). A test that asserts
 `X-Collage-Cache: STALE` (or a `MISS`) right after an invalidation races that
@@ -223,7 +222,7 @@ them and check it is not.
 
 An application that runs as several instances on a
 [shared cache](/docs/caching#a-cache-a-fleet-shares) is tested as two Apps on one
-store. `collagetest.NewSharedCache()` (since v0.66.0) is an in-memory
+store. `collagetest.NewSharedCache()` is an in-memory
 `collage.SharedCache` standing in for Redis: a page one App renders is served by
 the other, and an invalidation one sends is seen by both.
 
@@ -241,7 +240,42 @@ b.Get("/").WantStatus(http.StatusOK) // X-Collage-Cache: HIT, from the store
 
 A store of your own is checked with `collagetest.CacheSuite`, for the `Cache`,
 `TaggedCache` and `StaleCache` contracts, and `collagetest.SharedCacheSuite`, for
-`SharedCache`: see [Caching](/docs/caching#writing-your-own-sharedcache).
+`SharedCache`: see [Caching](/docs/caching#writing-your-own-sharedcache). A suite
+runs a "Cache" section always, a "Tagged" section when the store also implements
+`TaggedCache` and a "Stale" section when it implements `StaleCache`, and a failure
+names the rule that broke. What a store must do to pass:
+
+- **Round trip and isolation.** What `Set` stores comes back from `Get` with its ETag,
+  and the store does not keep the caller's slice: changing it after `Set` changes
+  nothing. Content
+  that is not UTF-8, with NUL and newline bytes in it, comes back as it went in.
+- **Lifetime.** An entry past its TTL is a miss; a TTL of zero or less means the
+  store's own default, not "already expired"; a second `Set` of a live key replaces
+  the first, content and ETag together.
+- **Removal.** `InvalidateKey` and `Clear` remove an entry — `GetStale` must not find
+  it afterwards, so a store that marks instead of removing fails — and invalidating a
+  missing key is no error.
+- **Tags.** `Invalidate` removes every entry carrying any of the tags, fresh or
+  already marked stale, so a stale mark must not drop an entry's tags.
+- **Stale.** A marked or expired entry is a miss for `Get` and is still found by
+  `GetStale`, reported stale; `found` is false only for a key with no entry at all. A
+  fresh write clears the mark.
+- **Concurrency.** The store is safe for concurrent use; run it under `-race`.
+
+`SharedCacheSuite` adds a "Shared" section that writes through one handle and checks
+through the other:
+
+- **The epoch only grows**, and never goes back across `Clear`: a store backed by a
+  flushable database that starts again from zero fails.
+- **A write that raced an invalidation** lands stale, or is skipped for a purge, and
+  never replaces a newer fresh entry with older content; an unrelated tag leaves
+  entries fresh.
+- **`DropTags` and purges reach the other handle**, including a drop of thousands of
+  entries, report exactly the entries they reached, and a purge removes outright.
+- **Data values** (`collage.Cached`) round-trip, a value past its TTL is stale, a
+  TTL of zero never expires, an invalidation marks a value stale, a delete removes
+  it, and an overlapping write behaves as a page's does.
+- **Concurrent use** from both handles.
 
 ## Forms and the forgery token
 
@@ -453,7 +487,7 @@ if len(report.Warnings) > 0 {
 }
 ```
 
-`skip.Err` is the sentinel behind each skip, since v0.10.0; see
+`skip.Err` is the sentinel behind each skip; see
 [Errors](/docs/errors#static-builds).
 
 ## Rendering without HTTP
@@ -483,7 +517,7 @@ render in detail.
 
 A link built by name — `{{pageURL "post" "slug" .Slug}}`, `{{actionURL "logout"}}` —
 fails only when the template renders, and only on the page that reaches it.
-`app.Check()` (since v0.40.0) checks every template's links at once, with nothing
+`app.Check()` checks every template's links at once, with nothing
 rendered, and is what [`collage check`](/docs/cli#collage-check) runs:
 
 ```go
@@ -501,7 +535,7 @@ func TestLinks(t *testing.T) {
 ## Test a plugin with a site of its own
 
 A plugin has no application of its own to build. `collagetest.NewSite(t, ...)`
-(since v0.61.0) builds a real one around it — a layout, a home page at `/`, a
+builds a real one around it — a layout, a home page at `/`, a
 captured debug log — starts it, shuts it down when the test ends, and gives back
 the app, a `Client` on it and its `Logs`:
 

@@ -1,6 +1,6 @@
 ---
 description: Page nedir: layout'ları ve içeriği, kimin görebileceği, ona ulaşan path'ler, nasıl cache'lendiği, başarısız olunca ne gösterdiği ve register etmenin etkisi.
-reference: Registrable, ErrNilRegistrable, NewPage, PageBuilder, PageBuilder.WithLayouts, Page, RenderPage, DefaultContentSlot, StrategyAuto, FragmentBuilder.WithGuard, GuardFunc, GuardDecision, GuardSeeOtherPage, URL, Cached
+reference: Registrable, ErrNilRegistrable, NewPage, PageBuilder, PageBuilder.WithLayouts, Page, RenderPage, DefaultContentSlot, StrategyAuto, FragmentBuilder.WithGuard, GuardFunc, GuardDecision, GuardSeeOtherPage, URL, Cached, ErrInvalidPattern, ErrLocaleUnreachable, ErrRedirectLoop, ErrRedirectShadowsPage
 ---
 
 # Page'ler ve layout'lar
@@ -122,8 +122,7 @@ paylaşmak yalnızca izin verilen bir seçenektir.
 
 Bir page birden fazla layout'un içinde durabilir: dışta `<head>`'iyle HTML
 iskeleti, onun içinde de giriş page'lerinin paylaştığı daha dar bir çerçeve.
-`WithLayouts` zincirin tamamını **en dıştakinden başlayarak** alır. v0.28.0'dan
-beri vardır ve `WithLayout`'un yerini almıştır; tek bir layout
+`WithLayouts` zincirin tamamını **en dıştakinden başlayarak** alır; tek bir layout
 `WithLayouts(layout)` olarak yazılır:
 
 ```go
@@ -242,7 +241,7 @@ page'in parçası olması üç sonuç doğurur:
 ## Private page'ler: guard'lar
 
 Sitenin yalnızca giriş yapmış okuyucuların görebileceği bir bölümü, bunu söyleyen
-bir layout'tur. `WithGuard` (v0.28.0'dan beri) bir fragment'e bir fonksiyon
+bir layout'tur. `WithGuard` bir fragment'e bir fonksiyon
 verir. Page sunulmadan önce bu fonksiyona, bu request'in page'i alıp alamayacağı
 sorulur:
 
@@ -275,7 +274,7 @@ page := collage.NewPage("dashboard").
 ```
 
 Guard, okuyucuyu kendisine yazılmış bir path'e değil, adıyla belirtilen bir page'e
-gönderir. `collage.URL(ctx, name, params)` (v0.73.0'dan beri), render'ı olmayan kod
+gönderir. `collage.URL(ctx, name, params)`, render'ı olmayan kod
 için `rc.URL`'dir: request hangi locale'deyse adresi o locale'de kurar. Böylece
 `/tr/dashboard` üzerindeki bir guard okuyucuyu Türkçe login'e gönderir. Page'in o
 locale'de path'i yoksa `{{pageURL}}` gibi varsayılan locale'e düşer. Eklenecek bir
@@ -287,15 +286,14 @@ kimseyi içeri almaz.
 `collage add guard private`, siz kontrolünü yazana kadar herkesi reddeden
 guard'ı yazar. `collage add layout private --guard private` onu taşıyan bir
 layout yazar, `collage add page dashboard --guard private` ise guard'ı yeni bir
-page'in içeriğine koyar (v0.74.0'dan beri; [`collage add`](/docs/cli#collage-add)'e
-bakın).
+page'in içeriğine koyar ([`collage add`](/docs/cli#collage-add)'e bakın).
 
 `Private()` ile sarılan her page private'tır; bir page'i public yapmak için
 `Private()`'ı zincirine eklememek yeterlidir. Route'larla senkron tutulacak bir
 korumalı path listesi yoktur. Guard, page'e hangi URL ulaşırsa ulaşsın, her locale'de ve her
 parametreyle çalışır.
 
-Parametreler request'in üzerindedir (v0.76.0'dan beri): `r.PathValue("slug")`,
+Parametreler request'in üzerindedir: `r.PathValue("slug")`,
 request hangi locale'in path'inden gelirse gelsin page'in pattern'indeki
 `{slug}`'dır. Bir yazıyı yalnızca yazarının düzenlemesine izin veren bir guard
 slug'ı okur ve başka herkese `404` döner; böylece bir slug, okuyucuya ait olmayan
@@ -373,10 +371,9 @@ Guard'ın kapsadıkları:
   body okunmadan ve forgery kontrolünden önce çalışır.
 - **Page'in fragment path'leri.**
   [`WithFragmentPath`](/docs/forms-and-actions#a-fragment-at-its-own-url) ile kendi
-  URL'sinde açılan bir fragment page'in bir kısmıdır. v0.34.0'dan beri
-  fragment'in kendi guard'ından önce page'in guard'larından geçer. Öncesinde bir
-  fragment path yalnızca fragment'inin guard'ını çalıştırırdı. Private bir
-  page'deki fragment path de, o fragment bir guard taşımıyorsa public'ti.
+  URL'sinde açılan bir fragment page'in bir kısmıdır ve fragment'in kendi
+  guard'ından önce page'in guard'larından geçer. Böylece private bir page'deki
+  fragment path de private'tır.
 - **Kendi URL'sinde register edilen bir action ve page'in not-found ile error
   page'leri kapsanmaz.** Aksi hâlde private bir error page, hatayla karşılaşan
   okuyucuyu redirect ederdi.
@@ -388,8 +385,8 @@ cache'i atlar. Sunucunun önündeki bir CDN ya da proxy guard çalıştırmaz. B
 yüzden guard'lı bir page, stratejisi ne derse desin `Cache-Control: private,
 no-cache` ile gönderilir.
 
-v0.34.0'dan beri guard'ın kendi cevabı (giriş yapmaya yönlendiren bir redirect, bir
-ret) `no-store` ile gönderilir. Böylece varsayılan olarak bir 404'ü ya da 308'i
+Guard'ın kendi cevabı (giriş yapmaya yönlendiren bir redirect, bir ret) `no-store`
+ile gönderilir. Böylece varsayılan olarak bir 404'ü ya da 308'i
 saklayan bir CDN, bir okuyucuya verilen cevabı sonrakine vermez.
 
 İçeriği okuyucudan okuyucuya değişen bir page ise guard değil kişiselleştirme
@@ -423,21 +420,20 @@ Bir pattern segment'lerden oluşur:
 | --- | --- |
 | `blog` | Tam olarak bu metinle |
 | `{slug}` | Tam olarak bir segment'le, `slug` adıyla yakalanır |
-| `{slug}.md`, `post-{id}`, `v{version}.json` | Önünde ve arkasında bu metni taşıyan, arada en az bir karakter olan bir segment'le. Yakalanan, aradaki kısımdır (v0.41.0'dan beri): `/blog/hello.md` için `slug` = `hello` |
+| `{slug}.md`, `post-{id}`, `v{version}.json` | Önünde ve arkasında bu metni taşıyan, arada en az bir karakter olan bir segment'le. Yakalanan, aradaki kısımdır: `/blog/hello.md` için `slug` = `hello` |
 | `{rest...}` | Geriye kalan her şeyle, `rest` adıyla yakalanır. Yalnızca son segment olabilir ve etrafında metin olamaz |
 
 Bir data handler yakalanan değeri `rc.Param("slug")` ya da `rc.PathParams["slug"]`
 ile okur. Değerler percent-decode edilmiş olarak ve segment segment gelir.
 
-v0.34.0'dan beri encode edilmiş bir slash (`%2F`) içeren bir segment 404 döner.
+Encode edilmiş bir slash (`%2F`) içeren bir segment 404 döner.
 URL standardına göre `%2F` bir ayırıcı değildir: `/public%2Fsecret`, değeri
 `public/secret` olan tek bir segment'tir.
 
 Ama Go, path'i hiçbir middleware okumadan önce decode edip `r.URL.Path`'e yazar.
 Orada `/public%2Fsecret` artık `/public/secret` olmuştur ve encode edilmiş slash
 gerçek bir slash'ten ayırt edilemez. Yani router'ın tek segment gördüğü yerde
-middleware iki segment görür. Tek segment'i eşleyen bir router (collage'ın eskiden
-yaptığı gibi), middleware'in başka bir şey olarak değerlendirdiği bir request'i
+middleware iki segment görür. Tek segment'i eşleyen bir router, middleware'in başka bir şey olarak değerlendirdiği bir request'i
 sunmuş olurdu. Bu yüzden collage iki okumadan hiçbirini sunmaz.
 
 Kendisi bir path olan bir değer, örneğin `guide/intro`, bir catch-all'da yer
@@ -447,8 +443,16 @@ değerindeki `/`'ı reddeder.
 Her seviyede önce static bir segment denenir. Ardından etrafında metin olan
 placeholder'lar gelir, en özelinden başlayarak. Sonra düz bir `{param}`, en son da
 `{rest...}` denenir. Eşleştirme backtracking ile yapılır. Böylece iki route da
-eşleşebilecek olsa bile `/blog/archive`, `/blog/{slug}`'a karşı kazanır. `/blog` ve
-`/blog/` aynı route'tur.
+eşleşebilecek olsa bile `/blog/archive`, `/blog/{slug}`'a karşı kazanır.
+
+`/blog` ve `/blog/` aynı route'tur ve tek bir adresleri vardır: bir page'in diğer
+yazımı, query korunarak o adrese `301` ile yönlendirilir. Adres, slash'siz olanıdır;
+`Config.TrailingSlash` açıksa slash'li olanıdır. Bir [document](/docs/documents) ve
+bir [action](/docs/forms-and-actions), link'leri nasıl kuruluyorsa öyle, iki modda
+da slash'siz yazılır: `/sitemap.xml/` `/sitemap.xml`'e `301`, `/login/`'e yapılan
+bir `POST` ise `/login`'e `308` olur; böylece form yeniden post edilir. Middleware
+path'i router redirect etmeden önce, geldiği hâliyle görür. Bu yüzden tam bir
+path'i koruyan bir middleware onu sondaki slash olmadan karşılaştırmalıdır.
 
 ### Placeholder'ın etrafında metin
 
@@ -493,9 +497,14 @@ hata verirler:
   `ErrInvalidPattern` alırsınız.
 - Bir segment en fazla bir placeholder taşır, catch-all'un etrafında da metin
   olamaz: `/{name}.{ext}` ve `/files/{path...}.md` `ErrInvalidPattern` verir.
-  (v0.11.0'dan v0.40.0'a kadar placeholder'ın etrafındaki her metin
-  reddediliyordu. v0.41.0'dan beri `/feeds/{category}.xml` ve `/post-{id}` birer
-  route'tur.)
+- Bir pattern her placeholder adını bir kez kullanır: `/a/{id}/b/{id}`'de bir
+  link'in hangi `id`'yi dolduracağını söylemenin yolu yoktur, bu yüzden
+  `ErrInvalidPattern` verir.
+- İlk segment'i, büyük-küçük harf fark etmeksizin bir locale kodu olan bir path,
+  örneğin `/tr/guide` ya da `/EN/about`, locale prefix'i sanılır ve ona hiçbir zaman ulaşılmaz:
+  `ErrLocaleUnreachable`. Path'i prefix'siz register edin; prefix sizin için
+  eklenir. İlk segment olarak bir placeholder sorun değildir. Aynısı bir
+  document'ın, bir action'ın ve bir redirect'in kaynağı için de geçerlidir.
 - Etrafında metin olan iki placeholder kesişirse, örneğin `/a{x}` ve `/{x}b`,
   `ErrOverlappingPattern` alırsınız.
 - Bir locale'de aynı path'te iki route olursa `ErrDuplicateRoute` alırsınız. Bir
@@ -516,19 +525,29 @@ gönderen redirect ve page adlarından link üretmek
 [Link'ler ve locale'ler](/docs/links-and-locales) sayfasında anlatılıyor.
 
 Bir page ayrıca eski URL'lerden redirect'ler de taşıyabilir. Bunun için
-`WithRedirect(from, to, status)` ve `WithPermanentRedirect(from, to)` kullanılır.
-v0.34.0'dan beri:
+`WithRedirect(from, to, status)` ve `WithPermanentRedirect(from, to)` kullanılır:
 
 - bir redirect, request'in query string'ini hedefine taşır;
 - yakaladığı bir değer, düştüğü yere göre escape edilir: bir path segment'i ya da
   `?` işaretinden sonraki bir query değeri. Böylece `/login?next={slug}`'a ikinci
   bir `next` verilemez;
 - siteden çıkacak bir hedef (`//host` ya da `/\host`) register sırasında
-  `ErrInvalidPath` olur.
+  `ErrInvalidPath` olur;
+- iki path'ten birinde satır sonu gibi bir control karakteri olması
+  `ErrInvalidRedirect` olur;
+- kaynağının kendisinin eşleştiği bir hedef bir döngüdür, `ErrRedirectLoop`:
+  `/docs`'tan `/docs/`'a (bir kaynak slash'li de slash'siz de eşleşir) ya da
+  `/blog/{slug}`'dan `/blog/{slug}`'a;
+- bir page'in ya da document'ın path'iyle eşleşen bir kaynak, register sırası ne
+  olursa olsun `ErrRedirectShadowsPage` olur, çünkü redirect'ler önce eşleştirilir
+  ve route hiçbir zaman cevap vermezdi. Path'le yalnızca eşleşen bir kaynak da buna
+  dahildir: `WithRedirect("/{slug}", "/blog/{slug}", 301)` `/about.txt`'yi de alır,
+  bu yüzden oradaki bir document reddedilir. Redirect'in kaynağını daraltın. İkisi
+  de placeholder taşıyan iki pattern karşılaştırılmaz, çünkü örtüşüp örtüşmedikleri
+  request'e bağlıdır; orada redirect kazanır.
 
-v0.52.0'dan beri iki path'ten birinde satır sonu gibi bir control karakteri olması
-`ErrInvalidRedirect` olur. Static export da yazdığı bir page'in üstüne düşen bir
-redirect'te başarısız olur; bkz. [Static export](/docs/static-export#what-fails).
+Static export, yazdığı bir page'in üstüne düşen bir redirect'te başarısız olur; bkz.
+[Static export](/docs/static-export#what-fails).
 
 ## Render stratejileri
 
@@ -559,6 +578,13 @@ request'te render edilmek için vardır, bu yüzden
 Cache yalnızca uygulama onu açtığında devreye girer (`Config.Cache.Enabled`,
 scaffold'da açıktır). Development'ta ise hiçbir zaman devreye girmez. Orada
 cache'lenmiş bir page, az önce düzenlediğiniz template'i gizlerdi.
+
+Cache'lenen bir page, response'ta yalnızca bir okuyucuya ait hiçbir şey yoksa
+`Cache-Control: public` ile gönderilir. Bir middleware'in daha önce `Set-Cookie`
+eklediği bir response `private, no-store` ile gider; böylece bir CDN o cookie'yi
+sonraki okuyucuya veremez. Page sunucuda yine cache'lenir. Aynı URL için TLS
+üzerinden gelen bir request ile düz bir request,
+[cache key](/docs/caching#the-cache-key)'inde ayrı entry'lerdir.
 
 Cache'lenen bir page'i iki builder metodu daha etkiler. `WithDependencyTags(tags...)`,
 data handler'ların bildirdiği dependency tag'lerine page'in kendi tag'lerini ekler.
@@ -671,14 +697,18 @@ fragment ise buradan görülemez. O fragment ilk render edildiğinde kontrol edi
    strateji ve TTL, redirect'ler, içi boş kalmış required slot'lar ve kendisinden
    yine kendisine ulaşılabilen bir fragment;
 5. her fragment'in template'inin yüklendiğini kontrol eder (`ErrTemplateNotFound`).
-   `WithFragmentPath` ile açılan fragment'ler de buna dahildir; bunlar v0.11.0'dan
-   beri ağacın geri kalanı gibi kontrol edilir. Page'in kendi not-found ve error
-   page'leri de kontrol edilir. Ayrıca bir şey bağlanan her slot'un, template'in
-   çağırdığı bir slot olduğunu kontrol eder (`ErrUnknownSlot`; hata slot'u ve
-   template'in yaptığı çağrıları belirtir);
+   `WithFragmentPath` ile açılan fragment'ler ve page'in kendi not-found ve error
+   page'leri de buna dahildir. Template'i `html/template`'in escape
+   edebildiğini ve bir şey bağlanan her slot'un, template'in çağırdığı bir slot
+   olduğunu da kontrol eder (`ErrUnknownSlot`; hata slot'u ve template'in yaptığı
+   çağrıları belirtir). Escaper'ın reddettiği bir template (hiç kapanmayan bir
+   `<script>` string'i, bir attribute'u farklı durumlarda bırakan `{{if}}`
+   dalları) aksi hâlde başlangıçtan geçer ve ilk request'te başarısız olurdu; bu
+   yüzden burada fragment'i adıyla anan bir hatadır;
 6. strateji tanımlamamış bir page'in stratejisini bütün ağaca bakarak belirler;
 7. page'in path'lerini, redirect'lerini, action'larını ve fragment path'lerini
-   router'a ekler.
+   router'a ekler. Router orada zaten olanla çakışan birini reddeder: aynı route,
+   belirsiz bir parametre adı, bir route'un üstüne düşen bir redirect.
 
 Her hatayı fatal kabul edin. Yarıda başarısız olan bir register işlemi geri
 alınmaz. Örneğin bir locale'de kabul edilen path, bir sonraki locale reddedildiğinde
@@ -687,7 +717,7 @@ durum olmamasıdır. Bu, hiç başlamaması gereken bir programdır.
 
 ### Birkaçını birden register etmek
 
-`app.Register` (v0.40.0'dan beri) page'leri, document'ları ve action'ları tek bir
+`app.Register` page'leri, document'ları ve action'ları tek bir
 çağrıda alır ve her birini sırayla `RegisterPage`, `RegisterDocument` ya da
 `RegisterAction` üzerinden register eder. Scaffold'un oluşturduğu `routes.go`, ona
 yapılan tek bir çağrıdan ibarettir:
@@ -722,8 +752,8 @@ Register işlemi kendisine verilen page'i değiştirir. 3. adım page'in en dı�
 layout'unu, onun bu page'e ait ve bağlanmış bir kopyasıyla değiştirir. Render
 edilen şey, içinde zincirin geri kalanı ve içerik bulunan bu kopyadır. Aynı
 constructor tekrar çağrılarak oluşturulan bir page ise farklı bir değerdir. Onun
-layout'larının `content` slot'ları boştur. v0.60.0'dan beri aynı builder'da ikinci
-bir `Build()` da öyledir: her çağrı bağımsız bir kopya döner ve sonradan builder'a
+layout'larının `content` slot'ları boştur. Aynı builder'da ikinci bir `Build()` da
+öyledir: her çağrı bağımsız bir kopya döner ve sonradan builder'a
 yapılan `WithPath` ikisine de ulaşmaz. Bir kez build edin ve `*Page`'i saklayın.
 
 Bu yüzden o andan itibaren page, `RegisterPage`'e verdiğiniz değerin ta kendisidir.
@@ -736,7 +766,7 @@ Bir page'e değer üzerinden başvuran her şey o değeri kullanmalıdır:
 - **Page ile cevap veren action'lar.** Bir action'da `collage.RenderPage(p)`'ye
   register edilmiş değer verilmelidir. Register edilmemiş bir değer boş render
   edilmez, `ErrUnregisteredPage` ile reddedilir. Page'in kendi URL'sindeki bir
-  action o değeri `rc.Page` olarak alır (v0.33.0'dan beri):
+  action o değeri `rc.Page` olarak alır:
 
   ```go
   return collage.NewPage("hello").

@@ -71,8 +71,18 @@ set'e toplar. Her hata türü, yakalanabileceği en erken noktada yakalanır:
 - **Verisine uymayan bir template** olduğunda (verinin tipinde yalnızca `Title`
   varken `{{.Titel}}` ya da yanlış sayıda argümanla çağrılan bir method gibi)
   `RegisterPage`, `ErrTemplateType` ile hata döner. Hata dosyayı, satırı ve
-  sütunu belirtir (v0.49.0'dan beri). Bkz.
+  sütunu belirtir. Bkz.
   [Template'ler nasıl kontrol edilir](/docs/data-handlers#how-templates-are-checked).
+- **`html/template`'in escape edemediği bir template** olduğunda (hiç kapanmayan
+  bir `<script>` string'i, bir attribute'u farklı durumlarda bırakan `{{if}}`
+  dalları, bir tag'in içinde biten bir partial) `RegisterPage` hata döner. Hata
+  page'i, fragment'i ve template'i belirtir. `html/template` bir template'i ilk
+  çalıştığında escape eder; böyle bir template sorunsuz parse edilir ve ilk
+  request'te başarısız olurdu, optional bir fragment de page'den sessizce eksilen
+  bir bölüm olurdu. Her fragment'in kök template'i register sırasında, render
+  edildiği bağlamda bir kez escape edilir ve hiçbir şey çalışmaz: ne bir data
+  handler ne de bir template fonksiyonu. Bir partial tek başına değil, onu include
+  eden template'in parçası olarak escape edilir.
 - **Çalışırken hata veren bir template**, örneğin tipi render'dan önce bilinmeyen
   bir verinin alanına erişen, nil bir pointer'a takılan ya da hata dönen bir
   fonksiyonu çağıran bir template, kendi fragment'ini başarısız kılar.
@@ -124,8 +134,8 @@ prefix'i, adı `.` ya da `_` ile başlayan dosyaların da embed edilmesini sağl
 bir `//go:embed templates` bu dosyaları atlar.
 
 `collage new` aynısını tek bir filesystem olan `files` ile oluşturur. Bu filesystem
-`templates`, `static` ve `plugins-config.json`'ı birlikte embed eder (v0.68.0'dan
-beri) ve `Template.FS` olarak verilir.
+`templates`, `static` ve `plugins-config.json`'ı birlikte embed eder ve
+`Template.FS` olarak verilir.
 
 ## Development'ta yeniden yükleme
 
@@ -172,7 +182,7 @@ Bir değişikliğin hemen görünmesini iki şey daha sağlar:
 - Development'ta page cache hiç okunmaz. Böylece değişiklikten önce cache'lenmiş bir
   page, değişikliği gizlemez.
 - Development'taki her page, küçük bir script içerir. Bu script bir template ya da
-  static bir dosya değiştiğinde tarayıcıyı yeniler. v0.10.0'dan itibaren
+  static bir dosya değiştiğinde tarayıcıyı yeniler.
   [`Config.DevWatch`](/docs/configuration#devwatch)'ta belirttiğiniz bir dizindeki
   dosyalar da buna dahildir. Bu, handler'larınızın diskten okuduğu Markdown gibi
   içerikler içindir.
@@ -261,7 +271,7 @@ Aşağıdaki fonksiyonlar, `html/template`'in kendi fonksiyonlarıyla (`printf`,
 | `fragmentURLIn "locale" "page" "fragment" …` | Aynısını, tam olarak verilen locale'de verir |
 | `asset "/static/app.css"` | Mount edilmiş bir dosyanın content-addressed URL'sini verir |
 | `stylesheet "/static/app.css"` | Page'in `<head>`'i için bir stylesheet tanımlar |
-| `hoist "head"` | Page'in bir alanı için yapılan tanımların yerleşeceği yeri belirler |
+| `hoist "head"` | Page'in bir alanı için yapılan tanımların yerleşeceği yeri belirler. Alanın ismi harf, rakam, `_` ve `-`'den oluşur; başka bir isim render'ı başarısız kılar |
 | `csrfToken` | Form'un forgery token'ını taşıyan hidden input'u üretir |
 | `safeHTML`, `safeURL` | Bir string'i güvenilir HTML ya da URL olarak işaretler. Escaping'i atlamanın yoludur |
 | `dict "key" value …` | `{{template}}`'e birden fazla değer geçirmek için bir map oluşturur |
@@ -276,8 +286,7 @@ Aşağıdaki fonksiyonlar, `html/template`'in kendi fonksiyonlarıyla (`printf`,
 | `trim`, `replace`, `contains`, `hasPrefix`, `hasSuffix`, `split`, `truncate` | String'i en sonda alan, bu yüzden pipeline içinde doğal okunan string fonksiyonları |
 | `first`, `last`, `seq`, `keys`, `hasKey`, `dig` | Bir listenin uçları, üzerinde sayılacak bir aralık, bir map'in key'leri, verinin derinindeki bir değer |
 
-`withQuery`'den aşağıdaki fonksiyonlar v0.77.0'da geldi. Link fonksiyonları
-katıdır. Bilinmeyen bir page adı ya da eksik bir parametre, bozuk
+Link fonksiyonları katıdır. Bilinmeyen bir page adı ya da eksik bir parametre, bozuk
 bir link üretmek yerine render'ı başarısız kılar. Her fonksiyonun argümanlarını ve
 davranışını [Template fonksiyonları](/docs/template-functions) sayfasında
 bulabilirsiniz.
@@ -319,8 +328,7 @@ app, err := collage.New(&collage.Config{
   `stylesheet`, `csrfToken`, `pageURL`, `pageURLIn`, `localeURL`, `actionURL`,
   `fragmentURL`, `fragmentURLIn` ve `withQuery`. Render engine her render için
   bunların kendi versiyonlarını bağlar. Bu yüzden bunlardan birini override etmek
-  kabul edilir, ama hiçbir etkisi olmaz; v0.77.0'dan beri `New` onu adıyla anan bir
-  uyarı log'lar.
+  kabul edilir, ama hiçbir etkisi olmaz; `New` onu adıyla anan bir uyarı log'lar.
 - **Bir fonksiyon request'i göremez.** Fonksiyon, bütün program için bir kez register
   edilir. Request'e, locale'e ya da kullanıcıya bağlı olan her şey data handler'da
   olmalıdır. Veri zaten oradan gelir.
@@ -328,9 +336,8 @@ app, err := collage.New(&collage.Config{
 Bir plugin de `Configure` hook'undan fonksiyon ekleyebilir. Ayrıntılar için
 [Plugin yazmak](/docs/writing-plugins) sayfasına bakın. Bir plugin ve `Funcs` aynı
 adı tanımlarsa `Funcs` kazanır, çünkü ikisini birden görebilen uygulamadır;
-v0.78.0'dan beri plugin'in her render'da eklediği bir fonksiyon için de. Bir plugin
-built-in bir adı ise hiç alamaz (v0.77.0'dan beri), template dilinin `html` ya da
-`eq` gibi bir adını da (v0.78.0'dan beri).
+plugin'in her render'da eklediği bir fonksiyon için de. Bir plugin built-in bir adı
+ise hiç alamaz, template dilinin `html` ya da `eq` gibi bir adını da.
 
 ## Escaping
 
@@ -359,8 +366,10 @@ açığıdır.
 - `{{hoist}}`. Fragment'lerin page için tanımladıklarını yazar. `rc.HoistTitle`,
   `rc.HoistMeta` ve benzeri helper'lar kendilerine verilen değeri escape eder. Bunların
   altındaki `rc.Hoist` ise markup'ı tam yazıldığı gibi ekler, yani orada escaping
-  sizin sorumluluğunuzdadır. Ayrıntılar için [Head ve SEO](/docs/head-and-seo)
-  sayfasına bakın.
+  sizin sorumluluğunuzdadır. Alanın ismi escape edilmez, kontrol edilir: harf,
+  rakam, `_` ve `-` dışında bir şey içeren bir isimle `{{hoist .Area}}` render'ı
+  başarısız kılar, böylece request'ten gelen bir değer markup'a dönüşemez.
+  Ayrıntılar için [Head ve SEO](/docs/head-and-seo) sayfasına bakın.
 
 `pageURL` ve benzerleri, path'e yerleştirdikleri parametre değerlerini escape eder.
 Ayrıca `.` ya da `..` değerini reddeder, çünkü tarayıcı bunları path'te bir üst
@@ -580,6 +589,7 @@ ile başarısız olur:
 collage: unknown slot: page "post" fragment "post" binds into slot "autor", but template "pages/post.html" never calls it; it calls [author]
 ```
 
-Bu kontrollerin ikisi de escaping'e bakmaz. `{{.Text | safeHTML}}` tiplere uyar ve
-iki kontrolden de geçer, ama okurun script'ini markup olarak basar. `safeHTML`'i
+Bu kontrollerin ikisi de `safeHTML`'e ne verildiğine bakmaz, register sırasındaki
+escape kontrolü de bakmaz. `{{.Text | safeHTML}}` tiplere uyar ve hepsinden geçer,
+ama okurun script'ini markup olarak basar. `safeHTML`'i
 yalnızca kendi ürettiğiniz ya da sanitize ettiğiniz içerik için kullanın.

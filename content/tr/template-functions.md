@@ -46,10 +46,14 @@ bunlara bu sayfadaki fonksiyonları ekler.
 | [`keys`, `hasKey`](#lists-and-maps) | `keys map`, `hasKey map key` | bir map'in sıralı key'leri; bir key'i içerip içermediği |
 | [`dig`](#dig) | `dig value key...` | map'ler ve struct'lar içinden bir path'teki değer, ya da hiçbir şey |
 
-`withQuery`'den aşağısı v0.77.0'da geldi. Her fonksiyonun tipi bellidir. Bu yüzden
+Her fonksiyonun tipi bellidir. Bu yüzden
 [template checker](/docs/data-handlers#how-templates-are-checked), hem
 registration'da hem `collage check`'te, string bir `Title` ile yazılmış
-`{{add .Title 1}}` çağrısını daha hiçbir request gelmeden bildirir.
+`{{add .Title 1}}` çağrısını daha hiçbir request gelmeden bildirir. Registration
+ayrıca her fragment'in template'i üzerinde `html/template`'in escaper'ını çalıştırır.
+Escape edemediği bir template (hiç kapanmayan bir `<script>` string'i, bir
+attribute'u farklı durumlarda bırakan `{{if}}` dalları), ilk request'inde başarısız
+olan bir fragment değil, page'i ve fragment'i adıyla anan bir hatadır.
 
 Hata dönen bir fonksiyon template'i başarısız kılar, fragment da onunla birlikte
 başarısız olur. Bu durumda fragment'in kendi failure policy'si uygulanır:
@@ -60,8 +64,8 @@ başarısız olur. Bu durumda fragment'in kendi failure policy'si uygulanır:
 
 Development modunda bu "hiçbir şey", fragment'in adını ve hatasını içeren bir
 HTML yorumudur. Page'in üstündeki development paneli de fallback'i olsun olmasın,
-başarısız olan her fragment'i adıyla listeler. v0.36.0'dan beri hata her modda
-ayrıca bir uyarı olarak log'lanır. Ayrıntılar için
+başarısız olan her fragment'i adıyla listeler. Hata her modda ayrıca bir uyarı
+olarak log'lanır. Ayrıntılar için
 [Fragment'ler ve slot'lar](/docs/fragments-and-slots) sayfasına bakın.
 
 ## Her render'da bağlananlar
@@ -88,8 +92,7 @@ her render'da bağlar. Bir placeholder bir şekilde render dışında çalışı
 yürütmez, hata döner.
 
 Bunun bir sonucu var: `Config.Template.Funcs` içinde bu adlardan birini taşıyan bir
-entry parse edilir, ama hiçbir zaman çağrılmaz. v0.77.0'dan beri `New` bu entry'yi
-adıyla anan bir uyarı log'lar. Geri kalan otuz altı fonksiyonu
+entry parse edilir, ama hiçbir zaman çağrılmaz; `New` bu entry'yi adıyla anan bir uyarı log'lar. Geri kalan otuz altı fonksiyonu
 `Config.Template.Funcs` ile değiştirebilirsiniz. Bir plugin ise kırk sekizinden
 hiçbirini değiştiremez; [Kendi fonksiyonlarınızı eklemek](#adding-your-own)
 bölümüne bakın.
@@ -191,6 +194,18 @@ tanımlanan içerikle değiştirilir. Böylece page'in derinlerinde yapılan bir
 tanım da head'e ulaşır. Hiçbir şey tanımlanmamış bir area'nın marker'ı ise iz
 bırakmadan kaldırılır.
 
+- **Bir area'nın adı harf, rakam, `_` ve `-`'den oluşur.** Başka her şey
+  template'i başarısız kılar: marker bir HTML yorumudur ve request'ten beslenen
+  `{{hoist .Area}}` gibi bir ad aksi hâlde onu kapatabilirdi.
+- **Aynı key altındaki iki tanımdan biri kalır.** En içteki fragment'inki kazanır;
+  aynı derinlikte page'de daha sonra gelen kazanır: bir slot içinde daha sonra
+  bağlanan fragment, slot'lar arasında template'in daha sonra render ettiği.
+- **Yalnızca render edilen bir fragment bir şey tanımlar.** Template'in hiç
+  çağırmadığı bir slot'un arkasındaki fragment'in title'ı, `Hoist*` çağrıları ve
+  `Cached` çağrılarının tag'leri page'e hiç ulaşmaz. Başarısız olan bir fragment
+  hoist'larını da beraberinde götürür; böylece optional bir fragment'in fallback'i
+  başarısız olanın title'ıyla render edilmez.
+
 `HoistTitle`, `HoistMeta`, `HoistProperty`, `HoistLink`, `HoistAlternate` ve
 `HoistStylesheet` `"head"` area'sına yazar. `rc.Hoist(area, key, html)` ise adını
 verdiğiniz herhangi bir area'ya yazar. **Head'e içerik ekleyen bir plugin bu
@@ -221,6 +236,11 @@ değişir ve eski ad bir daha hiç istenmez.
 - Hiçbir mount'un serve etmediği bir path ya da hiç mount'u olmayan bir uygulama da
   `ErrUnknownAsset` üretir. Hiçbir mount'un prefix'i path'i kapsamıyorsa mesaj bunu
   söyler.
+- Mount'un 404 ile cevaplayacağı bir ad da öyledir: `/static/.env` gibi bir
+  dotfile ya da mount içinde geçerli bir path olmayan bir ad.
+- Dosya adının her segment'i escape edilir; böylece içindeki bir `#`, `?` ya da `%`
+  path'in parçası olarak kalır: `/static/100%.css`, `/static/100%25.<hash>.css`
+  olarak link'lenir.
 - Static export, orijinallerin yanına yalnızca page'lerin istediği fingerprint'li
   kopyaları yazar.
 
@@ -307,8 +327,7 @@ path'i değiştiğinde link'in de onu takip etmesini sağlar.
   olmayan bir parametre de (`ErrRouteParams`) aynı sonucu verir. Oluşturulamayan bir
   link, okuyucunun karşısına çıkan bir 404 değil, development'ta bulunması
   gereken bir bug'dır.
-- **Değerler string, tam sayı ya da `fmt.Stringer` olabilir** (tam sayı ve
-  Stringer v0.36.0'dan beri) ve escape edilir.
+- **Değerler string, tam sayı ya da `fmt.Stringer` olabilir** ve escape edilir.
 - **Bazı değerler reddedilir.** Tarayıcının bir path adımı olarak
   yorumlayacağı `.` ya da `..` değeri reddedilir. Float, bool ya da nil de
   reddedilir, çünkü hiçbirinin URL'de tek bir bariz yazımı yoktur. `ErrRouteParams`
@@ -352,7 +371,7 @@ Bir dil seçici bununla yapılır.
   Çünkü bu eksik bir çeviri değil, template'teki bir hatadır.
 - Bir page'e ait olmayan bir render'da başarısız olur: bir document'ın ya da kendi
   URL'sindeki bir action'ın render'ında. Page'inin onun için açtığı bir URL'den
-  sunulan fragment ise o page ile render edilir (v0.77.0'dan beri). Bu yüzden orada
+  sunulan fragment ise o page ile render edilir. Bu yüzden orada
   page'e link verir.
 - Arama motorlarının okuduğu `<link rel="alternate" hreflang>` etiketlerini Go
   tarafında `rc.HoistAlternate` ile tanımlayın. Ayrıntılar için
@@ -366,7 +385,7 @@ Bir dil seçici bununla yapılır.
 ```
 
 `name` adıyla register edilmiş [action'ın](/docs/forms-and-actions#an-action-at-its-own-url)
-URL'sini döner (v0.36.0'dan beri). URL, `pageURL`'in bir page'inkini oluşturduğu
+URL'sini döner. URL, `pageURL`'in bir page'inkini oluşturduğu
 gibi oluşturulur: path bir kez, Go tarafında yazılır ve ona post eden her form onu
 takip eder.
 
@@ -390,7 +409,7 @@ Go tarafındaki karşılığı `app.ActionURL(name, locale, params)`'tır.
 
 Bir page'in fragment'lerinden biri için
 [`WithFragmentPath`](/docs/forms-and-actions#a-fragment-at-its-own-url) ile açtığı
-path'i döner (v0.18.0'dan beri). Path page'in adından ve fragment'in adından
+path'i döner. Path page'in adından ve fragment'in adından
 oluşturulur. Path bir kez, Go tarafında yazılır ve ona giden her link onu takip
 eder.
 
@@ -424,7 +443,7 @@ ulaşamadığı bir locale ise `ErrLocaleUnreachable` olur.
 ```
 
 Render edilen page'i, request'in query'si ve verilen parametreler set edilmiş
-olarak döner (v0.77.0'dan beri). `""` değeri bir parametreyi kaldırır, diğerleri
+olarak döner. `""` değeri bir parametreyi kaldırır, diğerleri
 olduğu gibi kalır. `/blog?tag=go&page=2` üzerinde yukarıdaki üç link
 `/blog?page=3&tag=go`, `/blog?page=2` ve `/blog?page=1&sort=new&tag=go` olur:
 query, parametre adlarına göre sıralanarak yazılır.
@@ -539,7 +558,7 @@ formatlanır. Başka bir location istiyorsanız zamanı data handler'da dönüş
 ```
 
 `url.PathEscape`'tir: string'i bir path'in tek bir segment'ine sığacak şekilde
-escape eder (v0.77.0'dan beri). Böylece içindeki bir `/`, bir alt dizine inmek
+escape eder. Böylece içindeki bir `/`, bir alt dizine inmek
 yerine `%2F` olur. Kendi page'lerinize verdiğiniz bir link'in buna ihtiyacı yoktur:
 `pageURL` parametrelerini kendisi escape eder.
 
@@ -549,7 +568,7 @@ yerine `%2F` olur. Kendi page'lerinize verdiğiniz bir link'in buna ihtiyacı yo
 <script type="application/json" id="chart-data">{{json .Series 2 false}}</script>
 ```
 
-Değerin JSON hâlidir (v0.77.0'dan beri). Aksi söylenmedikçe iki boşlukla girintili
+Değerin JSON hâlidir. Aksi söylenmedikçe iki boşlukla girintili
 yazılır: `{{json v 4}}` dört boşlukla girintiler, `{{json v 2 false}}` ise tek satır
 yazar. Boşluk sayısı 0 ile 16 arasındadır.
 
@@ -566,7 +585,7 @@ edemediği bir değer, örneğin bir channel, render'ı başarısız kılar.
 ```
 
 Değeri bir `<pre>` bloğu içinde gösterir; bir template'e ne verildiğine bakmak
-içindir (v0.77.0'dan beri). Bir string ya da `[]byte` olduğu gibi gösterilir; başka
+içindir. Bir string ya da `[]byte` olduğu gibi gösterilir; başka
 her şey, aynı isteğe bağlı boşluk sayısı ve `pretty` ile, `json`'un yazdığı gibi.
 İçerik her zaman escape edilir.
 
@@ -578,7 +597,7 @@ her şey, aynı isteğe bağlı boşluk sayısı ve `pretty` ile, `json`'un yazd
 ```
 
 `add`, `sub`, `mul`, `div`, `mod`, `min` ve `max` iki `int` alır; `addf`, `subf`,
-`mulf` ve `divf` ise iki `float64` (v0.77.0'dan beri). `div`, `mod` ve `divf` ile
+`mulf` ve `divf` ise iki `float64`. `div`, `mod` ve `divf` ile
 sıfıra bölmek render'ı başarısız kılar.
 
 ### String'ler
@@ -591,8 +610,8 @@ sıfıra bölmek render'ı başarısız kılar.
 
 `trim`, `strings.TrimSpace`'tir. `replace old new s`, `contains sub s`,
 `hasPrefix prefix s`, `hasSuffix suffix s` ve `split sep s` ise string'i en sonda
-alan `strings` fonksiyonlarıdır; böylece her biri bir pipeline içinde doğal okunur
-(v0.77.0'dan beri). `replace` her `old`'u değiştirir, `split` bir `[]string` döner.
+alan `strings` fonksiyonlarıdır; böylece her biri bir pipeline içinde doğal okunur.
+`replace` her `old`'u değiştirir, `split` bir `[]string` döner.
 
 `truncate n s`, `s`'yi ilk `n` karakterine kadar keser ve bir şey kesildiyse
 ardına `…` koyar. Byte değil karakter sayar, bu yüzden bir Türkçe harf asla ikiye
@@ -606,8 +625,6 @@ bölünmez. Negatif bir `n` render'ı başarısız kılar.
 {{range keys .Counts}}<li>{{.}}: {{index $.Counts .}}</li>{{end}}
 {{if hasKey .Flags "beta"}}<span class="badge">beta</span>{{end}}
 ```
-
-Hepsi v0.77.0'dan beri vardır:
 
 - `first list` ve `last list`, bir slice'ın ya da array'in ilk ve son elemanıdır.
   Boş bir listede hiçbir şey dönerler, böylece `{{with}}` onu atlar.
@@ -627,7 +644,7 @@ Hepsi v0.77.0'dan beri vardır:
 ```
 
 String key'li map'lerin ve struct'ların export edilmiş alanlarının içinden, pointer'ları
-izleyerek o path'teki değeri döner (v0.77.0'dan beri). Hiçbir yere varmayan bir
+izleyerek o path'teki değeri döner. Hiçbir yere varmayan bir
 path, yani eksik bir key, export edilmemiş bir alan ya da yoldaki nil bir pointer,
 hata değil hiçbir şeydir. Böylece `{{with dig …}}` isteğe bağlı bir değeri karşılar.
 
@@ -650,8 +667,8 @@ app, err := collage.New(&collage.Config{
 
 Bu fonksiyonlar built-in'lerin üzerine merge edilir. Bu yüzden built-in bir adı
 taşıyan entry, o built-in'in yerini alır. Her render'da bağlanan fonksiyonlar bunun
-dışındadır: onlardan birinin adını taşıyan entry kabul edilir ama hiç çalışmaz.
-v0.77.0'dan beri `New` bu entry'yi adıyla anan bir uyarı log'lar.
+dışındadır: onlardan birinin adını taşıyan entry kabul edilir ama hiç çalışmaz ve
+`New` bu entry'yi adıyla anan bir uyarı log'lar.
 
 Fonksiyonların `New`'dan önce tanımlı olması gerekir, çünkü `html/template`
 yalnızca template parse edilirken function map'te bulunan bir adı
@@ -660,21 +677,19 @@ değil, `New`'da hata verir.
 
 Bir plugin de fonksiyonları aynı şekilde, `Configure` aşamasında ekler. Aynı adı
 taşıyan bir entry uygulamada da varsa uygulamanınki geçerli olur. Bir plugin
-built-in bir adı alamaz: v0.77.0'dan beri `AddTemplateFunc` bunu
-`ErrDuplicateTemplateFunc` ile reddeder. Önceden plugin'in fonksiyonu built-in'in
-yerini sessizce alıyordu. Ayrıntılar için
+built-in bir adı alamaz: `AddTemplateFunc` bunu `ErrDuplicateTemplateFunc` ile
+reddeder. Ayrıntılar için
 [Plugin yazmak](/docs/writing-plugins#template-functions) sayfasına bakın.
 
 Bir plugin'in `AddRenderFunc` ile eklediği fonksiyon, yukarıdaki on iki fonksiyon
 gibi her render'da bağlanır, ama aynı iki kurala uyar:
 
-- v0.78.0'dan beri uygulamanın aynı adı taşıyan entry'si, `AddTemplateFunc`'ta
-  olduğu gibi kazanır ve `New` bunu bir kez log'lar. Önceden plugin'in fonksiyonu
-  her render'da uygulamanınkinden sonra bağlanıyordu; bu yüzden çalışan oydu.
+- Uygulamanın aynı adı taşıyan entry'si, `AddTemplateFunc`'ta olduğu gibi kazanır
+  ve `New` bunu bir kez log'lar.
 - `AddTemplateFunc` gibi, kırk sekiz built-in addan hiçbirini alamaz.
   `AddRenderFunc` bunları `ErrDuplicateTemplateFunc` ile reddeder.
 
-v0.78.0'dan beri ikisi de template dilinin kendi adlarından birini alamaz: `eq`,
+İkisi de template dilinin kendi adlarından birini alamaz: `eq`,
 `len`, `index`, `print`, `html`, `js`, `urlquery` ve Go'nun diğer builtin ve
 escaper'ları. Bu da `ErrDuplicateTemplateFunc`'tır.
 

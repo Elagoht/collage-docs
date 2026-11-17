@@ -1,6 +1,6 @@
 ---
 description: What a page is: its layouts and content, who may see it, the paths that reach it, how it is cached, what it shows when it fails, and what registration does.
-reference: Registrable, ErrNilRegistrable, NewPage, PageBuilder, PageBuilder.WithLayouts, Page, RenderPage, DefaultContentSlot, StrategyAuto, FragmentBuilder.WithGuard, GuardFunc, GuardDecision, GuardSeeOtherPage, URL, Cached
+reference: Registrable, ErrNilRegistrable, NewPage, PageBuilder, PageBuilder.WithLayouts, Page, RenderPage, DefaultContentSlot, StrategyAuto, FragmentBuilder.WithGuard, GuardFunc, GuardDecision, GuardSeeOtherPage, URL, Cached, ErrInvalidPattern, ErrLocaleUnreachable, ErrRedirectLoop, ErrRedirectShadowsPage
 ---
 
 # Pages and layouts
@@ -117,8 +117,7 @@ allowed.
 
 A page can sit in more than one layout: the HTML shell with its `<head>`, and
 inside it a narrower frame the sign-in pages share. `WithLayouts` takes the whole
-chain, **outermost first** (since v0.28.0, which replaced `WithLayout` with it — a
-single layout is `WithLayouts(layout)`):
+chain, **outermost first**; a single layout is `WithLayouts(layout)`:
 
 ```go
 func Master() *collage.Fragment {
@@ -235,7 +234,7 @@ being part of every page:
 ## Private pages: guards
 
 A section of a site that only signed-in readers may see is a layout that says so.
-`WithGuard` (since v0.28.0) gives a fragment a function that is asked, before the
+`WithGuard` gives a fragment a function that is asked, before the
 page is served, whether this request may have it:
 
 ```go
@@ -267,7 +266,7 @@ page := collage.NewPage("dashboard").
 ```
 
 A guard sends the reader to a page by its name, not a path written into it.
-`collage.URL(ctx, name, params)` (since v0.73.0) is `rc.URL` for code that has no
+`collage.URL(ctx, name, params)` is `rc.URL` for code that has no
 render: it builds in the locale the request is in, so a guard on `/tr/dashboard`
 sends the reader to the Turkish login, and falls back to the default locale as
 `{{pageURL}}` does. Without a query to add, `collage.GuardSeeOtherPage(ctx,
@@ -278,14 +277,14 @@ fails the request; it lets nobody through.
 `collage add guard private` writes the guard, refusing everyone until you write
 its check; `collage add layout private --guard private` writes a layout that
 carries it, and `collage add page dashboard --guard private` puts it on a new
-page's content (since v0.74.0; see [`collage add`](/docs/cli#collage-add)).
+page's content (see [`collage add`](/docs/cli#collage-add)).
 
 Every page wrapped in `Private()` is private, and a page is public by leaving it
 out. There is no list of protected paths to keep in step with the routes: the
 guard runs for whatever URL reaches the page, in every locale, with every
 parameter.
 
-The parameters are on the request (since v0.76.0): `r.PathValue("slug")` is the
+The parameters are on the request: `r.PathValue("slug")` is the
 `{slug}` of the page's pattern, whichever locale's path the request came in on.
 A guard that lets only a post's author edit it reads the slug and answers `404`
 to anyone else, so a slug tells nothing about posts that are not theirs:
@@ -361,9 +360,8 @@ What the guard covers:
   runs before the body is read and before the forgery check.
 - **The page's fragment paths.** A fragment opened at its own URL with
   [`WithFragmentPath`](/docs/forms-and-actions#a-fragment-at-its-own-url) is a
-  part of the page, and since v0.34.0 meets the page's guards before the
-  fragment's own. Before it, a fragment path ran only its fragment's guard, and
-  one on a private page was public unless that fragment carried a guard too.
+  part of the page, and meets the page's guards before the fragment's own, so a
+  fragment path on a private page is private too.
 - **Not an action registered at its own URL**, and not the page's not-found and
   error pages — a private error page would otherwise redirect the reader who hit
   the error.
@@ -374,8 +372,8 @@ does for every reader with a session. A CDN
 or proxy in front of the server runs no guard, so a guarded page goes out with
 `Cache-Control: private, no-cache` whatever its strategy says.
 
-The guard's own answer — a redirect to log in, a refusal — is sent `no-store` since
-v0.34.0, so a CDN that keeps a 404 or a 308 by default does not hand one reader's
+The guard's own answer — a redirect to log in, a refusal — is sent `no-store`, so
+a CDN that keeps a 404 or a 308 by default does not hand one reader's
 answer to the next.
 
 A page whose content differs from one reader to the next is a personalisation
@@ -409,20 +407,20 @@ A pattern is made of segments:
 | --- | --- |
 | `blog` | Exactly that text |
 | `{slug}` | Exactly one segment, captured as `slug` |
-| `{slug}.md`, `post-{id}`, `v{version}.json` | One segment carrying that text before and after, with at least one character between — what is captured (since v0.41.0): `/blog/hello.md` gives `slug` = `hello` |
+| `{slug}.md`, `post-{id}`, `v{version}.json` | One segment carrying that text before and after, with at least one character between, which is what is captured: `/blog/hello.md` gives `slug` = `hello` |
 | `{rest...}` | Everything that is left, captured as `rest`. Only as the last segment, with no text around it |
 
 A data handler reads what was captured with `rc.Param("slug")`, or
 `rc.PathParams["slug"]`. Values arrive percent-decoded, one segment at a time.
 
-A segment holding an encoded slash, `%2F`, is a 404 since v0.34.0. By the URL
+A segment holding an encoded slash, `%2F`, is a 404. By the URL
 standard `%2F` is not a separator: `/public%2Fsecret` is one segment whose value is
 `public/secret`.
 
 But Go decodes the path into `r.URL.Path` before any middleware reads it, and there
 `/public%2Fsecret` has become `/public/secret`, which no longer tells an encoded
 slash from a real one. So a middleware sees two segments where the router sees one.
-A router that matched the one — as collage did before — would serve a request the
+A router that matched the one would serve a request the
 middleware had judged as something else, so collage serves neither reading.
 
 A value that is itself a path, such as `guide/intro`, belongs in a catch-all:
@@ -432,7 +430,16 @@ value.
 At every level a static segment is tried first, then a placeholder with text
 around it — the most specific first — then a bare `{param}`, then a `{rest...}`,
 with backtracking, so `/blog/archive` beats `/blog/{slug}` even when both could
-match. `/blog` and `/blog/` are the same route.
+match.
+
+`/blog` and `/blog/` are the same route, with one address: a page's other spelling
+is a `301` to it, with the query kept. The address is the one without the slash,
+or the one with it under `Config.TrailingSlash`. A [document](/docs/documents) and
+an [action](/docs/forms-and-actions) are spelled without the slash in both modes,
+as their links are built: `/sitemap.xml/` is a `301` to `/sitemap.xml`, and a
+`POST` to `/login/` a `308` to `/login`, so the form is posted again. A middleware
+still sees the path as it arrived, before the router redirects, so one that
+guards an exact path should compare it without the trailing slash.
 
 ### Text around a placeholder
 
@@ -473,9 +480,14 @@ Mistakes in patterns are errors at registration, not surprises at request time:
 - A pattern must start with `/`, have no empty segment and no empty placeholder
   name, and put a catch-all only last — `ErrInvalidPath` or `ErrInvalidPattern`.
 - A segment holds at most one placeholder, and a catch-all takes no text around
-  it: `/{name}.{ext}` and `/files/{path...}.md` are `ErrInvalidPattern`. (From
-  v0.11.0 to v0.40.0 any text around a placeholder was refused; since v0.41.0
-  `/feeds/{category}.xml` and `/post-{id}` are routes.)
+  it: `/{name}.{ext}` and `/files/{path...}.md` are `ErrInvalidPattern`.
+- A pattern uses each placeholder name once: `/a/{id}/b/{id}` has no way to say
+  which `id` a link fills — `ErrInvalidPattern`.
+- A path whose first segment is a locale's code, in any case, such as `/tr/guide`
+  or `/EN/about`, would be taken for the locale prefix and never reached —
+  `ErrLocaleUnreachable`. Register the path without it; the prefix is added for
+  you. A placeholder as the first segment is fine. The same holds for a
+  document's, an action's and a redirect's source.
 - Two placeholders with text around them that cross, such as `/a{x}` and `/{x}b` —
   `ErrOverlappingPattern`.
 - Two routes at one path in one locale — `ErrDuplicateRoute`. That includes a
@@ -493,18 +505,28 @@ Locales, locale prefixes such as `/tr/hakkinda` — and the redirect that sends
 [Links and locales](/docs/links-and-locales).
 
 A page can also carry redirects from old URLs, with
-`WithRedirect(from, to, status)` and `WithPermanentRedirect(from, to)`. Since
-v0.34.0:
+`WithRedirect(from, to, status)` and `WithPermanentRedirect(from, to)`:
 
 - a redirect carries the request's query string to its destination;
 - a value it captured is escaped for where it lands — a path segment, or a query
   value after a `?`, so `/login?next={slug}` cannot be handed a second `next`;
 - a destination that would leave the site, `//host` or `/\host`, is
-  `ErrInvalidPath` at registration.
+  `ErrInvalidPath` at registration;
+- a control character in either path, such as a line feed, is
+  `ErrInvalidRedirect`;
+- a destination its own source matches is a loop, `ErrRedirectLoop`: `/docs` to
+  `/docs/`, since a source matches with or without its slash, or `/blog/{slug}`
+  to `/blog/{slug}`;
+- a source that matches a page's or a document's path is `ErrRedirectShadowsPage`,
+  in either order of registration, because redirects are matched first and the
+  route would never answer. That includes a source that only matches the path:
+  `WithRedirect("/{slug}", "/blog/{slug}", 301)` takes `/about.txt`, so a document
+  there is refused. Narrow the redirect's source. Two patterns that both hold
+  placeholders are not compared, since whether they overlap depends on the
+  request; there the redirect wins.
 
-Since v0.52.0 a control character in either path, such as a line feed, is
-`ErrInvalidRedirect`, and a static export fails on a redirect over a page it wrote;
-see [Static export](/docs/static-export#what-fails).
+A static export fails on a redirect over a page it wrote; see
+[Static export](/docs/static-export#what-fails).
 
 ## Render strategies
 
@@ -533,6 +555,12 @@ request.
 Caching only happens when the application enables it (`Config.Cache.Enabled`, on
 in the scaffold), and never in development, where a cached page would hide the
 template you just edited.
+
+A cached page is sent `Cache-Control: public` only when nothing in the response is
+one reader's: a response a middleware has already given a `Set-Cookie` goes out
+`private, no-store`, so a CDN cannot hand that cookie to the next reader, and it is
+still cached on the server. A request over TLS and a plain one for the same URL are
+separate entries in the [cache key](/docs/caching#the-cache-key).
 
 Two more builder methods shape a cached page. `WithDependencyTags(tags...)` adds
 dependency tags of the page's own to those its data handlers report, and
@@ -638,12 +666,17 @@ In order, it:
    paths, strategy and TTL, redirects, required slots with nothing in them, a
    fragment reachable from itself;
 5. checks that every fragment's template was loaded (`ErrTemplateNotFound`) —
-   including the fragments opened with `WithFragmentPath`, which since v0.11.0 are
-   checked like the rest of the tree, and the page's own not-found and error pages
-   — and that every slot something is bound into is one its template calls
-   (`ErrUnknownSlot`, naming the slot and the calls the template does make);
+   including the fragments opened with `WithFragmentPath` and the page's own
+   not-found and error pages — that `html/template` can escape it, and that every
+   slot something is bound into is one its template calls (`ErrUnknownSlot`,
+   naming the slot and the calls the template does make). A template the escaper
+   refuses — a `<script>` string that never closes, `{{if}}` branches that leave
+   an attribute in different states — would otherwise pass startup and fail on
+   its first request, so it is an error here naming the fragment;
 6. resolves the strategy of a page that declared none, from the whole tree;
-7. adds the page's paths, redirects, actions and fragment paths to the router.
+7. adds the page's paths, redirects, actions and fragment paths to the router,
+   which refuses one that collides with what is already there: a duplicate route,
+   an ambiguous parameter name, a redirect over a route.
 
 Treat any error as fatal. A registration that fails halfway is not rolled back — a
 path accepted in one locale stays in the router when the next is refused — because
@@ -652,7 +685,7 @@ recover from.
 
 ### Registering several at once
 
-`app.Register` (since v0.40.0) takes pages, documents and actions in one call and
+`app.Register` takes pages, documents and actions in one call and
 registers each in order, through `RegisterPage`, `RegisterDocument` or
 `RegisterAction`. The scaffolded `routes.go` is a single call to it:
 
@@ -685,7 +718,7 @@ Registration changes the page it is given. Step 3 replaces the page's outermost
 layout with a private, bound copy of it, and that copy — with the rest of the
 chain and the content inside it — is what renders. A page built again by calling
 the same constructor is a different value, whose layouts have empty `content`
-slots. So, since v0.60.0, is a second `Build()` on the same builder: each call
+slots. So is a second `Build()` on the same builder: each call
 returns an independent copy, and `WithPath` on the builder afterwards reaches
 neither. Build once and keep the `*Page`.
 
@@ -698,7 +731,7 @@ that refers to a page by value must use that one:
 - **Actions that answer with a page.** `collage.RenderPage(p)` in an action must be
   given the registered value; an unregistered one is refused with
   `ErrUnregisteredPage` rather than rendered empty. An action on the page's own URL
-  has it as `rc.Page` (since v0.33.0):
+  has it as `rc.Page`:
 
   ```go
   return collage.NewPage("hello").

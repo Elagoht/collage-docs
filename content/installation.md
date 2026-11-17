@@ -11,7 +11,7 @@ Go.
 
 <figure class="diagram-figure" data-search-ignore>
 <svg class="diagram" viewBox="0 0 320 364" role="img" aria-labelledby="inst-flow-title">
-<title id="inst-flow-title">From nothing to a running project. go install puts the collage CLI on your PATH. collage new mysite writes the minimal project by default, one layout around one page and a stylesheet, or with --template demo the demos, their tests and a .env.example. go mod tidy makes go.mod require collage and writes go.sum. collage dev then serves localhost:6060 and passes each request to the program on a loopback address of its own; a saved Go file is rebuilt and restarted, and a saved template or static file reloads the page.</title>
+<title id="inst-flow-title">From nothing to a running project. go install puts the collage CLI on your PATH. collage new mysite writes the minimal project by default, one layout around one page and a stylesheet, or with --template demo the demos and their tests; either comes with a .env.example. go mod tidy makes go.mod require collage and writes go.sum. collage dev then serves localhost:6060 and passes each request to the program on a loopback address of its own; a saved Go file is rebuilt and restarted, and a saved template or static file reloads the page.</title>
 <defs><marker id="inst-flow-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
 <rect class="d-cmd" x="50" y="8" width="220" height="24" rx="12" /><text class="d-cmd-text" x="160" y="24" text-anchor="middle">go install …/collage@latest</text>
 <line class="d-flow" x1="160" y1="32" x2="160" y2="46" marker-end="url(#inst-flow-arrow)" />
@@ -23,7 +23,7 @@ Go.
 <text class="d-small" x="82" y="130" text-anchor="middle">the default: a layout,</text>
 <text class="d-small" x="82" y="142" text-anchor="middle">a page, a stylesheet</text>
 <text class="d-small" x="237" y="130" text-anchor="middle">demos and their tests,</text>
-<text class="d-small" x="237" y="142" text-anchor="middle">a .env.example</text>
+<text class="d-small" x="237" y="142" text-anchor="middle">a not-found page</text>
 <line class="d-flow" x1="82" y1="148" x2="140" y2="164" marker-end="url(#inst-flow-arrow)" />
 <line class="d-flow" x1="237" y1="148" x2="180" y2="164" marker-end="url(#inst-flow-arrow)" />
 <rect class="d-cmd" x="50" y="166" width="220" height="24" rx="12" /><text class="d-cmd-text" x="160" y="182" text-anchor="middle">go mod tidy</text>
@@ -37,13 +37,16 @@ Go.
 <text class="d-small" x="22" y="328">template or static file: reload</text>
 <text class="d-small" x="22" y="344">program: a loopback address of its own</text>
 </svg>
-<figcaption>From nothing to a running project. <code>go install</code> puts the CLI on your <code>PATH</code>. <code>collage new</code> writes the minimal project unless you ask for <code>--template demo</code>, which adds the demos, their tests and a <code>.env.example</code>. <code>go mod tidy</code> fetches the framework and records its release in <code>go.mod</code> and <code>go.sum</code>; <code>--with</code> does that for you. <code>collage dev</code> listens on port 6060 by default and passes each request on to your program, which it runs on a loopback address of its own: a saved Go file is rebuilt and restarted, and a saved template or static file only reloads the page.</figcaption>
+<figcaption>From nothing to a running project. <code>go install</code> puts the CLI on your <code>PATH</code>. <code>collage new</code> writes the minimal project unless you ask for <code>--template demo</code>, which adds the demos and their tests; both come with a <code>.env.example</code>. <code>go mod tidy</code> fetches the framework and records its release in <code>go.mod</code> and <code>go.sum</code>; <code>--with</code> does that for you. <code>collage dev</code> listens on port 6060 by default and passes each request on to your program, which it runs on a loopback address of its own: a saved Go file is rebuilt and restarted, and a saved template or static file only reloads the page.</figcaption>
 </figure>
 
 ## Install Go
 
-collage needs **Go 1.26.10 or newer** (since v0.72.0; with the default `GOTOOLCHAIN=auto`, an older Go fetches it by itself). Install it from [go.dev/dl](https://go.dev/dl)
-or your package manager, and check:
+collage needs **Go 1.26.11 or newer**, and on the 1.27 line 1.27.4 or newer:
+earlier patches have a race in `http.MaxBytesReader`, which collage's body limit
+is built on, that can crash an HTTP/1 server (GO-2026-6859). With the default
+`GOTOOLCHAIN=auto`, an older Go fetches 1.26.11 by itself. Install it from
+[go.dev/dl](https://go.dev/dl) or your package manager, and check:
 
 ```sh
 go version
@@ -67,8 +70,7 @@ fetched. `collage help` lists every command, and `collage help new` describes on
 
 ### Shell completion and the man page
 
-Since v0.77.0 the CLI completes its commands, flags and their values when TAB is
-pressed. Load the script from your shell's startup file:
+The CLI completes its commands, flags and their values when TAB is pressed. Load the script from your shell's startup file:
 
 ```sh
 eval "$(collage completion bash)"      # ~/.bashrc
@@ -97,29 +99,39 @@ Next steps:
   collage dev
 ```
 
-A demo project (below) also has a `.env.example`, so its steps add
-`cp .env.example .env.development` before `collage dev`.
+A demo project's steps (below) also add `cp .env.example .env` before
+`collage dev`.
+
+The name is the project's name and the default module path, so it must be a
+module path: letters, digits and `- . _ ~`, in slash-separated elements, as
+`go mod init` takes. A name
+that is not — or a `--module` that is not a module path — is refused with exit
+status 2 before anything is written; give a valid name, or pass `--module` for the
+module path. A path in place of the name scaffolds there and names the project
+after that directory: `collage new .`, in a directory you made for the project,
+scaffolds into it, and the next steps leave out the `cd`.
 
 `go mod tidy` fetches the framework. The scaffolded `go.mod` names only the module
-and the Go version, so the first tidy is what records which collage release the
-project is built against.
+and the Go version, `go 1.26.11`, so the first tidy is what records which collage
+release the project is built against.
 
 A few flags change where and how it is written. They take one dash or two, and may
 come before or after the name:
 
 | Flag | Effect |
 | --- | --- |
-| `--template demo` | The demos, their tests and a `.env.example`. The default, since v0.32.0, is `--template minimal`: one layout around one page and a stylesheet |
-| `-dir path` | Scaffold into `path` instead of `./<name>` |
-| `-module path` | The module path in `go.mod`, such as `github.com/you/mysite`. Defaults to the name |
+| `--template demo` | The demos and their tests. The default is `--template minimal`: one layout around one page and a stylesheet |
+| `-dir path` | Scaffold into `path` instead of `./<name>`; the name must then be a name, not a path |
+| `-module path` | The module path in `go.mod`, such as `github.com/you/mysite`. Defaults to the name; one that is not a module path exits with status 2 |
 | `-force` | Scaffold into a directory that is not empty |
-| `--ai` | Write `AGENTS.md`, the rules a coding agent needs in a collage project, and a `CLAUDE.md` importing it (since v0.77.0); `collage ai init` does the same later — see [the CLI](/docs/cli#collage-ai) |
-| `--with plugins` | Add plugins once it is written: bundles such as `@prod` and plugins such as `elagoht/session`, comma-separated (since v0.59.0). The plugins are fetched, so `go mod tidy` is no longer a next step |
+| `--ai` | Write `AGENTS.md`, the rules a coding agent needs in a collage project, and a `CLAUDE.md` importing it; `collage ai init` does the same later — see [the CLI](/docs/cli#collage-ai) |
+| `--with plugins` | Add plugins once it is written: bundles such as `@prod` and plugins such as `elagoht/session`, comma-separated. The plugins are fetched, so `go mod tidy` is no longer a next step |
 
 ```sh
 collage new mysite -module github.com/you/mysite
 collage new mysite --template demo
 collage new mysite -dir . -force
+collage new .
 collage new mysite --with @site,@prod
 ```
 
@@ -182,7 +194,7 @@ data/<domain>/                    state, by domain
 templates/layouts/                the layouts' HTML
 ```
 
-Since v0.77.0 a page's and a fragment's markup stays in its Go file, as a
+A page's and a fragment's markup stays in its Go file, as a
 `collage.InlineHTML` constant beside its data handler, and only layouts are
 template files. Editing a page's markup is a Go change, which `collage dev`
 rebuilds for; `collage add page --file` still gives a page a template file of its
@@ -208,7 +220,7 @@ A few things in it are worth knowing before you change them.
 `collage export` runs it with `-collage-build -out <dir>`.
 
 The scaffolded `main.go` is about fifty lines, because `main` only calls
-`collage.Main(newApp)` (since v0.68.0), and `collage.Main` honours all of it. It
+`collage.Main(newApp)`, and `collage.Main` honours all of it. It
 hands `newApp` a `collage.Env` — `Dev` set by the variable, the `Host` and `Port`
 to listen on, and `CacheDir` — serves where it is told, and renders the site to
 files when the flag is passed instead of serving it.
@@ -236,7 +248,7 @@ working directory. `collage dev` builds with `-tags collage_dev`, which swaps
 `embed.go` for `embed_dev.go` and embeds nothing: there `files` is the project
 directory on disk, so an edited template still shows up on the next request, a
 plugin given `files` reads the copy you are editing, and the Go build cache does
-not gain a copy of them with every save (since v0.46.0; see
+not gain a copy of them with every save (see
 [collage dev](/docs/cli#development-builds-embed-nothing)).
 
 `newApp` reads two things from `files` through the `Env`. `env.PluginConfig(files)`
@@ -256,8 +268,8 @@ stale page. See [Caching](/docs/caching).
 
 ## The environment file
 
-Every project ships `.env.example` (a minimal one since v0.68.0). Without its
-comments it is:
+Every project, minimal or demo, ships `.env.example`. Without its comments it
+is:
 
 ```sh
 COLLAGE_CSRF_KEY=
@@ -266,15 +278,16 @@ HOST=localhost
 BASE_URL=http://localhost:6060
 ```
 
-Copy it to `.env.development`, which is ignored by git:
+Copy it to `.env`, which is ignored by git:
 
 ```sh
-cp .env.example .env.development
+cp .env.example .env
 ```
 
-`collage dev` adds the variables in `.env.development` to the program's
-environment — or those in `.env`, when there is no `.env.development`. It reads one
-file, never both. The rules are short:
+`collage dev` adds the variables in `.env` to the program's environment — or those
+in `.env.development`, when there is one: that file, also ignored by git, holds
+settings meant for development only and replaces `.env` under `collage dev`. It
+reads one file, never both. The rules are short:
 
 - A variable already set in your shell wins, so `PORT=4000 collage dev` works.
   `COLLAGE_DEV=1` is always set, whatever the file says.
@@ -290,11 +303,11 @@ file, never both. The rules are short:
 - No file at all is not an error. When there is one, its name is printed on
   stderr.
 - `BASE_URL`, when neither your shell nor the file sets it, is `collage dev`'s own
-  address, `http://localhost:6060` (since v0.68.0). A plugin that writes absolute
+  address, `http://localhost:6060`. A plugin that writes absolute
   URLs — a sitemap, a canonical link — refuses to start without an origin, and in
   development that is the right one.
 
-**The program reads them too** (since v0.68.0). `collage.Main`, which the
+**The program reads them too.** `collage.Main`, which the
 scaffolded `main` calls, loads `.env` from the working directory before `newApp`
 runs — `.env.development` first under `COLLAGE_DEV=1` — with the same rules. So
 `os.Getenv("BASE_URL")` sees the file in `go run .`, `collage export` and the
@@ -324,7 +337,7 @@ openssl rand -hex 32
 collage dev
 ```
 
-The site is at [http://localhost:6060](http://localhost:6060) (port 3000 before v0.32.0). That address is
+The site is at [http://localhost:6060](http://localhost:6060). That address is
 `collage dev` itself: it listens on `HOST` and `PORT` as your program would read
 them, and passes each request on to the program, which it runs on a loopback
 address of its own. A request made while the program is starting waits for it.
@@ -334,8 +347,8 @@ Four things happen while it runs.
 ### Go changes are rebuilt
 
 `collage dev` builds the project with `go build` and runs the binary. It watches
-what the program is made of — `.go` files (tests aside), `go.mod`, `go.sum` and the
-environment file — and on a change it rebuilds.
+what the program is made of — `.go` files (tests aside), `go.mod`, `go.sum`,
+`plugins-config.json` and the environment file — and on a change it rebuilds.
 
 The new build is made first. Only once it compiles is the old process stopped,
 gracefully, and the new one started. A change that does not compile stops the
@@ -362,7 +375,7 @@ rebuild. Save a file and look at the browser; there is nothing to install.
 
 Content your program reads from disk itself — Markdown, JSON — is neither a
 template nor a static file, so name its directory in
-[`Config.DevWatch`](/docs/configuration#devwatch) (since v0.10.0) to have its
+[`Config.DevWatch`](/docs/configuration#devwatch) to have its
 changes reload the page too.
 
 The script is never added to a production page, nor
@@ -370,22 +383,21 @@ to the answer to a form submission, which reloading would submit again.
 
 The script keeps a stream open to the server, and a browser allows at most six
 connections to one origin over HTTP/1.1, across all its tabs: with a stream in
-every open development tab, six pages side by side held all six, and nothing else
-loaded — not the seventh tab, not their own fragments.
+every open development tab, six pages side by side would hold all six, and nothing
+else would load — not the seventh tab, not their own fragments.
 
-Since v0.20.0 every
-development tab listens through one shared worker, `/_collage/reload-worker.js`,
-which holds a single stream for all of them, however many pages are open. Where
-there is no shared worker, each tab keeps its own stream and, as since v0.18.1,
-closes it while hidden, reconnecting when it is seen again; if anything changed
-while it was hidden, the page reloads then.
+So every development tab listens through one shared worker,
+`/_collage/reload-worker.js`, which holds a single stream for all of them, however
+many pages are open. Where there is no shared worker, each tab keeps its own
+stream and closes it while hidden, reconnecting when it is seen again; if anything
+changed while it was hidden, the page reloads then.
 
 A stream that never closes is a page that never finishes loading, which is what a
 screenshot tool or an end-to-end test waits for.
 
 A browser driven by Playwright,
 Puppeteer or Selenium sets `navigator.webdriver`, and the script does not connect
-there (since v0.18.0). For the tools that do not — headless Chrome's `--screenshot`
+there. For the tools that do not — headless Chrome's `--screenshot`
 and `--dump-dom` — add `?collage-reload=0` to the URL and the page is served
 without the script.
 
@@ -455,24 +467,23 @@ run the same steps the demo's `README.md` lists:
 ```sh
 cd team
 go mod tidy
-cp .env.example .env.development
+cp .env.example .env
 collage dev
 ```
 
 `go.mod` already requires a collage release, so this `go mod tidy` fetches that
-one rather than picking another. A minimal project has no `.env.example`: write
-one as in [the environment file](#the-environment-file) and commit it — the
-`!/.env.example` line keeps it out of the ignored files.
+one rather than picking another. `.env.example` is committed with the rest — the
+`!/.env.example` line keeps it out of the ignored files — so a variable the project
+comes to need goes there, with no secret in it, for the next person to copy.
 
-**Each person's `.env.development` is their own.** `COLLAGE_CSRF_KEY` may stay
+**Each person's `.env` is their own.** `COLLAGE_CSRF_KEY` may stay
 empty there, as above, or hold a key of that person's own. The key a deployed site
 uses goes into the production environment's secrets, never into `.env.example`,
 which everyone can read.
 
 **Changing the port.** Someone whose port 6060 is taken sets another in their own
-`.env.development`. In a demo project, move `BASE_URL` with it: it is the address
-`collage dev` serves at, and what a sitemap, a canonical link or a feed puts in
-front of a path.
+`.env`. Move `BASE_URL` with it: it is the address `collage dev` serves at, and
+what a sitemap, a canonical link or a feed puts in front of a path.
 
 ```sh
 PORT=6161
@@ -484,7 +495,7 @@ BASE_URL=http://localhost:6161
 
 ```text
 01:09:37 - collage dev: serving http://localhost:6161
-01:09:37 - collage dev: loaded .env.development
+01:09:37 - collage dev: loaded .env
 ```
 
 That address is settled once, at start. Saving a new `PORT` in the file rebuilds
@@ -507,7 +518,7 @@ For VS Code there is the Collage Snippets & Highlighter extension. It adds:
   [inline fragment](/docs/fragments-and-slots#inline-templates) is coloured as HTML
   too, its arguments on one line or several, and so is a constant declared as
   `collage.InlineHTML`.
-- **HTML inside Go edited as HTML** (since 0.6.0): in an inline template, tag and
+- **HTML inside Go edited as HTML**: in an inline template, tag and
   attribute completion, your HTML snippets, Emmet, hover, folding, the matching
   tag and tags closed as you type — and all of the below inside its `{{ … }}`.
 - **Completion and hover** for every template function — collage's, its published
@@ -524,8 +535,8 @@ For VS Code there is the Collage Snippets & Highlighter extension. It adds:
 It learns your project's names by building the project as `collage dev` does and
 running it with `collage-inspect` — what
 [`collage inspect`](/docs/cli#collage-inspect) does — in every folder whose `go.mod`
-requires collage, and again whenever a Go file is saved. A project on collage
-v0.27.0 or later answers it with nothing more to add.
+requires collage, and again whenever a Go file is saved. A collage project
+answers it with nothing more to add.
 
 The extension is not on the VS Code Marketplace yet. Download the `.vsix` from its
 [latest release](https://github.com/Elagoht/collage-snippets-highlighter/releases/latest)

@@ -1,6 +1,6 @@
 ---
 description: What collage does against request forgery, open redirects, path tricks, cache leaks and oversized bodies — and what is left to you.
-reference: SecurityConfig, ErrCSRFCrossOrigin, Vary
+reference: SecurityConfig, ErrCSRFCrossOrigin, Vary, WithAttachments
 ---
 
 # Security
@@ -67,7 +67,9 @@ whatever it carries, sibling subdomains included, so a planted cookie is no way 
 An origin meant to post here is named in `Security.CSRFTrustedOrigins`. See
 [Forms and actions](/docs/forms-and-actions#forgery-protection).
 
-Set `Security.CSRFKey` before deploying: a generated key differs in every process.
+Set `Security.CSRFKey` before deploying: a generated key differs in every process, so
+after a restart, or on another instance behind a load balancer, every form already on
+a reader's screen is refused.
 
 A token carries the time it was issued, signed, and is refused once it is older
 than `Security.CSRFTokenTTL` — twelve hours by default, so a leaked token cannot
@@ -76,20 +78,20 @@ be replayed forever.
 A reader with a long-open form is sent a fresh token rather than refused; set
 `CSRFTokenTTL` negative to keep a token valid for as long as its signature.
 
-Since v0.72.0 the token in a form is masked anew in every response: XORed with a
+The token in a form is masked anew in every response: XORed with a
 fresh random pad and prefixed `~`. A compressed response that reflects what a
 request sent is shorter when the reflection matches part of the token, and an
 attacker who can make a reader's browser send requests could read the token from
 those lengths (BREACH). Masked, it is different bytes every time. The check takes
 the mask off, from the form and the header, and still accepts an unmasked token.
 
-A token that cannot be issued fails the response with a 500 (since v0.79.0), rather
+A token that cannot be issued fails the response with a 500 rather
 than serving the page with the token's placeholder in its form.
 
 `GET` and `HEAD` carry no token, by design, so an action answering only those is a
 change any site can make a reader's browser trigger with a link or an `<img>`.
-Since v0.79.0 registering one logs a warning in development, and `HEAD` no longer
-falls back to a `GET` action: it is a 405 unless the action declares it. See
+Registering one logs a warning in development, and `HEAD` does not fall back to a
+`GET` action: it is a 405 unless the action declares it. See
 [Forms and actions](/docs/forms-and-actions).
 
 ## Redirects stay on the site
@@ -108,7 +110,7 @@ An action's `Location` and a guard's are yours: collage writes them as you set
 them, so do not build one from the request without checking it. Some must leave
 the site (a sign-in provider's page), which is why collage does not check them.
 
-For a `next` taken from the URL, collage offers its own check, since v0.44.0:
+For a `next` taken from the URL, collage offers its own check:
 
 ```go
 loc := collage.SafeRedirect(rc.Request.URL.Query().Get("next"), "/")
@@ -135,8 +137,15 @@ the two could disagree, the request reaches nothing:
   a middleware reads the decoded path, where `/public%2Fsecret` is `/public/secret`:
   two segments to the middleware, one to the router.
 - A malformed escape is a 400, not a 500.
+- An action's or a document's other trailing-slash spelling is redirected to its one
+  spelling — 308 for an action, 301 for a document, as for a page — and never served.
+  The redirect comes after your middleware, which sees the path as it arrived, so
+  compare the canonical path (or trim the slash) in a check on an exact path, or
+  `POST /admin/delete/` is judged as a path you did not write. A prefix such as
+  `/admin/` has no such gap. See
+  [Middleware and your own API](/docs/middleware-and-apis).
 
-These refusals are not invisible. Since v0.79.0 they are timed, traced and counted
+These refusals are not invisible. They are timed, traced and counted
 like any other request, under a bounded label rather than the scanner's path:
 `collage.RouteInfo` reports the kind `"rejected"` and the name `"normalise"`, and
 `Metrics.HTTPResponse` and the request span get no path. A dashboard or a ban
@@ -153,7 +162,7 @@ A guarded page goes out `private, no-cache`, and a guard's own answer `no-store`
 a CDN never hands one reader's page or refusal to the next. A static export does
 not write guarded pages at all.
 
-A fragment a plugin pushes over a stream is held to the same: since v0.78.0 it is
+A fragment a plugin pushes over a stream is held to the same: it is
 rendered as a request to the fragment's own URL, which passes your middleware and
 the plugins' for that path, then the guards, which read that URL's parameters, never
 the stream's. A basicauth on `/admin/` keeps `/admin/stats` out of a live stream,
@@ -161,8 +170,7 @@ and a reader the middleware or a guard now refuses is sent nothing.
 
 ## Plugins reach what HTTP reaches
 
-A plugin is trusted code, but its `Host` keeps the promises its documentation makes
-(since v0.78.0):
+A plugin is trusted code, but its `Host` keeps the promises its documentation makes:
 
 - **A pushed fragment is a request.** `RenderFragment` runs the middleware, the
   guards and every `PersonaliseHook` — a CSP nonce, a honeypot marker — and carries
@@ -170,7 +178,7 @@ A plugin is trusted code, but its `Host` keeps the promises its documentation ma
   and handed only to readers their middleware and guards admitted.
 - **Configuration ends with `Configure`.** A kept `ConfigHost` adds no template
   function and wraps no mount afterwards (`ErrConfigureClosed`), where a late
-  render function used to crash the process.
+  render function would crash the process.
 - **A plugin cannot take a name of the template language.** `html`, `js`,
   `urlquery`, `eq` and the rest are refused, so no plugin's `html` stands in for
   html/template's escaping; and the application's `Config.Template.Funcs` win over
@@ -180,7 +188,7 @@ A plugin is trusted code, but its `Host` keeps the promises its documentation ma
   or change the cache key through its copy.
 - **A plugin's `Host.Handle` body is bounded** at `Server.MaxBodyBytes` before the
   middleware, as a page's is.
-- **Every `OnCacheInvalidate` runs**, so one failing plugin no longer keeps a CDN
+- **Every `OnCacheInvalidate` runs**, so one failing plugin cannot keep a CDN
   purge from happening, and **`PersonaliseEvent.Personal` is sticky**: once a hook
   set it, a nonce'd body is never answered as public or with a 304.
 - **Command names are one shell word**, and none is the dispatcher's or, for a
@@ -199,21 +207,26 @@ so it is handed only what the key holds:
 
 It is never handed a reader's cookies, credentials or address. The host is in the
 key, so a request naming another host cannot poison the copy everyone else gets.
-Since v0.79.0 it is normalised — lower-case, no port, no trailing dot — so
+It is normalised — lower-case, no port, no trailing dot — so
 `EXAMPLE.com:8080` and `example.com` share one entry, and a client varying the
 spelling of `Host` cannot push the pages everyone reads out of a bounded cache. A
 cacheable page builds absolute URLs from `collage.BaseURL(rc)`, not from the port
 in `r.Host`, which it no longer sees.
 
 A degraded render, an error page and a page in development are never publicly
-cacheable. See [What a shared render sees](/docs/caching#what-a-shared-render-sees).
+cacheable. Nor is a response that carries a `Set-Cookie` when its cache headers are
+written — a session refresh a middleware set, say: it is sent
+`Cache-Control: private, no-store`, so a CDN cannot replay one reader's cookie to the
+next. The page is still cached on the server. A request over TLS and a plain one for
+the same URL are separate entries. See [What a shared render sees](/docs/caching#what-a-shared-render-sees).
 
 ## Bodies are bounded
 
 A request body is limited — 4 MiB unless you say otherwise — before your middleware
-runs, at the limit of the action it routes to; since v0.71.0 also when there is no
-middleware, so a page's or an action's guard reads it bounded. A body that says it is
-larger is refused before the handler runs.
+runs, at the limit of the action it routes to, also when there is no middleware, so a
+page's or an action's guard reads it bounded. A body that says it is larger is
+refused before the handler runs. A urlencoded form past net/http's own 10 MB is a
+413 however high the limit is, not a 403.
 
 Multipart files spilled to disk are removed when the request has been answered, whoever
 parsed the form, and a
@@ -233,7 +246,10 @@ upload holding markup is not served as a page.
 A file with an extension is served as its extension says, by design: a static
 site's `.html` and `.svg` are pages and images. So never mount a folder of files
 your visitors uploaded with a plain `Mount`: an `.html` or `.svg` there runs its
-script as your site. [elagoht/uploads](/docs/plugins#elagohtuploads) checks each
+script as your site. Mount it with `collage.WithAttachments()` — `.html`, `.xhtml`,
+`.svg` and `.xml` are then sent with `Content-Disposition: attachment`, so a browser
+saves them instead of running them — or control the extensions you store.
+[elagoht/uploads](/docs/plugins#elagohtuploads) checks each
 file by its content and serves it so that it cannot.
 
 A mount never lists a directory, and never serves or exports a dotfile — `.env`,
@@ -258,8 +274,7 @@ Every response carries `X-Content-Type-Options: nosniff` and
 protection on its forms without adding anything.
 
 `Security.FrameOptions` sets the value — `"-"` sends none, anything else is sent
-verbatim — and `Security.DisableNoSniff` turns nosniff off (`NoSniff *bool` before
-v0.60.0).
+verbatim — and `Security.DisableNoSniff` turns nosniff off.
 
 A full `Content-Security-Policy`, HSTS and the rest are what the
 [elagoht/secure](/docs/plugins#elagohtsecure) plugin adds, and its headers override
@@ -269,10 +284,11 @@ nonce.
 ## What is left to you
 
 - **A Go toolchain with the security fixes.** A program carries the standard library
-  it was built with. Since v0.72.0 collage requires Go 1.26.10, so with the default
-  `GOTOOLCHAIN=auto` the go command fetches it for a build that would have used an
-  older Go. Check a binary with `go version -m`. Go 1.26.10 rejects the compromised
-  eMudhra intermediate certificates (CVE-2026-111943).
+  it was built with. collage requires Go 1.26.11, so with the default `GOTOOLCHAIN=auto` the go command
+  fetches it for a build that would have used an older Go. Check a binary with
+  `go version -m`. Go 1.26.11 fixes GO-2026-6859, a race in `http.MaxBytesReader` that
+  can crash an HTTP/1 server and that collage's body limit is built on; Go 1.26.10
+  rejected the compromised eMudhra intermediate certificates (CVE-2026-111943).
 - **TLS**, at a proxy that passes `X-Forwarded-Proto` and the browser's `Host` on.
   See [Deployment](/docs/deployment#tls-behind-a-proxy). Set
   [`Server.TrustedProxies`](/docs/deployment#behind-a-proxy-trustedproxies): without
@@ -286,21 +302,38 @@ nonce.
 - **Rate limits** — [elagoht/ratelimit](/docs/plugins#elagohtratelimit). It, and
   [elagoht/fail2ban](/docs/plugins#elagohtfail2ban), count an IPv6 client as its
   `/64` by default; one holder of a `/48` has 65536 of those, so set `ipv6Prefix`
-  to `48` (both since v0.3.0) when such clients are what you face.
+  to `48` when such clients are what you face.
 - **Sign-in state before sign-in.** [elagoht/oauth](/docs/plugins#elagohtoauth)
-  keeps a pending sign-in in a short `collage_oauth` cookie of its own since
-  v0.3.1, and starts a session only at a successful callback, so an anonymous visit
-  to the login route no longer hands out a session that turns the page cache off.
+  keeps a pending sign-in in a short `collage_oauth` cookie of its own, and
+  starts a session only at a successful callback, so an anonymous visit to the login
+  route hands out no session that turns the page cache off.
 - **A handler mounted with `app.Handle`** is your own: no forgery check, no body
-  limit, no cache, and since v0.67.0 no middleware — no plugin's authentication, rate
+  limit, no cache, and no middleware — no plugin's authentication, rate
   limit, ban or access log covers it unless it is mounted `collage.WithMiddleware()`.
   See [No middleware, unless you ask](/docs/middleware-and-apis#no-middleware-unless-you-ask).
 - **What a data handler reads.** On a cacheable page, a value middleware put in the
   request context is hidden from the shared render, so one reader's cannot reach
   another's page; declare it with `collage.Vary` and read it with `collage.Varied`.
 
-To report a vulnerability, use GitHub's private reporting on the
-[collage repository](https://github.com/Elagoht/collage/security).
+- **A layout's `{{hoist}}` area names.** `{{hoist "head"}}` takes a name made of letters,
+  digits, `_` and `-` and refuses anything else, so `{{hoist .Area}}` cannot be turned
+  into markup. Still, write the area as a literal.
+
+## Fixes and reporting
+
+`pkg/collage` and `pkg/collagetest` follow semantic versioning from v1.0.0. A security
+fix ships as a patch release on the latest v1 minor, and its CHANGELOG entry, under
+**Security**, says what was affected. There are no backports to an older minor, so the
+way to receive a fix is to upgrade to the latest v1 release, which never breaks an
+application.
+
+To report a vulnerability, use GitHub's private reporting — the **Report a
+vulnerability** button on the **Security** tab of the
+[collage repository](https://github.com/Elagoht/collage/security) — and not a public
+issue, pull request or discussion. Say which version you tested, what an attacker can
+do, and the smallest request or program that shows it. A handler mounted with
+`app.Handle` is your own, so what it does is not a collage vulnerability; a way for a
+request to reach it that should not is.
 
 ## Example: a team's task list, before it goes live
 

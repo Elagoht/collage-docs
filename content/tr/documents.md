@@ -1,6 +1,6 @@
 ---
 description: Sitemap'ler, feed'ler, robots.txt ve JSON gibi HTML yerine byte dönen route'lar, page'ler gibi cache'lenir ve invalidate edilir.
-reference: DocumentBuilder.AtRoot, DocumentBuilder.WithBody, DocumentBuilder.WithTimeout, DocumentBuilder.WithStaticParams, NewDocument, DocumentBuilder, Document, DocumentResult, StaticParamsFunc, ErrConflictingData
+reference: DocumentBuilder.AtRoot, DocumentBuilder.WithBody, DocumentBuilder.WithTimeout, DocumentBuilder.WithStaticParams, NewDocument, DocumentBuilder, Document, DocumentResult, StaticParamsFunc, DocumentBuilder.WithDependencyTags, ErrConflictingData, ErrNoDocumentHandler
 ---
 
 # Document'lar: sitemap'ler, feed'ler, robots.txt
@@ -69,17 +69,17 @@ Bu yüzden document hiçbir şey render etmez. Body'yi formatı bilen bir encode
 | Çağrı | Ne yapar |
 | --- | --- |
 | `collage.NewDocument(name, contentType)` | Builder'ı başlatır. İki argüman da zorunludur. |
-| `AtRoot(pattern)` | Document'a bütün locale'lerin dışından ulaşan URL pattern'i. Locale config'i ne olursa olsun prefix almaz. Sitenin kendi dosyaları içindir: `/robots.txt`, `/llms.txt`. v0.14.1'den beri vardır. |
-| `WithPath(locale, pattern)` | Document'a `locale` içinde ulaşan URL pattern'i. Placeholder'lar page'lerdeki gibi çalışır, etraflarında metin de olabilir (v0.41.0'dan beri): `/feeds/{category}.xml` ya da `/blog/{slug}` page'inin yanında `/blog/{slug}.md`. Bkz. [placeholder'ın etrafında metin](/docs/pages-and-layouts#text-around-a-placeholder). |
+| `AtRoot(pattern)` | Document'a bütün locale'lerin dışından ulaşan URL pattern'i. Locale config'i ne olursa olsun prefix almaz. Sitenin kendi dosyaları içindir: `/robots.txt`, `/llms.txt`. |
+| `WithPath(locale, pattern)` | Document'a `locale` içinde ulaşan URL pattern'i. Placeholder'lar page'lerdeki gibi çalışır, etraflarında metin de olabilir: `/feeds/{category}.xml` ya da `/blog/{slug}` page'inin yanında `/blog/{slug}.md`. Bkz. [placeholder'ın etrafında metin](/docs/pages-and-layouts#text-around-a-placeholder). |
 | `WithHandler(fn)` | Body'yi üreten fonksiyon. |
-| `WithBody(b)` | Handler yerine, program başlarken sabitlenen bir body. Document'ın fallback olarak kullanabileceği bir template'i olmadığı için ikisinden biri gerekir, ikisi birden olamaz. v0.16.0'dan beri vardır. |
+| `WithBody(b)` | Handler yerine, program başlarken sabitlenen bir body. Document'ın fallback olarak kullanabileceği bir template'i olmadığı için ikisinden biri gerekir, ikisi birden olamaz. |
 | `Dynamic()` | Handler'ı her request'te çalıştırır. Handler'ı olan ve strateji tanımlamayan bir document'ın stratejisi budur. |
 | `Static()` | Handler'ı bir kez çalıştırır, bir tag invalidate edene kadar cache'ten sunar. |
 | `Incremental(ttl)` | Cache'ten sunar, `ttl` dolduktan sonra handler'ı yeniden çalıştırır. |
 | `WithCacheParams(names...)` | Page'lerde olduğu gibi, hangi query parametrelerinin cache key'ine girdiğini belirler. |
-| `WithStaticParams(fn)` | Static build'in bir `{param}` pattern'ini yazacağı placeholder değerleri; bkz. [aşağıdaki bölüm](#documents-in-a-static-export). v0.16.0'dan beri vardır. |
+| `WithStaticParams(fn)` | Static build'in bir `{param}` pattern'ini yazacağı placeholder değerleri; bkz. [aşağıdaki bölüm](#documents-in-a-static-export). |
 | `WithDependencyTags(tags...)` | Bu document'ın her response'unun taşıdığı tag'ler. |
-| `WithTimeout(d)` | Handler'ı sınırlar; sıfır, yani varsayılan, `Config.Template.Timeout` demektir (v0.61.0'dan beri). |
+| `WithTimeout(d)` | Handler'ı sınırlar; sıfır, yani varsayılan, `Config.Template.Timeout` demektir. |
 | `WithRedirect(from, to, status)` / `WithPermanentRedirect(from, to)` | Buraya redirect eden eski path'ler. |
 | `Build()` / `BuildErr()` | Document'ı ve zincirin topladığı hataları verir. |
 
@@ -89,6 +89,8 @@ hatasını kaydeder. İkisi birden set edilmiş bir document'ı ise `RegisterDoc
 document'ın üzerinde kalır. `BuildErr`'i çağırsanız da çağırmasanız da
 `RegisterDocument` bu document'ı adını belirterek reddeder. Bu yüzden hatayı
 kendiniz kontrol etmeniz isteğe bağlıdır.
+
+Bir document'ın path'inin tek bir yazımı vardır: `app.URL` ve `pageURL`'in kurduğu gibi, her iki `TrailingSlash` modunda da sondaki slash olmadan. Öbür yazım, query korunarak ona `301` olur; yani `/sitemap.xml/` `/sitemap.xml`'de biter. Bir middleware path'i geldiği gibi görür; bu yüzden belirli bir document path'ini koruyan bir middleware [kanonik yazımı karşılaştırmalıdır](/docs/middleware-and-apis#a-trailing-slash-is-the-routers-not-the-middlewares).
 
 ### Sabit bir body
 
@@ -135,7 +137,7 @@ için `rc.Param("slug")`, çözümlenen locale için `rc.Locale`, request için
 `rc.Request` kullanılır. Render edilen bir page olmadığı için `rc.Page` `nil`'dir.
 Hoist edilecek bir head de yoktur.
 
-Data handler'daki iki özellik burada da çalışır (v0.10.0'dan beri).
+Data handler'daki iki özellik burada da çalışır.
 [`collage.Cached`](/docs/caching#caching-data-across-pages) data cache'i page'lerle
 paylaşır. Böylece post page'lerinin zaten çektiği post'ları okuyan bir feed, bunların
 hiçbirini yeniden çekmez. `collage.Cached`'a verilen tag'ler de document'ın tag'lerine
@@ -157,8 +159,7 @@ Bilmeye değer üç kural var:
 - **Panic recover edilir** ve sıradan bir hataya dönüşür. Böylece bozuk tek bir feed
   bütün process'i çökertmez.
 
-Bir document `WithTimeout(d)` ile kendi timeout'unu belirlediğinde (v0.61.0'dan
-beri) handler'ı onun altında çalışır; belirlemediğinde `Config.Template.Timeout`
+Bir document `WithTimeout(d)` ile kendi timeout'unu belirlediğinde handler'ı onun altında çalışır; belirlemediğinde `Config.Template.Timeout`
 altında çalışır (varsayılanı beş saniyedir). Bu, fragment'ler için varsayılan data
 handler timeout'u olan ayarın aynısıdır.
 
@@ -181,7 +182,7 @@ demektir; negatif bir değer `collage.ErrInvalidTimeout` kaydeder. Sınır size 
 
 Başarısız olan bir document hiçbir zaman HTML bir error page ile cevap vermez.
 `sitemap.xml` isteyen bir crawler'ın onunla bir işi olmaz. Document'ın cevap
-vermediği bir method için dönen `405` de buna dahildir (v0.11.0'dan beri düz metin).
+vermediği bir method için dönen `405` de buna dahildir.
 
 Cevap, doğru status ile `text/plain` ve `Cache-Control: no-store` olarak döner.
 Body moda göre değişir:
@@ -218,11 +219,10 @@ Minifier buna bir örnektir. Page render hook'ları (`OnBeforeRender`, `OnAfterR
 çalışmaz, çünkü render edilen bir şey yoktur. Bkz.
 [Plugin yazmak](/docs/writing-plugins).
 
-Invalidate edilen bir document hemen arka planda yeniden render edilir (v0.64.0'dan
-beri; bkz. [Caching](/docs/caching#warming-after-an-invalidation)). Bu henüz
+Invalidate edilen bir document hemen arka planda yeniden render edilir (bkz. [Caching](/docs/caching#warming-after-an-invalidation)). Bu henüz
 olmadıysa bir sonraki request'te render edilir.
 
-v0.63.0'dan beri o zamana kadar stale olarak tutulur. Bu render başarısız olursa
+O zamana kadar stale olarak tutulur. Bu render başarısız olursa
 stale bir page gibi sunulur: `Cache-Control: no-store` ve `X-Collage-Cache: STALE`
 ile. 404 dönen bir render onu cache'ten çıkarır. Bkz.
 [Caching](/docs/caching#stale-pages-and-x-collage-cache).
@@ -469,8 +469,7 @@ yazılır: `dist/tr/sitemap.xml`.
   gibi bu durum için de uyarı verir.
 - Aynı dosyaya çıkan iki görev (aynı değerleri iki kez listeleyen bir
   `WithStaticParams` ya da bir page'in `index.html`'ine düşen bir document), hiçbir
-  şey yazılmadan build'i `collage.ErrOutputPathCollision` ile durdurur (v0.60.0'dan
-  beri; önceden diğerleri `ErrDuplicateOutputPath` ile atlanıyordu). Document'ların
+  şey yazılmadan build'i `collage.ErrOutputPathCollision` ile durdurur. Document'ların
   `WithStaticParams`'ı hiçbir page render edilmeden önce çalışır, bu yüzden bu baştan
   bilinir.
 

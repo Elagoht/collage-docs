@@ -290,6 +290,16 @@ pages around them if you like.
   what it printed in the browser rather than a refused
   connection.
 
+## Stability
+
+collage is at v1. Its public packages, `pkg/collage` and `pkg/collagetest`, follow
+semantic versioning: nothing in them breaks within v1. Every change is checked in
+CI against the last release's API, and a breaking change would mean a new module
+path, v2. Everything under `internal/` is not API and can change in any release.
+The interfaces you implement — `Metrics`, `Tracer`, `Span` and the cache
+interfaces — gain no methods within v1; what the framework adds to them arrives as
+an optional interface instead.
+
 ## Where to go next
 
 [Installation](/docs/installation) gets a project running in a minute.

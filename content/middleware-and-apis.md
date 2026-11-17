@@ -1,6 +1,6 @@
 ---
 description: Standard net/http middleware with app.Use, cache keys that depend on a header with collage.Vary, and your own http.Handler with app.Handle.
-reference: Vary, SkipCache, ErrVaryTooLate, ErrMountShadowsRoute, WithMiddleware, HandleOption
+reference: Vary, Varied, ErrInvalidPrefix, SkipCache, ErrVaryTooLate, ErrMountShadowsRoute, WithMiddleware, HandleOption
 ---
 
 # Middleware and your own API
@@ -29,7 +29,7 @@ if err := app.Use(func(next http.Handler) http.Handler {
 It is the standard `func(http.Handler) http.Handler` shape, so any middleware written
 for `net/http` works unchanged. The first one registered is the outermost.
 `collage add middleware loadUser` writes one and registers it after those already
-there (since v0.69.0).
+there.
 
 Like every registration it must happen before the application starts; afterwards it
 returns `collage.ErrAppStarted`.
@@ -39,7 +39,7 @@ Two things about where it runs:
 - **Before routing.** It sees every request — pages, documents, actions, mounted
   static files, a plugin's handlers and a handler mounted `WithMiddleware` —
   including the ones that end in a 404. It can answer a request by itself, with a
-  401 or a redirect, and nothing behind it runs. Since v0.67.0 a handler mounted
+  401 or a redirect, and nothing behind it runs. A handler mounted
   with plain `app.Handle` is the exception: it is answered without any middleware
   ([below](#no-middleware-unless-you-ask)).
 - **Inside the framework's guard.** It runs within collage's span, metrics and panic
@@ -80,9 +80,9 @@ Two things about where it runs:
 
 ### Plugins' middleware and yours
 
-Since v0.38.0 a plugin's middleware counts as registered where the plugin was. The
+A plugin's middleware counts as registered where the plugin was. The
 plugins in `Config.Plugins` are registered in `collage.New`, so their middleware is
-outside everything `app.Use` adds.
+outside everything `app.Use` adds, and runs in list order among themselves.
 
 Yours therefore reads what they put in the request's context: the session, a flash
 message. Loading the signed-in user once per request is one middleware:
@@ -114,11 +114,10 @@ app.RegisterPlugin(ratelimit.New(ratelimit.Options{KeyFunc: userID}))
 `RegisterPlugin` refuses a plugin that adds template functions; that one has to be
 in `Config.Plugins`.
 
-Before v0.38.0 every plugin's middleware ran inside the
-application's, and `session.FromContext` was `nil` in `app.Use` middleware.
+
 
 A fragment a plugin pushes over a stream — elagoht/live, elagoht/websocket — meets
-this chain too (since v0.78.0), as a request to the fragment's own path: a
+this chain too, as a request to the fragment's own path: a
 middleware protecting `/admin/` keeps `/admin/stats` out of
 `/_live/stream/?f=/admin/stats`, one that answers instead of calling next keeps
 that reader from getting the fragment, and a rate limit counts each push. What the
@@ -131,48 +130,61 @@ runs again for the fragment's path. See
 A path with dot segments or doubled slashes — `/a/../b`, `/a//b`, `/a/./b` — is
 redirected to its clean spelling before anything reads it, middleware and plugins
 included: 301 for `GET` and `HEAD`, 308 for a method that carries a body, the query
-kept (since v0.24.0).
+kept.
 
 A middleware that skips `/_collage/` or protects `/admin/` therefore never meets
 `/_collage/../admin`, and a prefix check is a check on the path the router will
 route.
 
-An encoded slash is not a separator to the router, so since v0.34.0:
+An encoded slash is not a separator to the router, so:
 
 - A path holding `%2F` reaches no route: the router answers it 404.
 - One that is also dirty — `/blog/%2Fhello` — is answered 404 before your
   middleware runs rather than cleaned into `/blog/hello`.
 - Your middleware reads the decoded `r.URL.Path`, where `/public%2Fsecret` is
-  `/public/secret`; before, the router read one segment there, and a middleware
-  letting `/public/` through let the request through to `/{slug}`.
+   `/public/secret`.
 
-None of these reaches a route, but your metrics see them. Since v0.79.0 the
+None of these reaches a route, but your metrics see them. The
 clean-path redirect, the 404 for an encoded slash in a path that needed cleaning,
 and the router's 404 for a path no route can ever match (`/a%2fb`, a NUL,
 malformed percent-encoding) are timed, traced and counted like any other request,
 under a bounded label rather than the path a scanner sent: `collage.RouteInfo`
 reports the kind `"rejected"` and the name `"normalise"`, `Metrics.HTTPResponse` is
-given an empty path, and the request span carries no `http.path`. A `%2f` 404 is no
-longer counted under its decoded path.
+given an empty path, and the request span carries no `http.path`. A `%2f` 404 is not
+counted under its decoded path.
+
+### A trailing slash is the router's, not the middleware's
+
+Every route has one spelling, and the router redirects the other — but it does so
+*after* your middleware, which sees the path as it arrived. A page's other spelling
+is a `301` to its one; a document's is too, and an action's is a `308`, which keeps
+the method and the body, so a form posted to `/admin/delete/` is posted again to
+`/admin/delete`. Documents and actions are spelled without a trailing slash in both
+`TrailingSlash` modes, as `app.URL` and `{{actionURL}}` build them; only pages follow
+`Config.TrailingSlash`.
+
+The consequence for a middleware that guards an exact path: compare the canonical
+spelling, or trim the slash first — `strings.TrimSuffix(r.URL.Path, "/")` — and
+prefer a prefix such as `/admin/` where you can. A check on `"/admin/delete"` alone
+is bypassed by `/admin/delete/`: the handler does not run at that spelling, but the
+middleware still judges the request that arrived.
 
 ### The body is bounded before it
 
-Since v0.34.0 a request's body is limited before the first middleware runs, at the
+A request's body is limited before the first middleware runs, at the
 limit of the [action](/docs/forms-and-actions#request-bodies-are-bounded) it routes
 to, or `Server.MaxBodyBytes` for anything else.
 
 - A middleware that reads the body — a signature check, a logger, a method override
   parsing the form — reads it bounded.
-- An action whose body a middleware already read past its limit answers `413` — since
-  v0.71.0 also when the middleware buffered the body and put a fresh reader in its
+- An action whose body a middleware already read past its limit answers `413` — also
+  when the middleware buffered the body and put a fresh reader in its
   place (`io.ReadAll`, then `io.NopCloser`).
 - A handler mounted with `app.Handle` is left alone. A plugin's `Host.Handle`
-  prefix is bounded at `Server.MaxBodyBytes` (since v0.78.0): it runs inside the
-  middleware, which read its body unbounded before.
+  prefix is bounded at `Server.MaxBodyBytes`: it runs inside the
+  middleware, so its body is bounded before any of it reads.
 
-Since v0.71.0 the body is bounded whether or not the application has middleware.
-Before, an application with none had nothing bound the body before a page's guard,
-an action's guard or a data handler read it.
+The body is bounded whether or not the application has middleware.
 
 ### Passing values to data handlers
 
@@ -212,7 +224,7 @@ or the first reader's version is everyone's. Either:
 
 A cached render sees neither the reader's cookies and credentials nor the values
 your middleware put in the context ([what a shared render
-sees](/docs/caching#what-a-shared-render-sees)): since v0.39.0 a per-user page you
+sees](/docs/caching#what-a-shared-render-sees)): a per-user page you
 cached by mistake renders signed-out for everyone — the `userKey` value hidden —
 rather than showing the first reader's account to all. Keep it dynamic.
 
@@ -220,7 +232,7 @@ A static export renders without a request, so no middleware runs for the files i
 writes. A data handler reading a context value must cope with its absence — which it
 has to anyway, for a reader who is not signed in.
 
-Since v0.52.0 the build may then
+The build may then
 [capture each file's headers](/docs/static-export#headers-and-redirects) through
 the handler, and those requests do pass through middleware:
 
@@ -263,7 +275,7 @@ func languageData(ctx context.Context, rc *collage.RenderContext) (string, []str
   their preferences a hundred ways — `tr-TR,tr;q=0.9`, `tr`, `tr-TR` — and all of them
   are one page. Reduce the header to the handful of values your pages actually
   differ by, and the cache holds that many entries. Never vary on `Cookie` or
-  `Authorization` themselves: since v0.64.0 the value is kept in memory and sent
+  `Authorization` themselves: the value is kept in memory and sent
   again with every [warm render](/docs/caching#warming-after-an-invalidation).
 - **Read it with `collage.Varied`, not from the context.** On a cacheable page one
   render is served to many readers, so a value your middleware puts in the request
@@ -274,15 +286,18 @@ func languageData(ctx context.Context, rc *collage.RenderContext) (string, []str
 - **The header name goes into the response's `Vary` header**, so a CDN or proxy
   between you and the reader keeps the versions apart too. It is only set on
   publicly cacheable responses; a `no-store` response has nothing to keep apart.
-  Since v0.34.0 it is added beside a `Vary` your middleware wrote, where before it
-  replaced it.
+  It is added beside a `Vary` your middleware wrote, not in place of it.
 - **Call it from middleware.** Declarations close when middleware is done and
   routing begins, on every route — a page, cached or not, a document, an action, a
   mount, an `app.Handle` handler. Called after routing, from a data handler say,
-  `Vary` returns `collage.ErrVaryTooLate` instead of pretending to work (since
-  v0.11.0; before, it did so only on a cached page and silently did nothing
-  elsewhere). Called on a request collage is not serving, it returns
+  `Vary` returns `collage.ErrVaryTooLate` instead of pretending to work. Called on a request collage is not serving, it returns
   `collage.ErrVaryOutsideRequest`.
+- **A cookie your middleware sets makes the response private.** A cacheable page
+  whose response already carries a `Set-Cookie` when its cache headers are written
+  is sent `Cache-Control: private, no-store` and no `Vary`, so a CDN does not keep
+  one reader's cookie for everyone. The page is still cached here; see
+  [Caching](/docs/caching#render-strategies). A middleware that sets a cookie on
+  every request makes every page private at the CDN: set it only where it is needed.
 - Declaring the same header twice keeps the last value.
 
 This is also how to negotiate a language: collage selects a locale from the URL
@@ -325,7 +340,7 @@ A 5xx it answers with is reported to plugins' error hooks as
 
 ### No middleware, unless you ask
 
-Since v0.67.0 no middleware runs for a handler mounted with `app.Handle`: neither
+No middleware runs for a handler mounted with `app.Handle`: neither
 what `app.Use` added nor any plugin's — session, flash, i18n, consent, secure,
 ratelimit, basicauth, fail2ban, accesslog, redirects, tenant, compress, the
 development toolbar.
@@ -360,7 +375,7 @@ A handler that does rely on the site's middleware — a basicauth plugin you
 registered to guard it, the reader's session, a rate limit you already configured,
 a value your `app.Use` middleware puts in the context — asks for it back with
 `collage.WithMiddleware()`. It then runs inside the chain exactly as a page does, in
-the same order, as every mount did before v0.67.0:
+the same order:
 
 ```go
 if err := app.Handle("/admin/api/", adminAPI, collage.WithMiddleware()); err != nil {
@@ -383,9 +398,11 @@ particular:
 - An elagoht/redirects rule under its prefix does not fire.
 - elagoht/tenant's tenant is not in its context.
 
-An application that relied on one of these for a mount before v0.67.0 adds
-`collage.WithMiddleware()` to that call to keep it. Without it, a mount a basicauth
-or a rate limit used to guard is now open.
+A mount that relies on one of these needs `collage.WithMiddleware()` on its call:
+without it, nothing a basicauth or a rate limit guards the site with guards the
+mount.
+
+
 
 Which requests skip the middleware is decided on the path once it is
 [cleaned](#paths-are-cleaned-first), by the same match routing uses, so a request
@@ -407,12 +424,15 @@ rely on a basicauth in front of them.
 ### Prefixes and conflicts
 
 The prefix must begin with `/` and cannot be `/` alone
-(`collage.ErrInvalidPrefix`).
+(`collage.ErrInvalidPrefix`). `/.well-known/…` is fine, and so is any segment that
+only begins with a dot. What is refused is a `.` or `..` segment and a doubled
+slash — `/a/./b/`, `/a//b/` — which the clean-path redirect removes before a
+handler is asked, so such a prefix could never match; the error says which it is.
+
 
 - **Ending in `/`**, it claims every path beneath it.
 - **Without the trailing slash** it is one exact path, and answers that path alone —
-  `app.Handle("/metrics", h)` serves `/metrics` and not `/metrics/x` (since
-  v0.24.0; before, the prefix had to end in `/`).
+  `app.Handle("/metrics", h)` serves `/metrics` and not `/metrics/x`.
 
 A handler at `/` would take every request from every page; if that is really what
 you want, put `app.Handler()` inside a mux of your own instead.

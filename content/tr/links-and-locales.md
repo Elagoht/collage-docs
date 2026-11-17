@@ -1,6 +1,6 @@
 ---
 description: Bir siteyi birkaç dilde sunmak ve page'lere adlarıyla link vermek; böylece link'ler page'i her locale'de takip eder.
-reference: LocaleConfig, PageBuilder.WithPath, PageBuilder.WithFragmentPath, RenderContext, URL, App, Vary, ErrLocaleUnreachable, ErrNoPathInLocale, ErrUnknownRoute, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath
+reference: LocaleConfig, PageBuilder.WithPath, PageBuilder.WithFragmentPath, RenderContext, URL, App, Vary, ErrLocaleUnreachable, ErrNoPathInLocale, ErrUnknownRoute, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath, ErrRedirectShadowsPage, ErrRedirectLoop, ErrInvalidPattern
 ---
 
 # Link'ler ve locale'ler
@@ -55,16 +55,21 @@ Locale: collage.LocaleConfig{Default: "tr"},
 
 ve `WithPath("tr", "/hakkinda")` yazar.
 
-v0.35.0'dan beri hiçbir URL'nin ulaşamadığı bir locale'deki path, kayıt sırasında
-`collage.ErrLocaleUnreachable` ile reddedilir. Hata, page'in adını ve locale
-ayarını söyler. Önceden site hiçbir uyarı vermeden açılıyor, sonra her URL'de 404
-dönüyordu. Aynı kural action'lar ve document'lar için de geçerlidir.
+Hiçbir URL'nin ulaşamadığı bir locale'deki path, kayıt sırasında `collage.ErrLocaleUnreachable` ile reddedilir. Hata, page'in adını ve locale ayarını söyler; site açılıp her URL'de 404 dönmez. Aynı kural action'lar ve document'lar için de geçerlidir.
 
-v0.60.0'dan beri `WithPath`, page, document ve action için aynı şekilde iki hatayı
-daha reddeder:
+`WithPath`, page, document ve action için aynı şekilde iki hatayı daha reddeder:
 
 - iki kez verilen bir locale: `collage.ErrDuplicateLocalePath`, ilk path korunur;
 - boş bir locale: `collage.ErrInvalidLocale`.
+
+İlk segment'i, `Default`'u ya da desteklenen bir locale'i (büyük/küçük harf fark etmez) adlandıran düz metin olan bir path de `collage.ErrLocaleUnreachable` ile reddedilir. Bu kural page, document, action ve redirect kaynağı için geçerlidir. Bu ilk segment prefix sanılıp çıkarılır; bu yüzden `en` altında register edilen `/tr/guide.txt`, `tr`'de `/guide.txt` için bir request olurdu ve hiçbir şey ona cevap vermezdi. `/guide.txt` yazın: prefix sizin için eklenir.
+
+Hiçbir zaman cevap veremeyecek bir route da kayıt sırasında reddedilir:
+
+- kaynağı bir page'in ya da document'ın path'iyle eşleşen bir [redirect](/docs/pages-and-layouts), örneğin `/about.txt` adresindeki bir document'ın yanındaki `/{slug}`, `collage.ErrRedirectShadowsPage` olur; çünkü redirect'ler route'lara üstün gelir: redirect'in kaynağını daraltın;
+- hedefini kendi kaynağının eşleştirdiği bir redirect, örneğin `/docs` için `/docs/`, `collage.ErrRedirectLoop` olur;
+- aynı placeholder adını iki kez kullanan bir pattern `collage.ErrInvalidPattern` olur.
+
 
 ## Locale'i URL belirler
 
@@ -122,7 +127,7 @@ arama motoru için `/about`'un ikinci bir kopyası, cache'te de ikinci bir kayı
 olurdu.
 
 Varsayılan locale dahil bütün dilleri bir prefix altında sunmak isteyen bir site
-`PrefixDefault: true` ayarını kullanır (v0.14.0'dan beri). Bu durumda `/en/about`,
+`PrefixDefault: true` ayarını kullanır. Bu durumda `/en/about`,
 `/tr/hakkinda`'nın yanında duran page olur. Prefix'siz bir URL ise hiçbir dile ait
 değildir:
 
@@ -133,8 +138,7 @@ değildir:
 - Document'lar da aynı şekilde prefix alır ve `/en/sitemap.xml`,
   `/tr/sitemap.xml`'in yanında durur. Tek istisna, sitenin
   [`AtRoot`](/docs/documents#example-robotstxt) ile oluşturulan kendi
-  dosyalarıdır: `/robots.txt` kökte durur, başka hiçbir yerde durmaz
-  (v0.14.1'den beri).
+  dosyalarıdır: `/robots.txt` kökte durur, başka hiçbir yerde durmaz.
 - Export, varsayılan locale'i `en/` altına yazar ve köke de `/en/` home page'inin
   bir kopyasını koyar. Bu kopya, canonical adresi olarak `/en/`'i gösterir.
 
@@ -178,7 +182,7 @@ func aboutData(ctx context.Context, rc *collage.RenderContext) (aboutView, []str
 }
 ```
 
-Prefix'leri kapatan bir ayar yoktur: `DisablePathLocale` v0.60.0'da kaldırıldı. Tek
+Prefix'leri kapatan bir ayar yoktur. Tek
 dilli bir site path'lerini prefix taşımayan `Default`'ta register eder; dili kendisi
 [belirleyen](#negotiating-a-language-yourself) bir site ise bunu middleware'de
 yapar.
@@ -226,11 +230,10 @@ alır. Page'lerin yanı sıra [document'lar](/docs/documents) için de çalış�
   link, okuyucuya gösterilecek bir 404 değil, development'ta yakalanması
   gereken bir bug'dır.
 - **Değerler escape edilir.** Değeri `.` ya da `..` olan bir parametre reddedilir.
-- **Değerler string, tam sayı ya da `fmt.Stringer` olabilir** (son ikisi
-  v0.36.0'dan beri): `{{pageURL "user" "id" .ID}}`.
+- **Değerler string, tam sayı ya da `fmt.Stringer` olabilir** `{{pageURL "user" "id" .ID}}`.
 - **[`TrailingSlash`](/docs/configuration#trailingslash) açıkken `/` ile biter.** Bu,
   document link'leri için değil, page link'leri için geçerlidir: `/about/`, `/tr/`,
-  ama `/feed.xml`.
+  ama `/feed.xml`. Bir document'ın ya da action'ın link'i hiçbir zaman `/` ile bitmez: bu onun tek yazımıdır ve öbür yazım ona yönlendirilir; document için `301`, action için `308` ile.
 
 <figure class="diagram-figure" data-search-ignore>
 <svg class="diagram" viewBox="0 0 320 200" role="img" aria-labelledby="ll-name-title">
@@ -287,19 +290,19 @@ slug'ları da Türkçeyse dil seçici bunu bilemez. O link'i içeriğinizden ken
 
 Dil seçici okuyucular içindir. Arama motorları bir page'in çevirilerini, head'indeki
 `<link rel="alternate" hreflang="…">` element'lerinden öğrenir. Bu element'leri
-`rc.HoistAlternate(hreflang, href)` (v0.10.0'dan beri) tanımlar, her dil için bir
+`rc.HoistAlternate(hreflang, href)` tanımlar, her dil için bir
 tane. Bunu, page'in bulunduğu her locale için `app.URL` ile birlikte kullanın.
 [Head ve SEO](/docs/head-and-seo#canonical-and-alternate-links) sayfasında bunu her
 page için yapan bir layout var.
 
 [Kendi URL'sindeki bir action'a](/docs/forms-and-actions#an-action-at-its-own-url)
 post eden bir form da action'ı aynı şekilde adıyla belirtir:
-`{{actionURL "logout"}}` (v0.36.0'dan beri).
+`{{actionURL "logout"}}`.
 
 ### Go'dan link'ler
 
 Bir data handler'da ya da action'da page'ler için `rc.URL`, action'lar için
-`rc.ActionURL` kullanın (v0.37.0'dan beri). Adıyla belirtilen bir page'e redirect
+`rc.ActionURL` kullanın. Adıyla belirtilen bir page'e redirect
 etmek ya da canonical URL üretmek bu duruma örnektir. İkisi de URL'yi render'ın
 kendi locale'inde üretir ve `pageURL` ile `actionURL` gibi varsayılan locale'e
 fallback yapar. Böylece link gereken koda `*App`'i taşımak gerekmez:
@@ -324,7 +327,7 @@ URL'sine çeviremez. collage'ın oluşturmadığı bir `RenderContext`'te (örne
 testin elle kurduğu) ikisi de `collage.ErrUnknownRoute` döner.
 
 Request içinde çalışan ama render'ı olmayan bir guard'da ya da middleware'de bu iş
-`collage.URL(ctx, name, params)` ile yapılır (v0.73.0'dan beri). Aynı builder'dır;
+`collage.URL(ctx, name, params)` ile yapılır. Aynı builder'dır;
 request'in çözümlendiği locale'de kurar. Routing'den önce çalışan bir middleware'de
 varsayılan locale'i kullanır. collage'ın sunduğu bir request dışında
 `ErrUnknownRoute` döner. `collage.GuardSeeOtherPage(ctx, name, params)` bunu bir
@@ -360,7 +363,7 @@ origin'ini ekleyin.
 
 Bir page'in [`WithFragmentPath`](/docs/forms-and-actions#a-fragment-at-its-own-url)
 ile kendi URL'sinde açtığı bir fragment'e de aynı şekilde, page'in ve fragment'in
-adıyla link verilir (v0.18.0'dan beri):
+adıyla link verilir:
 
 ```html
 <div data-live="{{fragmentURL "home" "cpu-usage"}}">{{slot "cpu-usage"}}</div>
@@ -439,8 +442,7 @@ func pageData(ctx context.Context, rc *collage.RenderContext) (pageView, []strin
 gönderdiği header'ın tamamı değil, `"tr"`'dir. Header'ın adını da response'un `Vary`
 header'ına yazar. Böylece bir CDN de sürümleri birbirinden ayrı tutar.
 
-`Vary` middleware'den çağrılmalıdır. v0.11.0'dan beri `Vary`, routing
-başladığında kapanır ve bu, cache'lenen ya da cache'lenmeyen her route için
+`Vary` middleware'den çağrılmalıdır. `Vary`, routing başladığında kapanır ve bu, cache'lenen ya da cache'lenmeyen her route için
 geçerlidir. Bu yüzden bir data handler'dan ya da routing'den sonraki herhangi bir
 yerden yapılan çağrı hiçbir şeyi değiştirmez ve `collage.ErrVaryTooLate` döner.
 

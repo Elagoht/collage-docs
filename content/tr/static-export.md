@@ -1,6 +1,6 @@
 ---
 description: Siteyi collage export ile static dosyalara render edin: nelerin yazıldığı, nelerin neden atlandığı, dynamic path'ler ve bir static host'ta yayımlama.
-reference: Build, BuildOptions, BuildReport, PrintBuildReport, StaticParamsFunc, SkipRecord, ErrNotStatic, ErrGuarded, ErrDynamicPathUnresolved, ErrRouteParams, ErrBuildFindings, ErrDuplicateRedirect, ErrRedirectShadowsFile, IsCapture, BuiltFile, BuiltRedirect, RedirectSource
+reference: Build, BuildOptions, BuildReport, PrintBuildReport, StaticParamsFunc, SkipRecord, ErrNotStatic, ErrGuarded, ErrDynamicPathUnresolved, ErrRouteParams, ErrBuildFindings, ErrDuplicateRedirect, ErrRedirectShadowsFile, ErrDangerousOutDir, ErrOutputPathCollision, IsCapture, BuiltFile, BuiltRedirect, RedirectSource
 ---
 
 # Static export
@@ -32,10 +32,9 @@ go run . -collage-build -out dist        # plus -clean when you passed it
 | Flag | Varsayılan | Anlamı |
 | --- | --- | --- |
 | `-out dir` | `dist` | Dosyaların yazılacağı dizin. |
-| `-clean` | kapalı | Önce dizinin mevcut içeriğini siler. |
+| `-clean` | kapalı | Önce dizinin mevcut içeriğini siler; yalnızca dizini daha önce bir export oluşturduysa ([aşağıya bakın](#safety)). |
 
-Scaffold edilen `main.go` bu sözleşmeye `collage.Main` üzerinden (v0.68.0'dan
-beri) uyar. `-collage-build` ile çalıştığında uygulamayı her zamanki gibi kurar,
+Scaffold edilen `main.go` bu sözleşmeye `collage.Main` üzerinden uyar. `-collage-build` ile çalıştığında uygulamayı her zamanki gibi kurar,
 ama onu sunmak yerine collage'ın builder'ına verir ve ne olduğunu ekrana yazar.
 Kendi yazdığınız bir `main` bunu aşağıdakine benzer bir fonksiyonla yapar. Bu,
 fonksiyonun collage-docs'taki hâlidir.
@@ -55,8 +54,7 @@ func staticBuild(app *collage.App, outDir string, clean bool) error {
 }
 ```
 
-`collage.Build` (v0.60.0'dan önce `collage.NewBuilder` ve ardından onun döndüğü
-değer üzerinde `Build`), hata döndürdüğünde bile bir rapor döndürür. Hata veren bir page diğerlerini
+`collage.Build`, hata döndürdüğünde bile bir rapor döndürür. Hata veren bir page diğerlerini
 durdurmaz ve bütün hatalar `report.Errors` içinde yer alır.
 
 Dönen hata, bunların hepsinin birleşimidir. `main` bu durumda sıfırdan farklı bir
@@ -201,8 +199,7 @@ parametre değeri için farklı render edilir. Oysa bir dosyanın query string'i
 Static host, `/blog?page=2` isteğine `/blog` dosyasıyla cevap verir. Page query
 olmadan yazılır ve rapor bunu açıkça belirtir. Böylece sayfalanmış bir arşiv
 çalışıyormuş gibi görünmez. `WithCacheParams` kullanan bir document için de, örneğin
-sayfalanmış bir feed için, aynı şekilde uyarı verilir. Bu v0.10.0'dan beri böyledir;
-öncesinde yalnızca page'ler için uyarı veriliyordu.
+sayfalanmış bir feed için, aynı şekilde uyarı verilir.
 
 Sayfalamanın export'ta da çalışması gerekiyorsa sayfa numarasını path'e koyun,
 örneğin `/blog/page/{n}`. Ardından bu page'leri `WithStaticParams` ile listeleyin. [Pagination](#pagination)
@@ -236,17 +233,16 @@ kodla çıkar.
   ya da bir page'in `index.html`'ine düşen bir document olabilir. İki locale'deki tek
   bir pattern bu duruma girmez, çünkü her locale kendi prefix'i altına yazılır. Build
   `OutDir`'e dokunmadan durur: hiçbir şey temizlenmez ya da yazılmaz, `404.html` ya
-  da mount edilen dosya kopyalanmaz ve `BuildFinishedHook` çağrılmaz. v0.60.0'dan beri
-  document'lar da kontrol edilir; önceden aynı dosyaya düşen ikinci document
-  `ErrDuplicateOutputPath` ile atlanıyordu. Document'ların `WithStaticParams`'ı
+  da mount edilen dosya kopyalanmaz ve `BuildFinishedHook` çağrılmaz. Document'ların `WithStaticParams`'ı
   hiçbir page render edilmeden önce çalışır, bu yüzden kontrol onları da kapsar.
-- **Aynı path'ten iki redirect** (`collage.ErrDuplicateRedirect`, v0.52.0'dan
-  beri). `/old` ile `/old/` ya da `/blog/{slug}` ile `/blog/{x}` buna örnektir:
+  Yalnızca büyük/küçük harfle ayrılan path'ler de çakışır: `/About` ile `/about`
+  macOS ve Windows'ta tek dosyadır, bu yüzden Linux'ta build olan bir site bir
+  dizüstü bilgisayarda da build olur.
+- **Aynı path'ten iki redirect** (`collage.ErrDuplicateRedirect`). `/old` ile `/old/` ya da `/blog/{slug}` ile `/blog/{x}` buna örnektir:
   page'lerden, document'lardan ya da bir plugin'den gelsinler, router ikisini tek
   bir redirect sayar. Static bir host'ta hangisinin geçerli olacağına host'un kendi
   önceliği karar verirdi. İkisinden birini kaldırın.
-- **Yazılmış bir dosyanın üstüne düşen redirect** (`collage.ErrRedirectShadowsFile`,
-  v0.52.0'dan beri). `about/index.html` yanındaki `/about` ya da `/about/`,
+- **Yazılmış bir dosyanın üstüne düşen redirect** (`collage.ErrRedirectShadowsFile`). `about/index.html` yanındaki `/about` ya da `/about/`,
   `docs/intro/index.html` yanındaki `/docs/{rest...}` buna örnektir. `/{slug}` gibi
   placeholder'lı bir `From`, `404.html` dahil o derinlikteki her dosyayla eşleşir.
   Pattern'i daraltın ya da page'i kaldırın.
@@ -255,7 +251,7 @@ kodla çıkar.
 build'de çalışır ve dosyalar yine yazılır.
 
 **Error seviyesindeki bir finding** de build'i `collage.ErrBuildFindings` ile
-başarısız kılar (v0.21.0'dan beri), ama farklı bir şekilde: page'ler her durumda
+başarısız kılar, ama farklı bir şekilde: page'ler her durumda
 yazılır ve finding'ler raporda yer alır. Bkz. [Raporu okumak](#reading-the-report).
 
 ## Dinamik path'ler: `WithStaticParams`
@@ -307,13 +303,12 @@ builder := collage.NewPage("doc").
   bir request'teki değerin aynısını döner.
 - **Map pattern'i tam olarak doldurmalıdır.** Eksik bir ad ya da pattern'de olmayan
   bir ad, yalnızca o dosyayı `collage.ErrRouteParams` ile başarısız kılar. Geri
-  kalanlar build edilir.
-  v0.34.0'dan beri tek bir `{param}`'ın değerindeki bir `/` da aynı sonucu doğurur.
-  Path olan bir değer bir `{rest...}`'te yer almalıdır. Eskiden `../about` gibi bir slug
-  (örneğin bir CMS'ten gelen) kendi page'ini output dizininin içindeki başka bir
-  page'in üzerine yazardı. v0.79.0'dan beri ters bölü ya da NUL içeren bir değer de
-  aynı sonucu doğurur: Windows'ta ters bölü bir ayırıcıdır ve `/blog/{slug}` altında
-  `x\..\..\about` başka bir page'in dosyasının üzerine yazılırdı. Build her yerde aynı
+  kalanlar build edilir. Tek bir `{param}`'ın değerindeki bir `/` da aynı sonucu
+  doğurur. Path olan bir değer bir `{rest...}`'te yer almalıdır; böylece `../about`
+  gibi bir slug (örneğin bir CMS'ten gelen) kendi page'ini output dizininin içindeki
+  başka bir page'in üzerine yazamaz. Ters bölü ya da NUL içeren bir değer de aynı
+  sonucu doğurur: Windows'ta ters bölü bir ayırıcıdır ve `/blog/{slug}` altında
+  `x\..\..\about` başka bir page'in dosyasına ulaşırdı. Build her yerde aynı
   davransın diye her platformda reddedilir.
 - **Bir hata ya da panic, o page'in o locale'ini başarısız kılar** ve raporda
   adıyla yer alır. Panic `collage.ErrBuildPanic` olarak raporlanır. Hiç map
@@ -339,7 +334,6 @@ etkilemez. Diğer page'ler yine render edilip yazılır ve hata raporda yer alı
 Pagination bir plugin değil, bir library'dir: [elagoht/paginate](/docs/plugins#libraries-that-are-not-plugins)
 için register edecek ya da yapılandıracak bir şey yoktur. Bir data handler ve bir
 template onu kullanır. `go get github.com/Elagoht/collage-paginate` ile eklersiniz.
-v0.2.0, collage v0.61.0 ya da sonrasını gerektirir.
 
 `paginate.New(total, perPage, current)`, `Current`, `Last`, `Offset`, `Limit`,
 `Prev`, `Next` alanlarına ve sayfa numaralarından oluşan bir `Window`'a sahip bir
@@ -480,30 +474,51 @@ dışındadır.
 | Alan | Anlamı |
 | --- | --- |
 | `OutDir` | Dosyaların yazılacağı yer. Zorunludur. |
-| `Clean` | Önce `OutDir`'in içeriğini siler (dizinin kendisini değil). |
+| `Clean` | Önce `OutDir`'in içeriğini siler (dizinin kendisini değil); yalnızca dizini daha önce bir build oluşturduysa ([aşağıda](#safety)). |
 | `Locales` | Yalnızca bu locale'leri build eder. Boş bırakılırsa page'lerin tanımladığı bütün locale'ler build edilir. |
 | `Concurrency` | Aynı anda kaç page'in render edilip yazılacağı. `0` ya da `1` verilirse page'ler tek tek işlenir. Rapor her iki durumda da aynı sıradadır. |
 | `AllowDegraded` | Render sırasında bir fragment'i hata veren page'leri de yazar. |
 
-Builder, dosya sisteminin köküne çıkan bir `OutDir`'i reddeder. Bir repository'nin
-kökü olan bir `OutDir`'i `Clean` etmeyi de reddeder (`collage.ErrDangerousOutDir`).
-Aksi hâlde `-out .` ile `-clean` birlikte verildiğinde projeniz silinirdi.
+Builder, dosya sisteminin köküne çıkan bir `OutDir`'i, `Clean` olsun olmasın,
+reddeder (`collage.ErrDangerousOutDir`).
+
+### Güvenlik
+
+`-clean` (`BuildOptions.Clean`) yalnızca bu programın bir build'inin yaptığını
+siler. Bir build, oluşturduğu ya da boş bulduğu bir output dizinine
+`.collage-export` dosyasını bırakır ve `Clean` bir dizini yalnızca bu işaret orada
+varsa boşaltır (işaretin kendisi kalır). Aksi hâlde hiçbir şey silinmeden ya da
+yazılmadan `collage.ErrDangerousOutDir` ile başarısız olur:
+
+- projenin kendi dizini ve üstündeki her dizin (`-out .. -clean`);
+- bir repository'nin kökü, çalışma dizini ya da module kökü;
+- işareti olmayan, boş olmayan bir dizin, örneğin `static/` (`-out static -clean`).
+
+İşaretin olmadığı bir dönemde export edilmiş bir `dist/` için bir kez tek komut
+gerekir:
+
+```sh
+touch dist/.collage-export
+```
+
+Bundan sonra `collage export -clean` onu eskisi gibi boşaltır. CI runner'ı gibi taze
+bir dizin işaretini ilk build'den alır.
 
 ### Export'ta plugin'ler
 
 Export, sunucuyla aynı durumda render eder. Build önce uygulamayı başlatır ve
-page'ler listelenmeden önce her plugin'in `Init`'ini çalıştırır (v0.24.0'dan beri).
+page'ler listelenmeden önce her plugin'in `Init`'ini çalıştırır.
 Böylece bir plugin'in register ettiği document de, bir plugin'in yüklediği veriye dayanan
 `WithStaticParams` da build edilir ve plugin'ler aynı config'i okur.
 
 `OnBeforeRender`, `OnAfterRender` ve `OnDocumentRendered` her page ve document için
 tetiklenir. Yani bir minifier ya da structured data plugin'i sunulan bir page'e ne
 yapıyorsa dosyaya da onu yapar.
-v0.21.0'dan beri `OnBuildFinished`, her dosya yazıldıktan sonra bir kez çalışır.
+`OnBuildFinished`, her dosya yazıldıktan sonra bir kez çalışır.
 Build'i bir bütün olarak denetleyen plugin'ler içindir.
 
 Böyle bir plugin register edilmişse build önce `App.Handler()` üzerinden
-[her dosyanın header'larını yakalar](#headers-and-redirects) (v0.52.0'dan beri).
+[her dosyanın header'larını yakalar](#headers-and-redirects) 
 Bunlar request'tir: middleware ve `OnRequest` onları görür, page
 de `OnBeforeRender` ve `OnAfterRender` ile yeniden render edilir. Bu sırada
 `ev.Static` false'tur. Trafiği sayan ya da sınırlayan bir plugin de, bir render
@@ -537,14 +552,14 @@ edilen projede çıktı şöyle görünür:
 Yazılan dosyalar on taneyi geçince özetlenir. Üç yüz dosya yazan bir build, atladığı
 tek page'i bu listenin altına gömmemelidir. Atlananlar, uyarılar ve hatalar hiçbir
 zaman kısaltılmaz. Son satırda bütün sayılar yer alır ve satır, aralarındaki en kötü
-duruma göre renklendirilir. v0.10.0'dan beri atlananlar route olarak sayılır, yani
+duruma göre renklendirilir. Atlananlar route olarak sayılır, yani
 page'ler ve document'lar birlikte sayılır. Bu yüzden çıktıda `3 pages skipped` değil,
 `3 skipped` yazar.
 
 Raporu kodda kullanmak için `report.Skipped`, `report.Warnings`, `report.Findings`
 ve `report.Errors` alanlarını kendiniz okuyun. Her atlama bir `collage.SkipRecord`'dur. Bu kayıtta
-route'un adı `Name` (v0.60.0'dan önce `Page`), `Locale`'i ve okuyan kişi için bir `Reason` bulunur.
-v0.10.0'dan beri `errors.Is` ile eşleştirebileceğiniz bir `Err` de bulunur. Bkz.
+route'un adı `Name`, `Locale`'i ve okuyan kişi için bir `Reason` bulunur.
+`errors.Is` ile eşleştirebileceğiniz bir `Err` de bulunur. Bkz.
 [Hatalar](/docs/errors#static-builds).
 [Test yazmak](/docs/testing#testing-the-export) sayfası bunu bir teste dönüştürür.
 
@@ -556,7 +571,7 @@ terminalde de görünmez. CI log'larında bu işaretler düz ASCII olarak yazıl
 
 Çıktıyı denetleyen bir plugin, örneğin
 [elagoht/htmlcheck](/docs/plugins#elagohthtmlcheck), bulduklarını finding olarak
-raporlar. v0.21.0'dan beri rapor bunları ilgili oldukları page'in altında, önce
+raporlar. rapor bunları ilgili oldukları page'in altında, önce
 error'lar gelecek şekilde listeler:
 
 ```sh
@@ -731,8 +746,7 @@ host onu sunabilir. Hangi host'u kullanırsanız kullanın üç şeyi kontrol ed
 
 Bir sunucu her page ile birlikte header gönderir ve redirect'leri kendisi cevaplar.
 Static bir host ise kendi config dosyalarında ne yazıyorsa onu gönderir: Netlify'ın
-`_headers` ve `_redirects` dosyaları, Vercel'in `vercel.json`'ı gibi. v0.52.0'dan
-beri build, sunucunun söyleyeceklerini de taşır; bu dosyaları bir plugin yazar.
+`_headers` ve `_redirects` dosyaları, Vercel'in `vercel.json`'ı gibi. build, sunucunun söyleyeceklerini de taşır; bu dosyaları bir plugin yazar.
 Collage bunların hiçbirini kendisi yazmaz.
 
 **Header'lar yakalanır.**

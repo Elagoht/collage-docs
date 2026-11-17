@@ -99,7 +99,7 @@ Template'te `<title>` yok. Başlığı layout `WithTitle` ile tanımlar.
 page ikinci bir başlık eklemez, sitenin başlığının yerini alır.
 Birazdan tarif page'i de bunu yapacak. Bkz.
 [Head ve SEO](/docs/head-and-seo#keys-and-the-innermost-wins).
-Marker sitenin stylesheet'inden sonra gelir (v0.77.0'dan beri). Böylece bir page'in
+Marker sitenin stylesheet'inden sonra gelir. Böylece bir page'in
 hoist ettiği stylesheet ondan sonra link'lenir ve eşit specificity'deki bir kuralda
 üstün gelir.
 
@@ -125,8 +125,8 @@ func Home() *collage.Fragment {
 const homeBlock collage.InlineHTML = `<h1>Hello from {{.Name}}</h1>`
 ```
 
-Markup, Go dosyasında bir `collage.InlineHTML` sabiti olarak durur: v0.77.0'dan beri
-scaffold her page'in ve fragment'in markup'ını inline tutar, `templates/` içinde
+Markup, Go dosyasında bir `collage.InlineHTML` sabiti olarak durur: scaffold
+her page'in ve fragment'in markup'ını inline tutar, `templates/` içinde
 yalnızca layout'lar kalır. Markup'ı düzenlemek bir Go değişikliğidir ve
 `collage dev` bunun için yeniden build alır. Bkz.
 [Inline template'ler](/docs/fragments-and-slots#inline-templates).
@@ -371,9 +371,11 @@ register eder. Elle yazılmış bir page de buraya aynı şekilde eklenir: çağ
 satır daha, import'lara da o alanın package'ı, `recipespages` gibi bir alias ile.
 
 Hatalar register sırasında yakalanır. Yazım hatası içeren bir template yolu, içi boş
-kalmış zorunlu bir slot, aynı isme sahip iki page ya da hatalı biçimlendirilmiş bir
-path bunlara örnektir. Bunların her biri, ilk ziyaretçinin hatayla karşılaşmasını
-beklemeden programı başlangıçta durdurur. Hata mesajında ilgili page'in adı yer
+kalmış zorunlu bir slot, aynı isme sahip iki page, hatalı biçimlendirilmiş bir
+path ya da `html/template`'in escape edemediği bir template (açık bırakılmış bir
+`<script>` string'i, iki farklı durumda bırakılmış bir attribute) bunlara örnektir.
+Bunların her biri, ilk ziyaretçinin hatayla karşılaşmasını beklemeden programı
+başlangıçta durdurur. Hata mesajında ilgili page'in ya da template'in adı yer
 alır.
 
 ## Sonucu görün

@@ -86,7 +86,7 @@ does.
 
 Like `collage.Vary`, it must be called before routing, which means from middleware
 registered with `app.Use`. Called after routing — from a data handler, say — it
-returns `collage.ErrVaryTooLate`, on every route (since v0.11.0). Called on a
+returns `collage.ErrVaryTooLate`, on every route. Called on a
 request collage is not serving, it returns `collage.ErrVaryOutsideRequest`.
 
 ## A complete preview flow

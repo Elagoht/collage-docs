@@ -1,6 +1,6 @@
 ---
 description: Every field of collage.Config and its sub-structs, with its default and what validation checks.
-reference: Config, CacheConfig, ServerConfig, SecurityConfig, TemplateConfig, LocaleConfig, ObservabilityConfig, CacheType, ParseOrigin
+reference: Config, CacheConfig, ServerConfig, SecurityConfig, TemplateConfig, LocaleConfig, ObservabilityConfig, CacheType, ParseOrigin, DocumentBuilder.WithTimeout, Metrics, Tracer, Span, NoopMetrics, NoopTracer, NoopSpan
 ---
 
 # Configuration
@@ -35,7 +35,7 @@ written there:
 
 <figure class="diagram-figure" data-search-ignore>
 <svg class="diagram" viewBox="0 0 320 456" role="img" aria-labelledby="config-shape-title">
-<title id="config-shape-title">Where the scaffolded main.go gets each field of collage.Config. From the environment: DevMode from COLLAGE_DEV=1, BaseURL from BASE_URL, Server.Host from HOST, Server.Port from the -port flag, whose default is PORT or 6060, and Security.CSRFKey from COLLAGE_CSRF_KEY. Set in main.go and the files beside it: PluginConfig from plugins-config.json, Plugins from plugins() in plugins.go, Template from the embedded templates directory, and Cache as a disk cache under .cache with a five-minute TTL. Not set, keeping their defaults: Locale, en only, Logger, DevWatch, TrailingSlash and Observability. The whole value goes to collage.New, which fills in defaults, validates and builds the application.</title>
+<title id="config-shape-title">Where the scaffolded main.go gets each field of collage.Config. From the environment: DevMode from COLLAGE_DEV=1, BaseURL from BASE_URL, Server.Host from HOST, Server.Port from the -port flag, whose default is PORT or 6060, and Security.CSRFKey from COLLAGE_CSRF_KEY. Set in main.go and the files beside it: PluginConfig from plugins-config.json, Plugins from plugins() in plugins.go, Template from the embedded templates directory, and Cache as a disk cache under .cache with a five-minute default TTL. Not set, keeping their defaults: Locale, en only, Logger, DevWatch, TrailingSlash and Observability. The whole value goes to collage.New, which fills in defaults, validates and builds the application.</title>
 <defs><marker id="config-shape-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="d-head" d="M0 0 8 4 0 8z" /></marker></defs>
 <text class="d-small" x="78" y="14" text-anchor="middle">in the scaffold's main.go</text>
 <text class="d-small" x="242" y="14" text-anchor="middle">collage.Config field</text>
@@ -87,7 +87,7 @@ what a production application adds to it.
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `DevMode` | `bool` | `false` | Development mode across the framework. |
-| `DevWatch` | `[]string` | none | Extra directories whose changes reload a development page. Since v0.10.0. |
+| `DevWatch` | `[]string` | none | Extra directories whose changes reload a development page. |
 | `Logger` | `*slog.Logger` | chosen at startup | The logger the framework and plugins write through. |
 | `Server` | `ServerConfig` | | The HTTP server. |
 | `BaseURL` | `string` | none | The site's public origin, `https://example.com`, for the absolute URLs a render cannot know otherwise. |
@@ -95,7 +95,7 @@ what a production application adds to it.
 | `Template` | `TemplateConfig` | | Template loading and rendering. |
 | `Cache` | `CacheConfig` | | The page cache. |
 | `Locale` | `LocaleConfig` | | Which locales URLs carry. |
-| `TrailingSlash` | `bool` | `false` | End every page's URL in `/`. Since v0.13.0. |
+| `TrailingSlash` | `bool` | `false` | End every page's URL in `/`. |
 | `Observability` | `ObservabilityConfig` | | Metrics and tracing. |
 | `Plugins` | `[]Plugin` | none | Plugins registered while the application is built. |
 | `PluginConfig` | `map[string]json.RawMessage` | none | Each plugin's own configuration, keyed by plugin name. |
@@ -111,20 +111,20 @@ Turns on development mode:
 - directories named in `DevWatch` watched;
 - the built-in error page naming the fragment where a failure started, leading
   with the cause — for a template, the file, line and column of the call that
-  failed (since v0.15.0) — and showing the full error chain.
+  failed — and showing the full error chain.
 
 **It must be off in production** — those diagnostics carry paths, hostnames and
 whatever else error messages contain.
 
-`DevMode` is the one switch: `Template.DevMode`, which did the same before v0.60.0,
-is gone. A plugin reads it with `host.DevMode()`. A scaffolded project sets it from
+`DevMode` is the one switch; nothing else turns development mode on. A plugin
+reads it with `host.DevMode()`. A scaffolded project sets it from
 `COLLAGE_DEV=1`, which `collage dev` sets for you.
 
 ### DevWatch
 
 Directories, besides the templates and the mounts, whose changes reload a
 development page — for content your application reads from disk itself, such as
-Markdown or JSON. Since v0.10.0.
+Markdown or JSON.
 
 ```go
 app, err := collage.New(&collage.Config{
@@ -148,7 +148,7 @@ on the next render — rather than a copy loaded at startup — is up to your co
   marker.
 - **Anywhere else** it is `slog.Default()`, unchanged — except where `FORCE_COLOR`
   is set, as [`collage dev`](/docs/cli#collage-dev) does for the program it runs on
-  a colour terminal, and `NO_COLOR` is not (since v0.32.0).
+  a colour terminal, and `NO_COLOR` is not.
 
 An application that called `slog.SetDefault` keeps its handler. Pass a logger to be
 certain, such as a JSON handler for logs a machine reads. `New` leaves this field
@@ -163,10 +163,10 @@ here rather than through `app.RegisterPlugin`.
 `PluginConfig` holds each plugin's section as raw JSON. The framework reads no file:
 fill it however you like, or use `collage.LoadPluginConfig("plugins-config.json")`,
 which returns `nil` for a missing file, or `Env.PluginConfig`, which a scaffolded
-`newApp` calls (since v0.68.0): the file in the working directory when there is
-one, otherwise the copy embedded in the binary. A key that names no registered plugin stops
-the application from starting with `ErrUnknownPluginConfig`, and since v0.61.0 so
-does a key inside a section that the plugin does not know. See
+`newApp` calls: the file in the working directory when there is one, otherwise
+the copy embedded in the binary. A key that names no registered plugin stops the
+application from starting with `ErrUnknownPluginConfig`, and so does a key inside
+a section that the plugin does not know. See
 [Configuring plugins](/docs/plugins#configuring-plugins).
 
 ### TrailingSlash
@@ -183,23 +183,24 @@ The export writes a page as `<path>/index.html`, which a host serves at
 off, every canonical link, sitemap entry and internal link points at a redirect.
 
 It applies to pages. A [document](/docs/documents) is a file and keeps its path as
-written, `/sitemap.xml` either way, and an action is answered at whichever
-spelling it was posted to.
+written, `/sitemap.xml` either way, and an action is always spelled without the
+slash. Each still has one address: `/sitemap.xml/` redirects to it with a `301`,
+and a `POST` to `/login/` with a `308`, so the body is sent again.
 
 ## ServerConfig
 
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `Host` | `string` | `"localhost"` | Address the server listens on. |
-| `Port` | `int` | `6060` (`3000` before v0.32.0) | TCP port, `1`–`65535`. |
+| `Port` | `int` | `6060` | TCP port, `1`–`65535`. |
 | `ReadTimeout` | `time.Duration` | `15s` | How long reading a request may take. |
-| `ReadHeaderTimeout` | `time.Duration` | `0` | How long reading the request headers alone may take. Zero uses `ReadTimeout` (since v0.56.0). |
+| `ReadHeaderTimeout` | `time.Duration` | `0` | How long reading the request headers alone may take. Zero uses `ReadTimeout`. |
 | `WriteTimeout` | `time.Duration` | `30s` | How long writing a response may take. |
 | `IdleTimeout` | `time.Duration` | `60s` | How long a keep-alive connection may sit idle. |
 | `ShutdownTimeout` | `time.Duration` | `10s` | How long graceful shutdown waits for in-flight requests. |
-| `DrainDelay` | `time.Duration` | `0` | How long the server keeps serving, keep-alives off, once a shutdown starts and before the port closes; ignored in development (since v0.53.0). See [Deployment](/docs/deployment#graceful-shutdown-and-draining). |
-| `MaxBodyBytes` | `int64` | 4 MiB | Bound on a request body when the action it routes to sets none — applied before middleware since v0.34.0. |
-| `TrustedProxies` | `[]string` | none | Addresses and CIDR ranges of the proxies in front of the server, whose `X-Forwarded-For` is believed (since v0.47.0), and, when the list is set, whose `X-Forwarded-Proto` is (since v0.56.0). |
+| `DrainDelay` | `time.Duration` | `0` | How long the server keeps serving, keep-alives off, once a shutdown starts and before the port closes; ignored in development. See [Deployment](/docs/deployment#graceful-shutdown-and-draining). |
+| `MaxBodyBytes` | `int64` | 4 MiB | Bound on a request body when the action it routes to sets none — applied before middleware. |
+| `TrustedProxies` | `[]string` | none | Addresses and CIDR ranges of the proxies in front of the server, whose `X-Forwarded-For` is believed, and, when the list is set, whose `X-Forwarded-Proto` is. |
 
 `Host` defaults to `localhost`, which is unreachable from outside the machine — in
 a container, set it to `0.0.0.0`.
@@ -241,34 +242,36 @@ platform's documented ranges. Trusting a range a client can send from lets that
 client name any address it likes; a range with zero bits (`0.0.0.0/0`, `::/0`)
 trusts everyone, and `collage.New` logs a Warn for it.
 
-Since v0.56.0 the same list decides whose `X-Forwarded-Proto` marks the forgery cookie
-`Secure`; empty, that header is believed from anyone, as before.
+The same list decides whose `X-Forwarded-Proto` marks the forgery cookie
+`Secure`; empty, that header is believed from anyone — right for a server only a
+proxy can reach.
 See [Deployment](/docs/deployment#behind-a-proxy-trustedproxies).
 
 ## SecurityConfig
 
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
-| `CSRFKey` | `[]byte` | generated per process | Key that signs forgery tokens. |
+| `CSRFKey` | `[]byte` | generated per process | Key that signs forgery tokens. Set it in production. |
 | `CSRFCookieName` | `string` | `"collage_csrf"` | Cookie a token is carried in. |
 | `CSRFFieldName` | `string` | `"_csrf"` | Form field a token is submitted in. |
 | `CSRFHeaderName` | `string` | `"X-CSRF-Token"` | Header a token may be submitted in instead. |
-| `CSRFTrustedOrigins` | `[]string` | none | Other origins whose forms may post here, each `scheme://host[:port]` (since v0.34.0). |
+| `CSRFTrustedOrigins` | `[]string` | none | Other origins whose forms may post here, each `scheme://host[:port]`. |
 | `DisableCSRF` | `bool` | `false` | Turns forgery checking off for the whole application. |
-| `CSRFTokenTTL` | `time.Duration` | `12h` | How long a forgery token stays valid after it is issued; negative disables expiry (since v0.39.0). |
-| `FrameOptions` | `string` | `"SAMEORIGIN"` | `X-Frame-Options` sent on every response; `"-"` sends none (since v0.39.0). |
-| `DisableNoSniff` | `bool` | `false` | Stops the `X-Content-Type-Options: nosniff` header sent on every response (the header since v0.39.0; before v0.60.0 this field was `NoSniff *bool`). |
+| `CSRFTokenTTL` | `time.Duration` | `12h` | How long a forgery token stays valid after it is issued. Zero means the default; negative keeps a token valid for as long as its signature verifies. |
+| `FrameOptions` | `string` | `"SAMEORIGIN"` | `X-Frame-Options` sent on every response; `"-"` sends none, and any other value is sent as it is. |
+| `DisableNoSniff` | `bool` | `false` | Stops the `X-Content-Type-Options: nosniff` header sent on every response. |
 
-**Set `CSRFKey` before deploying anything with a form.** It should be at least 32
-random bytes, kept with your other secrets and the same on every instance.
+**Set `CSRFKey` in production.** It should be at least 32 random bytes, kept with
+your other secrets and the same on every instance.
 
 Left empty, a key is generated for each process: fine for a first run, wrong to
-deploy, because a token issued before a restart — or by another instance — is
-refused. The application logs that it generated one — a warning outside
-development, at info level in it — and only when some action answers an unsafe
+deploy, because a generated key differs in every process: a token issued before a
+restart is refused after it, and one issued by an instance is refused by the next,
+so a form submitted across a restart, or to another instance of a fleet, fails.
+The application logs that it generated one — a warning outside development, at
+info level in it — and only when some action answers an unsafe
 method (`POST`, `PUT`, `PATCH`, `DELETE`) and is not exempted with `WithoutCSRF`,
-since only such an action ever verifies a token (the `WithoutCSRF` exemption since
-v0.11.0).
+since only such an action ever verifies a token.
 
 The key is not part of the disk cache's namespace, so the cache survives a new key;
 a cached page with a form in it, stored under the old one, is rendered again rather
@@ -279,11 +282,14 @@ reads it from `COLLAGE_CSRF_KEY`; `openssl rand -hex 32` makes one.
 here; every other origin is refused even with a valid token. See
 [Forms and actions](/docs/forms-and-actions#where-the-request-came-from).
 
-The name defaults above are applied by the forgery guard, not by `New`,
-so the fields stay empty in your `Config`. `CSRFFieldName` renames the field on
-both sides: `{{csrfToken}}` writes the name the check reads, so forms need no
-change. Script that reads the token from the form — `input[name="_csrf"]` — has
+The name defaults above, and `CSRFTokenTTL`'s `12h`, are applied by the forgery
+guard, not by `New`, so the fields stay empty in your `Config`. `CSRFFieldName`
+renames the field on both sides: `{{csrfToken}}` writes the name the check reads,
+so forms need no change. Script that reads the token from the form — `input[name="_csrf"]` — has
 to use the new name.
+
+`CSRFTokenTTL` is checked against the issue time signed into each token: a token
+past that age is refused, and a fresh one is minted for the next form.
 
 `DisableCSRF` is for an application with no browser-submitted forms at all — an API
 behind its own authentication. With it set, `{{csrfToken}}` fails the render rather
@@ -298,7 +304,7 @@ instead, use `WithoutCSRF` on it.
 | `Root` | `string` | `"./templates"` on disk | Directory templates are loaded from, stripped from every template name. |
 | `Extension` | `string` | `".html"` | File extension of template files. |
 | `Funcs` | `template.FuncMap` | none | Extra template functions, merged over the built-ins. |
-| `Timeout` | `time.Duration` | `5s` | Default data-handler timeout, and the whole budget of every document handler. |
+| `Timeout` | `time.Duration` | `5s` | Default data-handler timeout, and the default for every document handler that sets none. |
 
 ### FS and Root
 
@@ -326,22 +332,21 @@ is `ErrTemplateEscapesRoot`.
 
 Added to the built-in functions when the templates are parsed; an entry under a
 built-in name replaces that built-in, and an entry under a name a plugin added
-replaces the plugin's — since v0.78.0 one added with `AddRenderFunc` too — and
+replaces the plugin's — one added with `AddTemplateFunc` or `AddRenderFunc` — and
 `New` logs each such name once. It must be set before `New`, because a template can only
 call a function that existed when it was parsed — a template calling an unknown
 name fails in `New`. The functions bound per render (`slot`, `hoist`, `asset`,
 `stylesheet`, `csrfToken`, `pageURL`, `pageURLIn`, `localeURL`, `actionURL`,
 `fragmentURL`, `fragmentURLIn`, `withQuery`) are rebound on every render, so
-overriding them has no effect, and since v0.77.0 `New` logs a warning naming each
-one given. See
+overriding them has no effect, and `New` logs a warning naming each one given. See
 [Template functions](/docs/template-functions).
 
 ### Timeout
 
 The deadline for a data handler whose fragment sets none with `WithTimeout`. It is
-also the only bound on a [document](/docs/documents) handler, which has no timeout
-of its own — so raising it for one slow fragment raises it for every sitemap and
-feed. Like every timeout in collage it bounds the context the handler receives; a
+also the deadline of every [document](/docs/documents) handler that sets none with
+`DocumentBuilder.WithTimeout` — so a slow feed raises its own budget there, rather
+than this one for every fragment and document. Like every timeout in collage it bounds the context the handler receives; a
 handler that never checks `ctx.Done()` can run past it.
 
 ## CacheConfig
@@ -351,28 +356,36 @@ handler that never checks `ctx.Done()` can run past it.
 | `Enabled` | `bool` | `false` | Master switch for the page cache. |
 | `Store` | `Cache` | `nil` | Your own cache implementation. |
 | `Type` | `CacheType` | `CacheMemory` when enabled | Built-in cache when `Store` is `nil`: `collage.CacheMemory` or `collage.CacheDisk`. |
-| `DefaultTTL` | `time.Duration` | `5m` | Entry lifetime when a page sets none. |
-| `MaxEntries` | `int` | `10000` | Cap on cache entries, memory and disk alike, and on the keys tracked under one tag; negative means unlimited entries (disk since v0.39.0). |
-| `MaxBytes` | `int64` | 256 MiB memory, 1 GiB disk | Cap on the total size a built-in cache stores; negative means unlimited (since v0.40.0). A disk cache's memory tier holds 256 MiB, or `MaxBytes` when smaller (since v0.63.0). |
+| `DefaultTTL` | `time.Duration` | `5m` | Lifetime a built-in store gives an entry written with a TTL of zero or less. |
+| `MaxEntries` | `int` | `10000` | Cap on cache entries, memory and disk alike, and on the keys tracked under one tag; negative means unlimited entries. |
+| `MaxBytes` | `int64` | 256 MiB memory, 1 GiB disk | Cap on the total size a built-in cache stores; negative means unlimited. A disk cache's memory tier holds 256 MiB, or `MaxBytes` when smaller. |
 | `Dir` | `string` | none | Where a disk cache stores entries, and, in `Dir/data/`, the `collage.Cached` values. Required for `CacheDisk`. One per instance: instances sharing it do not share a cache. |
 | `Version` | `string` | derived from the binary | Identifies the build a disk cache's entries belong to. |
-| `WarmLimit` | `int` | `1000` | Cap on the pages one invalidation re-renders in the background, newest first; negative turns warming off (since v0.64.0). |
+| `WarmLimit` | `int` | `1000` | Cap on the pages one invalidation re-renders in the background, newest first; negative turns warming off. |
 
 **Caching is off by default.** With `Enabled` false nothing is cached, even with a
 `Store` set. `Type` defaults to `collage.CacheMemory` only when `Enabled` is true
 and `Store` is `nil`. An untyped literal, `Type: "disk"`, still compiles; a string
 read from a variable needs converting: `Type: collage.CacheType(v)`.
 
+**`DefaultTTL` is a built-in store's fallback, not a page's lifetime.** The memory
+and disk caches give it to an entry written with a TTL of zero or less, and a
+negative value is refused by `New`. A page or a document never reaches it:
+`Incremental(ttl)` and its document equivalent refuse a TTL that is not positive,
+and a static page is kept until it is invalidated, so every entry the framework
+writes carries a TTL of its own. A custom `Store` is not given this value and
+applies its own default to a `Set` with a TTL of zero. `collage.Cached` takes a TTL
+of its own, and a zero there means the value never expires.
+
 **A `Store` replaces `Type` entirely**, including in validation. Implement
 `collage.Cache` (`Get`, `Set`, `InvalidateKey`, `Clear`) to put pages in Redis or
 anywhere else; a store that also implements `collage.TaggedCache` (`SetTagged`,
 `Invalidate`) is handed each entry's tags on write and asked to invalidate by tag.
-Before v0.60.0 `Invalidate` was a method of `Cache` itself. A store that also
-implements `collage.StaleCache` (`GetStale`, `MarkStaleKey`, `MarkStale`, since
-v0.63.0) is asked to mark invalidated entries stale instead of removing them, and
+A store that also implements `collage.StaleCache` (`GetStale`, `MarkStaleKey`,
+`MarkStale`) is asked to mark invalidated entries stale instead of removing them, and
 can then answer a failed re-render with the old page: see
 [Caching](/docs/caching#stale-pages-in-your-own-store). A store that implements
-`collage.SharedCache` (since v0.66.0), such as
+`collage.SharedCache`, such as
 [collage-redis](/docs/plugins#elagohtredis), is shared by a fleet: pages and
 `collage.Cached` data live in it, and an invalidation on any instance reaches
 every one; see [Caching](/docs/caching#a-cache-a-fleet-shares). Leave the field unset rather than assigning a
@@ -384,13 +397,13 @@ named for a hash of `Version`, so a new build reads a different directory and fi
 nothing stale. Leave `Version` empty and it is a hash of the running executable,
 which changes exactly when the output might; set it — a commit, a release tag —
 when something outside the binary decides what pages look like. If the executable
-cannot be hashed, an in-memory cache is used instead, with a warning — and so,
-since v0.11.0, when the directory cannot be created, a read-only filesystem say:
+cannot be hashed, an in-memory cache is used instead, with a warning — and so
+when the directory cannot be created, a read-only filesystem say:
 `collage.New` warns and carries on with memory rather than failing. A write that
 fails once the application is running is logged, and the page is served uncached.
 In development a disk cache is never used: an in-memory one stands in for it.
 
-**A disk cache has memory in front of it** (since v0.63.0). A hit is served from a
+**A disk cache has memory in front of it.** A hit is served from a
 memory tier, bounded by `MaxEntries` and by 256 MiB, or `MaxBytes` when that is
 smaller, and filled from the current build's directory at startup, newest first,
 so a restart serves its recent pages from memory at once. Each instance has its
@@ -402,31 +415,24 @@ in one instance leaves the others serving their in-memory copy as fresh. See
 comes up warm. Unlike the entries, they are not in a build's subdirectory, and
 they are not encrypted: see [Caching](/docs/caching#across-a-restart).
 
-**`MaxEntries`** also bounds the values `collage.Cached` keeps across requests, and,
-with a built-in cache, the number of keys the dependency tracker holds in all
-(since v0.40.0).
+**`MaxEntries`** also bounds the values `collage.Cached` keeps across requests.
 
 **`MaxBytes`** bounds what a built-in cache weighs: zero picks the type's default,
 and a page larger than the whole cap is served but not stored. A custom `Store`
 ignores it. See [Caching](/docs/caching#bounded-in-bytes-too).
 
-**`MaxEntries` also bounds the framework's dependency tracker per tag** — the
-per-process index that maps a tag back to cache keys. Before v0.60.0 that was a
-field of its own, `MaxKeysPerTag`.
+**`MaxEntries` also bounds the framework's dependency tracker** — the per-process
+index that maps a tag back to cache keys — per tag and in all, whatever the store
+is, a custom `Store` included. A negative `MaxEntries` keeps both caps at 10000.
 
 Every distinct query string is a distinct key, and nothing removes a key from the
 tracker when the cache evicts or expires its entry, so without a cap a client could
-grow that index without limit. When a tag is at the cap, its oldest key is dropped
-from the tracker only, not from the cache. A negative `MaxEntries` keeps this
-per-tag cap at 10000.
-
-What that costs depends on the store. The built-in memory and disk caches index
-tags themselves (they implement `TaggedCache`), so `InvalidateTags` still reaches
-every entry they hold; only the count `InvalidateTagsN` reports, which is what the
-tracker resolved, can come out lower. A custom `Store` that does not implement
-`TaggedCache` relies on the tracker alone, and for it a dropped key is an entry
-`InvalidateTags` no longer reaches — served until it expires. With such a store,
-set `MaxEntries` above the number of live entries any one tag can cover.
+grow that index without limit. When a tag is at the cap, recording a new key drops
+its oldest key, and the cache entry for that key is removed with it: a key the
+tracker lets go of is one `InvalidateTags` could no longer reach, so it is never
+left cached to be served stale. The page renders again on its next request, as if
+the cache had evicted it. See
+[Caching](/docs/caching#the-tag-index-is-per-process-and-bounded).
 
 Zero for `MaxEntries` or `MaxBytes` means the default; only a negative value means
 unlimited. See
@@ -438,7 +444,7 @@ unlimited. See
 | --- | --- | --- | --- |
 | `Default` | `string` | `"en"` | Locale of a URL with no locale prefix. |
 | `Supported` | `[]string` | `[Default]` | Every locale the application serves. |
-| `PrefixDefault` | `bool` | `false` | Give `Default`'s pages a prefix too: `/en/about`. Since v0.14.0. |
+| `PrefixDefault` | `bool` | `false` | Give `Default`'s pages a prefix too: `/en/about`. |
 
 The URL is the only thing that selects a locale: `/about` is in `Default`, and
 `/tr/hakkinda` is in `"tr"`. collage never picks one from `Accept-Language` or a
@@ -462,7 +468,11 @@ one URL per language and declare it with `collage.Vary`. See
 | `Tracer` | `Tracer` | no-op | Starts spans around requests, renders and fragments. |
 
 Both are interfaces you implement to bridge collage into your backend, and `nil`
-means a no-op.
+means a no-op. `Metrics`, `Tracer` and `Span` gain no methods within v1: a signal
+the framework reports later arrives as a separate, optional interface, found by
+type assertion. Embed `collage.NoopMetrics`, `NoopTracer` and `NoopSpan` in an
+implementation and define only the methods it needs, and it keeps compiling
+whatever is added.
 
 ```go
 type Metrics interface {
@@ -484,17 +494,30 @@ type Span interface {
 }
 ```
 
+A metrics bridge that counts responses and nothing else:
+
+```go
+type responseCounter struct {
+	collage.NoopMetrics
+	responses atomic.Int64
+}
+
+func (m *responseCounter) HTTPResponse(ctx context.Context, status int, path string, d time.Duration) {
+	m.responses.Add(1)
+}
+```
+
 `CacheEvent` is one of `collage.CacheHit`, `CacheMiss`, `CacheSet`, `CacheEvict`,
 `CacheInvalidate`, `CacheCoalesced`, `CacheStale` and `CacheWarm`. `CacheCoalesced`
 means a request was served by a render of the same key that was already running;
 `CacheStale`, that a `collage.Cached` value or a cached page was served stale,
-counted once per value or response served; `CacheWarm` (since v0.64.0), that a
+counted once per value or response served; `CacheWarm`, that a
 page or document an invalidation reached was rendered again in the background and
 stored, once per key.
 
 `HTTPResponse`'s `path` is the request's path, which a client chooses; label with
-`collage.RouteInfo(ctx)` instead, which is bounded. Since v0.79.0 it is also called
-for a request refused by path normalisation — a dirty path's redirect, a path no
+`collage.RouteInfo(ctx)` instead, which is bounded. It is also called for a
+request refused by path normalisation — a dirty path's redirect, a path no
 route can match — with an empty path and `RouteInfo` kind `"rejected"`, name
 `"normalise"`. The `collage.http` span records `http.method` bucketed: the standard
 methods as themselves, anything else as `OTHER`. See
@@ -519,8 +542,8 @@ first, a zero port or an empty default locale never reaches validation from `New
 — only a value you set explicitly can fail. Match these with `errors.Is`; the full
 list is in [Errors](/docs/errors#configuration).
 
-Filling in defaults and validating are not exported on their own since v0.60.0:
-`New` is the one place they run, so a test checks a configuration by calling it:
+Filling in defaults and validating are not exported on their own: `New` is the
+one place they run, so a test checks a configuration by calling it:
 
 ```go
 _, err := collage.New(&collage.Config{Server: collage.ServerConfig{Port: 70000}})
@@ -564,8 +587,8 @@ app, err := collage.New(&collage.Config{
 })
 ```
 
-`env` is the `collage.Env` that `collage.Main` hands the scaffolded `newApp`
-(since v0.68.0): `Dev` is `COLLAGE_DEV=1`, `Host` is `HOST` or `localhost`, `Port`
+`env` is the `collage.Env` that `collage.Main` hands the scaffolded `newApp`:
+`Dev` is `COLLAGE_DEV=1`, `Host` is `HOST` or `localhost`, `Port`
 is `-port`, `PORT` or `6060`, and `CacheDir` is `.cache`. `files` is the project's
 embedded filesystem — the project directory itself in a development build — and
 `plugins()` comes from the `plugins.go` that `collage plugin add` and `del` manage.
@@ -594,7 +617,7 @@ func newApp(env collage.Env) (*collage.App, error) {
 
 	cfg := &collage.Config{
 		DevMode: env.Dev,
-		BaseURL: os.Getenv("BASE_URL"), // collage dev's own address unless .env.development sets it
+		BaseURL: os.Getenv("BASE_URL"), // collage dev's own address unless the environment file sets it
 		Server: collage.ServerConfig{
 			Host:              env.Host,
 			Port:              env.Port,
@@ -646,7 +669,7 @@ What each setting is in each place, and why:
 | --- | --- | --- | --- |
 | `DevMode` | on: `collage dev` sets `COLLAGE_DEV=1` | off: the variable is unset | Development's error pages carry paths and error chains. A development server also answers only requests whose `Host` names this machine; see [Deployment](/docs/deployment#development-mode-stays-on-this-machine). |
 | `Server.Host`, `Server.Port` | the loopback address `collage dev` chose | `HOST` and `PORT`, or `-port` | `collage dev` listens on your address itself and passes requests on; see [CLI](/docs/cli#collage-dev). |
-| `BaseURL` | `collage dev`'s own address, `http://localhost:6060`, unless `.env.development` sets `BASE_URL` (since v0.68.0) | `https://tasks.example.com` from `BASE_URL` | Empty is not an error: a site that builds no absolute URL needs none. Set, it must be a bare origin, or `New` fails with `ErrInvalidOrigin`. |
+| `BaseURL` | `collage dev`'s own address, `http://localhost:6060`, unless the environment file sets `BASE_URL` | `https://tasks.example.com` from `BASE_URL` | Empty is not an error: a site that builds no absolute URL needs none. Set, it must be a bare origin, or `New` fails with `ErrInvalidOrigin`. |
 | `Security.CSRFKey` | empty: a key per process, logged at info level | at least 32 random bytes, the same on both servers | A generated key refuses every token issued before a restart, or by the other server. |
 | `Security.CSRFTrustedOrigins` | none | the admin panel's origin | Every other origin is refused, even with a valid token. |
 | `Server.TrustedProxies` | none | the load balancer | Without it, every client's address is the load balancer's. |
@@ -658,11 +681,12 @@ What each setting is in each place, and why:
 
 The development side needs nothing written down: `collage dev` sets `COLLAGE_DEV`,
 `HOST` and `PORT`. To keep a form open across the restarts `collage dev` makes when
-Go code changes, give development a key of its own in `.env.development` — never
-the production one; see [CLI](/docs/cli#environment-files).
+Go code changes, give development a key of its own in its environment file —
+`.env`, or `.env.development` when you keep one — never the production one; see
+[CLI](/docs/cli#environment-files).
 
 The production side is four variables — `HOST`, `PORT`, `BASE_URL` and
 `COLLAGE_CSRF_KEY` — plus any a plugin's `KeyEnv` names, set where the binary
-runs, or in a `.env` in its working directory, which `collage.Main` loads (since
-v0.68.0) and the server's own variables override; see
+runs, or in a `.env` in its working directory, which `collage.Main` loads and the
+server's own variables override; see
 [Deployment](/docs/deployment#environment).

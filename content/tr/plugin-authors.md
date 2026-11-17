@@ -1,6 +1,6 @@
 ---
 description: collage plugin add'in repository'yi kurması için gerekenler (ad, manifest, ayar istemeyen bir New, release tag'i) ve collage plugin check'in bunu doğrulaması.
-reference: Plugin, Host, FindPlugin, Configurer, PluginConfig
+reference: Plugin, Host, FindPlugin, Configurer, PluginConfig, NoopMetrics, NoopTracer, NoopSpan
 ---
 
 # Plugin yazmak: repository sözleşmesi
@@ -186,7 +186,7 @@ Sizden başka bir şey gerekmez.
 Plugin'iniz başka bir plugin üzerinden çalışıyorsa, onu kullanıcıdan istemek yerine
 tipiyle bulun. `collage.FindPlugin[T](host)`, uygulamanın plugin'leri arasında `T`
 tipindeki plugin'i döndürür (birden fazlaysa ilkini). Onu `Configure`'dan çağırın ve
-bulduğunu saklayın: v0.78.0'dan beri `Init`'e verilen `Host` plugin'leri listelemez,
+bulduğunu saklayın: `Init`'e verilen `Host` plugin'leri listelemez,
 bu yüzden `Init`'ten çağrılan `FindPlugin` false döner.
 
 ```go
@@ -200,6 +200,31 @@ if !ok {
 olmasın görür. Sonra diğer plugin'in adını `requires`'a yazın ki
 `add` onu da getirsin. Websocket plugin'i tam olarak bunu yapar; `New(nil)`'in onun
 için çalışmasının nedeni de budur.
+
+## v1 bir plugin'e ne söz verir
+
+Bir plugin, `github.com/Elagoht/collage`'a v1 üzerinden bağımlıdır ve sonraki her v1
+release'iyle uyumlu kalır: `pkg/collage` ve `pkg/collagetest` v1 içinde hiçbir şeyi
+bozmaz; bozulma bir v2 module path'i demek olurdu. Buna güvenebileceğiniz şeyler ve
+sizden beklenenler:
+
+- `Plugin`, `Metrics`, `Tracer`, `Span` ve cache interface'leri yeni method almaz.
+  `Metrics` ya da `Tracer` implement eden bir plugin `collage.NoopMetrics`,
+  `collage.NoopTracer` ve `collage.NoopSpan`'ı embed eder; bütün method'ları kendisi
+  yazan da çalışır.
+- Yeni bir capability, type assertion ile bulunan opsiyonel bir interface olarak
+  gelir; bu yüzden onu implement etmeyen bir plugin etkilenmez.
+- `Host` ve `ConfigHost` mühürlüdür ve büyüyebilir; onları yalnızca collage implement
+  eder. Bir plugin'i elle yazılmış bir `Host` ile değil, gerçek bir uygulama
+  (`collagetest.NewSite`) üzerinden test edin.
+- Bir cache store'u sağlayan plugin, testlerinde `collagetest.CacheSuite`'i, paylaşılan
+  bir store için `collagetest.SharedCacheSuite`'i çalıştırır. Suite'ler dokümante
+  edilmiş sözleşmeyi eksiksiz kontrol eder: `GetStale`'e karşı silme, stale işaretinden
+  sağ çıkan tag'ler, `Clear` boyunca asla geri gitmeyen bir epoch. Silmek yerine
+  işaretleyen ya da epoch'unu sıfırlayan bir store onlara takılır.
+
+Tam liste için [v1 içinde kararlı olanlar](/docs/writing-plugins#stable-within-v1)
+bölümüne bakın.
 
 ## Tag koymadan önce kontrol edin
 

@@ -63,11 +63,6 @@ which get a `*Post` rather than a value to assert. The constructors are function
 of their own rather than forms of `WithData` because Go methods cannot take type
 parameters.
 
-Before v0.49.0 a handler was handed over with `WithDataHandler` and returned
-`(any, []string, error)`, and fixed data was `WithData(v)`. Both are gone: wrap the
-handler in `collage.LoadTagged`, returning its real type, and the value in
-`collage.Value`. (`LoadTagged` was named `DataHandler` until v0.60.0.)
-
 The three results of a `LoadTagged` each have a job.
 
 - **The data** — whatever the template renders, as `.`. A struct written for the
@@ -149,7 +144,7 @@ declares no strategy static.
 A fragment has one source of data. Calling `WithData` twice with data is refused at
 registration with `collage.ErrConflictingData`, whose message names the fragment:
 `fragment "home-content" has its data set twice`. Keep the call you mean and drop
-the other; before v0.49.0 the second call silently won.
+the other.
 
 A nil `Data` —
 `WithData(nil)`, or a constructor handed a nil function — is no data, and
@@ -193,7 +188,7 @@ func postData(posts *blog.Service) collage.Data {
 ```
 
 `collage add page` and `collage add fragment` write the handler in this shape,
-with no parameters yet (since v0.73.0), so a service is one parameter added to
+with no parameters yet, so a service is one parameter added to
 both functions. In VS Code, the extension's `cdata` snippet writes one, returning
 the `…View` type the file declares.
 
@@ -259,7 +254,10 @@ The order that is guaranteed:
   order.
 - **Templates still render one at a time, in tree order.** Output is identical from
   one request to the next, and anything that depends on order — which title wins in
-  the `<head>`, say — is decided by the tree, not by which handler finished first.
+  the `<head>`, say — is decided by the tree, not by which handler finished first:
+  the innermost declaration wins, and at equal depth the one later in the page —
+  within a slot, the fragment bound later; between slots, the one the template
+  renders later.
 
 That has three consequences for the code you write.
 
@@ -269,8 +267,9 @@ That has three consequences for the code you write.
 - **Shared values go through a `collage.Key`,** whose `Get` and `Set` hold the
   render's lock — see [below](#sharing-data-between-fragments).
 - **A fragment in a slot the template does not render still starts.** Its context
-  is cancelled as soon as the template has finished, and its failure is discarded.
-  A handler that is expensive and usually skipped belongs behind something other
+  is cancelled as soon as the template has finished, and its failure is discarded,
+  as is everything it declared: it changes no title, meta or tags, and hoists
+  nothing. A handler that is expensive and usually skipped belongs behind something other
   than a conditional in a template.
 
 ## The render context
@@ -283,12 +282,12 @@ rendered.
 | `rc.Request` | The `*http.Request` being answered. In a static export, a synthetic `GET` for the page's path |
 | `rc.Locale` | The locale the URL resolved to |
 | `rc.Param(name)`, `rc.PathParams` | What the route's `{name}` placeholders captured |
-| `rc.Page` | The page being rendered; in an action, the page whose URL it answers on (since v0.33.0); in a fragment served at a URL its page opened for it, that page (since v0.77.0) — **read only** |
+| `rc.Page` | The page being rendered; in an action, the page whose URL it answers on; in a fragment served at a URL its page opened for it, that page — **read only** |
 | `key.Get(rc)`, `key.Set(rc, value)` | Values shared between the fragments of one render, through a `collage.Key` |
 | `rc.Context()` | The context the render context carries |
 | `rc.HoistTitle`, `rc.HoistMeta`, `rc.HoistProperty`, `rc.HoistLink`, `rc.HoistAlternate`, `rc.HoistStylesheet`, `rc.Hoist` | Declarations for the page's `<head>` — see [Head and SEO](/docs/head-and-seo) |
 | `rc.Asset(path)` | A mounted file's content-addressed URL — see [Static assets](/docs/assets) |
-| `rc.URL(name, params)`, `rc.ActionURL(name, params)` | A page's or an action's URL by name, in the render's locale (since v0.37.0) — see [Links from Go](/docs/links-and-locales#links-from-go) |
+| `rc.URL(name, params)`, `rc.ActionURL(name, params)` | A page's or an action's URL by name, in the render's locale — see [Links from Go](/docs/links-and-locales#links-from-go) |
 
 Inside a handler, `rc.Context()` is the same context as the `ctx` argument, with
 the fragment's timeout on it. Use `ctx`; it is the one already in hand.
@@ -336,13 +335,15 @@ values, and two `NewKey[*Post]("post")` declared in different files are one. Key
 are your application's own namespace; pick names that will not collide.
 
 `With` derives a key per value from a declared one: `postKey.With(slug)` is named
-`post:<slug>` and holds the same type. `NewKey` panics on an empty name, at the
-line that declares it, and a zero `Key` — a struct field never made with `NewKey`
-— panics where it is used.
+`post:<slug>` and holds the same type, and it chains,
+`boardKey.With(id).With("filter")`. A part's `:` and `\` are escaped, so
+`With("b:c")` and `With("b").With("c")` are two keys; a part without them keeps
+its name as written. `NewKey` panics on an empty name, at the line that declares
+it, and a zero `Key` — a struct field never made with `NewKey` — panics where it
+is used.
 
 `Get` and `Set` take the render's lock, which is why they are safe from concurrent
-siblings. Before v0.50.0 values were shared with `rc.Set(key, value)` and
-`collage.Get[T](rc, key)`, over a `SharedData` map; all three are gone.
+siblings.
 
 This works from parent to child, because a parent's handler finishes first. It does
 not work between siblings: they run at the same time, so one cannot count on the
@@ -376,11 +377,18 @@ and the write, and two siblings both fall into it and both fetch.
 
 - **An error is a result.** Everyone waiting gets it; the fetch is not retried per
   fragment, which is how one slow failure would become several.
+- **Except a cancellation.** A fetch that failed only because the context of the
+  fragment that ran it ended — a speculative prefetch for a slot the template did
+  not render, say — says nothing about the key: the next caller fetches again
+  rather than failing with it.
+- **A panic releases everyone.** A fetch that panics frees the fragments waiting
+  on it at once, each with an error saying so, and the panic goes to the fragment
+  whose fetch it was, which fails as a `*collage.PanicError`.
 - **It lasts one render.** There is nothing to configure and nothing to evict.
 - **A waiter whose own context ends stops waiting** and returns that error.
 - **Its values are its own.** What `Once` fetched is not readable with `Get`, and
   what `Set` stored is not handed to `Once`. Two keys of one name and different
-  types are two fetches; before v0.50.0 that was `ErrOnceTypeMismatch`.
+  types are two fetches.
 
 ### collage.Cached
 
@@ -432,7 +440,9 @@ instead, or add them with `WithDependencyTags` on the page.
 
 A title known when the program starts — the site's name, on its layout — needs no
 handler at all. `WithTitle(s)` on the fragment declares it, and leaves a page that
-declares no strategy static; see [Head and SEO](/docs/head-and-seo).
+declares no strategy static. It counts at its fragment's place in the page exactly
+as a handler's `HoistTitle` would, so a more specific fragment's title still wins
+over it; see [Head and SEO](/docs/head-and-seo).
 
 ## Example: a catalogue product page
 
@@ -666,9 +676,8 @@ service at the point you chose.
 The error says which deadline it was. Only the fragment's own timeout is reported
 as one — `collage: execution exceeded 5s` — and a context that ended above it, a
 request cancelled or a shorter deadline, is reported as `collage: execution
-stopped by context`, with its cause when it has one. Before v0.18.1 both read as
-a timeout, and a cancelled request sent you looking for a handler that was never
-slow.
+stopped by context`, with its cause when it has one, so a cancelled request does
+not send you looking for a handler that was never slow.
 
 ## Panics
 
@@ -683,8 +692,8 @@ A template reads its data by name — `{{.Title}}`, `{{.Author.Name}}` — and
 `html/template` resolves those names only when the template runs. A `{{.Titel}}`
 fails every render of its page, and on a page nobody visits, it never shows.
 
-Since v0.49.0 every fragment's data comes from a typed constructor, so registration
-knows the Go type each template will run with and walks the template against it.
+Every fragment's data comes from a typed constructor, so registration knows the Go
+type each template will run with and walks the template against it.
 `RegisterPage` refuses a page whose templates do not fit their data, naming the
 page, the fragment, the file, the line and the column:
 
@@ -693,9 +702,16 @@ collage: page "post": fragment "post-body" (post.html:1:6): {{.Titel}}: type blo
 ```
 
 It reports only what is certain to fail: each finding is an expression
-`text/template` would fail on when the render reached it. An application that now
-fails at startup had a template that would already have failed when rendered; the
-check reports it earlier, and adds no rule of its own.
+`text/template` would fail on when the render reached it. A template the check
+refuses would have failed when rendered; the check reports it earlier, and adds no
+rule of its own.
+
+Escaping is checked at registration too, beside the types: every fragment's root
+template is escaped once, as its first render would escape it, and a template
+`html/template` cannot escape — a `<script>` string that never closes, `{{if}}`
+branches that leave an attribute in different states — is refused, naming the
+page, the fragment and the template. `WithoutTypeCheck()` does not turn that off.
+See [Templates](/docs/templates#loaded-once-checked-early).
 
 ### What is walked
 
@@ -746,7 +762,7 @@ variable keeps the type it was given for its scope.
   `1.5` a `float64`, `1i` a `complex128`, `'a'` an `int`. So `{{(1.5).Nope}}` and
   `{{len 1}}` are reported, as are a constant too large for an `int` and `nil`
   used as a command.
-- **An argument its parameter cannot take** (from v0.51.0), judged as
+- **An argument its parameter cannot take**, judged as
   `text/template` judges it when it calls a template function or a method:
   - a constant by the parameter's kind: an integer parameter takes a number
     written as an integer, an unsigned one a non-negative integer, a float one

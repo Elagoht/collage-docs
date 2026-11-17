@@ -302,6 +302,17 @@ collage'ı kullanın.
   Derlenemeyen Go kodu, derleyicinin hatasını tarayıcıda gösterir. Hiç başlayamayan bir program ise reddedilen bir bağlantı
   yerine yazdırdığı çıktıyı tarayıcıda gösterir.
 
+## Kararlılık
+
+collage v1'dedir. Public paketleri, `pkg/collage` ve `pkg/collagetest`, semantic
+versioning'e uyar: v1 boyunca bunlarda hiçbir şey bozulmaz. Her değişiklik CI'da
+son release'in API'siyle karşılaştırılır; geriye uyumsuz bir değişiklik yeni bir
+module path, yani v2 demek olurdu. `internal/` altındaki hiçbir şey API değildir ve
+herhangi bir release'te değişebilir. Sizin implement ettiğiniz interface'ler —
+`Metrics`, `Tracer`, `Span` ve cache interface'leri — v1 boyunca yeni method
+kazanmaz; framework'ün bunlara eklediği bir şey, onun yerine opsiyonel bir
+interface olarak gelir.
+
 ## Sırada ne var
 
 [Kurulum](/docs/installation) bir projeyi bir dakikada çalışır hale getirir.

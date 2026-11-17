@@ -1,6 +1,6 @@
 ---
 description: collage'ın request forgery'ye, open redirect'lere, path hilelerine, cache sızıntılarına ve aşırı büyük body'lere karşı yaptıkları ve size bıraktıkları.
-reference: SecurityConfig, ErrCSRFCrossOrigin, Vary
+reference: SecurityConfig, ErrCSRFCrossOrigin, Vary, WithAttachments
 ---
 
 # Güvenlik
@@ -70,7 +70,8 @@ amaçlanan bir origin `Security.CSRFTrustedOrigins`'te belirtilir. Ayrıntılar 
 bakın.
 
 Deploy etmeden önce `Security.CSRFKey`'i ayarlayın: üretilen bir key her process'te
-farklıdır.
+farklıdır; bu yüzden bir restart'tan sonra ya da bir load balancer'ın arkasındaki başka
+bir instance'ta, okuyucunun ekranında zaten açık olan her form reddedilir.
 
 Bir token, üretildiği zamanı imzalı olarak taşır ve `Security.CSRFTokenTTL`'den daha
 eski olduğunda reddedilir. Varsayılan on iki saattir, böylece sızan bir token sonsuza
@@ -80,7 +81,7 @@ Uzun süredir açık bir form'u olan bir okuyucu reddedilmek yerine yeni bir tok
 alır. Bir token'ı imzası geçerli olduğu sürece geçerli tutmak için
 `CSRFTokenTTL`'i negatif yapın.
 
-v0.72.0'dan beri bir form'daki token her response'ta yeniden maskelenir: her
+Bir form'daki token her response'ta yeniden maskelenir: her
 seferinde yeni, rastgele bir pad ile XOR'lanır ve başına `~` konur. Request'in
 gönderdiğini yansıtan sıkıştırılmış bir response, yansıyan metin token'ın bir
 kısmıyla eşleştiğinde daha kısa olur. Bir okuyucunun tarayıcısına request
@@ -89,13 +90,12 @@ Maskelenmiş token her seferinde farklı byte'lardır. Kontrol maskeyi hem form'
 hem header'dan gelen değerden kaldırır ve maskelenmemiş bir token'ı da kabul eder.
 
 Üretilemeyen bir token, page'i form'unda token'ın placeholder'ıyla sunmak yerine
-response'u 500 ile başarısız kılar (v0.79.0'dan beri).
+response'u 500 ile başarısız kılar.
 
 `GET` ve `HEAD` tasarım gereği token taşımaz; bu yüzden yalnızca bunlara cevap veren
 bir action, herhangi bir sitenin bir okuyucunun tarayıcısına bir link ya da bir
-`<img>` ile tetikletebileceği bir değişikliktir. v0.79.0'dan beri böyle bir action'ı
-register etmek development'ta bir uyarı log'lar ve `HEAD` artık bir `GET` action'ına
-düşmez: action onu bildirmedikçe 405'tir. Bkz.
+`<img>` ile tetikletebileceği bir değişikliktir. Böyle bir action'ı register etmek
+development'ta bir uyarı log'lar ve `HEAD` bir `GET` action'ına düşmez: action onu bildirmedikçe 405'tir. Bkz.
 [Form'lar ve action'lar](/docs/forms-and-actions).
 
 ## Redirect'ler sitede kalır
@@ -116,7 +116,7 @@ ayarladığınız gibi yazar. Bu yüzden request'ten, kontrol etmeden bir `Locat
 oluşturmayın. Bazıları siteden çıkmak zorundadır (bir giriş sağlayıcısının
 sayfası), collage'ın onları kontrol etmemesinin sebebi budur.
 
-URL'den alınan bir `next` için collage v0.44.0'dan beri kendi kontrolünü sunar:
+URL'den alınan bir `next` için collage kendi kontrolünü sunar:
 
 ```go
 loc := collage.SafeRedirect(rc.Request.URL.Query().Get("next"), "/")
@@ -143,8 +143,15 @@ arasında bir fark çıkabilecek her yerde request hiçbir yere ulaşmaz:
   değildir, ama middleware decode edilmiş path'i okur ve orada `/public%2Fsecret`,
   `/public/secret`'tir: middleware için iki segment, router için tek segment.
 - Bozuk bir escape 500 değil 400 döner.
+- Bir action'ın ya da document'ın sondaki slash'li diğer yazımı, tek yazımına
+  redirect edilir (action için 308, document için 301; page'de olduğu gibi) ve hiçbir
+  zaman sunulmaz. Redirect middleware'inizden sonra gelir; middleware path'i geldiği
+  gibi görür. Bu yüzden tam bir path üzerindeki kontrolde canonical path'i
+  karşılaştırın (ya da slash'i kesin), yoksa `POST /admin/delete/` yazmadığınız bir
+  path olarak değerlendirilir. `/admin/` gibi bir prefix'te böyle bir açık yoktur.
+  Bkz. [Middleware ve kendi API'niz](/docs/middleware-and-apis).
 
-Bu retler görünmez değildir. v0.79.0'dan beri, tarayıcı bot'unun path'i yerine
+Bu retler görünmez değildir. Tarayıcı bot'unun path'i yerine
 sınırlı bir etiket altında, diğer her request gibi süreleri ölçülür, trace edilir ve
 sayılır: `collage.RouteInfo` tür olarak `"rejected"`, ad olarak `"normalise"`
 bildirir; `Metrics.HTTPResponse` ve request span'i path almaz. Bir dashboard ya da
@@ -164,7 +171,7 @@ ile gider. Böylece bir CDN, bir okuyucunun page'ini ya da aldığı reddi hiçb
 sonrakine vermez. Static export guard'lı page'leri hiç yazmaz.
 
 Bir plugin'in bir stream üzerinden gönderdiği fragment da aynı kurala tabidir:
-v0.78.0'dan beri fragment'in kendi URL'sine gelen bir request olarak render edilir.
+fragment'in kendi URL'sine gelen bir request olarak render edilir.
 Bu request o path için sizin ve plugin'lerin middleware'inden, ardından o URL'nin
 parametrelerini (stream'inkileri asla) okuyan guard'lardan geçer. `/admin/` üzerindeki
 bir basicauth, `/admin/stats`'ı bir live stream'in dışında tutar; middleware'in ya da
@@ -172,8 +179,7 @@ bir guard'ın artık reddettiği bir okuyucuya hiçbir şey gönderilmez.
 
 ## Plugin'ler HTTP'nin ulaştığı yere ulaşır
 
-Bir plugin güvenilen koddur, ama `Host`'u dokümantasyonunun verdiği sözleri tutar
-(v0.78.0'dan beri):
+Bir plugin güvenilen koddur, ama `Host`'u dokümantasyonunun verdiği sözleri tutar:
 
 - **Gönderilen bir fragment bir request'tir.** `RenderFragment` middleware'i,
   guard'ları ve her `PersonaliseHook`'u (bir CSP nonce'u, bir honeypot marker'ı)
@@ -181,8 +187,8 @@ Bir plugin güvenilen koddur, ama `Host`'u dokümantasyonunun verdiği sözleri 
   render her değişiklikte bir kez yapılır ve yalnızca middleware'i ve guard'ları
   kabul eden okuyuculara verilir.
 - **Yapılandırma `Configure` ile biter.** Saklanan bir `ConfigHost` sonradan template
-  fonksiyonu eklemez ve mount wrap etmez (`ErrConfigureClosed`); önceden geç gelen
-  bir render fonksiyonu process'i çökertiyordu.
+  fonksiyonu eklemez ve mount wrap etmez (`ErrConfigureClosed`); geç gelen bir
+  render fonksiyonu process'i çökertirdi.
 - **Bir plugin template dilinin bir adını alamaz.** `html`, `js`, `urlquery`, `eq`
   ve diğerleri reddedilir; böylece hiçbir plugin'in `html`'i html/template'in
   escaping'inin yerine geçmez. Uygulamanın `Config.Template.Funcs`'ı da her
@@ -192,7 +198,7 @@ Bir plugin güvenilen koddur, ama `Host`'u dokümantasyonunun verdiği sözleri 
   birinin bölümünü okuyamaz ya da kopyası üzerinden cache key'ini değiştiremez.
 - **Bir plugin'in `Host.Handle` body'si**, bir page'inki gibi, middleware'den önce
   `Server.MaxBodyBytes` ile sınırlanır.
-- **Her `OnCacheInvalidate` çalışır**, böylece başarısız olan tek bir plugin artık
+- **Her `OnCacheInvalidate` çalışır**, böylece başarısız olan tek bir plugin
   bir CDN purge'ünü engellemez. **`PersonaliseEvent.Personal` kalıcıdır**: bir hook
   onu bir kez ayarladıysa nonce'lu bir body hiçbir zaman public olarak ya da bir
   304 ile cevaplanmaz.
@@ -213,24 +219,28 @@ yüzden render'a yalnızca key'in içerdikleri verilir:
 
 Bir okuyucunun cookie'leri, credential'ları ya da adresi hiçbir zaman verilmez. Host
 key'de yer aldığı için başka bir host adı veren bir request, diğer herkesin aldığı
-kopyayı zehirleyemez. v0.79.0'dan beri host normalleştirilir (küçük harf, port yok,
+kopyayı zehirleyemez. Host normalleştirilir (küçük harf, port yok,
 sondaki nokta yok); böylece `EXAMPLE.com:8080` ve `example.com` tek bir entry'yi
 paylaşır ve `Host`'un yazımını değiştiren bir client, herkesin okuduğu page'leri
 sınırlı bir cache'ten dışarı itemez. Cacheable bir page mutlak URL'leri artık
 görmediği `r.Host`'taki porttan değil, `collage.BaseURL(rc)`'den kurar.
 
 Degraded bir render, bir error page ve development'taki bir page hiçbir zaman public
-olarak cache'lenemez. Ayrıntılar için
+olarak cache'lenemez. Cache header'ları yazıldığında bir `Set-Cookie` taşıyan response de
+öyledir (bir middleware'in koyduğu bir session yenilemesi gibi): `Cache-Control: private,
+no-store` ile gider, böylece bir CDN bir okuyucunun cookie'sini sonrakine oynatamaz.
+Page yine de sunucuda cache'lenir. Aynı URL için TLS üzerinden gelen request ile düz
+request ayrı entry'lerdir. Ayrıntılar için
 [Paylaşılan bir render neyi görür](/docs/caching#what-a-shared-render-sees)
 bölümüne bakın.
 
 ## Body'ler sınırlıdır
 
 Bir request body'si, middleware'iniz çalışmadan önce, yönlendirildiği action'ın
-limitiyle sınırlanır. Aksini söylemediğiniz sürece bu limit 4 MiB'tır. v0.71.0'dan
-beri middleware yokken de böyledir, yani bir page'in ya da action'ın guard'ı body'yi
+limitiyle sınırlanır. Aksini söylemediğiniz sürece bu limit 4 MiB'tır. Middleware yokken de böyledir, yani bir page'in ya da action'ın guard'ı body'yi
 sınırlı olarak okur. Daha büyük olduğunu söyleyen bir body, handler çalışmadan önce
-reddedilir.
+reddedilir. net/http'nin kendi 10 MB'ını aşan urlencoded bir form, limit ne kadar
+yüksek olursa olsun 403 değil 413 döner.
 
 Diske taşan multipart dosyalar, form'u kim parse etmiş olursa olsun request
 cevaplandığında silinir. Forgery kontrolünün
@@ -251,7 +261,10 @@ içeren uzantısız bir upload bir page olarak sunulmaz.
 Uzantısı olan bir dosya ise bilerek uzantısının söylediği gibi sunulur: static bir
 sitenin `.html` ve `.svg` dosyaları page ve görseldir. Bu yüzden ziyaretçilerinizin
 yüklediği dosyaların klasörünü hiçbir zaman düz bir `Mount` ile mount etmeyin: oradaki
-bir `.html` ya da `.svg`, script'ini sizin siteniz olarak çalıştırır.
+bir `.html` ya da `.svg`, script'ini sizin siteniz olarak çalıştırır. Onu
+`collage.WithAttachments()` ile mount edin: `.html`, `.xhtml`, `.svg` ve `.xml`
+dosyaları o zaman `Content-Disposition: attachment` ile gönderilir, tarayıcı da onları
+çalıştırmak yerine kaydeder. Ya da sakladığınız uzantıları kendiniz denetleyin.
 [elagoht/uploads](/docs/plugins#elagohtuploads) her dosyayı içeriğine göre kontrol
 eder ve bunu yapamayacağı şekilde sunar.
 
@@ -278,8 +291,7 @@ Her response varsayılan olarak `X-Content-Type-Options: nosniff` ve
 form'larında MIME-sniff ve clickjacking korumasına sahip olur.
 
 `Security.FrameOptions` değeri belirler: `"-"` hiçbirini göndermez, başka her şey
-olduğu gibi gönderilir. `Security.DisableNoSniff` ise nosniff'i kapatır (v0.60.0'dan
-önce `NoSniff *bool`).
+olduğu gibi gönderilir. `Security.DisableNoSniff` ise nosniff'i kapatır.
 
 Tam bir `Content-Security-Policy`, HSTS ve geri kalanını
 [elagoht/secure](/docs/plugins#elagohtsecure) plugin'i ekler ve onun header'ları
@@ -289,11 +301,13 @@ taşımadığı için sıkı bir policy nonce gerektirmez.
 ## Size kalanlar
 
 - **Güvenlik düzeltmelerini içeren bir Go toolchain'i.** Bir program, derlendiği
-  standart kütüphaneyi içinde taşır. v0.72.0'dan beri collage Go 1.26.10 ister.
+  standart kütüphaneyi içinde taşır. collage Go 1.26.11 ister.
   Böylece varsayılan `GOTOOLCHAIN=auto` ile go komutu, daha eski bir Go ile
   yapılacak bir derleme için bu sürümü kendisi indirir. Bir binary'yi
-  `go version -m` ile kontrol edin. Go 1.26.10, ele geçirilmiş eMudhra ara
-  sertifikalarını reddeder (CVE-2026-111943).
+  `go version -m` ile kontrol edin. Go 1.26.11, `http.MaxBytesReader`'daki, bir HTTP/1
+  sunucusunu çökertebilen ve collage'ın body limitinin üzerine kurulu olduğu bir
+  race'i düzeltir (GO-2026-6859); Go 1.26.10 ele geçirilmiş eMudhra ara sertifikalarını
+  reddetti (CVE-2026-111943).
 - **TLS**, `X-Forwarded-Proto`'yu ve tarayıcının `Host`'unu ileten bir proxy'de.
   Ayrıntılar için [Deployment](/docs/deployment#tls-behind-a-proxy) sayfasına bakın.
   [`Server.TrustedProxies`](/docs/deployment#behind-a-proxy-trustedproxies)'i
@@ -308,15 +322,14 @@ taşımadığı için sıkı bir policy nonce gerektirmez.
 - **Rate limit'ler**: [elagoht/ratelimit](/docs/plugins#elagohtratelimit). O ve
   [elagoht/fail2ban](/docs/plugins#elagohtfail2ban) varsayılan olarak bir IPv6
   istemcisini `/64`'ü olarak sayar; bir `/48` sahibinin bunlardan 65536 tane vardır.
-  Karşınızdaki böyle istemcilerse `ipv6Prefix`'i `48` yapın (ikisinde de v0.3.0'dan
-  beri).
+  Karşınızdaki böyle istemcilerse `ipv6Prefix`'i `48` yapın.
 - **Girişten önceki giriş durumu.** [elagoht/oauth](/docs/plugins#elagohtoauth)
-  v0.3.1'den beri bekleyen bir girişi kendine ait kısa ömürlü `collage_oauth`
+  bekleyen bir girişi kendine ait kısa ömürlü `collage_oauth`
   cookie'sinde tutar ve session'ı yalnızca başarılı bir callback'te başlatır; böylece
-  login route'una anonim bir ziyaret artık page cache'i kapatan bir session
+  login route'una anonim bir ziyaret page cache'i kapatan bir session
   dağıtmaz.
 - **`app.Handle` ile mount edilmiş bir handler** tamamen sizindir: forgery kontrolü,
-  body limiti ve cache yoktur, v0.67.0'dan beri middleware de yoktur.
+  body limiti ve cache yoktur, middleware de yoktur.
   `collage.WithMiddleware()` ile mount edilmedikçe hiçbir plugin'in authentication'ı,
   rate limit'i, ban'ı ya da access log'u onu kapsamaz. Ayrıntılar için
   [İstemedikçe middleware yok](/docs/middleware-and-apis#no-middleware-unless-you-ask)
@@ -326,9 +339,25 @@ taşımadığı için sıkı bir policy nonce gerektirmez.
   okuyucunun değeri başka bir okuyucunun page'ine ulaşamaz. Bu değeri `collage.Vary`
   ile bildirin ve `collage.Varied` ile okuyun.
 
-Bir güvenlik açığını bildirmek için
-[collage repository'sinde](https://github.com/Elagoht/collage/security) GitHub'ın
-private reporting özelliğini kullanın.
+- **Layout'taki `{{hoist}}` area adları.** `{{hoist "head"}}` harf, rakam, `_` ve `-`
+  içeren bir ad alır, başka her şeyi reddeder; böylece `{{hoist .Area}}` markup'a
+  çevrilemez. Yine de area'yı literal olarak yazın.
+
+## Düzeltmeler ve bildirim
+
+`pkg/collage` ve `pkg/collagetest` v1.0.0'dan itibaren semantic versioning izler. Bir
+güvenlik düzeltmesi, en son v1 minor'ının patch release'i olarak çıkar ve CHANGELOG
+kaydı, **Security** başlığı altında, nelerin etkilendiğini söyler. Eski bir minor'a
+backport yapılmaz; bu yüzden düzeltmeyi almanın yolu, hiçbir uygulamayı bozmayan en son
+v1 release'ine yükseltmektir.
+
+Bir güvenlik açığını bildirmek için GitHub'ın private reporting özelliğini kullanın:
+[collage repository'sinin](https://github.com/Elagoht/collage/security) **Security**
+sekmesindeki **Report a vulnerability** düğmesi. Public bir issue, pull request ya da
+discussion açmayın. Hangi sürümü test ettiğinizi, bir saldırganın ne yapabildiğini ve
+bunu gösteren en küçük request'i ya da programı yazın. `app.Handle` ile mount edilmiş
+bir handler sizindir; bu yüzden onun yaptığı bir collage açığı sayılmaz. Bir request'in
+ona ulaşmaması gerekirken ulaşabilmesi ise sayılır.
 
 ## Örnek: bir ekibin iş listesi, yayına girmeden önce
 

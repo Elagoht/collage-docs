@@ -68,9 +68,17 @@ Each kind of mistake is caught at the earliest point it can be:
   with `ErrUnknownSlot` — see [Slots](#slots) below.
 - **A template that does not fit its data** — `{{.Titel}}` where the data's type
   has only `Title`, a method called with the wrong number of arguments — fails
-  `RegisterPage` with `ErrTemplateType`, naming the file, the line and the column
-  (since v0.49.0). See
-  [How templates are checked](/docs/data-handlers#how-templates-are-checked).
+  `RegisterPage` with `ErrTemplateType`, naming the file, the line and the column.
+  See [How templates are checked](/docs/data-handlers#how-templates-are-checked).
+- **A template `html/template` cannot escape** — a `<script>` string that never
+  closes, `{{if}}` branches that leave an attribute in different states, a
+  partial that ends inside a tag — fails `RegisterPage`, naming the page, the
+  fragment and the template. `html/template` escapes a template the first time it
+  runs, so such a template would parse cleanly and fail on the first request; an
+  optional fragment would be a section silently missing. Every fragment's root
+  template is escaped once at registration, in the context it renders in, and
+  nothing runs: no data handler, no template function. A partial is escaped as
+  part of the template that includes it, not on its own.
 - **A template that fails while executing** — a field of data whose type was not
   known before the render, a nil pointer, a function returning an error — fails
   its fragment, and the fragment's
@@ -119,7 +127,7 @@ An empty `Root` with an `FS` means the root of the filesystem. The `all:` prefix
 `.` or `_`, which a plain `//go:embed templates` would skip.
 
 `collage new` scaffolds the same with one filesystem, `files`, which embeds
-`templates`, `static` and `plugins-config.json` together (since v0.68.0) and is
+`templates`, `static` and `plugins-config.json` together and is
 given as `Template.FS`.
 
 ## Reloading in development
@@ -167,7 +175,7 @@ Two other things make an edit show up at once:
   does not hide it.
 - Every development page carries a small script that reloads the browser when a
   template or a static file changes — or a file in a directory named in
-  [`Config.DevWatch`](/docs/configuration#devwatch) (since v0.10.0), for content
+  [`Config.DevWatch`](/docs/configuration#devwatch), for content
   such as Markdown that your handlers read from disk.
 
 Since the whole set is reparsed, a syntax error in any one template fails every
@@ -248,7 +256,7 @@ These are available in every template, alongside `html/template`'s own (`printf`
 | `fragmentURLIn "locale" "page" "fragment" …` | The same, in exactly the locale given |
 | `asset "/static/app.css"` | A mounted file's content-addressed URL |
 | `stylesheet "/static/app.css"` | Declares a stylesheet for the page's `<head>` |
-| `hoist "head"` | Where declarations for an area of the page land |
+| `hoist "head"` | Where declarations for an area of the page land. An area's name is letters, digits, `_` and `-`; any other fails the render |
 | `csrfToken` | The hidden input carrying a form's forgery token |
 | `safeHTML`, `safeURL` | Mark a string as trusted HTML or URL — escape hatches |
 | `dict "key" value …` | Builds a map, to pass several values to `{{template}}` |
@@ -263,8 +271,7 @@ These are available in every template, alongside `html/template`'s own (`printf`
 | `trim`, `replace`, `contains`, `hasPrefix`, `hasSuffix`, `split`, `truncate` | String functions, the string last so they read in a pipeline |
 | `first`, `last`, `seq`, `keys`, `hasKey`, `dig` | A list's ends, a range to count over, a map's keys, a value deep in the data |
 
-The functions from `withQuery` down are new in v0.77.0. The link functions are
-strict: an unknown page name or a missing parameter fails the render instead of
+The link functions are strict: an unknown page name or a missing parameter fails the render instead of
 producing a broken link. Each function's arguments and
 behaviour are in [Template functions](/docs/template-functions).
 
@@ -304,18 +311,17 @@ app, err := collage.New(&collage.Config{
   that depend on the render: `slot`, `hoist`, `asset`, `stylesheet`, `csrfToken`,
   `pageURL`, `pageURLIn`, `localeURL`, `actionURL`, `fragmentURL`,
   `fragmentURLIn` and `withQuery`. The render engine binds its own of each
-  for every render, so overriding any of them is accepted and has no effect; since
-  v0.77.0 `New` logs a warning naming it.
+  for every render, so overriding any of them is accepted and has no effect, and
+  `New` logs a warning naming it.
 - **A function cannot see the request.** It is registered once for the whole
   program. Anything that depends on the request, the locale or the user belongs in
   the data handler, which is where the data comes from anyway.
 
 A plugin can contribute functions too, from its `Configure` hook — see
 [Writing a plugin](/docs/writing-plugins). When a plugin and `Funcs` both define a
-name, `Funcs` wins: the application is the one that can see both — since v0.78.0
-for a function the plugin adds per render too. A plugin cannot take a built-in's
-name at all (since v0.77.0), nor one of the template language's, such as `html` or
-`eq` (since v0.78.0).
+name, `Funcs` wins: the application is the one that can see both — for a
+function the plugin adds per render too. A plugin cannot take a built-in's name
+at all, nor one of the template language's, such as `html` or `eq`.
 
 ## Escaping
 
@@ -341,7 +347,9 @@ Two built-ins produce HTML that is inserted as is:
 - `{{hoist}}`, which writes what fragments declared for the page. The
   `rc.HoistTitle`, `rc.HoistMeta` and similar helpers escape what they are given;
   the underlying `rc.Hoist` inserts markup exactly as written, so escaping there is
-  yours. See [Head and SEO](/docs/head-and-seo).
+  yours. The area's name is not escaped but checked: `{{hoist .Area}}` with a name
+  that is not letters, digits, `_` and `-` fails the render, so a value from a
+  request cannot become markup. See [Head and SEO](/docs/head-and-seo).
 
 `pageURL` and its siblings escape the parameter values they substitute into a path,
 and refuse a value of `.` or `..`, which a browser would resolve as a step up the
@@ -558,6 +566,7 @@ Bind the author card with a typo instead, `WithSlotFragment("autor", author)`, a
 collage: unknown slot: page "post" fragment "post" binds into slot "autor", but template "pages/post.html" never calls it; it calls [author]
 ```
 
-Neither check judges escaping. `{{.Text | safeHTML}}` fits its types and passes
-both, and it would print the reader's script as markup: keep `safeHTML` for content
-you generated or sanitised.
+Neither check judges what `safeHTML` is given, and registration's escaping pass
+does not either. `{{.Text | safeHTML}}` fits its types and passes them all, and it
+would print the reader's script as markup: keep `safeHTML` for content you
+generated or sanitised.

@@ -88,8 +88,7 @@ geçmez.
 
 `collage.Vary` gibi bu fonksiyon da routing'den önce çağrılmalıdır. Yani onu `app.Use`
 ile register edilmiş bir middleware'den çağırmanız gerekir. Routing'den sonra, örneğin bir
-data handler'dan çağrılırsa her route'ta `collage.ErrVaryTooLate` döner (v0.11.0'dan
-beri). collage'ın sunmadığı bir request üzerinde çağrılırsa
+data handler'dan çağrılırsa her route'ta `collage.ErrVaryTooLate` döner. collage'ın sunmadığı bir request üzerinde çağrılırsa
 `collage.ErrVaryOutsideRequest` döner.
 
 ## Eksiksiz bir preview akışı

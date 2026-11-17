@@ -1,6 +1,6 @@
 ---
 description: Serving stylesheets, scripts, images and downloads from a directory or an embedded file system, with URLs that can be cached for a year.
-reference: App.Mount, MountOption, WithCacheControl, WithoutBuildCopy, ErrUnknownAsset, Env.Static
+reference: App.Mount, MountOption, WithAttachments, WithCacheControl, WithoutBuildCopy, ErrUnknownAsset, Env.Static
 ---
 
 # Static assets
@@ -75,7 +75,7 @@ func mountAssets(app *collage.App) error {
 
 In development you want the directory on disk instead — the embedded copy was
 fixed when the binary was built, so editing a file would change nothing.
-`Env.Static` (since v0.68.0) makes that choice, and a scaffolded project's
+`Env.Static` makes that choice, and a scaffolded project's
 `newApp` mounts what it returns:
 
 ```go
@@ -83,8 +83,7 @@ return app, app.Mount("/static/", env.Static(files, "static"))
 ```
 
 With `Env.Dev` on it opens the directory on disk with `os.OpenRoot`; otherwise it
-is `fs.Sub(files, "static")`, the embedded copy. Before v0.68.0 the scaffold wrote
-the same choice out in a `staticFiles` function of its own.
+is `fs.Sub(files, "static")`, the embedded copy. 
 
 collage makes this choice for templates itself, because `Template.Root` tells it
 where they are on disk. A mount is handed only an `fs.FS`, so where its files came
@@ -126,7 +125,9 @@ Three details:
 - **A file that does not exist is an error, not a URL.** `{{asset
   "/static/typo.css"}}` fails the fragment with `collage.ErrUnknownAsset`. The
   alternative is a page that renders "successfully" while linking a stylesheet
-  that 404s.
+  that 404s. A name the mount would not serve is an error too: a dotfile, or a name
+  that is not a valid path within the mount. Each segment of the name is escaped,
+  so `100%.css` links as `100%25.css`.
 - **The hash in a request is checked.** A URL whose hash is not the file's
   current one is a 404, not the file. Serving it would pin a wrong answer in front
   of everyone behind a shared cache, for a year.
@@ -175,7 +176,7 @@ rc.HoistProperty("og:image", siteOrigin+cover)
 
 `rc.Asset` returns exactly what `{{asset}}` renders, and `collage.ErrUnknownAsset`
 for a path no mount serves. It works in a [document's](/docs/documents#the-handler)
-handler too, since v0.10.0 — an icon URL in a web manifest. For stylesheets,
+handler too — an icon URL in a web manifest. For stylesheets,
 `rc.HoistStylesheet` and `{{stylesheet}}` do the lookup and the `<link>` in one
 step — see [Head and SEO](/docs/head-and-seo).
 
@@ -192,6 +193,8 @@ err := app.Mount("/media/", media.FS(),
 | --- | --- |
 | `collage.WithCacheControl(value)` | The `Cache-Control` for files requested by their plain name. Default `public, max-age=3600` |
 | `collage.WithoutBuildCopy()` | [Static export](/docs/static-export) does not copy this mount into its output |
+| `collage.WithAttachments()` | An `.html`, `.xhtml`, `.svg` or `.xml` file is served with `Content-Disposition: attachment`, so a browser saves it instead of running it. For a mount of uploads |
+
 
 `WithCacheControl` is about plain names only; content-addressed URLs are always
 served with a year and `immutable`, because that is what their names earn. How
@@ -201,6 +204,18 @@ only you know — so it is yours to set.
 `WithoutBuildCopy` is for a mount that production serves from somewhere else, such
 as a CDN, or one too large to duplicate into every build.
 
+### A mount of uploads needs `WithAttachments()`
+
+A mount serves a file as its name says: `up.html` is `text/html` and `up.svg` is
+`image/svg+xml`, on your site's origin, where their script runs with your cookies.
+The rule that content is never sniffed into HTML covers only a file with *no*
+extension. A mount of what readers upload therefore uses `WithAttachments()`, which
+serves an `.html`, `.xhtml`, `.svg` or `.xml` file with
+`Content-Disposition: attachment`, so a browser downloads it instead of running
+it — or else it controls which extensions are ever stored. Neither is automatic: a
+plain mount of a directory you wrote yourself has no reason to pay for it.
+
+
 ## What a file response contains
 
 A mount is a thin layer over `fs.Open` and Go's `http.ServeContent`, not
@@ -209,12 +224,13 @@ A mount is a thin layer over `fs.Open` and Go's `http.ServeContent`, not
 | | |
 | --- | --- |
 | Methods | `GET` and `HEAD`. Anything else is a `405` with `Allow: GET, HEAD` |
-| `Content-Type` | From the file extension. A file whose name says nothing is sniffed from its first 512 bytes, but never into a type that runs: one that looks like HTML or XML is `text/plain` (since v0.34.2). Always with `X-Content-Type-Options: nosniff` |
-| `ETag` | A strong hash of the file's content, computed on first request and remembered |
+| `Content-Type` | From the file extension. A file whose name says nothing is sniffed from its first 512 bytes, but never into a type that runs: one that looks like HTML or XML is `text/plain`. Always with `X-Content-Type-Options: nosniff` |
+| `ETag` | A strong hash of the file's content, computed on first request and remembered; concurrent first requests for one file share a single hash |
 | `Range` | Supported, with `If-Range` and `206 Partial Content` |
 | Directories | Never listed. A directory, or the bare prefix, is a 404 |
 | `index.html` | Never served implicitly |
-| Dotfiles | Never served, and never copied by an export: a path with an element starting with `.` — `.env`, `.git/`, an editor's swap file — is a 404. `.well-known` is the exception (since v0.34.0) |
+| Dotfiles | Never served, and never copied by an export: a path with an element starting with `.` — `.env`, `.git/`, an editor's swap file — is a 404. `.well-known` is the exception. `Mount.URL` refuses to link one |
+| A trailing slash | `/static/app.css/` is a 404, not the file |
 | A missing file | A plain-text `404`, `no-store` — never your HTML not-found page |
 
 **`Range` requests** are what let a browser seek in an audio or video file, or

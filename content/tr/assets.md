@@ -1,6 +1,6 @@
 ---
 description: Stylesheet'leri, script'leri, görselleri ve indirilecek dosyaları bir dizinden ya da gömülü bir dosya sisteminden, bir yıl cache'lenebilen URL'lerle sunmak.
-reference: App.Mount, MountOption, WithCacheControl, WithoutBuildCopy, ErrUnknownAsset, Env.Static
+reference: App.Mount, MountOption, WithAttachments, WithCacheControl, WithoutBuildCopy, ErrUnknownAsset, Env.Static
 ---
 
 # Static asset'ler
@@ -79,7 +79,7 @@ func mountAssets(app *collage.App) error {
 
 Development'ta ise diskteki dizini kullanmak istersiniz. Gömülü kopya
 binary build edildiği anda sabitlenmiştir, bu yüzden bir dosyayı düzenlemek hiçbir
-şeyi değiştirmez. Bu seçimi `Env.Static` (v0.68.0'dan beri) yapar. Scaffold edilmiş
+şeyi değiştirmez. Bu seçimi `Env.Static` yapar. Scaffold edilmiş
 bir projenin `newApp`'i de onun döndürdüğünü mount eder:
 
 ```go
@@ -87,8 +87,7 @@ return app, app.Mount("/static/", env.Static(files, "static"))
 ```
 
 `Env.Dev` açıkken diskteki dizini `os.OpenRoot` ile açar. Değilse embed edilmiş
-kopya olan `fs.Sub(files, "static")`'i döner. v0.68.0'dan önce scaffold aynı seçimi
-kendine ait bir `staticFiles` fonksiyonunda açıkça yazıyordu.
+kopya olan `fs.Sub(files, "static")`'i döner. 
 
 collage bu seçimi template'ler için kendisi yapar, çünkü `Template.Root`
 template'lerin diskte nerede olduğunu ona söyler. Bir mount'a ise yalnızca bir
@@ -131,7 +130,7 @@ birine bugünün HTML'iyle birlikte dünün stylesheet'ini verir.
 - **Var olmayan bir dosya URL üretmez, hata üretir.** `{{asset
   "/static/typo.css"}}`, fragment'i `collage.ErrUnknownAsset` ile başarısız
   kılar. Aksi hâlde page "başarıyla" render edilir, ama 404 dönen bir
-  stylesheet'e link verir.
+  stylesheet'e link verir. Mount'un sunmayacağı bir ad da hatadır: bir dotfile ya da mount içinde geçerli bir path olmayan bir ad. Dosya adının her segment'i escape edilir; örneğin `100%.css`, `100%25.css` olarak link verilir.
 - **Request'teki hash kontrol edilir.** Hash'i dosyanın güncel hash'iyle
   eşleşmeyen bir URL, dosyayı değil 404 döner. O dosyayı sunmak, shared cache'in
   arkasındaki herkese bir yıl boyunca yanlış bir cevabı sabitlemek olurdu.
@@ -180,8 +179,7 @@ rc.HoistProperty("og:image", siteOrigin+cover)
 ```
 
 `rc.Asset`, `{{asset}}`'in render ettiği değerin aynısını döndürür. Hiçbir
-mount'un sunmadığı bir path için `collage.ErrUnknownAsset` döndürür. v0.10.0'dan
-beri bir [document'ın](/docs/documents#the-handler) handler'ında da çalışır;
+mount'un sunmadığı bir path için `collage.ErrUnknownAsset` döndürür. Bir [document'ın](/docs/documents#the-handler) handler'ında da çalışır;
 örneğin bir web manifest'indeki ikon URL'si için. Stylesheet'ler için `rc.HoistStylesheet` ve
 `{{stylesheet}}`, lookup'ı ve `<link>`'i tek adımda yapar. Ayrıntılar için
 [Head ve SEO](/docs/head-and-seo) sayfasına bakın.
@@ -199,6 +197,8 @@ err := app.Mount("/media/", media.FS(),
 | --- | --- |
 | `collage.WithCacheControl(value)` | Düz adlarıyla istenen dosyalar için `Cache-Control` değeri. Varsayılanı `public, max-age=3600` |
 | `collage.WithoutBuildCopy()` | [Static export](/docs/static-export) bu mount'u çıktısına kopyalamaz |
+| `collage.WithAttachments()` | Bir `.html`, `.xhtml`, `.svg` ya da `.xml` dosyası `Content-Disposition: attachment` ile sunulur; böylece tarayıcı onu çalıştırmak yerine kaydeder. Upload'ların mount'u içindir |
+
 
 `WithCacheControl` yalnızca düz adları etkiler. Content-addressed URL'ler her zaman
 bir yıl ve `immutable` ile sunulur, çünkü adları bunu hak eder. Düz bir adın ne
@@ -208,6 +208,11 @@ bağlıdır. Bunu yalnızca siz bilirsiniz, bu yüzden ayarlamak da size kalır.
 `WithoutBuildCopy`, production'da başka bir yerden (örneğin bir CDN'den) sunulan
 ya da her build'e kopyalanamayacak kadar büyük olan bir mount içindir.
 
+### Upload'ların mount'u `WithAttachments()` ister
+
+Bir mount dosyayı adının söylediği gibi sunar: `up.html` `text/html`, `up.svg` ise `image/svg+xml` olur ve bunlar sitenizin origin'inde, script'leri cookie'lerinizle çalışacak biçimde sunulur. İçeriğin hiçbir zaman HTML'e sniff edilmemesi kuralı yalnızca uzantısı *olmayan* dosyayı kapsar. Okuyucuların yüklediklerinin mount'u bu yüzden `WithAttachments()` kullanır: `.html`, `.xhtml`, `.svg` ya da `.xml` dosyasını `Content-Disposition: attachment` ile sunar, böylece tarayıcı onu çalıştırmak yerine indirir. Ya da hangi uzantıların saklanabileceğini kendiniz denetlersiniz. İkisi de otomatik değildir: kendi yazdığınız bir dizinin düz mount'unun bunun bedelini ödemesi için bir neden yoktur.
+
+
 ## Bir dosya response'u neleri içerir
 
 Bir mount, `http.FileServer` üzerine değil, `fs.Open` ve Go'nun
@@ -216,12 +221,13 @@ Bir mount, `http.FileServer` üzerine değil, `fs.Open` ve Go'nun
 | | |
 | --- | --- |
 | Method'lar | `GET` ve `HEAD`. Diğer her method `Allow: GET, HEAD` ile birlikte `405` alır |
-| `Content-Type` | Dosya uzantısından belirlenir. Adı bir tip belirtmeyen dosya ilk 512 byte'ından sniff edilir, ama hiçbir zaman çalıştırılabilen bir tipe dönüşmez: HTML ya da XML'e benzeyen bir dosya `text/plain` olur (v0.34.2'den beri). Her zaman `X-Content-Type-Options: nosniff` ile gider |
-| `ETag` | Dosya içeriğinin strong hash'idir. İlk request'te hesaplanır ve hatırlanır |
+| `Content-Type` | Dosya uzantısından belirlenir. Adı bir tip belirtmeyen dosya ilk 512 byte'ından sniff edilir, ama hiçbir zaman çalıştırılabilen bir tipe dönüşmez: HTML ya da XML'e benzeyen bir dosya `text/plain` olur. Her zaman `X-Content-Type-Options: nosniff` ile gider |
+| `ETag` | Dosya içeriğinin strong hash'idir. İlk request'te hesaplanır ve hatırlanır; bir dosya için eşzamanlı ilk request'ler tek bir hash'i paylaşır |
 | `Range` | `If-Range` ve `206 Partial Content` ile desteklenir |
 | Dizinler | Hiçbir zaman listelenmez. Bir dizin ya da yalnızca prefix 404 döner |
 | `index.html` | Hiçbir zaman örtük olarak sunulmaz |
-| Dotfile'lar | Hiçbir zaman sunulmaz ve export tarafından da kopyalanmaz. Bir elemanı `.` ile başlayan path (`.env`, `.git/`, bir editörün swap dosyası) 404 döner. Tek istisna `.well-known`'dur (v0.34.0'dan beri) |
+| Dotfile'lar | Hiçbir zaman sunulmaz ve export tarafından da kopyalanmaz. Bir elemanı `.` ile başlayan path (`.env`, `.git/`, bir editörün swap dosyası) 404 döner. Tek istisna `.well-known`'dur. `Mount.URL` böyle bir dosyaya link üretmeyi reddeder |
+| Sondaki slash | `/static/app.css/` 404 döner, dosya değil |
 | Olmayan bir dosya | Düz metin bir `404`, `no-store` ile döner. Sizin HTML not-found page'iniz asla dönmez |
 
 **`Range` request'leri**, tarayıcının bir ses ya da video dosyasında dosyayı baştan

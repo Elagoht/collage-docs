@@ -54,7 +54,7 @@ CGO_ENABLED=0 GOOS=<os> GOARCH=<arch> go build -trimpath -ldflags="-s -w" -o bin
 - **`-trimpath`** sayesinde binary, kendisini build eden makinenin path'lerini
   taşımaz.
 - **`-s -w`** debug tablolarını atar. Boyutun büyük kısmı bu tablolardır.
-- **Varsayılan hedef bu makinedir** (v0.32.0'dan beri; öncesinde linux/amd64). Mac
+- **Varsayılan hedef bu makinedir.** Mac
   için build edilmiş bir binary Linux container'ında çalışmaz. O yüzden sunucu için
   hedefi belirtin: `collage build -os linux -arch amd64`.
 
@@ -72,6 +72,15 @@ ve export'un `-clean` seçeneği orada duran bir binary'yi silerdi.
 hiçbir şeyi aklınızda tutmanız gerekmez. Bir start komutu olsaydı yapabileceği tek şey
 `go run .` çalıştırmak olurdu. Bu da Go toolchain'ini production image'ınıza koyar ve
 her açılışta yeniden derleme yapar.
+
+**Go 1.26.11 ya da sonrasıyla build edin.** Bir binary, build edildiği standart
+kütüphaneyi içinde taşır. Go 1.26.11 (ya da 1.27.4), `http.MaxBytesReader`'daki, bir
+HTTP/1 sunucusunu çökertebilen ve collage'ın body limitinin üzerine kurulu olduğu bir
+race'i düzeltir (GO-2026-6859). `go.mod` ve scaffold 1.26.11 ister; böylece varsayılan
+`GOTOOLCHAIN=auto` ile go komutu, kurulu Go'nun daha eski olduğu yerde onu indirir.
+Bir build image'ı `GOTOOLCHAIN=local` ayarlar ve sürümü kendisi taşımalıdır: aşağıdaki
+Dockerfile'ın kullandığı `golang:1.26` tag'i en son patch release'i izler. Bir binary'yi
+`go version -m` ile kontrol edin.
 
 ### `collage build -i`: bir Dockerfile ve bir systemd unit'i
 
@@ -99,9 +108,11 @@ beklenen dosyalardır. Scaffold edilen bir projenin `.gitignore`'u yalnızca bin
 yok sayar. Bu dosyaları da diğer dosyalar gibi commit edersiniz.
 
 Dockerfile iki stage'den oluşur. Önce Go image'ında build eder, sonra distroless bir
-base image üzerinde yalnızca binary'yi taşır:
+base image üzerinde yalnızca binary'yi taşır (üretilen dosyadaki yorumlar burada
+yoktur ve `plugins-config.json` satırı yalnızca bu dosyası olan projeler için yazılır):
 
 ```dockerfile
+# Built by "collage build -i".
 FROM golang:1.26 AS build
 WORKDIR /src
 COPY go.mod go.sum* ./
@@ -112,7 +123,11 @@ RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /mysite .
 FROM gcr.io/distroless/static-debian12
 WORKDIR /srv
 COPY --from=build /mysite /usr/local/bin/mysite
+COPY --from=build /src/plugins-config.json /srv/plugins-config.json
 ENV HOST=0.0.0.0 PORT=8080
+# Set this to at least 32 random bytes, kept with your other secrets. Without
+# it a key is generated per process, and every form submitted before a restart
+# is refused after it.
 # ENV COLLAGE_CSRF_KEY=
 EXPOSE 8080
 ENTRYPOINT ["/usr/local/bin/mysite"]
@@ -120,8 +135,8 @@ ENTRYPOINT ["/usr/local/bin/mysite"]
 
 Image'ı proje kökünden `docker build -f bin/Dockerfile .` ile build edin.
 Template'ler ya da static dosyalar için bir `COPY` satırı yoktur, çünkü onlar
-binary'nin içindedir. Son stage binary'yi kopyalar. v0.11.1'den itibaren, Dockerfile
-yazıldığı sırada projede `plugins-config.json` varsa onu da kopyalar;
+binary'nin içindedir. Son stage binary'yi ve, Dockerfile yazıldığı sırada
+projede varsa, `plugins-config.json`'ı kopyalar;
 [Plugin config'i](#plugin-configuration) bölümüne bakın. `WORKDIR`, page cache ve bu
 dosya için önemlidir; ayrıntıları aşağıda bulabilirsiniz. `COLLAGE_CSRF_KEY`'i dosyanın içinde değil,
 platformunuzun secret'larından ayarlayın.
@@ -139,16 +154,14 @@ systemctl daemon-reload && systemctl enable --now mysite
 
 Scaffold edilen `main.go` beş değişken okur. Bunları binary nerede çalışıyorsa
 orada ya da çalışma dizinindeki bir `.env` dosyasında ayarlayın. Scaffold edilen
-`main`'in çağırdığı `collage.Main`, bu dosyayı `newApp` çalışmadan önce yükler
-(v0.68.0'dan beri; öncesinde bu dosyaları yalnızca `collage dev` okuyordu).
+`main`'in çağırdığı `collage.Main`, bu dosyayı `newApp` çalışmadan önce yükler.
 Sunucunun environment'ında zaten tanımlı olan değer dosyadakinden önceliklidir.
 Dosyanın olmaması hata değildir, hatalı bir satır ise programı dosya adı ve satır
 numarasıyla birlikte durdurur. `COLLAGE_CSRF_KEY` gibi secret'ları commit ettiğiniz
 bir dosyaya koymayın; `.gitignore` bu nedenle `.env`'i yok sayar.
 
 Bir değişkeni daha `main.go` değil, framework'ün kendisi okur: bir development
-sunucusunun cevap vereceği ek host'ları adlandıran `COLLAGE_DEV_HOST` (v0.56.0'dan
-beri). Production'da ayarlamayın. Bkz. [Development modu bu makinede kalır](#development-mode-stays-on-this-machine).
+sunucusunun cevap vereceği ek host'ları adlandıran `COLLAGE_DEV_HOST`. Production'da ayarlamayın. Bkz. [Development modu bu makinede kalır](#development-mode-stays-on-this-machine).
 
 | Değişken | Varsayılan | Değeri |
 | --- | --- | --- |
@@ -201,11 +214,11 @@ Page'lerinizin runtime'da okuduğu içerikleri, örneğin Markdown dosyalarını
 JSON kataloğunu, aynı şekilde gömmek size kalmıştır. collage-docs da tam bu nedenle
 kendi `content/` dizinini gömer ve development'ta bu dizini diskten okur. Böyle bir
 dizini [`Config.DevWatch`](/docs/configuration#devwatch) içinde belirtirseniz
-(v0.10.0'dan itibaren), içindeki bir dosyayı düzenlediğinizde tarayıcı da yenilenir.
+içindeki bir dosyayı düzenlediğinizde tarayıcı da yenilenir.
 
 ## Plugin config'i
 
-v0.68.0'dan beri scaffold edilen `newApp`, `plugins-config.json` dosyasını
+Scaffold edilen `newApp`, `plugins-config.json` dosyasını
 `env.PluginConfig(files)` ile okur. Çalışma dizininde dosya varsa onu okur, böylece
 bir deployment bir ayarı yeniden build etmeden değiştirebilir. Yoksa binary'nin embed
 ettiği kopyayı okur. Dosya olmadan deploy edilen bir binary, build edildiği andaki
@@ -218,8 +231,7 @@ hata değildir. Bu durumda her plugin sessizce kendi varsayılanlarıyla çalı�
 dosyanın olmadığı bir yerde başlatılan sunucu, plugin ayarlarınızı hiçbir uyarı
 vermeden yok sayar. `env.PluginConfig`'e geçin ya da dosyayı process'in başladığı
 yere kopyalayın. `collage build -i`'nin yazdığı Dockerfile, yazıldığı sırada
-projede bu dosya varsa onu da kopyalar (v0.11.1'den itibaren; önceki sürümler
-yalnızca binary'yi kopyalıyordu). Dosyayı sonradan oluşturursanız satırı kendiniz
+projede bu dosya varsa onu da kopyalar. Dosyayı sonradan oluşturursanız satırı kendiniz
 ekleyin, çünkü `collage build -i` var olan bir Dockerfile'ın üzerine asla yazmaz.
 Dosyayı process'in başladığı `WORKDIR`'e koyun:
 
@@ -239,14 +251,14 @@ aynısı olur. Sıra sabittir:
 
 1. **Drain.** `ListenAndServe`'ün
    [`ServeHook`](/docs/writing-plugins#streams-and-shutdown) plugin'lerine
-   `OnServe`'de verdiği ctx iptal edilir. Böylece bir scheduler yeni iş başlatmaz
-   (v0.55.0'dan beri). [`DrainHook`](/docs/writing-plugins#streams-and-shutdown)'u
+   `OnServe`'de verdiği ctx iptal edilir. Böylece bir scheduler yeni iş başlatmaz.
+   [`DrainHook`](/docs/writing-plugins#streams-and-shutdown)'u
    implement eden her plugin'e bir kez haber verilir. Bir health plugin'i
    readiness check'ini burada false'a çevirir. Keep-alive'lar kapatılır: boşta
    bekleyen keep-alive bağlantıları hemen, meşgul olanlar ise o anki
    response'larından sonra kapanır. Bu bağlantıların client'ları load balancer
    üzerinden yeniden bağlanır. Port açık kalır ve request'lere
-   `Server.DrainDelay` boyunca (v0.53.0'dan beri) normal şekilde cevap verilir.
+   `Server.DrainDelay` boyunca normal şekilde cevap verilir.
 2. **Stream'ler.** Development reload stream'leri ve plugin stream'leri kapatılır.
    Bunlar kendiliğinden hiç bitmez.
 3. **Sunucu.** Port kapanır. Devam eden request'lerin bitmesi için en fazla
@@ -275,7 +287,7 @@ aynısı olur. Sıra sabittir:
 </figure>
 
 `DrainDelay` varsayılan olarak 0'dır, yani hiç beklenmez. nginx, Caddy ya da
-Cloudflare arkasındaki tek bir instance, v0.53.0'dan önce olduğu kadar hızlı durur.
+Cloudflare arkasındaki tek bir instance hemen durur.
 Port kapanmadan önce bir load balancer'ın instance'ın ayrıldığını fark etmesi
 gerekiyorsa bu değeri ayarlayın. Değer, load balancer'ın readiness check'inin
 başarısız olması için geçen süreden birkaç saniye uzun olmalıdır:
@@ -308,7 +320,7 @@ bir `Shutdown` ctx'i de aynısını yapar.
 Development modunda `DrainDelay` yok sayılır, böylece restart'lar anında olur.
 `OnDrain` ise yine çağrılır. Henüz hiçbir şey hizmet vermezken yapılan bir
 `Shutdown` beklemez, çünkü drain edilecek trafik yoktur; hiçbir plugin'e de haber
-vermez, çünkü hiçbiri başlamamıştır (v0.61.4'ten beri).
+vermez, çünkü hiçbiri başlamamıştır.
 
 Process'i durduran şey, onu öldürmeden önce bu toplamdan daha uzun beklemelidir:
 
@@ -437,19 +449,26 @@ bulacağı, neyin değiştiğine bağlıdır:
 
 - **Cache, binary'nin hash'iyle namespace'lenir.** Yeni bir build farklı bir dizini,
   `.cache/<hash>`'i okur. Bu yüzden önceki build'in render ettiği page'leri asla
-  sunmaz. Doğruluk için hiçbir şeyi temizlemeniz gerekmez. Ama yer açmak için de
-  hiçbir şey temizlik yapmaz: önceki build'lerin dizinleri hiç silinmez. Yeni bir
-  container yerine yerinde yeniden deploy edilen bir sunucuda her build için bir dizin
-  birikir. Eski dizinleri deploy script'inizden silin. Page'lerin nasıl görüneceğini
+  sunmaz. Doğruluk için de, yer için de hiçbir şeyi temizlemeniz gerekmez: açılışta disk
+  cache, `Cache.Dir` içinde diğer build'lerin bıraktığı dizinleri, içlerine bir saattir
+  hiçbir şey yazılmadıysa siler. Yalnızca kendi verdiği adlara dokunur; `data/`'ya ya
+  da orada tuttuğunuz başka bir şeye asla. Bir saat, önceki build'in yenisinin yanında
+  hâlâ hizmet verdiği rolling deploy için bırakılan paydır. Page'lerin nasıl görüneceğini
   binary dışındaki bir şey belirliyorsa `Cache.Version`'ı bir commit ya da release
   tag'i ile ayarlayın.
 - **Dizin, çalışma dizinine göredir.** Scaffold edilen bir projede nerede
   başlatıldığına bağlı olan tek şey budur. Container'da `WORKDIR`'i ya da unit'te
   `WorkingDirectory`'yi ayarlayın veya `Dir`'e mutlak bir path verin. Process'in
   oraya yazabildiğinden de emin olun.
+- **Hasarlı bir entry bir miss'tir.** Bir entry okunurken kendi ETag'ine karşı
+  kontrol edilir; bu yüzden dolu bir disk ya da bir çökme yüzünden yarım kalan bir
+  dosya sunulmaz, yeniden render edilir. Entry'ler yerine yeniden adlandırılmadan
+  önce diske flush edilir ve başarısız bir disk yazması memory'de de tutulmaz; page,
+  disk düzelene kadar yeniden render edilir.
 - **Cache'in yazamaması bir hata değildir.** Açılışta dizin oluşturulamazsa collage
-  başlamayı reddetmez; bir uyarı verip in-memory cache'e geçer (v0.11.0'dan itibaren).
-  Buna read-only bir dosya sistemi ya da process'in yazma izni olmayan bir çalışma
+  başlamayı reddetmez; bir uyarı verip in-memory cache'e geçer
+  (uyarı: `collage: cannot use the disk cache directory, using an in-memory cache
+  instead`). Buna read-only bir dosya sistemi ya da process'in yazma izni olmayan bir çalışma
   dizini yol açabilir. Çalışırken başarısız olan bir yazma log'lanır, page cache'lenmeden
   sunulur ve bir sonraki request onu yeniden render eder. Sonuç yavaştır ama bozuk
   değildir. Bu uyarıyı takip edin ve deploy'dan sonra dizinin dolduğunu kontrol edin.
@@ -462,7 +481,7 @@ bulacağı, neyin değiştiğine bağlıdır:
   eviction'a kadar sürer. Bu arada page'i yeniden çeken bir CDN eski kopyayı tekrar
   alabilir. Tek bir cache'i paylaşması gereken bir filo bunun yerine
   [paylaşılan bir store](/docs/caching#a-cache-a-fleet-shares) kullanır.
-- **Önünde memory vardır ve restart'tan sonra boş başlamaz** (v0.63.0'dan beri). Bir hit,
+- **Önünde memory vardır ve restart'tan sonra boş başlamaz**. Bir hit,
   memory katmanından sunulur. Bu katman açılışta dizinden, en yeni page'lerden
   başlanarak doldurulur. Böylece restart edilen bir instance son page'lerini hemen
   memory'den sunar. Katman process'in belleğinden en fazla 256 MiB kullanır.
@@ -470,7 +489,7 @@ bulacağı, neyin değiştiğine bağlıdır:
   [Aşağıya](#a-memory-cache-and-the-containers-limit) bakın.
 - **Invalidate edilen bir page tutulur.** Yeniden render'ı başarısız ya da degraded
   olursa `STALE` olarak sunulur. Bkz. [Caching](/docs/caching#stale-pages-and-x-collage-cache).
-  v0.64.0'dan beri invalidation'ın hemen ardından arka planda yeniden de render
+  Invalidation'ın hemen ardından arka planda yeniden de render
   edilir. Bu, kısa bir süre CPU harcar. Bkz.
   [warming](/docs/caching#warming-after-an-invalidation). Bir action'ın redirect'i
   page'inin warm edilmesini bekleyebilsin diye `Server.WriteTimeout`'u 5 saniyenin
@@ -508,7 +527,7 @@ runtime'ın hedeflediği bir değerdir, zorla uyguladığı bir tavan değildir.
 ne kadar uğraşırsa uğraşsın toplanamaz. Boyutu sınırın üçte biri ile yarısı
 arasında olan bir cache, render'ların kendisine de yer bırakır. 512 MiB'lık bir
 container'da `MaxBytes`'ı varsayılanından 128–192 MiB'a indirin. Scaffold'un disk
-cache'i page'leri diskte tutar. Ama v0.63.0'dan beri önlerinde bir memory katmanı
+cache'i page'leri diskte tutar. Ama önlerinde bir memory katmanı
 vardır ve bu ayar ona da uygulanır. Katman en fazla 256 MiB tutar, `MaxBytes`
 bundan küçükse de `MaxBytes` kadar tutar. `GOMEMLIMIT`'i ayarlayın. Katmanın daha azını tutması
 gerekiyorsa `MaxBytes`'ı ya da `MaxEntries`'i düşürün.
@@ -526,8 +545,10 @@ filonun tamamında tek bir cache'i paylaşın. `Dir`'ini instance'ların paylaş
 `"disk"` cache bu değildir: her instance'ın memory katmanı elindekini sunmaya devam
 eder. [Caching](/docs/caching#memory-in-front-of-the-disk) sayfasına bakın.
 
-v0.66.0'dan beri `Cache.Store`'daki, `collage.SharedCache`'i implement eden bir
-store, örneğin [collage-redis](/docs/plugins#elagohtredis), üçüncü çözümdür.
+`Cache.Store`'daki, `collage.SharedCache`'i implement eden bir store, örneğin
+[collage-redis](/docs/plugins#elagohtredis), üçüncü çözümdür ve cache'i gerçekten
+paylaşan tek çözümdür: birbirinin invalidation'larını görmesi gereken bir filo buna
+ihtiyaç duyar.
 Page'ler de [`collage.Cached`](/docs/caching#caching-data-across-pages) değerleri de
 onda tutulur ve önünde instance başına bir kopya yoktur. Bu yüzden A instance'ına
 ulaşan bir webhook, B'nin bir sonraki okumasına da ulaşır. B'nin, A'nın invalidate
@@ -564,7 +585,7 @@ gönderdiğinden emin olun. collage bu header'a bakarak forgery token cookie'sin
 düz HTTP üzerinden göndermez.
 
 Header'ı değiştirmek yerine sonuna ekleyen bir proxy bir liste gönderir:
-`https, http`. v0.34.0'dan beri geçerli olan, okuyucunun kendi bağlantısını
+`https, http`. Geçerli olan, okuyucunun kendi bağlantısını
 gösteren ilk entry'dir.
 
 Tarayıcının gönderdiği `Host`'u da iletin. Forgery kontrolü eski bir tarayıcının
@@ -609,7 +630,7 @@ sunucunuz durduktan sonra `app.Shutdown(ctx)`'i çağırırsınız. Bkz.
 Bir proxy'nin arkasında her request'in `RemoteAddr`'i proxy'ninkidir. Gerçek istemciyi
 proxy `X-Forwarded-For`'da bildirir, ama bunu başkası da yapabilir: kendi
 `X-Forwarded-For`'unu gönderen bir istemciye inanılmaz. `Server.TrustedProxies`
-(v0.47.0'dan beri) kimin söylediğine inanılacağını belirler:
+kimin söylediğine inanılacağını belirler:
 
 ```go
 Server: collage.ServerConfig{
@@ -644,8 +665,8 @@ adresi kendine vermesine izin vermektir. Sıfır bitlik bir girdi (`0.0.0.0/0`,
 `::/0`) herkese güvenir; `collage.New` onu kabul eder ama bunu söyleyen bir Warn
 log'lar.
 
-Aynı liste, hangi proxy'nin `X-Forwarded-Proto`'suna inanılacağını da belirler
-(v0.56.0'dan beri). Forgery cookie'si, request TLS üzerinden geldiğinde `Secure`
+Aynı liste, hangi proxy'nin `X-Forwarded-Proto`'suna inanılacağını da belirler.
+Forgery cookie'si, request TLS üzerinden geldiğinde `Secure`
 olur. TLS'i terminate eden bir proxy'nin arkasında bunu proxy o header ile söyler.
 
 `TrustedProxies` set edilmişse `RemoteAddr`'ı listedeki bir proxy olmayan bir
@@ -654,7 +675,7 @@ http üzerinden geri gönderebileceği bir cookie alır. Liste boşsa header her
 kabul edilir. Liste var olmadan önce de böyleydi ve yalnızca proxy'nizden başka
 hiçbir şeyin sunucuya ulaşamadığı durumda doğrudur.
 
-v0.61.0'dan beri bu karar tek bir fonksiyondur: `collage.IsHTTPS(r)`. Forgery
+Bu karar tek bir fonksiyondur: `collage.IsHTTPS(r)`. Forgery
 guard'ın cookie'si de, `Secure` cookie koyan ya da HSTS gönderen plugin'ler de —
 elagoht/session, flash, secure ve diğerleri — ona sorar. Böylece liste onların
 cookie'lerini ve header'larını da korur: proxy'nizi listeleyin, bir client sahip
@@ -667,10 +688,10 @@ olmadığı TLS bağlantısını iddia edemesin.
 | Alan | Varsayılan | Neyi sınırlar |
 | --- | --- | --- |
 | `ReadTimeout` | 15s | Header'lar dahil request'in okunmasını. Header'ları yavaş gönderen bir client bağlantıyı açık tutamaz. |
-| `ReadHeaderTimeout` | 0 | Yalnızca request header'larının okunmasını. Böylece header'ları bir byte'ta bir gönderen bir client erken düşürülür, büyük bir body ise `ReadTimeout`'un tamamını alır. Sıfır, `ReadTimeout`'u kullanır (v0.56.0'dan beri). |
+| `ReadHeaderTimeout` | 0 | Yalnızca request header'larının okunmasını. Böylece header'ları bir byte'ta bir gönderen bir client erken düşürülür, büyük bir body ise `ReadTimeout`'un tamamını alır. Sıfır, `ReadTimeout`'u kullanır. |
 | `WriteTimeout` | 30s | Response'un yazılmasını. Request'in header'ları okunduğunda başlar, bu yüzden bir upload'un body'sini de sınırlar. Verisi bundan uzun süren bir page yarıda kesilir. |
 | `IdleTimeout` | 60s | Bir sonraki request'ini bekleyen keep-alive bağlantısını. |
-| `DrainDelay` | 0 | Bir `SIGTERM`'den sonra, keep-alive'lar kapalı olarak hizmet vermeye devam edilen süreyi; böylece load balancer trafik göndermeyi bırakabilir (v0.53.0'dan beri). |
+| `DrainDelay` | 0 | Bir `SIGTERM`'den sonra, keep-alive'lar kapalı olarak hizmet vermeye devam edilen süreyi; böylece load balancer trafik göndermeyi bırakabilir. |
 | `ShutdownTimeout` | 10s | Drain'den sonra, port kapandığında devam eden request'lerin bitmesini. |
 | `MaxBodyBytes` | 4 MiB | Bir action'ın request body'sini, action kendi sınırını belirlemediyse. Negatif değer sınırsız demektir. |
 
@@ -708,8 +729,7 @@ bölümüne bakın), tarayıcı ile handler arasındaki her limitle karşılaş�
 limitlerin çoğunun varsayılanları form'lara göre boyutlanmıştır.
 
 **Sunucunun deadline'ları.** Yukarıdaki varsayılanlar her upload'u 15 saniyelik
-okumadan sonra bitirir. Upload action'ındaki `WithBodyTimeout(d)` (v0.57.0'dan
-beri), iki deadline'ı da yalnızca o action için şimdi artı `d` ile değiştirir. Bunu
+okumadan sonra bitirir. Upload action'ındaki `WithBodyTimeout(d)`, iki deadline'ı da yalnızca o action için şimdi artı `d` ile değiştirir. Bunu
 page'in guard'larından sonra (streaming bir action'da ise forgery kontrolünden de
 sonra) yapar. `d`'yi en az `MaxBodyBytes` bölü hizmet verdiğiniz en yavaş bağlantı
 artı cevap verme süresi kadar tutun. Client'ı gitmiş ya da süresi dolmuş bir upload
@@ -770,7 +790,7 @@ OpenTelemetry trace'lerine dönüştürür.
 
 `DevMode`, production'ın sunmaması gereken şeyleri sunar: stack'li ve kaynak kodlu
 hata sayfaları, reload stream'i, bir development toolbar'ı. Bunları burada tutan iki
-koruma vardır (v0.56.0'dan beri):
+koruma vardır:
 
 - **Yabancı bir `Host` reddedilir.** Development'ta sunucu, `Host`'u localhost (ya
   da `.localhost` altındaki bir ad), bir IP adresi, ayrılmış bir ad, `Server.Host`
@@ -969,10 +989,14 @@ dizinleri silin.
 
 ## Kontrol listesi
 
-- `COLLAGE_CSRF_KEY` ayarlı ve her instance'ta aynı.
+- `COLLAGE_CSRF_KEY` ayarlı; her instance'ta ve restart'lar arasında aynı. Aksi hâlde
+  form'lar her restart'ta ve instance'lar arasında bozulur.
 - Container'da `HOST=0.0.0.0`, `PORT` platformdan geliyor.
-- `.cache` için yazılabilir bir çalışma dizini var ve eski `.cache/<hash>` dizinleri
-  deploy sırasında siliniyor.
+- `.cache` için yazılabilir bir çalışma dizini var; disk cache, diğer build'lerin
+  dizinlerini bir saat boşta kaldıklarında siler.
+- Birden fazla instance varsa ve birbirinin invalidation'larını görmeleri gerekiyorsa
+  `Cache.Store`'da bir `collage.SharedCache` store'u var.
+- Build image'ında Go 1.26.11 ya da sonrası var.
 - Plugin'leri yapılandırıyorsanız `plugins-config.json` çalışma dizininde duruyor ya
   da gömülü.
 - `COLLAGE_DEV` ayarlı değil.

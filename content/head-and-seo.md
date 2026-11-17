@@ -37,7 +37,7 @@ yet.
 
 The marker comes after the site's stylesheet, so a stylesheet a fragment hoists is
 linked after it and wins a rule of equal specificity; the layout `collage new`
-writes has it there since v0.77.0. A layout of yours that puts the marker first
+writes has it there. A layout of yours that puts the marker first
 gives the site's stylesheet the last word instead.
 
 When the whole page is finished, collage replaces the marker with everything
@@ -121,7 +121,7 @@ func loadPost(ctx context.Context, rc *collage.RenderContext) (*Post, []string, 
 | `rc.HoistMeta(name, content)` | `<meta name="…" content="…">` | `meta:<name>` |
 | `rc.HoistProperty(property, content)` | `<meta property="…" content="…">` (Open Graph) | `property:<property>` |
 | `rc.HoistLink(rel, href)` | `<link rel="…" href="…">` | `link:<rel>` |
-| `rc.HoistAlternate(hreflang, href)` | `<link rel="alternate" hreflang="…" href="…">` (since v0.10.0) | `alternate:<hreflang>` |
+| `rc.HoistAlternate(hreflang, href)` | `<link rel="alternate" hreflang="…" href="…">` | `alternate:<hreflang>` |
 | `rc.HoistStylesheet(path)` | `<link rel="stylesheet" href="…">` at the file's [content-addressed URL](/docs/assets) | `stylesheet:<path>` |
 
 Every helper escapes what it is given, so a title built from a post's name is safe
@@ -182,21 +182,25 @@ every page that declares no strategy dynamic. A site that wants them cached says
 `Static()` or `Incremental(ttl)` on its pages, or leaves the layout with
 `WithTitle` alone.
 
-Three details, so they are not a surprise:
+Four details, so they are not a surprise:
 
 - **Position comes from the first declaration, not the winning one.** The head does
   not reorder itself depending on whether something nested happened to override a
   title.
-- **At equal depth, the later-declared fragment wins.** Two sibling fragments
+- **At equal depth, the one later in the page wins.** Two sibling fragments
   declaring one key is a real conflict, and it is settled by their order in the
-  page — not by whose data handler finished first, which would make the head change
-  from request to request.
+  page — within a slot the one bound later, between slots the one the template
+  renders later — not by slot name, and not by whose data handler finished first,
+  which would make the head change from request to request.
+- **What never renders hoists nothing.** A fragment behind a slot its template
+  never renders adds nothing to the page — no title, no meta, no tags — even though
+  its handler ran. A fragment that failed takes its hoists with its markup, so an
+  optional fragment's fallback is not rendered under the failed fragment's title.
+  The failed fragment's tags stay, since they say what the page depended on.
 - **The order is the page's, not the clock's.** Sibling data handlers run
   concurrently, but a key is placed by where the fragment that first declares it
   sits in the page, then by the order that fragment declared in — so the head is the
-  same on every render, stylesheets that override one another included. (Before
-  v0.12.0 a key sat where its first declaration happened to arrive, and siblings'
-  keys could swap between requests.)
+  same on every render, stylesheets that override one another included.
 
 ## Anything else: rc.Hoist
 
@@ -218,7 +222,7 @@ rc.Hoist("head", "preload:hero", template.HTML(
 The same key rules apply, so choose a key that says what the thing is: one per
 thing that should appear once, one per value for things that accumulate.
 
-The area is any name, and a layout can have more than one marker — a `{{hoist
+The area is any name made of letters, digits, `_` and `-`: `{{hoist}}` refuses any other, which is also what keeps `{{hoist .Area}}` from becoming a way to inject script. A layout can have more than one marker — a `{{hoist
 "scripts"}}` before `</body>`, say, for scripts a fragment needs:
 
 ```go
@@ -326,7 +330,7 @@ first three what a crawler reads beyond the head:
   stored, so a cached page is served with everything that was declared.
 - **A fragment at its own URL has no head.** A fragment served through
   [`WithFragmentPath`](/docs/forms-and-actions#a-fragment-at-its-own-url) has no
-  layout. Since v0.18.0 what it hoists into an area it placed no marker for comes
+  layout. What it hoists into an area it placed no marker for comes
   ahead of its markup, one inert `<template data-collage-hoist>` per item, for a
   script to add to the page — see
   [What it hoists](/docs/forms-and-actions#what-it-hoists).

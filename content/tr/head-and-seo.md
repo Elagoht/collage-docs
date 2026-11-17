@@ -37,7 +37,7 @@ Layout, `<head>`'inin içine bir marker koyar:
 
 Marker sitenin stylesheet'inden sonra gelir. Böylece bir fragment'in hoist ettiği
 stylesheet ondan sonra link'lenir ve eşit specificity'deki bir kuralda üstün gelir.
-`collage new`'un yazdığı layout'ta marker v0.77.0'dan beri bu konumdadır. Marker'ı
+`collage new`'un yazdığı layout'ta marker bu konumdadır. Marker'ı
 başa koyan bir layout ise son sözü sitenin stylesheet'ine bırakır.
 
 Page'in tamamı bittiğinde collage bu marker'ı, ağacın herhangi bir yerinde `"head"`
@@ -122,7 +122,7 @@ func loadPost(ctx context.Context, rc *collage.RenderContext) (*Post, []string, 
 | `rc.HoistMeta(name, content)` | `<meta name="…" content="…">` | `meta:<name>` |
 | `rc.HoistProperty(property, content)` | `<meta property="…" content="…">` (Open Graph) | `property:<property>` |
 | `rc.HoistLink(rel, href)` | `<link rel="…" href="…">` | `link:<rel>` |
-| `rc.HoistAlternate(hreflang, href)` | `<link rel="alternate" hreflang="…" href="…">` (v0.10.0'dan beri) | `alternate:<hreflang>` |
+| `rc.HoistAlternate(hreflang, href)` | `<link rel="alternate" hreflang="…" href="…">`  | `alternate:<hreflang>` |
 | `rc.HoistStylesheet(path)` | Dosyanın [content-addressed URL'siyle](/docs/assets) `<link rel="stylesheet" href="…">` | `stylesheet:<path>` |
 
 Her helper kendisine verilen değeri escape eder. Bu yüzden bir post'un adından
@@ -188,21 +188,17 @@ description, strateji tanımlamayan her page'i dynamic yapar. Page'lerinin
 cache'lenmesini isteyen bir site, page'lerinde `Static()` ya da `Incremental(ttl)`
 belirtir ya da layout'ta yalnızca `WithTitle` bırakır.
 
-Sürpriz olmasınlar diye üç ayrıntıyı belirtelim:
+Sürpriz olmasınlar diye dört ayrıntıyı belirtelim:
 
 - **Konumu kazanan tanım değil, ilk tanım belirler.** Head, iç taraftaki
   bir fragment'in title'ı override edip etmemesine göre kendini yeniden sıralamaz.
-- **Aynı derinlikte, sonra tanımlayan fragment kazanır.** Aynı key'i tanımlayan
-  iki kardeş fragment gerçek bir çakışmadır. Bu çakışma, fragment'lerin page içindeki
-  sırasıyla çözülür. Hangi data handler'ın önce bittiği belirleyici değildir, öyle
-  olsaydı head request'ten request'e değişirdi.
+- **Aynı derinlikte, page'de daha sonra gelen kazanır.** Aynı key'i tanımlayan iki kardeş fragment gerçek bir çakışmadır. Bu çakışma, fragment'lerin page içindeki sırasıyla çözülür: bir slot içinde daha sonra bağlanan, slot'lar arasında template'in daha sonra render ettiği kazanır. Slot adı ya da hangi data handler'ın önce bittiği belirleyici değildir, öyle olsaydı head request'ten request'e değişirdi.
+- **Render edilmeyen hiçbir şeyi hoist etmez.** Template'inin hiçbir zaman render etmediği bir slot'un arkasındaki fragment, handler'ı çalışmış olsa bile page'e hiçbir şey eklemez: title, meta ya da tag yok. Başarısız olan bir fragment hoist ettiklerini markup'ıyla birlikte götürür; bu yüzden opsiyonel bir fragment'in fallback'i, başarısız fragment'in title'ı altında render edilmez. Başarısız fragment'in tag'leri kalır, çünkü page'in neye dayandığını söylerler.
 - **Sırayı saat değil, page belirler.** Kardeş data handler'lar eşzamanlı çalışır.
   Ama bir key, önce onu ilk tanımlayan fragment'in page içindeki yerine, sonra o
   fragment'in tanımlama sırasına göre yerleştirilir. Böylece head, birbirini
   override eden stylesheet'ler de dahil olmak üzere her render'da aynı olur.
-  (v0.12.0'dan önce bir key, ilk tanımı nereye denk gelirse oraya
-  yerleşiyordu ve kardeş fragment'lerin key'leri request'ler arasında yer
-  değiştirebiliyordu.)
+  
 
 ## Geri kalan her şey: rc.Hoist
 
@@ -226,7 +222,7 @@ Aynı key kuralları burada da geçerlidir. Bu yüzden eklediğiniz şeyin ne ol
 anlatan bir key seçin. Bir kez görünmesi gereken her şey için tek bir key kullanın.
 Biriken şeyler için ise her değere ayrı bir key verin.
 
-Alanın adı serbesttir ve bir layout'ta birden fazla marker bulunabilir.
+Alanın adı harflerden, rakamlardan, `_` ve `-` karakterlerinden oluşan herhangi bir ad olabilir: `{{hoist}}` başka her adı reddeder; `{{hoist .Area}}`'nın script enjekte etmenin bir yoluna dönüşmesini de bu engeller. Bir layout'ta birden fazla marker bulunabilir.
 Örneğin fragment'lerin ihtiyaç duyduğu script'ler için `</body>`'den önce bir `{{hoist
 "scripts"}}` koyabilirsiniz:
 
@@ -338,7 +334,7 @@ karşılar. İlk üçü, bir crawler'ın head dışında okuduklarıyla ilgilidi
   sunulur.
 - **Kendi URL'sinde sunulan bir fragment'in head'i yoktur.**
   [`WithFragmentPath`](/docs/forms-and-actions#a-fragment-at-its-own-url) ile sunulan
-  bir fragment'in layout'u yoktur. v0.18.0'dan beri marker koymadığı bir alana
+  bir fragment'in layout'u yoktur. Marker koymadığı bir alana
   hoist ettiği şeyler markup'ından önce, her öğe için etkisiz bir
   `<template data-collage-hoist>` olarak gelir. Bir script bunları page'e ekleyebilir.
   Bkz. [Hoist ettikleri](/docs/forms-and-actions#what-it-hoists).

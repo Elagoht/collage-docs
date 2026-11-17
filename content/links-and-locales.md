@@ -1,6 +1,6 @@
 ---
 description: Serving a site in several languages, and linking between pages by name so links follow them in every locale.
-reference: LocaleConfig, PageBuilder.WithPath, PageBuilder.WithFragmentPath, RenderContext, URL, App, Vary, ErrLocaleUnreachable, ErrNoPathInLocale, ErrUnknownRoute, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath
+reference: LocaleConfig, PageBuilder.WithPath, PageBuilder.WithFragmentPath, RenderContext, URL, App, Vary, ErrLocaleUnreachable, ErrNoPathInLocale, ErrUnknownRoute, ErrUnknownFragmentPath, ErrAmbiguousFragmentPath, ErrRedirectShadowsPage, ErrRedirectLoop, ErrInvalidPattern
 ---
 
 # Links and locales
@@ -53,16 +53,34 @@ Locale: collage.LocaleConfig{Default: "tr"},
 
 and declares `WithPath("tr", "/hakkinda")`.
 
-Since v0.35.0, a path in a locale no URL reaches is refused at registration with
+A path in a locale no URL reaches is refused at registration with
 `collage.ErrLocaleUnreachable`, and the error names the page and the locale
-config. Before, the site started without complaint and then answered 404 at every
-URL. The same holds for actions and documents.
+config, rather than the site starting and answering 404 at every URL. The same
+holds for actions and documents.
 
-Since v0.60.0 `WithPath` also refuses two more mistakes, for a page, a document or
+`WithPath` also refuses two more mistakes, for a page, a document or
 an action alike:
 
 - a locale named twice: `collage.ErrDuplicateLocalePath`, keeping the first path;
 - an empty locale: `collage.ErrInvalidLocale`.
+
+A path whose first segment is literal text naming `Default` or a supported locale, in
+any case, is refused with `collage.ErrLocaleUnreachable` too — for a page, a
+document, an action or a redirect source. That first segment is taken for the
+prefix and stripped, so `/tr/guide.txt` registered under `en` would be a request for
+`/guide.txt` in `tr`, which nothing answers. Write `/guide.txt`: the prefix is added
+for you.
+
+A route that could never answer is refused at registration as well:
+
+- a [redirect](/docs/pages-and-layouts) whose source matches a page's or a
+  document's path — `/{slug}` next to a document at `/about.txt` — is
+  `collage.ErrRedirectShadowsPage`, since redirects win over routes: narrow the
+  redirect's source;
+- a redirect whose destination its own source matches, `/docs` to `/docs/` say, is
+  `collage.ErrRedirectLoop`;
+- a pattern that uses one placeholder name twice is `collage.ErrInvalidPattern`.
+
 
 ## The URL decides the locale
 
@@ -118,7 +136,7 @@ a form posted to the wrong spelling is posted again rather than turned into a
 copy of `/about` for a search engine and a second entry in the cache.
 
 A site that wants every language under a prefix, the default one included, sets
-`PrefixDefault: true` (since v0.14.0). Then `/en/about` is the page beside
+`PrefixDefault: true`. Then `/en/about` is the page beside
 `/tr/hakkinda`, and a bare URL is no language at all:
 
 - A page requested without a prefix — `/about`, or the root — redirects
@@ -127,7 +145,7 @@ A site that wants every language under a prefix, the default one included, sets
 - Documents are prefixed the same way, `/en/sitemap.xml` beside
   `/tr/sitemap.xml`, except the site's own files, built with
   [`AtRoot`](/docs/documents#example-robotstxt): `/robots.txt` is at the root and
-  nowhere else (since v0.14.1).
+  nowhere else.
 - An export writes the default locale under `en/`, and at its root a copy of the
   `/en/` home that names `/en/` as its canonical address.
 
@@ -171,8 +189,7 @@ func aboutData(ctx context.Context, rc *collage.RenderContext) (aboutView, []str
 }
 ```
 
-There is no switch that turns prefixes off: `DisablePathLocale` was removed in
-v0.60.0. A site in one language registers its paths in `Default`, which carries no
+There is no switch that turns prefixes off. A site in one language registers its paths in `Default`, which carries no
 prefix, and one that [negotiates](#negotiating-a-language-yourself) on its own does
 it in middleware.
 
@@ -215,10 +232,11 @@ It works for [documents](/docs/documents) as well as pages.
   the pattern has no placeholder for fails the render. A link that cannot be built
   is a bug to find in development, not a 404 for a reader.
 - **Values are escaped**, and a value of `.` or `..` is refused.
-- **Values are strings, integers or `fmt.Stringer`s** (the last two since
-  v0.36.0): `{{pageURL "user" "id" .ID}}`.
+- **Values are strings, integers or `fmt.Stringer`s**: `{{pageURL "user" "id" .ID}}`.
 - **It ends in `/` when [`TrailingSlash`](/docs/configuration#trailingslash) is
-  on** — a page's link, not a document's: `/about/`, `/tr/`, but `/feed.xml`.
+  on** — a page's link, not a document's: `/about/`, `/tr/`, but `/feed.xml`. A
+  document's or an action's link never ends in `/`: that is its one spelling, and the
+  other is redirected to it, with a `301` for a document and a `308` for an action.
 
 <figure class="diagram-figure" data-search-ignore>
 <svg class="diagram" viewBox="0 0 320 200" role="img" aria-labelledby="ll-name-title">
@@ -275,17 +293,17 @@ from your content.
 
 A switcher is for readers. Search engines learn a page's translations from
 `<link rel="alternate" hreflang="…">` in its head, which `rc.HoistAlternate(hreflang, href)`
-(since v0.10.0) declares, one per language. Pair it with `app.URL` for each
+declares, one per language. Pair it with `app.URL` for each
 locale the page exists in — [Head and SEO](/docs/head-and-seo#canonical-and-alternate-links)
 has a layout that does it for every page.
 
 A form posting to an [action at its own URL](/docs/forms-and-actions#an-action-at-its-own-url)
-names the action the same way, with `{{actionURL "logout"}}` (since v0.36.0).
+names the action the same way, with `{{actionURL "logout"}}`.
 
 ### Links from Go
 
 In a data handler or an action — a redirect to a named page, a canonical URL —
-use `rc.URL`, and `rc.ActionURL` for an action (since v0.37.0). They build in the
+use `rc.URL`, and `rc.ActionURL` for an action. They build in the
 render's own locale and fall back to the default one, as `pageURL` and
 `actionURL` do, so nothing has to hand the `*App` to the code that needs a link:
 
@@ -308,7 +326,7 @@ the path into another site's URL. On a `RenderContext` collage did not make — 
 a test builds by hand — both return `collage.ErrUnknownRoute`.
 
 In a guard or a middleware, which run in a request but have no render, it is
-`collage.URL(ctx, name, params)` (since v0.73.0): the same builder, in the locale
+`collage.URL(ctx, name, params)`: the same builder, in the locale
 the request resolved to — the default one in a middleware, which runs before
 routing — and `ErrUnknownRoute` outside a request collage serves.
 `collage.GuardSeeOtherPage(ctx, name, params)` turns it into a guard's redirect
@@ -342,7 +360,7 @@ absolute URL.
 
 A fragment a page opened at its own URL with
 [`WithFragmentPath`](/docs/forms-and-actions#a-fragment-at-its-own-url) is linked
-the same way, by the page's name and the fragment's (since v0.18.0):
+the same way, by the page's name and the fragment's:
 
 ```html
 <div data-live="{{fragmentURL "home" "cpu-usage"}}">{{slot "cpu-usage"}}</div>
@@ -419,7 +437,7 @@ func pageData(ctx context.Context, rc *collage.RenderContext) (pageView, []strin
 the page's cache key, and the header name into the response's `Vary` header, so a
 CDN keeps the versions apart too.
 
-It must be called from middleware. Since v0.11.0 `Vary` closes when routing
+It must be called from middleware. `Vary` closes when routing
 begins, on every route — cached or not — so a call from a data handler, or
 anywhere else after routing, changes nothing and returns `collage.ErrVaryTooLate`.
 

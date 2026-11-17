@@ -1,6 +1,6 @@
 ---
 description: Plugin sözleşmesi, Host ve ConfigHost'un sundukları, her hook ve neyi değiştirebileceği, testleriyle birlikte eksiksiz bir plugin.
-reference: Plugin, Host, ConfigHost, ConfigReader, PluginConfig, Configurer, Command, BeforeRenderHook, BeforeActionHook, BeforeActionEvent, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, DrainHook, ServeHook, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, BuiltRedirect, RedirectSource, IsCapture, RequestHook, ErrStreamingBody, RouteInfo, Route, ClientIP, IsHTTPS, RouteKindPage, BuiltPage, StageErrorPage, Duration, Key, NewKey, RenderValues, RouteKindRejected, RouteNameNormalise
+reference: Plugin, Host, ConfigHost, ConfigReader, PluginConfig, Configurer, Command, BeforeRenderHook, BeforeActionHook, BeforeActionEvent, AfterRenderHook, CacheInvalidateHook, FragmentRequest, FragmentRender, HoistItem, StreamCloser, DrainHook, ServeHook, PageURL, FragmentReport, PathTag, Finding, FindingLevel, FindingWarning, FindingError, ErrBuildFindings, BuildFinishedHook, BuildFinishedEvent, BuiltFile, BuiltRedirect, RedirectSource, IsCapture, RequestHook, ErrStreamingBody, RouteInfo, Route, ClientIP, IsHTTPS, RouteKindPage, BuiltPage, StageErrorPage, Duration, Key, NewKey, RenderValues, RouteKindRejected, RouteNameNormalise, NoopMetrics, NoopTracer, NoopSpan, Metrics, Tracer, Span, SharedCache, Cache
 ---
 
 # Plugin yazmak
@@ -72,7 +72,7 @@ type Plugin interface {
 - **`Init`** uygulama başlarken bir kez çalışır. Bu, uygulama kendi page'lerini
   register ettikten sonra ve ilk request'ten önce olur.
 - **`Shutdown`**, `Init`'in edindiği her şeyi serbest bırakır. Bir kez ve
-  yalnızca `Init`'i başarılı olmuş bir plugin için çağrılır (v0.61.0'dan beri); yine
+  yalnızca `Init`'i başarılı olmuş bir plugin için çağrılır; yine
   de idempotent tutun. Ayrıntılar için
   [Yaşam döngüsü](#lifecycle) bölümüne bakın.
 
@@ -86,6 +86,32 @@ var (
 	_ collage.AfterRenderHook = (*Plugin)(nil)
 )
 ```
+
+### v1 içinde kararlı olanlar
+
+`pkg/collage` semantic versioning izler ve bir plugin için bunun anlamı şudur:
+
+- **`Plugin` yeni method almaz.** Bir plugin'in implement edebileceği ya da köprü
+  kurabileceği `Metrics`, `Tracer`, `Span` ve cache interface'leri (`Cache`,
+  `TaggedCache`, `StaleCache` ve `SharedCache`) de almaz. Yeni bir method her
+  implementasyonu bozardı; bu yüzden v1 içinde hiçbiri gelmez.
+- **No-op tipleri embed edin.** Bir `Metrics` implementasyonu `collage.NoopMetrics`'i,
+  bir `Tracer` `collage.NoopTracer`'ı ve span'leri `collage.NoopSpan`'ı embed eder;
+  her biri yalnızca bir şey ölçen method'ları tanımlar. Bütün method'ları kendisi
+  yazan bir implementasyon da çalışır ve bundan kazanacağı bir şey yoktur.
+- **Yeni capability'ler opsiyonel interface'lerdir**, bir hook gibi type assertion ile
+  bulunur: framework'ün sonradan bildireceği bir sinyal, bir plugin'in implement
+  edebileceği bir interface olarak gelir; implement etmeyen plugin ondan haberdar
+  olmaz.
+- **`Host` ve `ConfigHost` mühürlüdür ve büyüyebilir.** Onları yalnızca collage'ın
+  kendi host'ları implement eder; bu yüzden yeni bir method hiçbir plugin'i bozmaz ve
+  bir plugin'in bir host üzerinde çağırabildiği şey çağrılabilir kalır. Bir test
+  double'ının `Host`'un yerine geçememesinin sebebi de budur: gerçek bir uygulama
+  üzerinden test edin; bkz. [Bir plugin'i test etmek](#testing-a-plugin).
+- Bir plugin'in sağladığı store, `collagetest.CacheSuite` ya da `collagetest.SharedCacheSuite`
+  ile kontrol edilir; bunlar dokümante edilmiş sözleşmenin tamamını sınar. Sözleşmenin
+  silinmesini istediği bir entry'yi stale işaretleyen ya da epoch'unu `Clear`'da
+  sıfırlayan bir store başarısız olur.
 
 ## İki aşama: Configure ve Init
 
@@ -134,7 +160,7 @@ reddeder.
 hiçbir şey register etmemiştir. Page listesi boş olurdu. Sitenin origin'leri de,
 aralarında bir `OriginResolver` olan bütün plugin'ler bilinmeden belli olmaz.
 
-v0.78.0, v1'den önce ikisini de daraltıp hiçbir plugin'in kullanmadığını kaldırdı:
+`ConfigHost` da `Host` da bilerek dardır ve hiçbir plugin'in kullanmadığı şeyleri dışarıda bırakır:
 
 - `Host.InvalidateTags` kaldırıldı. Invalidate etmek uygulamanın işidir
   (`App.InvalidateTags`, `ActionResult.InvalidateTags`); bir plugin bunu
@@ -154,17 +180,16 @@ v0.78.0, v1'den önce ikisini de daraltıp hiçbir plugin'in kullanmadığını 
 | `DevMode() bool` | Uygulamanın development modunda çalışıp çalışmadığını söyler. |
 | `Logger() *slog.Logger` | Uygulamanın logger'ını döner. |
 | `ConfigReader` (embed edilmiş) | `collage.PluginConfig(host, defaults)` bu plugin'in config bölümünü bunun üzerinden okur. Bkz. [Yapılandırma](#configuration). |
-| `AddTemplateFunc(name, fn) error` | Bir template fonksiyonu ekler. Ad daha önce eklenmişse `ErrDuplicateTemplateFunc` döner; ekleyen başka bir plugin de olabilir, aynı plugin'in önceki bir çağrısı da. Ad bir built-in'inkiyse (v0.77.0'dan beri) ya da template dilininse (v0.78.0'dan beri) de aynı hatayı döner. |
+| `AddTemplateFunc(name, fn) error` | Bir template fonksiyonu ekler. Ad daha önce eklenmişse `ErrDuplicateTemplateFunc` döner; ekleyen başka bir plugin de olabilir, aynı plugin'in önceki bir çağrısı da. Ad bir built-in'inkiyse ya da template dilininse de aynı hatayı döner. |
 | `WrapMount(wrap func(fs.FS) fs.FS)` | Mount edilen her dosya sistemine uygulanacak bir dönüşümü register eder. Wrapper'lar register edildikleri sırayla uygulanır. |
-| `AddRenderFunc(name, factory) error` | Her render için o render'ın `*RenderContext`'inden yeniden üretilen bir template fonksiyonu ekler. Bkz. [Template fonksiyonları](#template-functions) (v0.21.0'dan beri). |
+| `AddRenderFunc(name, factory) error` | Her render için o render'ın `*RenderContext`'inden yeniden üretilen bir template fonksiyonu ekler. Bkz. [Template fonksiyonları](#template-functions). |
 
-Bir `ConfigHost`, plugin'in `Configure`'ı döndüğünde kapanır (v0.78.0'dan beri).
+Bir `ConfigHost`, plugin'in `Configure`'ı döndüğünde kapanır.
 Onu saklayan bir plugin, sonraki bir `AddTemplateFunc` ya da `AddRenderFunc`
 çağrısından `collage.ErrConfigureClosed` alır; sonraki bir `WrapMount` hiçbir şeyi
 wrap etmez ve log'lanır; onun üzerinden `collage.FindPlugin` de hiçbir şey bulmaz.
 Template'ler yapım bitince parse edilir ve request'ler o ana kadar register
-edilenlerle render edilir. Önceden geç gelen bir render fonksiyonu, her render'ın
-okuduğu map'e yazılıyordu; Go runtime'ı bunun üzerine process'i sonlandırır.
+edilenlerle render edilir.
 
 ### Host
 
@@ -177,38 +202,28 @@ okuduğu map'e yazılıyordu; Go runtime'ı bunun üzerine process'i sonlandır�
 | `Page(name) (*collage.Page, bool)` | Adı verilen page'i defensive copy olarak döner. |
 | `RegisterDocument(doc) error` | Plugin'in eklediği bir document'ı register eder. |
 | `Mount(prefix, fsys, opts...) error` | Bir dosya sistemini bir URL prefix'i altında sunar. |
-| `OpenMounted(urlPath) (fs.File, error)` | Sitenin kendi dosyalarından birini sunulduğu URL ile (`/static/icon.png`), prefix'i altında bulunduğu mount üzerinden açar: development'ta diskten, build edilmiş bir binary'de embed edilmiş kopyadan. Eksik bir dosya `fs.ErrNotExist`'tir (v0.68.0'dan beri). |
-| `Handle(prefix, handler) error` | `App.Handle` gibi, bir `http.Handler`'ı `/` ile biten bir URL prefix'i altında ya da sonunda `/` olmayan tek bir tam path'te (`/metrics`, v0.24.0'dan beri) sunar. Örneğin bir event stream ya da bir WebSocket (v0.18.0'dan beri). v0.67.0'dan beri düz bir `App.Handle` mount'unun aksine middleware'in içinde çalışır; v0.78.0'dan beri request body'si, bir page'inki gibi, middleware'den önce `Server.MaxBodyBytes` ile sınırlanır. |
-| `RenderFragment(r, req) (*collage.FragmentRender, error)` | Bir page'in `WithFragmentPath` ile açtığı bir fragment'i kısımlar hâlinde render eder. Bkz. [Fragment göndermek](#pushing-fragments) (v0.18.0'dan beri). |
+| `OpenMounted(urlPath) (fs.File, error)` | Sitenin kendi dosyalarından birini sunulduğu URL ile (`/static/icon.png`), prefix'i altında bulunduğu mount üzerinden açar: development'ta diskten, build edilmiş bir binary'de embed edilmiş kopyadan. Eksik bir dosya `fs.ErrNotExist`'tir. |
+| `Handle(prefix, handler) error` | `App.Handle` gibi, bir `http.Handler`'ı `/` ile biten bir URL prefix'i altında ya da sonunda `/` olmayan tek bir tam path'te (`/metrics`) sunar. Örneğin bir event stream ya da bir WebSocket. Düz bir `App.Handle` mount'unun aksine middleware'in içinde çalışır; request body'si, bir page'inki gibi, middleware'den önce `Server.MaxBodyBytes` ile sınırlanır. |
+| `RenderFragment(r, req) (*collage.FragmentRender, error)` | Bir page'in `WithFragmentPath` ile açtığı bir fragment'i kısımlar hâlinde render eder. Bkz. [Fragment göndermek](#pushing-fragments). |
 | `RegisterCommand(cmd) error` | Bir komut ekler. Bkz. [Komutlar](#commands). |
-| `Use(middleware) error` | Her request'i sarmalar (v0.21.0'dan beri), plugin'in register edildiği yerde: `Config.Plugins` içindeki bir plugin için uygulamanın kendi middleware'inin dışında (v0.38.0'dan beri; önceden içindeydi). v0.67.0'dan beri uygulamanın düz `App.Handle` ile mount ettiği bir handler'a gelen request'leri sarmalamaz. |
-| `URL(name, locale, params) (string, error)` | Bir page'in ya da document'ın path'ini `App.URL`'in oluşturduğu gibi döner (v0.21.0'dan beri). |
+| `Use(middleware) error` | Her request'i sarmalar, plugin'in register edildiği yerde: `Config.Plugins` içindeki bir plugin için uygulamanın kendi middleware'inin dışında. Uygulamanın düz `App.Handle` ile mount ettiği bir handler'a gelen request'leri sarmalamaz. |
+| `URL(name, locale, params) (string, error)` | Bir page'in ya da document'ın path'ini `App.URL`'in oluşturduğu gibi döner. |
 | `BaseURL() string` | Sonunda slash olmadan `Config.BaseURL`'i döner; ayarlanmamışsa boştur. |
-| `OriginFor(ctx, host) string` | Bir host'un public origin'ini döner: bir `OriginResolver`'ınkini, yoksa `Config.BaseURL`'i. Bkz. [Bir host'un origin'i](#which-origin-a-host-has-originresolver) (v0.60.0'dan beri). |
-| `MultiOrigin() bool` | Bir `OriginResolver`'ın register edilip edilmediğini, yani origin'lerin host'a göre değişip değişmediğini söyler (v0.60.0'dan beri). |
-| `Locales() (default, supported)` | Varsayılan locale'i ve varsayılan dahil desteklenen her locale'i döner (v0.21.0'dan beri). |
-| `PageURLs(ctx, name) ([]collage.PageURL, error)` | Bir page'in her locale'de cevap verdiği her URL'yi döner; bir pattern, `WithStaticParams`'ı üzerinden açılır. Bir sitemap'in içeriği budur (v0.21.0'dan beri). |
-| `BuildID() string` | Sunan build'i adlandırır: `Config.Cache.Version` ya da executable'ın bir parmak izi. Tarayıcının deploy'lar boyunca sakladıklarını sürümlemek içindir; örneğin bir service worker'ın cache'leri ya da bir asset'in query string'i (v0.24.0'dan beri). |
-| `ServeStatus(w, r, status)` | Request'e status'la ve sitenin o status için kendi page'iyle cevap verir: 404 ve 410 için not-found page'i, diğerleri için error page'i. Bir request'e kendisi cevap veren ve cevabı sitenin geri kalanı gibi görünmesi gereken bir plugin içindir (v0.24.0'dan beri). |
+| `OriginFor(ctx, host) string` | Bir host'un public origin'ini döner: bir `OriginResolver`'ınkini, yoksa `Config.BaseURL`'i. Bkz. [Bir host'un origin'i](#which-origin-a-host-has-originresolver). |
+| `MultiOrigin() bool` | Bir `OriginResolver`'ın register edilip edilmediğini, yani origin'lerin host'a göre değişip değişmediğini söyler. |
+| `Locales() (default, supported)` | Varsayılan locale'i ve varsayılan dahil desteklenen her locale'i döner. |
+| `PageURLs(ctx, name) ([]collage.PageURL, error)` | Bir page'in her locale'de cevap verdiği her URL'yi döner; bir pattern, `WithStaticParams`'ı üzerinden açılır. Bir sitemap'in içeriği budur. |
+| `BuildID() string` | Sunan build'i adlandırır: `Config.Cache.Version` ya da executable'ın bir parmak izi. Tarayıcının deploy'lar boyunca sakladıklarını sürümlemek içindir; örneğin bir service worker'ın cache'leri ya da bir asset'in query string'i. |
+| `ServeStatus(w, r, status)` | Request'e status'la ve sitenin o status için kendi page'iyle cevap verir: 404 ve 410 için not-found page'i, diğerleri için error page'i. Bir request'e kendisi cevap veren ve cevabı sitenin geri kalanı gibi görünmesi gereken bir plugin içindir. |
 
-v0.60.0, `RegisterPage` ve `FragmentURL`'i `Host`'tan kaldırdı; uygulama ikisini de
-`App.RegisterPage` ve `App.FragmentURL` olarak tutar. Bir plugin'in type assertion ile
-ulaştığı `collage.Origins` capability'si de `OriginFor` ve `MultiOrigin` metotlarına
-dönüştü.
+`RegisterPage` ve `FragmentURL` uygulamanındır (`App.RegisterPage`,
+`App.FragmentURL`), `Host`'un değil.
 
 `Init`'e gelen değer `*App` değildir. Yalnızca bu metotları ileten dar bir değerdir.
 Bu yüzden bir plugin, type assertion ile `ListenAndServe`'e, `Shutdown`'a,
 router'a, cache'e ya da template kümesine ulaşamaz.
 
-`Handle` ve `RenderFragment`
-v0.18.0'da eklendi. `Use`, `URL`, `Locales` ve `PageURLs` ise
-v0.21.0'da, `ConfigHost`'taki `AddRenderFunc` ile birlikte eklendi. `BuildID` ve
-`ServeStatus` ise v0.24.0'da geldi. **Bunların her biri bir test double'ı için
-breaking change'dir:** `Host`'u ya da `ConfigHost`'u implement eden bir test
-double'ının da yeni metotlara ihtiyacı vardır. v0.24.0'dan beri bunlar `BuildID` ve
-`ServeStatus`'tur.
-
-v0.50.0'dan beri ikisi de `collage.ConfigReader`'ı içerir. Onun
+`Host` ve `ConfigHost` mühürlüdür: ikisi de `collage.ConfigReader`'ı içerir. Onun
 tek metodu export edilmemiştir; bu yüzden onu yalnızca collage'ın kendi host'ları
 karşılar. Plugin'i bunun yerine gerçek bir uygulama üzerinden test edin. Bkz.
 [Bir plugin'i test etmek](#testing-a-plugin).
@@ -217,9 +232,8 @@ karşılar. Plugin'i bunun yerine gerçek bir uygulama üzerinden test edin. Bkz
 sınırlamaz.** `Pages` ve `Page`, page struct'ının bir kopyasını döner. Tuttuğu
 her slice ve map (`Paths`, `CacheParams`, `FragmentPaths` ve locale başına map'leri,
 `DependencyTags`, `LayoutChain`) ile `Redirect` ve `Action` değerleri de kopyalanır.
-Bu yüzden bunları düzenlemek uygulamanın kendi page'ine dokunmaz (v0.78.0'dan beri;
-önceden `CacheParams`, `FragmentPaths` ve action'lar paylaşılıyordu, bu yüzden
-kopyasına yazan bir plugin cache key'ini ve fragment URL'lerini değiştiriyordu).
+Bu yüzden bunları düzenlemek uygulamanın kendi page'ine dokunmaz, cache key'ine
+ve fragment URL'lerine de.
 Ancak kopyanın içindeki fragment'ler hâlâ paylaşılır. Aşağıdaki event'ler de kopyayı değil, *canlı*
 page'i taşır, çünkü her request'te bir page'i ve fragment ağacını kopyalamak hot
 path'e pahalıya mal olurdu.
@@ -249,8 +263,8 @@ başarısız olursa hata döner:
 | `HTML` | Markup. İçindeki her form okuyucunun forgery token'ını taşır |
 | `Head` | Fragment'in marker koymadığı bir alana hoist ettikleri; area'ları ve key'leriyle birlikte `HoistItem` olarak |
 | `DependencyTags` | Render'ın bağlı olduğu tag'ler. Neyin gönderileceğini bilmek için bunları `CacheInvalidateEvent.Tags` ile eşleştirin |
-| `Shared` | Render bu anda aynı host'taki her okuyucu için aynıdır: page herkes için cache'lenir ya da alt ağaçtaki her handler `Static()` veya `Shared()` olarak tanımlanmıştır ve slot resolver yoktur. Ayrıca form token'ı ve (v0.78.0'dan beri) bir `PersonaliseHook`'un kişisel yaptığı bir şey de yoktur (v0.19.0'dan beri; öncesinde `Static()` olmayan her handler request'i okuyor sayılırdı). v0.71.0'dan beri böyle bir render, page cache'inki gibi, okuyucunun cookie'leri, header'ları ve context değerleri çıkarılmış bir request'ten üretilir |
-| `ETag` | Aynı body için fragment'in path'ine gelen bir request'in alacağı ETag. Böylece bir client, gönderilen bir kopyayı zaten gösterdiği kopyadan ayırt edebilir ya da ikisinin aynı olduğunu anlayabilir (v0.19.0'dan beri) |
+| `Shared` | Render bu anda aynı host'taki her okuyucu için aynıdır: page herkes için cache'lenir ya da alt ağaçtaki her handler `Static()` veya `Shared()` olarak tanımlanmıştır ve slot resolver yoktur. Ayrıca form token'ı ve bir `PersonaliseHook`'un kişisel yaptığı bir şey de yoktur. Böyle bir render, page cache'inki gibi, okuyucunun cookie'leri, header'ları ve context değerleri çıkarılmış bir request'ten üretilir |
+| `ETag` | Aynı body için fragment'in path'ine gelen bir request'in alacağı ETag. Böylece bir client, gönderilen bir kopyayı zaten gösterdiği kopyadan ayırt edebilir ya da ikisinin aynı olduğunu anlayabilir |
 | `Cookie` | Request hiç cookie taşımıyorsa `HTML`'deki form'ların ihtiyaç duyduğu forgery cookie'si |
 
 Bir `FragmentRequest`, fragment'i ya `Page`, `Fragment`, `Locale` ve `Params` ile ya
@@ -264,13 +278,13 @@ out, err := host.RenderFragment(r, collage.FragmentRequest{Path: "/live/cpu"})
 ```
 
 Yalnızca page'in açtığı fragment'ler render edilir: bir stream tam olarak HTTP'nin
-ulaştığı yere ulaşır. v0.78.0'dan beri her çağrı, fragment'in URL'sine gelen bir
+ulaştığı yere ulaşır. Her çağrı, fragment'in URL'sine gelen bir
 request gibi sunulur: ona giden, `r`'nin host'unu, client adresini, header'larını ve
 cookie'lerini taşıyan (path değerlerini, body'sini ya da method'unu taşımayan) bir
 `GET`, fragment'in path'i için uygulamanın ve her plugin'in middleware'inden, bir
 request'teki sırayla geçer. Ardından fragment'in kendi
 [guard](/docs/pages-and-layouts#private-pages-guards)'ı ve page'inki gelir
-(v0.28.0'dan beri). Bu guard'lar fragment URL'sinin parametrelerini `r.PathValue`
+. Bu guard'lar fragment URL'sinin parametrelerini `r.PathValue`
 ile okur, çağıranınkileri asla.
 
 - **Bir ret `collage.ErrGuardRefused`'tır**, render değil: reddeden bir guard ya da
@@ -291,7 +305,7 @@ ile okur, çağıranınkileri asla.
   render etmek yerine hata döner.
 
 `Page` ve `Fragment` ile istendiğinde URL, `FragmentURL`'in kurduğu gibi page'in
-pattern'inden, istenen locale'de kurulur (v0.78.0'dan beri): hiçbir request'in
+pattern'inden, istenen locale'de kurulur: hiçbir request'in
 taşıyamayacağı bir parametre (tanımlanmamış bir ad, catch-all dışında `/` içeren,
 `.`, `..` ya da boş bir değer), fragment'in path'i olmayan bir locale ve bir
 request'in temiz yazımına redirect edileceği bir path `ErrUnknownFragmentPath`'tir.
@@ -300,7 +314,7 @@ Her okuyucunun middleware'ine ve guard'larına bir değişikliği sormak için o
 okuyucu için bir kez, o okuyucunun request'iyle çağırın ve her bağlantıya kendisi
 için yapılan render'ı gönderin. `Shared` olmayan bir render tek bir okuyucunun
 verisini taşıyabilir. `Shared` bir render ise kaç okuyucuya ulaşırsa ulaşsın her
-değişiklikte bir render'a mal olur (v0.78.0'dan beri): bir okuyucunun middleware'i
+değişiklikte bir render'a mal olur: bir okuyucunun middleware'i
 ve guard'ları geçtiğinde, aynı host, URL, locale ve cache'lenen query için daha
 önce yapılmış bir `Shared` render bir kopya olarak verilir; render sürerken gelen
 okuyucular onu bekler. O okuyucunun forgery token'ı ve `PersonaliseHook` geçişi
@@ -325,7 +339,7 @@ metottur ve uygulamanın kendi kodu içindir.
 Bir plugin'in `Shutdown`'ı sunucu durduktan sonra çalışır. Sunucu da açık her
 request'in bitmesini bekleyerek durur. Bir event stream ya da bir WebSocket ise
 kendiliğinden hiç bitmez. Böyle bir bağlantı sunan plugin `StreamCloser`'ı
-implement eder (v0.18.0'dan beri):
+implement eder:
 
 ```go
 var _ collage.StreamCloser = (*Plugin)(nil)
@@ -341,7 +355,7 @@ sunucusunda da yapabilirdi.
 
 Sunucunun trafik almayı bırakmak üzere olduğunu bilmesi gereken bir plugin
 (readiness'i false'a çeviren, yeni işleri reddeden bir plugin) `DrainHook`'u
-implement eder (v0.53.0'dan beri):
+implement eder:
 
 ```go
 var _ collage.DrainHook = (*Plugin)(nil)
@@ -355,17 +369,16 @@ ve `CloseStreams`'ten önce. `DrainDelay` 0 olduğunda bile çağrılır. Blokla
 drain sürdüğü sürece sunucu hizmet vermeye devam eder ve yavaş bir hook kendinden
 sonraki her adımı geciktirir. İçindeki bir panic yakalanır ve plugin'in adıyla Warn
 seviyesinde loglanır. `Shutdown` ve `CloseStreams` gibi yalnızca `Init`'i
-başarılı olmuş plugin'lere ulaşır (v0.61.4'ten beri).
+başarılı olmuş plugin'lere ulaşır.
 
 `Start`'tan önce ya da
 başarısız bir `Start`'tan sonra yapılan bir `Shutdown` hiçbirine haber vermez.
-v0.61.4'ten önce hiç çalışmamış plugin'lerde de `OnDrain` ve `CloseStreams`
-çağrılırdı. Bu yüzden ikinci bir başlatma için yeniden kullanılan bir plugin
+Böylece ikinci bir başlatma için yeniden kullanılan bir plugin
 (`collagetest.TrySite`'ın ardından aynı plugin değeriyle `NewSite` gibi) daha en
-baştan drain ediyor olurdu.
+baştan drain etmeye başlamaz.
 
 Yalnızca uygulama hizmet verirken iş yapan bir plugin (bir scheduler, bir queue
-worker'ı) `ServeHook`'u implement eder (v0.55.0'dan beri):
+worker'ı) `ServeHook`'u implement eder:
 
 ```go
 var _ collage.ServeHook = (*Plugin)(nil)
@@ -399,16 +412,16 @@ hizmet verir.
 
 | Interface | Metot | Event | Ne zaman çalışır | Neyi değiştirebilir |
 | --- | --- | --- | --- | --- |
-| `RequestHook` | `OnRequest` | `*http.Request` | Her request'te ilk olarak; collage'ın request span'inden, middleware'den ve routing'den önce (v0.25.0'dan beri) | request'in context'ini |
+| `RequestHook` | `OnRequest` | `*http.Request` | Her request'te ilk olarak; collage'ın request span'inden, middleware'den ve routing'den önce | request'in context'ini |
 | `BeforeRenderHook` | `OnBeforeRender` | `BeforeRenderEvent` | Yeni bir page render'ından önce | event'te hiçbir şeyi; `ev.Context` üzerinden hoist edebilir |
-| `BeforeActionHook` | `OnBeforeAction` | `BeforeActionEvent` | Bir action'ın handler'ından önce, guard'larından, body sınırından ve forgery kontrolünden sonra (v0.31.0'dan beri) | `ev.Result`; handler'ın yerine cevap verir |
+| `BeforeActionHook` | `OnBeforeAction` | `BeforeActionEvent` | Bir action'ın handler'ından önce, guard'larından, body sınırından ve forgery kontrolünden sonra | `ev.Result`; handler'ın yerine cevap verir |
 | `AfterRenderHook` | `OnAfterRender` | `AfterRenderEvent` | Bir page render'ı başarıyla bittikten sonra. `ev.Values`'u taşır (bir key'in `In` metoduyla okunur) | `ev.HTML`; `ev.Warn` ve `ev.Error` ile raporlar |
-| `PersonaliseHook` | `OnPersonalise` | `PersonaliseEvent` | Cache'ten sonra, bir okuyucuya giden her HTML response'u için (v0.43.0'dan beri) | `ev.Body`, `ev.Header`, `ev.Personal` |
+| `PersonaliseHook` | `OnPersonalise` | `PersonaliseEvent` | Cache'ten sonra, bir okuyucuya giden her HTML response'u için | `ev.Body`, `ev.Header`, `ev.Personal` |
 | `DocumentRenderedHook` | `OnDocumentRendered` | `DocumentRenderedEvent` | Bir document handler'ı body'sini ürettikten sonra | `ev.Body` |
 | `CacheInvalidateHook` | `OnCacheInvalidate` | `CacheInvalidateEvent` | Entry'ler tag ile invalidate edildikten sonra | hiçbir şeyi |
-| `OriginResolver` | `Origin` | string olarak host | `collage.BaseURL` ya da `Host.OriginFor` bir host'un origin'ini sorduğunda (v0.42.0'dan beri) | dönen origin |
+| `OriginResolver` | `Origin` | string olarak host | `collage.BaseURL` ya da `Host.OriginFor` bir host'un origin'ini sorduğunda | dönen origin |
 | `ErrorHook` | `OnError` | `ErrorEvent` | Bir request sunulurken bir hata oluştuğunda | hiçbir şeyi |
-| `BuildFinishedHook` | `OnBuildFinished` | `BuildFinishedEvent` | Bir static build her dosyayı yazıp header'larını yakaladığında, bir kez (v0.21.0'dan beri) | `ev.Warn` ve `ev.Error` ile raporlar |
+| `BuildFinishedHook` | `OnBuildFinished` | `BuildFinishedEvent` | Bir static build her dosyayı yazıp header'larını yakaladığında, bir kez | `ev.Warn` ve `ev.Error` ile raporlar |
 
 Bir request'te hook'lar bu sırayla çalışır:
 
@@ -461,8 +474,7 @@ Bir request'te hook'lar bu sırayla çalışır:
 </figure>
 
 `OnRequest` dışında her hook metodunun imzası
-`func(ctx context.Context, ev *Event) error` biçimindedir. v0.60.0, hiçbir şeyin
-kullanmadığı `PageResolvedHook` ve `CacheWriteHook`'u kaldırdı: bir plugin'in görmek
+`func(ctx context.Context, ev *Event) error` biçimindedir. Bir plugin'in görmek
 istediği request `OnRequest`'in, çalışmak üzere olan bir render ise
 `OnBeforeRender`'ın konusudur.
 
@@ -474,7 +486,7 @@ type RequestHook interface {
 }
 ```
 
-Bir request'te her şeyden önce çalışır (v0.25.0'dan beri): collage kendi request
+Bir request'te her şeyden önce çalışır: collage kendi request
 span'ini başlatmadan, middleware'den ve routing'den önce. Request'in sunulacağı
 context'i döner; bu context `r.Context()`'ten türetilir. Bir de response yazıldıktan
 sonra collage'ın status ile çağırdığı bir fonksiyon döner: request sunulurken bir
@@ -502,14 +514,13 @@ func (p *Plugin) OnRequest(r *http.Request) (context.Context, func(status int)) 
 
 `collage.RouteInfo(ctx)`, request'in neye resolve edildiğini bir `collage.Route`
 olarak bildirir: `Kind`'ı (`collage.RouteKindPage`, `RouteKindDocument`,
-`RouteKindAction`, `RouteKindMount` ya da `RouteKindHandler`; v0.61.0'dan beri.
-String olarak `"page"`, `"document"`, `"action"`, `"mount"`, `"handler"`'dır ve
-küme büyüyebilir; ya da v0.79.0'dan beri `RouteKindRejected`, `"rejected"`, aşağıda)
+`RouteKindAction`, `RouteKindMount` ya da `RouteKindHandler`;
+string olarak `"page"`, `"document"`, `"action"`, `"mount"`, `"handler"`'dır ve
+küme büyüyebilir; ya da `RouteKindRejected`, `"rejected"`, aşağıda)
 ve register edildiği adı ya da prefix'i olan `Name`'i. Bu ad page'in,
 document'ın ya da action'ın adıdır; mount'ta ve handler'da ise prefix'tir. Request
 henüz resolve edilmemişken ve hiçbir route'un sahip olmadığı bir path'in 404'ü gibi
-hiçbir şeye resolve edilmeyen bir request'te sıfır `Route`'tur. (v0.60.0'dan önce `collage.RouteOf(ctx)` yalnızca türü ve adı
-dönüyordu.)
+hiçbir şeye resolve edilmeyen bir request'te sıfır `Route`'tur.
 
 `collage.RouteInfo`, collage'ın request'i sunduğu
 context'i okur. Finish fonksiyonunun context'i de bu context'i paylaşır,
@@ -527,7 +538,7 @@ Hook'lar register sırasına göre çalışır. Her biri request'i kendinden ön
 oluşturduğu context ile alır. Finish fonksiyonları ters sırada çalışır. Panic'e
 düşen bir hook atlanır ve request ondan önceki context ile sunulur.
 
-v0.47.0'dan beri hook'lar, collage'ın routing'den önce yanıtladığı request'leri de
+Hook'lar, collage'ın routing'den önce yanıtladığı request'leri de
 görür: encoded slash içeren bir path (`/a%2f..%2fb`) 404 ile, kirli bir path
 (`/a/../b`) ise 301 ile yanıtlanır (`GET` ve `HEAD` dışındaki bir metotta 308).
 Bunlar çoğu zaman bir tarayıcı botunun yoklamalarıdır.
@@ -537,21 +548,19 @@ fonksiyonu yazılan status ile çağrılır (request sunulurken bir panic olmad�
 kez) ve `r.URL` ham path'tir. `collage.ClientIP(r)` `OnRequest` içinde çalışır;
 bu yüzden istemcileri sayan ya da banlayan bir plugin bu request'leri görebilir.
 
-v0.79.0'dan beri, response yazıldıktan sonra `collage.RouteInfo` böyle bir
+Response yazıldıktan sonra `collage.RouteInfo` böyle bir
 request'i `Kind` `RouteKindRejected` (`"rejected"`) ve `Name` `RouteNameNormalise`
 (`"normalise"`) ile bildirir; hiçbir route'un asla eşleşemeyeceği bir path için
 router'ın 404'ünü de (encoded slash `/a%2fb`, bir NUL, bozuk percent-encoding)
 aynı şekilde. `RouteInfo`'dan kurulan bir etiket sınırlı kalır; bir tarayıcı
 bot'unun path'inden kurulan kalmaz. `Metrics.HTTPResponse` ve collage'ın kendi
 request span'i de bu request'leri görür, boş bir path ile ve `http.path` olmadan.
-v0.79.0'dan önce `RouteInfo` bunlar için sıfır `Route`'tu, metrikler ve span da
-onları atlardı.
 
-collage'ın kendi `collage.http` span'i v0.79.0'dan beri `http.method`'u gruplayarak
+collage'ın kendi `collage.http` span'i `http.method`'u gruplayarak
 kaydeder: standart metotlar kendileri olarak, bir istemcinin gönderdiği başka her
 şey `OTHER` olarak.
 
-Hook'lar static bir build'in header yakalamasını da görür (v0.52.0'dan beri).
+Hook'lar static bir build'in header yakalamasını da görür.
 `BuildFinishedHook` implement eden bir plugin register edilmişse build, yazdığı her
 dosyayı handler'a sorar ve bu request'lerde `collage.IsCapture(r.Context())`
 true'dur. İstemcileri sayan ya da banlayan bir plugin bunları atlar. Bkz.
@@ -566,7 +575,7 @@ olmayan paylaşılan bir page render'ında ve `X-Forwarded-For`'u kullanılabili
 istemci bildirmeyen (`unknown`) güvenilen bir proxy'nin arkasında. Onu asla
 saymayın.
 
-`collage.IsHTTPS(r)` (v0.61.0'dan beri), request'in TLS üzerinden gelip gelmediğini
+`collage.IsHTTPS(r)`, request'in TLS üzerinden gelip gelmediğini
 söyler: ya kendi bağlantısında TLS vardır ya da bunu `X-Forwarded-Proto` ile bildiren
 bir proxy'den geçmiştir. `Server.TrustedProxies` doluysa header yalnızca oradaki
 proxy'lerden geldiğinde dikkate alınır; böylece bir istemci sahip olmadığı bir TLS
@@ -609,7 +618,7 @@ herhangi bir fragment onun yerini alır. Varsayılan değeri plugin, özel değe
 verir. Tanım yalnızca layout'un `{{hoist "head"}}` çağırdığı yere yerleşir. Dönen
 bir hata, request'i `"before_render"` altında 500 ile başarısız kılar.
 
-`Static` (v0.22.0'dan beri), page'in bir request için değil, `App.RenderPath`
+`Static`, page'in bir request için değil, `App.RenderPath`
 üzerinden bir static build için render edildiğini söyler. `AfterRenderEvent`'te de
 bulunur. Build'in header yakalaması için yapılan render bir request'tir, bu yüzden
 onda `Static` false'tur; onu `collage.IsCapture(ctx)` ayırt eder.
@@ -627,11 +636,9 @@ type BeforeActionEvent struct {
 func (ev *BeforeActionEvent) Form() (url.Values, error)
 ```
 
-`Page` v0.78.0'dan beri yok: onu okuyan yoktu.
-
 Her action request'inde bir kez, handler'dan hemen önce çalışır. Page'in
 guard'larından, action'ın body sınırı konduktan ve forgery kontrolünden sonra
-gelir (v0.31.0'dan beri). Bir plugin'in gönderimi kontrol ettiği yer, örneğin bir
+gelir. Bir plugin'in gönderimi kontrol ettiği yer, örneğin bir
 spam filtresi ya da bir kota için, burasıdır, çünkü buradaki body action'ın kendi
 sınırıyla sınırlıdır; body'yi daha önce, middleware'de okuyan bir plugin'in ise
 kendi sınırına ihtiyacı olurdu.
@@ -641,7 +648,7 @@ döndürür. Parse ettiği parse edilmiş kalır. Böylece handler aynı form'u 
 iki kez okunmaz. Tek başına `ParseMultipartForm` yerine bunu kullanın. O, URL-encoded
 bir body'de okuma hatasını, sınırı aşan bir body'ninkini de, yok sayar.
 
-`WithStreamingBody()` ile kurulmuş bir action için (v0.57.0'dan beri) `ev.Form()`
+`WithStreamingBody()` ile kurulmuş bir action için `ev.Form()`
 hiçbir şey okumaz ve `collage.ErrStreamingBody` döndürür. Böylece bir plugin,
 handler'ın okuyacağı stream'i tüketemez. Form'ları inceleyen bir plugin bu hatayı
 "bu action'ın kontrol edilecek form'u yok" diye yorumlamalı ve request'i
@@ -666,14 +673,13 @@ func (p *Plugin) OnBeforeAction(_ context.Context, ev *collage.BeforeActionEvent
 ```
 
 `ev.Result` ayarlanırsa request, handler onu döndürmüş gibi onunla cevaplanır ve
-dispatch durur. Sonraki hiçbir plugin ve handler çalışmaz. v0.79.0'dan beri bu
+dispatch durur. Sonraki hiçbir plugin ve handler çalışmaz. Bu
 sonucun tamamı için geçerlidir: `InvalidateTags`'i response'tan önce invalidate
-edilir ve `Location`'ı, bir handler'ınki gibi warm edilir; önceden tag'ler atılır ve
-hiçbir şey warm edilmezdi. `Location`, `Fragment`, `Page` ve `Body`'den birden
+edilir ve `Location`'ı, bir handler'ınki gibi warm edilir. `Location`, `Fragment`, `Page` ve `Body`'den birden
 fazlasını ayarlayan bir sonuç 500 ile reddedilir; `Location` ve `Status` verildiği
 gibi gider. Dönen bir hata,
 request'i `"before_action"` altında başarısız kılar. Hata `*http.MaxBytesError`
-sarıyorsa `413`, aksi halde `500` olur. v0.57.0'dan beri body, plugin onu okurken
+sarıyorsa `413`, aksi halde `500` olur. Body, plugin onu okurken
 yarıda kesildiyse cevap `400` (okuma deadline'ı için `408`) olur. Bu durum debug
 seviyesinde log'lanır ve hiçbir error hook'una verilmez.
 
@@ -729,10 +735,9 @@ olursunuz.
 Key'in adına plugin'in kendi adıyla başlayın: `"jsonld:article"`,
 `"validate:errors"`. Key yalnızca ismi ve tipinden ibarettir. Bu yüzden her biri
 `NewKey[string]("errors")` tanımlayan iki plugin aynı değeri paylaşır ve onu en son
-set eden kazanır. v0.50.0'dan önce bunun yerine render'ın paylaşılan map'i
-`ev.Data` vardı.
+set eden kazanır.
 
-`ev.Fragments` ve `ev.DependencyTags` (v0.24.0'dan beri), render'ın nasıl geçtiğini
+`ev.Fragments` ve `ev.DependencyTags`, render'ın nasıl geçtiğini
 bildirir. Bir development aracının page'in yanında göstermesi içindir. Her
 `collage.FragmentReport` şunları taşır: fragment'in adı `Name`; slot'larındaki
 fragment'ler dahil süresi `Duration`; bir fallback yerine geçse bile render'ının
@@ -749,7 +754,7 @@ Bulunduğu yerin iki sonucu vardır:
   bir page sunmak yerine 500 ile başarısız olur.
 
 Bir action'ın `RenderPage` ile cevap olarak döndüğü page de bu hook'u çalıştırır.
-Bu, v0.10.0'dan beri böyledir; öncesinde yalnızca `BeforeRender` çalışıyordu. Böylece
+Böylece
 bir validation page'i de diğer page'ler gibi minify edilir. Dönen bir hata,
 request'i `"after_render"` altında 500 ile başarısız kılar.
 
@@ -757,7 +762,7 @@ request'i `"after_render"` altında 500 ile başarısız kılar.
 
 Page'in neye ihtiyaç duyduğunu yalnızca bitmiş markup'tan öğrenen bir plugin
 vardır: highlight ettiği kod blokları bir stylesheet ister. Böyle bir plugin bunu
-`OnAfterRender` içinde `ev.Hoist(area, key, html)` ile ekler (v0.25.0'dan beri):
+`OnAfterRender` içinde `ev.Hoist(area, key, html)` ile ekler:
 
 ```go
 if highlighted {
@@ -781,7 +786,7 @@ hoist edin, sonra yeniden yazın.
 Bir page'in render ettiği çıktıyı denetleyen bir plugin, örneğin atlanmış bir
 heading seviyesini, `alt`'ı olmayan bir görseli ya da label'ı olmayan bir form
 alanını bulan bir plugin, render'ı başarısız kılmak yerine bulduğunu raporlar
-(v0.21.0'dan beri):
+:
 
 ```go
 func (p *Plugin) OnAfterRender(_ context.Context, ev *collage.AfterRenderEvent) error {
@@ -827,7 +832,7 @@ denetleyen bir plugin'dir.
 `OnAfterRender` cache'ten önce, yalnızca bir kez çalışır; bu yüzden her okuyucuya
 kendine özel bir şey veremez. Bunu yapması gereken bir plugin, örneğin bir
 Content-Security-Policy nonce'u ya da ziyaretçiye özel bir token ekleyen,
-`PersonaliseHook`'u implement eder (v0.43.0'dan beri). Hook, bir okuyucuya giden her
+`PersonaliseHook`'u implement eder. Hook, bir okuyucuya giden her
 HTML response'u için çağrılır:
 
 ```go
@@ -862,10 +867,9 @@ overlay'inden önce çalışır; bir error page'de ya da bir action'ın cevap ol
 verdiği bir page'de ise overlay body'de zaten vardır.
 Plugin'ler register sırasına göre çalışır ve her biri öncekinin body'sini görür. Bir
 page'i (cache'ten ya da yeni), bir fragment path'ini ya da fragment read'ini, bir
-action'ın HTML cevabını, bir error page'i ve v0.78.0'dan beri `RenderFragment`'in
+action'ın HTML cevabını, bir error page'i ve `RenderFragment`'in
 döndürdüğünü (markup'ı ve hoist edilen her öğeyi) kapsar; document'ı asla. Bir hook
-`Personal`'ı bir kez ayarladığında sonraki bir hook onu geri alamaz (v0.78.0'dan
-beri).
+`Personal`'ı bir kez ayarladığında sonraki bir hook onu geri alamaz.
 
 `Personal`, response'u bir forgery token'ın yaptığı gibi ele alır: ETag'i gönderilen
 body'den yeniden hesaplanır, page `private, no-store` cevabı verir; ne cache'ten
@@ -876,8 +880,7 @@ hesaplanan ETag ile `private, no-cache`, action'ın HTML'i ise `private, no-stor
 cevabı verir; handler'ın kendi ayarladığı `Cache-Control` da geçersiz kalır.
 elagoht/compress gibi sıkıştırılmış body'leri ETag başına saklayan bir middleware
 kişisel bir response'tan bir şey kazanmaz: ETag'i her seferinde yenidir.
-elagoht/compress onu her okuyucu için sıkıştırır ve hiçbir şey saklamaz (v0.1.3'ten
-beri).
+elagoht/compress onu her okuyucu için sıkıştırır ve hiçbir şey saklamaz.
 
 `Personal` olmadan değişen bir body da gönderilen byte'ları adlandıran bir ETag
 alır. Hata dönen ya da panic eden bir hook log'lanır; page, fragment ya da action
@@ -925,21 +928,21 @@ type InvalidatedEntry struct {
 çalışır. Onu uygulamanın ya da bir action'ın çağırması fark etmez. Hook bir
 request'ten değil, o çağrının içinden dispatch edilir. Onu implement eden her
 plugin, kendisinden önceki biri başarısız olsa ya da panic'e düşse bile çağrılır
-(v0.78.0'dan beri; başarısız olan tek bir plugin, bir CDN purge'ünün ya da bir live
-güncellemesinin çalışmasını engelliyordu). Her hata log'lanır ve `InvalidateTags`'in
-döndüğü hatayla join edilir. Plugin invalidate etmez: `Host.InvalidateTags`
-v0.78.0'dan beri yok.
+(başarısız olan tek bir plugin bir CDN purge'ünün ya da bir live
+güncellemesinin çalışmasını engelleyemez). Her hata log'lanır ve `InvalidateTags`'in
+döndüğü hatayla join edilir. Plugin invalidate etmez: `Host`'ta `InvalidateTags`
+yoktur.
 
 `Entries`, invalidation'ın ulaştığı cache'lenmiş page ve document'ları listeler.
 Bir CDN'in purge etmesi ve bir arama motoruna değiştiği bildirilmesi gereken
 budur. Built-in store'larda `InvalidateTags`'in ulaştığı bir entry silinmez, stale
-olarak işaretlenir (v0.63.0'dan beri). Artık taze diye sunulmaz. Yalnızca yeniden
+olarak işaretlenir. Artık taze diye sunulmaz. Yalnızca yeniden
 render'ı başarısız ya da degraded olursa `STALE` olarak yeniden sunulur.
 Cache'lenmemiş bir page burada asla yer almaz, çünkü onun için ulaşılacak bir
 entry yoktur. Daha önceki bir invalidation'ın stale olarak işaretlediği bir page
 de yeniden render edilip saklanana kadar burada yer almaz. Bir filonun paylaştığı
 bir store, yani bir [`collage.SharedCache`](/docs/caching#a-cache-a-fleet-shares)
-(v0.66.0'dan beri) bunun istisnasıdır: onun kendi tag index'i herhangi bir
+ bunun istisnasıdır: onun kendi tag index'i herhangi bir
 instance'ın yazdığı her page'i listeler ve invalidate edilip henüz yeniden render
 edilmemiş bir page'i de tutar. Bu yüzden ikinci bir invalidation o page'i yine
 listeler.
@@ -952,9 +955,7 @@ invalidate eder. Bkz. [Caching](/docs/caching#invalidating-by-path).
 Her entry bir host ve bir URL path'tir; önce host'a, sonra path'e göre sıralıdır.
 İki host altında cache'lenmiş bir path iki entry'dir ve request bir port içeriyorsa
 host portunu korur. Bir CDN'i purge eden ya da bir arama motoruna haber veren plugin,
-her URL'yi doğru origin'e göre kurmak için bunu okur. (Path'ler v0.23.0'da `Paths`
-olarak, host'lar v0.42.0'da `Entries` olarak geldi; v0.60.0 yalnızca `Entries`'i
-tuttu.) Host, `collage:path:`'in yanında bir `collage:host:<host>` dependency tag'i
+her URL'yi doğru origin'e göre kurmak için bunu okur. Host, `collage:path:`'in yanında bir `collage:host:<host>` dependency tag'i
 olarak kaydedilir. Host tag'leri tracker'ın tag başına sınırından muaftır;
 `MaxEntries` hâlâ belleği sınırlar.
 
@@ -962,7 +963,7 @@ olarak kaydedilir. Host tag'leri tracker'ın tag başına sınırından muaftır
 
 Tek bir process'ten birden fazla siteye hizmet veren, yani müşteri başına bir host
 kullanan bir plugin, `OriginResolver`'ı implement ederek bir host için mutlak
-URL'lerin hangi public origin'e göre kurulacağını söyler (v0.42.0'dan beri):
+URL'lerin hangi public origin'e göre kurulacağını söyler:
 
 ```go
 func (p *Plugin) Origin(ctx context.Context, host string) (string, bool) {
@@ -985,9 +986,8 @@ içinde olduğu için bu, cache'lenmiş bir render'da güvenlidir; request'i olm
 static build de `Config.BaseURL`'ü alır. Resolver'ı olmayan bir site hiçbir değişiklik
 görmez.
 
-Mutlak URL'leri kendisi kuran bir plugin, `Init`'te aldığı `Host`'a sorar
-(v0.60.0'dan beri; önceden type assertion ile `collage.Origins` capability'si
-üzerinden). v0.78.0'dan beri `ConfigHost`'ta `BaseURL`, `OriginFor` ve
+Mutlak URL'leri kendisi kuran bir plugin, `Init`'te aldığı `Host`'a sorar.
+`ConfigHost`'ta `BaseURL`, `OriginFor` ve
 `MultiOrigin` yoktur: `Configure` sırasında her resolver bilinmez.
 
 ```go
@@ -997,7 +997,7 @@ varies := host.MultiOrigin()               // is a resolver registered?
 
 Origin'leri kendi config'inde alan bir plugin, kuralın bir kopyası yerine bunları
 `collage.ParseOrigin` ile doğrular; onun reddettiği şey `collage.ErrInvalidOrigin`'dir
-(v0.60.0'dan önce `ErrInvalidBaseURL`). Yalnızca bir context'i olan kod,
+. Yalnızca bir context'i olan kod,
 `collage.Vary` ile bildirilmiş bir header'ı `collage.Varied(ctx, header)` üzerinden
 okur.
 
@@ -1017,17 +1017,16 @@ Bir request sunulurken bir hata oluştuğunda çalışır. Hata bir page'de, bir
 document'ta, bir action'da, bir mount'ta ya da `App.Handle` ile register edilmiş bir
 handler'da olabilir. `Stage`, hatanın nerede olduğunu söyler.
 
-v0.78.0'dan beri event bir `Page` taşımaz; neyin başarısız olduğunu `Path`'ten
+Event bir `Page` taşımaz; neyin başarısız olduğunu `Path`'ten
 okuyun.
 
-Framework'ün kullandığı stage'lerin her birinin bir sabiti vardır (v0.61.0'dan
-beri). Literal string yerine bunlarla karşılaştırın:
+Framework'ün kullandığı stage'lerin her birinin bir sabiti vardır. Literal string yerine bunlarla karşılaştırın:
 
 | Stage | Sabit |
 | --- | --- |
 | `"route"` | `collage.StageRoute` |
 | `"not_found"` | `collage.StageNotFound` |
-| `"guard"` (v0.28.0'dan beri: bir page'in guard'ı başarısız olmuş ya da yazılamayacak bir kararla cevap vermiştir) | `collage.StageGuard` |
+| `"guard"` (bir page'in guard'ı başarısız olmuş ya da yazılamayacak bir kararla cevap vermiştir) | `collage.StageGuard` |
 | `"before_render"` | `collage.StageBeforeRender` |
 | `"before_action"` | `collage.StageBeforeAction` |
 | `"render"` | `collage.StageRender` |
@@ -1054,7 +1053,7 @@ page alır. Bu yüzden başka türlü kimse durumu fark etmez.
 `collage.ErrAssetFailed`, recover edilmiş bir panic için `collage.ErrPanic` vardır.
 Geri kalanlar [Hatalar](/docs/errors#reported-to-error-hooks) sayfasında listelenir.
 
-Bir request sunulurken recover edilen panic (stage `"panic"`) v0.45.0'dan beri bir
+Bir request sunulurken recover edilen panic (stage `"panic"`) bir
 `*collage.PanicError`'dır. `errors.Is(err, collage.ErrPanic)` yine eşleşir;
 `errors.As` panic değerine ve panic'in oluştuğu stack'e ulaşır, kod bir hata ile
 panic ettiyse `errors.Is` değerin kendisine ulaşır. Stack artık hatanın mesajında
@@ -1062,10 +1061,10 @@ değildir; yalnızca framework'ün `collage: request failed` log satırındaki a
 `stack` attribute'unda bulunur. Stack'i mesajda arayan kod bunun yerine
 `PanicError.Stack`'i okumalıdır.
 
-`Status` (v0.45.0'dan beri), hatanın cevaplandığı HTTP status'tür: var olmayan bir
+`Status`, hatanın cevaplandığı HTTP status'tür: var olmayan bir
 asset için 404, başarısız bir render ya da panic için 500. Hata için hiçbir cevap
 yazılmıyorsa 0'dır; page sunulduktan sonra başarısız olan bir cache yazımı ya da
-yerine stale bir page sunulan başarısız bir render gibi (v0.63.0'dan beri). Bu
+yerine stale bir page sunulan başarısız bir render gibi. Bu
 sonuncusu başarısız olduğu stage'i korur, örneğin `"render"`. Onu kaç okuyucu
 beklemiş ve stale page'i almış olursa olsun, `OnError`'a başarısız her render için
 bir kez ulaşır. Bkz. [Caching](/docs/caching#stale-pages-and-x-collage-cache).
@@ -1118,7 +1117,7 @@ type BuiltRedirect struct {
 ```
 
 Bir static build her page'i, document'ı ve asset'i yazdığında bir kez çalışır
-(v0.21.0'dan beri). Page'ler arası denetimler içindir. Bir dosyanın içeriği
+. Page'ler arası denetimler içindir. Bir dosyanın içeriği
 gerektiğinde onu `os.ReadFile` ile okuyun. `ev.Warn(path, rule, message)` ve
 `ev.Error`, `path`'teki page hakkında bir finding raporlar; `path` boşsa finding
 build'in bütünü hakkındadır.
@@ -1127,7 +1126,7 @@ Hook'tan dönen bir hata da build'i başarısız kılar;
 zaten yazılmış dosyalar yerinde kalır. Bir sunucuda hiçbir zaman çalışmaz.
 Context'i sona ermiş bir build de ona verilmez.
 
-**Header'lar.** v0.52.0'dan beri build, hook çalışmadan önce her dosyanın path'ini
+**Header'lar.** Build, hook çalışmadan önce her dosyanın path'ini
 uygulamanın handler'ına iki kez sorar ve cevabı dosyaya koyar: `Status` ve
 `Headers`. Tek bir response'a ait header'lar (`Date`, `ETag`, `Set-Cookie`, …) ve
 iki cevap arasında değişenler, örneğin bir CSP nonce'ı, bunlara girmez. `Captured`,
@@ -1167,7 +1166,7 @@ type RedirectSource interface {
 
 Kendi redirect'lerini (bir dosyadan, bir veritabanından) sunan bir plugin,
 static export'un bu kuralları host'a taşıması için `RedirectSource` implement eder
-(v0.52.0'dan beri). Build, her dosya yazıldıktan sonra ona bir kez sorar ve
+. Build, her dosya yazıldıktan sonra ona bir kez sorar ve
 kurallarını `Source` alanına plugin'in adını koyarak `ev.Redirects`'e ekler. Her
 kural, register edilmiş bir redirect gibi kontrol edilir: `From` tek bir `/` ile
 başlamalı ve bir route pattern'i olarak parse edilebilmeli, `To`'daki her
@@ -1178,10 +1177,9 @@ bir path) ise `To`'su yoktur; 301, 302, 307 ve 308 birine ihtiyaç duyar.
 Başka
 herhangi bir `Status` build'i `collage.ErrInvalidRedirectStatus` ile, bozuk ya da
 control karakteri içeren bir kural ise `collage.ErrInvalidRedirect` ile başarısız
-kılar. Hata, kuralı ve plugin'i adıyla söyler. v0.78.0'dan beri bir host'un redirect
+kılar. Hata, kuralı ve plugin'i adıyla söyler. Bir host'un redirect
 dosyasının alan ayırıcı olarak okuduğu bir boşluk içeren `From` ya da `To` da
-bozuktur ve her bozuk kural, her plugin'inki, raporlanır; önceden tek bir kural
-bütün plugin'lerin kurallarını düşürüyordu. Başka bir redirect ile aynı path'ten
+bozuktur ve her bozuk kural, her plugin'inki, raporlanır. Başka bir redirect ile aynı path'ten
 gelen ya da yazılmış bir dosyanın üstüne düşen bir plugin kuralı da build'i diğerleri
 gibi başarısız kılar ([Neler başarısız olur](/docs/static-export#what-fails)).
 [elagoht/redirects](/docs/plugins#elagohtredirects) böyle bir plugin'dir.
@@ -1198,8 +1196,7 @@ gibi başarısız kılar ([Neler başarısız olur](/docs/static-export#what-fai
 - `OnBeforeAction` için ilk hata dispatch'i durdurur ve request'i başarısız kılar.
   `ev.Result`'ı ilk ayarlayan plugin de dispatch'i durdurur ve request'i cevaplar.
 - `OnCacheInvalidate` için her plugin, biri başarısız olsa ya da panic'e düşse bile
-  çağrılır; hatalar log'lanır ve `InvalidateTags`'ten join edilmiş olarak döner
-  (v0.78.0'dan beri; önceden ilk hata dispatch'i durduruyordu).
+  çağrılır; hatalar log'lanır ve `InvalidateTags`'ten join edilmiş olarak döner.
 - `OriginResolver` için, geçerli bir origin'le `ok` dönen ilk plugin kazanır; panic
   eden bir resolver log'lanır ve atlanır.
 - `OnError` için hatalar log'lanır ve dispatch devam eder.
@@ -1232,28 +1229,25 @@ Bundan sonra her template `{{readingTime .Words}}` çağırabilir. Fonksiyon,
 - Bunun dışında **uygulama kazanır**. `Config.Template.Funcs` içinde bir
   plugin'in eklediği adla bir kayıt varsa, plugin'in fonksiyonunun yerini alır:
   uygulama ikisini de görebilir ve kararı o verir; `New` bu adların her birini bir
-  kez log'lar. v0.78.0'dan beri bu `AddRenderFunc` için de geçerlidir. Onun
-  fonksiyonu önceden her render'da, uygulamanınkilerden sonra yeniden bağlanıyordu;
-  bu yüzden çalışan oydu.
-- **Built-in bir ad plugin'in alabileceği bir ad değildir.** v0.77.0'dan beri
+  kez log'lar. Bu `AddRenderFunc` için de geçerlidir.
+- **Built-in bir ad plugin'in alabileceği bir ad değildir.**
   `AddTemplateFunc`, herhangi bir [built-in fonksiyonun](/docs/template-functions)
   adını, `pageURL` kadar `json` ya da `truncate`'i de, `ErrDuplicateTemplateFunc`
-  ile reddeder. Önceden plugin'in fonksiyonu, o built-in'e göre yazılmış her
-  template'in altında built-in'in yerini sessizce alıyordu; built-in her render'da
-  bağlanan bir fonksiyonsa da hiç çalışmıyordu. Kendinize ait bir ad seçin. Bir
+  ile reddeder: plugin'in fonksiyonu, o built-in'e göre yazılmış her template'in
+  altında built-in'in yerini alırdı. Kendinize ait bir ad seçin. Bir
   built-in'i değiştirmek uygulamanın işidir ve `Config.Template.Funcs` ile yapılır.
-- **Template dilinin bir adı da alınamaz.** v0.78.0'dan beri `AddTemplateFunc` ve
+- **Template dilinin bir adı da alınamaz.** `AddTemplateFunc` ve
   `AddRenderFunc`, Go'nun builtin'lerini (`eq`, `len`, `index`, `print`…) ve
   escaper'larını (`html`, `js`, `urlquery`, html/template'in kendi escaper'ları)
   `ErrDuplicateTemplateFunc` ile reddeder: bir plugin'in `html`'i, ondan geçirilen
-  bir değerin aldığı tek escaping'di.
+  bir değerin aldığı tek escaping olurdu.
 - `AddTemplateFunc`, `Configure` içinden çağrılmalıdır. Sonradan eklemenin bir yolu
   yoktur, çünkü parse işleminden sonra eklenen bir fonksiyonu hiçbir template
   çağıramaz; `Configure` döndükten sonra saklanan bir `ConfigHost` üzerinden yapılan
-  çağrı `ErrConfigureClosed`'dır (v0.78.0'dan beri).
+  çağrı `ErrConfigureClosed`'dır.
 
 `AddTemplateFunc`'ın fonksiyonu, uygulamanın ömrü boyunca tek bir değerdir.
-v0.21.0'dan beri `AddRenderFunc` ise bir factory alır. Factory her render için o
+`AddRenderFunc` ise bir factory alır. Factory her render için o
 render'ın `*RenderContext`'iyle çağrılır. Böylece döndürdüğü fonksiyon, o render'ın
 taşıdığı şeyleri okuyabilir: bir `BeforeRender` hook'unun ayarladığı nonce ya da
 render'ın locale'i gibi:
@@ -1293,32 +1287,32 @@ response'ları destekler. Byte'ları her response'ta değiştirmek bütün offse
 kaydırır. Bu durumda bir range request'i, ilan edilen uzunluğu artık tutmayan bir
 dosyanın yanlış kısmını döner. Dosyaları *zaten* dönüştürülmüş hâlde sunan bir
 wrapper ise bu hesabı doğru tutar. Wrapper'lar register edildikleri sırayla çalışır;
-`nil` bir wrapper yok sayılır. `Configure` içinden çağrılır; v0.78.0'dan beri daha
+`nil` bir wrapper yok sayılır. `Configure` içinden çağrılır; daha
 sonraki bir çağrı hiçbir şeyi wrap etmez ve log'lanır.
 
 ## Document ve mount eklemek
 
 Bir plugin, `Init` içinden kendi route'larını ekleyebilir. Bunun için
 `Host.RegisterDocument` ve `Host.Mount` kullanılır. Bu route'lar, bir uygulamanın
-kullandığı builder'larla oluşturulur. v0.60.0'dan beri bir plugin page register
+kullandığı builder'larla oluşturulur. Bir plugin page register
 etmez: `Host.RegisterPage` kaldırıldı, page'ler uygulamanındır. `Host.Handle` ise
 page olmayan şeyler için, örneğin bir event stream ya da bir WebSocket için, bir
 prefix altında düz bir `http.Handler` sunar. `/` ile biten bir prefix, altındaki her
-path'i üstlenir. v0.24.0'dan beri sonunda `/` olmayan bir prefix, örneğin
+path'i üstlenir. Sonunda `/` olmayan bir prefix, örneğin
 `/metrics`, tek bir tam path'tir. Her zaman middleware'in, yani uygulamanınkinin ve
 her plugin'inkinin içinde çalışır: sitenin bir parçasıdır, session'ı okuyabilir ya
-da önündeki bir basicauth'a dayanabilir. v0.78.0'dan beri request body'si, bir
+da önündeki bir basicauth'a dayanabilir. Request body'si, bir
 page'inki gibi, middleware'den önce `Server.MaxBodyBytes` ile sınırlanır; böylece
 orada hiçbir middleware sınırsız bir body okumaz. `App.Handle` değişmedi.
 
-`Host.Use` (v0.21.0'dan beri),
+`Host.Use`,
 `App.Use` gibi her request'i, plugin'in register edildiği yerde sarmalar.
-v0.38.0'dan beri `Config.Plugins` içindeki bir plugin, uygulamanın kendi
+`Config.Plugins` içindeki bir plugin, uygulamanın kendi
 middleware'inin dışındadır. Böylece request context'ine koyduğu şey, örneğin bir
 session, uygulamanın middleware'i tarafından okunabilir; header'ları ve
 cookie'leri de o middleware'in ürettiğini sarar. `App.RegisterPlugin` ile
 register edilen bir plugin ise uygulamanın middleware'leri arasında, çağrının
-yapıldığı yerde durur. v0.67.0'dan beri uygulamanın düz `App.Handle` ile mount
+yapıldığı yerde durur. Uygulamanın düz `App.Handle` ile mount
 ettiği, kendi middleware'ini getiren bir handler için çalışmaz: ban'layan,
 sınırlayan, koruyan ya da log'layan bir plugin böyle bir mount'un sorumluluğunu
 üstlenemez. Bkz.
@@ -1336,7 +1330,7 @@ metotlardır ve uygulamanın kendi kodu içindir.
 
 Sitenin kendi dosyalarından birini, örneğin bir kaynak görseli ya da bir stylesheet'i
 *okuyan* bir plugin, onu diskteki bir path ile değil, sitenin onu sunduğu URL ile
-`Host.OpenMounted` üzerinden (v0.68.0'dan beri) ister:
+`Host.OpenMounted` üzerinden ister:
 
 ```go
 f, err := host.OpenMounted("/static/icon.png")
@@ -1362,7 +1356,7 @@ listelenemez.
 Bir request'e kendisi cevap veren bir plugin, örneğin artık olmayan bir page için ya
 da reddettiği bir request için, tek satırlık bir metin yerine sitenin kendi page'iyle
 cevap verebilir. `host.ServeStatus(w, r, http.StatusGone)`, 404 ve 410 için
-not-found page'ini, diğer her status için error page'ini sunar (v0.24.0'dan beri).
+not-found page'ini, diğer her status için error page'ini sunar.
 
 Tarayıcının deploy'lar boyunca sakladıklarını sürümleyen bir plugin, örneğin bir
 service worker'ın cache'lerini ya da bir asset'in query string'ini, `host.BuildID()`
@@ -1383,8 +1377,7 @@ type Command struct {
 }
 ```
 
-`RegisterCommand`, hiçbir zaman çalıştıramayacağı bir adı reddeder (v0.78.0'dan
-beri):
+`RegisterCommand`, hiçbir zaman çalıştıramayacağı bir adı reddeder:
 
 - boş bir ad;
 - tek bir shell kelimesi olmayan bir ad (herhangi bir yazı sisteminin harf ve
@@ -1399,8 +1392,7 @@ beri):
   yine de böyle bir ad alabilir.
 
 Bütün plugin'lerin `Init`'i çalışırken açık kalır ve uygulama başladıktan sonra
-`ErrAppStarted` ile kapanır (v0.78.0'dan beri; önceden açık kalıyordu ve o sırada
-register edilen bir komut hiç dispatch edilmiyordu).
+`ErrAppStarted` ile kapanır.
 
 `Usage` ve `Short` yalnızca veridir. Bunları ne framework ne de `collage` binary'si
 yazdırır. Help listesi isteyen bir program, listeyi `app.Commands()` üzerinden
@@ -1436,8 +1428,7 @@ log.Fatal(app.ListenAndServe())
   (`ErrUnknownCommand`) için `2`.
 
 Plugin'inizin README'sinde, komutlarının uygulama üzerinden çalıştığını
-belirtin. v0.10.0'dan önce scaffold edilmiş bir projenin bu bloğu kendisinin
-eklemesi gerekir. Bkz. [collage CLI](/docs/cli#plugin-commands).
+belirtin. Bkz. [collage CLI](/docs/cli#plugin-commands).
 
 ## Yapılandırma
 
@@ -1469,7 +1460,7 @@ func (p *Plugin) Configure(_ context.Context, host collage.ConfigHost) error {
   Operatör bir şey yazmıştır. Sessizce varsayılan değerlerle çalışmak bunu
   gizlerdi. Bölüm bir kopyaya decode edildiği için başarısız bir decode varsayılan
   değerlere dokunmaz.
-- **Options'ınızda olmayan bir key de hatadır** (v0.61.0'dan beri). Bu, hangi
+- **Options'ınızda olmayan bir key de hatadır**. Bu, hangi
   derinlikte olursa olsun geçerlidir; `json:"-"` tag'li bir field'ın adını taşıyan
   bir key de hatadır: `collage: acme/stamp: unknown key "generater" in
   plugins-config.json; remove it, or rename it to a key the plugin documents`.
@@ -1480,7 +1471,7 @@ func (p *Plugin) Configure(_ context.Context, host collage.ConfigHost) error {
   kontrol eder (ya da hiç etmez). Adı değişen ya da kaldırılan bir key böylece
   kendiliğinden yüksek sesle başarısız olur.
 - JSON'daki bir scalar, varsayılan değerinizin yerini alır. **En üst düzeydeki bir
-  liste varsayılan listenin yerini bütünüyle alır** (v0.61.2'den beri): elemanları
+  liste varsayılan listenin yerini bütünüyle alır**: elemanları
   yenidir, yani bir elemanın yazmadığı field o field'ın zero value'su olur,
   varsayılan elemanın değeri değil. En üst düzeydeki bir map, kendi kayıtlarını
   sizinkinin bir kopyasına ekler. İkisi de sizin slice'larınıza ya da map'lerinize
@@ -1488,7 +1479,7 @@ func (p *Plugin) Configure(_ context.Context, host collage.ConfigHost) error {
   yalnızca adını verdiği field'ları atar; iç içe bir map hâlâ yerinde doldurulur. Bu
   yüzden varsayılan değerleri çağrılar arasında paylaşılan tek bir değer olarak
   değil, bir literal olarak yazın.
-- **Bir süre `collage.Duration`'dır** (v0.61.0'dan beri), `time.Duration` değil.
+- **Bir süre `collage.Duration`'dır**, `time.Duration` değil.
   `time.ParseDuration`'ın anladığı bir string'i — `"10s"`, `"1h30m"` — okur ve geri
   yine string yazar. Çıplak bir sayı key'inin adı verilerek reddedilir;
   `time.Duration` olsaydı `3600`'ü tek kelime etmeden 3.6µs olarak okurdu. Negatif
@@ -1497,9 +1488,6 @@ func (p *Plugin) Configure(_ context.Context, host collage.ConfigHost) error {
 - Register edilmiş hiçbir plugin'e karşılık gelmeyen bir key, uygulama için bir startup
   hatasıdır (`ErrUnknownPluginConfig`). Bu yüzden config'inizin adresi tamamen
   `Name`'inizden ibarettir. Onu değiştirmek bir breaking change'dir.
-
-v0.50.0'dan önce bir plugin varsayılan değerlerini bir field'a atar ve
-`host.Config(&cfg)` çağırırdı.
 
 README'nizde her key'i, tipini ve varsayılan değerini belgeleyin. Aynı ayarları
 Go'da tek bir constructor ile, `func New(opts Options) *Plugin` ile alın ve bölümü
@@ -1519,7 +1507,7 @@ değeri Go'dan alır.
 
 ## Editör desteği: collage.json
 
-v0.27.0'dan beri bir plugin, module'ünün kökündeki bir `collage.json` ile kendini
+Bir plugin, module'ünün kökündeki bir `collage.json` ile kendini
 editörlere tanıtabilir. Dosya, module'deki diğer dosyalar gibi module ile birlikte
 gelir. Bir editör extension'ı onu projenin module grafiği üzerinden, yani
 `go list -m -json all` ile bulur. Bu yüzden projenin bağımlı olduğu bir plugin,
@@ -1680,7 +1668,7 @@ app, err := collage.New(&collage.Config{
 1. **Register.** Plugin'ler `New` içinde `Config.Plugins` ile ya da uygulama
    başlamadan önce `RegisterPlugin` ile register edilir. Uygulama başladıktan sonra
    `RegisterPlugin`, `ErrAppStarted` döner. Başarısız olan bir başlatma denemesinden
-   sonra da aynı hatayı döner (v0.12.0'dan beri).
+   sonra da aynı hatayı döner.
 2. **Configure**, `New` içinde, bu metodu implement eden plugin'ler için çalışır.
    Register sırasına göre çalışır ve ilk hatada durur.
 3. **Init**, uygulama başlarken register sırasına göre çalışır. Biri başarısız
@@ -1688,13 +1676,12 @@ app, err := collage.New(&collage.Config{
    sırayla shutdown edilir. Başarısız olan plugin shutdown edilmez, çünkü
    initialize işlemini hiç tamamlamamıştır.
 4. **OnServe**, bir `ServeHook` için, `ListenAndServe` port'unu bağladıktan sonra
-   ve hizmet vermeye başlamadan önce register sırasına göre çalışır (v0.55.0'dan
-   beri). Onu yalnızca `ListenAndServe` çağırır. ctx'i drain başladığında iptal
+   ve hizmet vermeye başlamadan önce register sırasına göre çalışır. Onu yalnızca `ListenAndServe` çağırır. ctx'i drain başladığında iptal
    edilir. Bkz. [Stream'ler ve shutdown](#streams-and-shutdown).
 5. **Shutdown**, `App.Shutdown` ile ters register sırasına göre çalışır.
    `ListenAndServe`, `App.Shutdown`'ı `SIGINT` ya da `SIGTERM` geldiğinde çağırır.
 
-   - v0.61.0'dan beri `App.Shutdown`, `Shutdown`'ı **yalnızca `Init`'i başarılı olmuş
+   - `App.Shutdown`, `Shutdown`'ı **yalnızca `Init`'i başarılı olmuş
      plugin'ler için ve bir kez** çağırır: `Init`'i hiç çalışmamış ya da başarısız
      olmuş bir plugin çağrılmaz, zaten shutdown edilmiş bir plugin de tekrar
      çağrılmaz.
@@ -1703,16 +1690,16 @@ app, err := collage.New(&collage.Config{
      orada hemen shutdown eder; başarısız bir `Init`'in kendinden öncekileri geri
      alması gibi.
    - `Start`'tan önce gelen bir `Shutdown` hiçbir plugin'i initialize
-     etmez (v0.61.1'den beri): `Start` başarısız olur, `ListenAndServe` de nil döner.
+     etmez: `Start` başarısız olur, `ListenAndServe` de nil döner.
      `Shutdown`'dan sonra gelen bir `Start`, plugin register edilmiş olsa da olmasa da
-     başarısız olur (v0.61.3'ten beri).
+     başarısız olur.
    - Biri başarısız olsa bile her plugin sırasını
      alır ve hatalar join edilir.
    - `StreamCloser`'ı implement eden bir plugin'in
      `CloseStreams`'i daha önce, shutdown başlarken çağrılır. `DrainHook`'u
      implement eden bir plugin'in `OnDrain`'i ise ondan da önce, drain başlarken
      çağrılır. İkisi de yalnızca `Init`'i başarılı olmuş plugin'ler için çağrılır
-     (v0.61.4'ten beri); `Start`'tan önceki bir `Shutdown` hiçbirine haber vermez.
+    ; `Start`'tan önceki bir `Shutdown` hiçbirine haber vermez.
      Bkz. [Stream'ler ve shutdown](#streams-and-shutdown).
 
    `ListenAndServe` kullanıyorsanız, plugin'ler drain'in `Server.DrainDelay`'inden
@@ -1729,13 +1716,13 @@ app, err := collage.New(&collage.Config{
    Static bir build ya
    da bir plugin komutu hizmet vermez. Bu yüzden onlar için de `App.Shutdown`'ı
    çağıran bir şey yoktur. Scaffold edilmiş bir `main.go`, build ya da komut
-   bittiğinde onu çağırır (v0.55.0'dan beri).
+   bittiğinde onu çağırır.
 
 ## Bir plugin'i test etmek
 
 Bir plugin'i, bir uygulamanın onu kullanacağı şekilde test edin: gerçek bir
 uygulamanın içinde, onun handler'ı üzerinden. `collagetest.NewSite`
-(v0.61.0'dan beri) bir testin ihtiyaç duyduğu en az yapılandırmayla böyle bir
+ bir testin ihtiyaç duyduğu en az yapılandırmayla böyle bir
 uygulama kurar (`{{hoist "head"}}` ve `{{slot "content"}}` içeren bir layout, `/`
 adresinde bir `home` page ve kayıtlarını saklayan debug seviyesinde bir logger),
 plugin'inizi içine koyar ve başlatır. Böylece `Configure` ile `Init` hemen çalışır
@@ -1837,13 +1824,13 @@ plugin'inin ihtiyaç duyduğunu ekler:
 | `WithRegister(items...)` | Home page'den sonra page, document ve action register eder |
 | `WithoutHome()` | Home page'i dışarıda bırakır; `/` testin olur |
 | `WithConfig(func(*collage.Config))` | Uygulama kurulmadan önce yapılandırmayı düzenler: locale'ler, bir cache, `BaseURL`, development modu, ne gerekirse |
-| `WithSetup(func(*collage.App) error)` | Uygulama başlamadan önce doğrudan uygulamanın üzerinde register eder — `Handle`, `Mount`, `Use`, `RegisterNotFoundPage`, `RegisterErrorPage` (v0.61.1'den beri). Varsayılan register'lardan sonra çalışır; birden fazlası sırayla çalışır; bir hata site'ı başarısız kılar |
+| `WithSetup(func(*collage.App) error)` | Uygulama başlamadan önce doğrudan uygulamanın üzerinde register eder — `Handle`, `Mount`, `Use`, `RegisterNotFoundPage`, `RegisterErrorPage`. Varsayılan register'lardan sonra çalışır; birden fazlası sırayla çalışır; bir hata site'ı başarısız kılar |
 
 `collagetest.TrySite`, kurulmasının ya da başlamasının başarısız olması beklenen —
 örneğin kötü bir yapılandırmayı reddeden bir plugin'i deneyen — bir test için
 `NewSite`'tır: testi başarısız kılmak yerine hatayı döner. Site kurulurken bir
 `WithRegister` öğesi, bir `WithSetup` ya da `Start` başarısız olursa önce uygulamayı
-kapatır (v0.61.3'ten beri); böylece aynı plugin değeri bir sonraki site için yeniden
+kapatır; böylece aynı plugin değeri bir sonraki site için yeniden
 kullanılabilir.
 
 Bir `collagetest.Site` kopyalanabilir (`s := *site`); `go vet`'in
@@ -1851,7 +1838,7 @@ copylocks denetimi artık itiraz etmez.
 
 Uygulamayı kendisi kapatan bir test — sizin `Shutdown`'ınızın ne döndüğünü kontrol
 etmek için — `site.App.Shutdown(ctx)` değil `site.Shutdown(ctx)` çağırır
-(v0.61.1'den beri). `App.Shutdown` bir kez çalışır ve sonraki her çağrıda ilk
+. `App.Shutdown` bir kez çalışır ve sonraki her çağrıda ilk
 hatasını döner; bu yüzden cleanup, testin beklediği hatayı yeniden bildirirdi.
 `site.Shutdown` site'ı kapatır ve cleanup başka bir şey yapmaz.
 

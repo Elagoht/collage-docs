@@ -15,20 +15,19 @@ page rendered as if nothing had happened, and error hooks see it as
 
 An action answers exactly the methods it declares. A page answers `HEAD` as a `GET`
 with the body dropped, because rendering a page is a read; an action's handler may
-change something, so since v0.79.0 `HEAD` no longer falls back to a `GET` action
-and runs its handler: it is a 405 with the action's own `Allow` list
+change something, so `HEAD` does not fall back to a `GET` action
+and run its handler: it is a 405 with the action's own `Allow` list
 (`GET, OPTIONS`). An action that is a read and should answer `HEAD` declares it,
 `WithMethods(http.MethodGet, http.MethodHead)`. A page's fragment URL is a read and
 still answers both.
 
 An action that declares only `GET` (or `GET` and `HEAD`) runs with no forgery check
 — see [Forgery protection](#forgery-protection) — so any site can make a reader's
-browser call it with a link or an `<img>`. Since v0.79.0 registering one logs a
+browser call it with a link or an `<img>`. Registering one logs a
 warning in development (fragment paths excepted); if it changes anything, give it
 `POST`.
 
-`OPTIONS`, `TRACE` and `CONNECT` belong to the server, not to an action. Since
-v0.56.0, registering an action that declares one fails with
+`OPTIONS`, `TRACE` and `CONNECT` belong to the server, not to an action. Registering an action that declares one fails with
 `collage.ErrInvalidActionMethod`, naming the action and the method, however the
 action was built: `NewAction(...).WithMethods`, or a page's `WithAction` or
 `WithActionFor`.
@@ -136,7 +135,7 @@ page cannot be submitted by a reader the page refuses. The guard runs before the
 body is read and before the forgery check.
 
 An action can carry a guard of its own, too: `WithGuard` takes the same
-`GuardFunc` a layout does (since v0.70.0). On a page it is asked after the page's
+`GuardFunc` a layout does. On a page it is asked after the page's
 guards — the page decides who sees the form, the action who may submit it:
 
 ```go
@@ -161,31 +160,36 @@ err := app.RegisterAction(collage.NewAction("like").
 ```
 
 It has no page, so no page guards. To say who may call it, give it a guard of its
-own with `WithGuard(guards.SignedIn)` (since v0.70.0): asked before the body is
+own with `WithGuard(guards.SignedIn)`: asked before the body is
 read and before the forgery check, as a page's are. `collage add action
 api/like --path /api/like --guard signedIn` writes it that way, and
 [`collage routes`](/docs/cli#collage-routes) shows which actions have one.
 
 A form posting to it names it rather than writing the path, so moving the action
-cannot leave a form posting to the old one (since v0.36.0):
+cannot leave a form posting to the old one:
 
 ```html
 <form method="post" action="{{actionURL "like"}}">{{csrfToken}}…</form>
 ```
 
 `actionURL` takes parameters as `pageURL` does and follows the render's locale.
-From Go it is `rc.ActionURL("like", params)` in the render's locale (since
-v0.37.0), or `app.ActionURL("like", locale, params)` for another. An action on a page is
+From Go it is `rc.ActionURL("like", params)` in the render's locale, or `app.ActionURL("like", locale, params)` for another. An action on a page is
 named as it was registered — `"contact:POST"` for the `WithAction` above — though
 `pageURL` reaches the same URL. See
 [`actionURL`](/docs/template-functions#actionurl).
 
 An action may share a path with a page — that is exactly what `WithAction` does —
-but not for `GET` or `HEAD`, which the page answers. Since v0.18.0 an action
+but not for `GET` or `HEAD`, which the page answers. An action
 answering either on the path of a page or a document is refused with
-`collage.ErrDuplicateRoute`, in whichever order the two are registered; before, it
-was matched first and hid the page without a word. Nor may two actions answer the
-same method at the same path.
+`collage.ErrDuplicateRoute`, in whichever order the two are registered. Nor may two
+actions answer the same method at the same path.
+
+An action at its own URL has one spelling of its path, without a trailing slash in
+either `TrailingSlash` mode, as `actionURL` builds it. A request to the other
+spelling is redirected to it with a `308`, which keeps the method and the body, so a
+form posted to `/api/like/` is posted again to `/api/like`. A [middleware that
+guards an exact path](/docs/middleware-and-apis#a-trailing-slash-is-the-routers-not-the-middlewares)
+sees the path as it arrived, so it must compare the canonical spelling.
 
 `RegisterAction` also refuses an action with no name, no path, no method or no
 handler, and a second action under a name already taken — each with its own
@@ -198,18 +202,17 @@ An `ActionResult` decides the response. Build one with a helper:
 | Helper | Response |
 | --- | --- |
 | `collage.SeeOther(url)` | `303 See Other` to `url` |
-| `collage.SeeOtherPage(rc, name, params)` | `303 See Other` to a page by its name, its path built by `rc.URL`; returns `(*ActionResult, error)` (since v0.68.0) |
+| `collage.SeeOtherPage(rc, name, params)` | `303 See Other` to a page by its name, its path built by `rc.URL`; returns `(*ActionResult, error)` |
 | `collage.RenderPage(page)` | A whole page, rendered with this request's `RenderContext` |
 | `collage.RenderFragment(f)` | One fragment's markup, without a layout |
 | `collage.JSON(status, v)` | `v` marshalled as `application/json`; returns `(*ActionResult, error)` |
 | `collage.JSONBytes(status, body)` | `body`, already encoded, as `application/json` |
 | `collage.Status(status)` | A bare status and no body |
 
-Before v0.60.0 `collage.JSON` took the encoded bytes and `JSONOf` took the value;
-`JSON` takes the value now, `JSONBytes` the bytes, and `NoContent` is `Status`.
+
 
 Or fill the struct yourself. It has four ways to produce a body — `Location`,
-`Fragment`, `Page` and `Body` — and it sets one of them: since v0.60.0 a result
+`Fragment`, `Page` and `Body` — and it sets one of them: a result
 that sets two or more is a `500`, reported as `collage.ErrAmbiguousActionResult`,
 rather than one silently winning. The other fields go with them:
 
@@ -258,12 +261,12 @@ redirect.
 A form a script submits with `fetch` would follow the redirect too, downloading the
 page it leads to, and then navigate there and have it rendered a second time.
 
-Since v0.20.0 a request carrying the header `Collage-Fetch` (`collage.FetchHeader`)
+A request carrying the header `Collage-Fetch` (`collage.FetchHeader`)
 is answered `204 No Content` with the destination in `Collage-Location`
 (`collage.LocationHeader`) instead of a redirect, and the script navigates once.
 The action returns `SeeOther` as before. collage-live's forms send the header.
 
-Since v0.71.0 only a path or an `http`/`https` address is handed over that way. A
+Only a path or an `http`/`https` address is handed over that way. A
 script navigates with `location.assign`, which runs a `javascript:` URL in the page,
 where a browser following a `Location` refuses to; a `javascript:`, `data:` or other
 destination is answered as the `303` itself, which `fetch` will not follow.
@@ -340,9 +343,8 @@ The page you answer with must be **the value you registered** with
 a page built inside the handler would render as a layout around nothing; collage
 refuses it with `collage.ErrUnregisteredPage`, naming the page.
 
-In an action on a page's URL, `rc.Page` is that page, the registered value (since
-v0.33.0). So the action above needs nothing handed to it, and there is no
-`var page` for a closure to capture — the shape this took before.
+In an action on a page's URL, `rc.Page` is that page, the registered value. So the action above needs nothing handed to it, and there is no
+`var page` for a closure to capture.
 
 An action registered at a URL of its own has no page there and a `nil` `rc.Page`;
 it answers with the registered page it wants, built before the action. In dev mode a
@@ -350,7 +352,7 @@ form post answered `422` with no body is logged as a warning, because the reader
 gets a blank page and a `nil` `rc.Page` is the usual cause.
 
 To redirect to a page by name rather than by path, so a renamed path cannot leave
-the redirect pointing at the old one, use `collage.SeeOtherPage` (since v0.68.0).
+the redirect pointing at the old one, use `collage.SeeOtherPage`.
 It builds the path with [`rc.URL`](/docs/links-and-locales#links-from-go), in the
 request's locale and with each value kept inside its path segment, and an unknown
 name is its error; the action needs no `*App` handed to it for that either:
@@ -359,12 +361,11 @@ name is its error; the action needs no `*App` handed to it for that either:
 return collage.SeeOtherPage(rc, "post", map[string]string{"slug": slug})
 ```
 
-Before v0.68.0, build the path with `rc.URL` (since v0.37.0) and hand it to
-`SeeOther`.
+
 
 A login that sends the reader back to where they came from reads that place from
 a `next` query parameter, and the parameter is the reader's input. Pass it through
-`collage.SafeRedirect` (since v0.44.0) before it becomes a `Location`:
+`collage.SafeRedirect` before it becomes a `Location`:
 
 ```go
 return &collage.ActionResult{
@@ -398,7 +399,7 @@ see why:
 | `collage.ErrCSRFMissing` | No token, or no cookie |
 | `collage.ErrCSRFMismatch` | A token that is not the cookie's |
 | `collage.ErrCSRFInvalid` | One this application did not sign |
-| `collage.ErrCSRFCrossOrigin` | A submission the browser says came from another origin (since v0.34.0) |
+| `collage.ErrCSRFCrossOrigin` | A submission the browser says came from another origin |
 
 ### In a form
 
@@ -412,17 +413,22 @@ name included, so there is nothing to get wrong:
 </form>
 ```
 
-The scheme is a signed double-submit cookie: the token is a random value and its
-signature under `Security.CSRFKey`, sent both in a cookie and in the form, and
-checking it needs the key and nothing else. No session store, nothing shared
-between instances.
+The scheme is a signed double-submit cookie: the token is a random value, the time
+it was issued and their signature under `Security.CSRFKey`, sent both in a cookie and
+in the form, and checking it needs the key and the clock and nothing else. No session
+store, nothing shared between instances.
+
+A token expires. The issue time is under the signature, so it cannot be moved, and a
+token older than `Security.CSRFTokenTTL` is refused; the next form is sent a fresh
+one. The default is 12 hours, long enough for a form filled in at the reader's own
+pace; a negative value keeps a token valid for as long as its signature verifies.
 
 ### Where the request came from
 
 A signed token is not a secret from an attacker: any page with a form hands one to
 whoever loads it. Someone who can write a cookie for your domain — a sibling
 subdomain, a man-in-the-middle on plain HTTP — could plant their own token in a
-visitor's browser and submit it. So since v0.34.0 the token is not checked alone.
+visitor's browser and submit it. So the token is not checked alone.
 
 The browser says where a request came from in `Sec-Fetch-Site`, or in `Origin`
 (compared with `Host`) when it is an older one, and a request it marks as coming
@@ -544,7 +550,7 @@ An action's request body is limited to **4 MiB** by default. Change it for the
 application with `Server.MaxBodyBytes`, or for one action with
 `WithMaxBodyBytes`; a negative value means no limit.
 
-The limit is applied before your handler runs, not by it — and since v0.34.0
+The limit is applied before your handler runs, not by it — and
 before your [middleware](/docs/middleware-and-apis) runs too, at the limit of the
 action the request routes to.
 
@@ -562,9 +568,8 @@ if err := rc.Request.ParseForm(); err != nil {
 }
 ```
 
-Since v0.57.0 the answer is `413` whatever error the handler returns once its body
-has run into the limit: the read's own, or one of its own such as "upload failed",
-which used to be a `500`. The handler's error is kept beside the `413`, in the log
+The answer is `413` whatever error the handler returns once its body
+has run into the limit: the read's own, or one of its own such as "upload failed". The handler's error is kept beside the `413`, in the log
 and in what error hooks are handed, and `errors.As` still finds the
 `*http.MaxBytesError` on it. It is logged as a warning, not an error.
 
@@ -572,13 +577,19 @@ When the token is checked from the form, the check reads the body first, so an
 oversized form is refused there, before your handler runs — still with a `413`,
 not a `403`: a body too large to read is not a forgery.
 
+One limit is not `MaxBodyBytes`: net/http reads a urlencoded form of at most 10 MB.
+When the forgery check reads one past that, the answer is the same `413`, however
+high the limit is; a handler that calls `ParseForm` itself gets net/http's error. A
+larger submission is a multipart form, whose files spill to disk.
+
+
 A multipart body larger than the 32 MiB the parser keeps in memory spills its files
-to disk. Since v0.34.0 they are removed once the action has answered, whether the
-handler ran or the request was refused. Since v0.71.0 that holds whoever parsed the
+to disk. They are removed once the action has answered, whether the
+handler ran or the request was refused. That holds whoever parsed the
 form — a page's guard, an action's guard, a data handler, a middleware — and an
 action's guards meet the body already bounded.
 
-Since v0.71.0 a body whose `Content-Length` is over the limit is refused with `413`
+A body whose `Content-Length` is over the limit is refused with `413`
 before the forgery check and the handler run, so an action without a forgery check is
 never run on a form cut short. A chunked body, which does not say its length, that
 runs into the limit is refused after the handler instead of answered as a success.
@@ -593,7 +604,7 @@ allowed. Give such an action room for the file and the rest of the form:
 ## Streaming bodies
 
 An action that takes a large upload reads its body as a stream, and nothing may read
-it first. Since v0.57.0 `WithStreamingBody()` makes that a guarantee:
+it first. `WithStreamingBody()` makes that a guarantee:
 
 ```go
 app.RegisterAction(collage.NewAction("upload").
@@ -663,7 +674,7 @@ response. An upload slower than that fails. One that outlives `WriteTimeout` but
 not a raised `ReadTimeout` is worse: the handler stores the file, and the client
 gets no answer and tries again.
 
-`WithBodyTimeout(d)` (since v0.57.0) gives one action its own deadline. For a
+`WithBodyTimeout(d)` gives one action its own deadline. For a
 request to that action it replaces both deadlines with now plus `d`, so the rest of
 the site keeps its short ones. It does so after the page's guards and before
 anything reads the body. On an ordinary action that is before the forgery check,
@@ -722,7 +733,7 @@ Tags work exactly as in [Caching](/docs/caching#dependency-tags), and reach valu
 stored with `collage.Cached` too.
 
 The pages are marked stale, and so are the `collage.Cached` values they were
-built from: both are kept (pages since v0.63.0). Since v0.64.0 the invalidated
+built from: both are kept. The invalidated
 pages are then [warmed](/docs/caching#warming-after-an-invalidation), and the
 redirect's own page first.
 
@@ -792,8 +803,7 @@ Missing and broken stay apart here, as on the page. A required fragment whose da
 handler wraps `collage.ErrNotFound` answers `404`, and any other failure `500`. A
 fragment path is answered like an action, so its failure is plain text, never
 cached, with nothing of the page in it, which is what a script fetching it can
-read. Before v0.39.2 a fragment path answered `500` for both, so a script could not
-tell "not yours to see" from "broken".
+read, and the two statuses are how it tells "missing" from "broken".
 
 ```js
 const input = document.querySelector('input[name="q"]');
@@ -807,14 +817,12 @@ Nothing is reachable unless it is declared. A framework that exposed every
 fragment automatically would put every internal part of every page on the public
 web.
 
-A fragment path is a part of the page that opened it, and since v0.34.0 it meets
+A fragment path is a part of the page that opened it, and it meets
 the page's [guards](/docs/pages-and-layouts#private-pages-guards) first —
 outermost layout inwards, then the content fragment's — and then the fragment's
 own. A private page's fragment path is private too.
 
-Before v0.34.0 it ran only the
-fragment's own guard, so a guarded layout whose content was opened at a URL of its
-own served that content to anyone. A fragment may still carry a guard of its own,
+A fragment may also carry a guard of its own,
 for a part stricter than the page:
 
 ```go
@@ -852,7 +860,7 @@ with `Key.Set` is absent: `Get` reports false and the fragment renders with the
 zero value. The same holds for a fragment a plugin pushes with `RenderFragment`.
 A fragment answered on its own loads what it needs itself — with `collage.Once`,
 or `collage.Cached` — which inside the full page still fetches once per render.
-Since v0.78.0, in development, a fragment rendered on its own whose `Get` finds
+In development, a fragment rendered on its own whose `Get` finds
 nothing logs a warning naming the page, the fragment and the key, once per process.
 
 Combined with an action that answers `RenderFragment`, a form can post and be
@@ -875,7 +883,7 @@ comment just added — and anything the handler put there with `rc.Set`.
 ### Linking to one
 
 Write the path once, in `WithFragmentPath`, and build every link to it by name, as
-`pageURL` does for pages (since v0.18.0):
+`pageURL` does for pages:
 
 ```html
 <div data-live="{{fragmentURL "search" "results"}}">{{slot "results"}}</div>
@@ -888,7 +896,7 @@ Write the path once, in `WithFragmentPath`, and build every link to it by name, 
 the page did not open is `collage.ErrUnknownFragmentPath`; the rest is in
 [Links and locales](/docs/links-and-locales#a-fragments-url).
 
-Links inside the fragment lead the other way, to the page. Since v0.77.0 a fragment
+Links inside the fragment lead the other way, to the page. A fragment
 answered at its own path renders with the page that opened it as `rc.Page`, so
 `localeURL` in it is the page in another locale, and
 [`withQuery`](/docs/template-functions#withquery) is the page's URL with the
@@ -899,15 +907,14 @@ results while the script fetched only the results:
 <a href="{{withQuery "page" (add .Page 1)}}">More results</a>
 ```
 
-On `/search/results?q=grid&page=1` that link is `/search?page=2&q=grid`. Before
-v0.77.0 the fragment had no page there, and `localeURL` failed.
+On `/search/results?q=grid&page=1` that link is `/search?page=2&q=grid`.
 
 ### What it hoists
 
 A fragment answered on its own has no layout around it. A `{{hoist}}` marker the
 fragment writes itself is filled as in a page; what it hoisted into any other area
 — a stylesheet asked for with `{{stylesheet}}`, a title — comes ahead of the
-markup (since v0.18.0), one inert `<template>` per item:
+markup, one inert `<template>` per item:
 
 ```html
 <template data-collage-hoist="head" data-collage-key="stylesheet:/static/chart.css"><link rel="stylesheet" href="/static/chart.css"></template>
@@ -920,15 +927,15 @@ inserts template elements, which render nothing and run nothing.
 
 ### Revalidation
 
-Since v0.18.0 the answer to a GET carries an `ETag`, the hash of the body as sent,
+The answer to a GET carries an `ETag`, the hash of the body as sent,
 and `Cache-Control: private, no-cache`. A request with a matching `If-None-Match` is
 answered `304` with no body. The render still runs; what is saved is the body on
 the wire and the client's work, which for a panel refreshed every few seconds is
 most of it. A handler that sets `Cache-Control` itself keeps its own, unless a
-`PersonaliseHook` made the body personal (since v0.43.0): then it is
+`PersonaliseHook` made the body personal: then it is
 `private, no-cache` whatever the handler set.
 
-A fragment holding a form earns a `304` too since v0.78.0: its ETag is hashed
+A fragment holding a form earns a `304` too: its ETag is hashed
 before the forgery token is masked, so it stays the same from one answer to the
 next and equals the one `RenderFragment` reports for a pushed copy.
 
@@ -943,7 +950,7 @@ or a script of your own works against the same server.
 A form it submits with `fetch` follows the [rule above](#failure-renders-success-redirects),
 in parts: the answer goes into the form's target on a success, or on a `422`. So an
 action says a submission did not validate by answering the form's fragment again,
-with the errors, and status 422 (since collage-live v0.2.0):
+with the errors, and status 422:
 
 ```go
 var problemsKey = collage.NewKey[[]string]("problems")
@@ -958,8 +965,7 @@ if problems := validate(rc); len(problems) > 0 {
 
 Any other failure — a 500, a refused forgery token — leaves the target as it was
 and marks it stale, rather than filling it with an error page. A redirect is
-followed as the browser would follow it, in one request (since collage-live
-v0.2.1): the form sends [`Collage-Fetch`](#failure-renders-success-redirects), and
+followed as the browser would follow it, in one request: the form sends [`Collage-Fetch`](#failure-renders-success-redirects), and
 collage answers with where the action redirects instead of the redirect, which
 `fetch` would otherwise follow and download before the navigation fetched the page
 again.

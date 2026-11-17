@@ -63,7 +63,7 @@ the `*collage.Fragment`.
 - **The template path** is relative to the template root, extension included:
   `"fragments/author.html"` is `templates/fragments/author.html`. A path the
   template engine did not load is `ErrTemplateNotFound` when the page holding the
-  fragment is registered — including, since v0.11.0, a fragment the page opens at
+  fragment is registered — including a fragment the page opens at
   its own URL with `WithFragmentPath`. Only a fragment a
   [slot resolver](#slots-filled-per-render) returns is checked later, when it
   renders. See [Templates](/docs/templates).
@@ -73,7 +73,7 @@ Everything else is optional:
 | Method | What it sets |
 | --- | --- |
 | `WithData(d)` | The template's data: a handler from `collage.LoadTagged` or `collage.Load`, a value fixed when the program starts from `collage.Value`, or `collage.Effect` — see [Data handlers](/docs/data-handlers) |
-| `WithoutTypeCheck()` | Leaves the template out of the check against its data's type — see [How templates are checked](/docs/data-handlers#how-templates-are-checked). Since v0.49.0 |
+| `WithoutTypeCheck()` | Leaves the template out of the check against its data's type — see [How templates are checked](/docs/data-handlers#how-templates-are-checked) |
 | `WithTitle(s)` | The page's `<title>`, without a handler — see [Head and SEO](/docs/head-and-seo) |
 | `WithSlot(name, rules...)` | Makes a slot required, or limits it to one fragment |
 | `WithSlotFragment(slot, child)` | Binds a child fragment into a slot |
@@ -81,8 +81,8 @@ Everything else is optional:
 | `Required()` | This fragment's failure fails the page |
 | `WithFallback(f)` | What renders when this fragment fails |
 | `WithTimeout(d)` | How long its data handler may take |
-| `Static()` | Its data handler returns the same for every request to one URL, so it does not make a page dynamic. Since v0.17.0 |
-| `Shared()` | Its data handler returns the same for every reader at one moment, though not over time, so its render may be sent to many readers; the page's strategy is left alone. Since v0.19.0 |
+| `Static()` | Its data handler returns the same for every request to one URL, so it does not make a page dynamic |
+| `Shared()` | Its data handler returns the same for every reader at one moment, though not over time, so its render may be sent to many readers; the page's strategy is left alone |
 
 Like the page builder, the fragment builder records mistakes rather than stopping
 the chain, and `BuildErr()` returns them.
@@ -115,8 +115,8 @@ a fragment's data twice is `ErrConflictingData` at registration.
 
 ### Inline templates
 
-A small fragment can carry its template itself instead of naming a file (since
-v0.29.0). `collage.NewInlineFragment(name, html)` returns the same builder, so the
+A small fragment can carry its template itself instead of naming a file.
+`collage.NewInlineFragment(name, html)` returns the same builder, so the
 rest of the chain is unchanged:
 
 ```go
@@ -131,15 +131,16 @@ row := collage.NewInlineFragment("post-row", `
 
 It renders as a file template does — slots, `hoist`, every
 [template function](/docs/template-functions), `{{template}}` calls into the
-template directory. Registration parses and checks it like one: a parse error
-or a slot it never calls stops startup, naming the page and the fragment.
+template directory. Registration parses and checks it like one: a parse error,
+a template `html/template` cannot escape or a slot it never calls stops startup,
+naming the page and the fragment.
 
 Two fragments may share a name and still carry different templates; each renders
 its own. The development error panel names it as `inline template of fragment
 "post-row"`.
 
 A longer template can be a constant of its own, declared as `collage.InlineHTML`
-(since v0.30.0) — a name for `string` that the
+— a name for `string` that the
 [VS Code extension](/docs/installation#editor-support) colours and edits as HTML:
 
 ```go
@@ -163,7 +164,11 @@ it exits.
 
 This matters most in a [slot resolver](#slots-filled-per-render), which
 builds fragments per request: its fragments can be inline, but their templates are
-fixed, and the data reaches them through `collage.Value` or a data handler.
+fixed, and the data reaches them through `collage.Value` or a data handler. The
+engine takes in at most 256 distinct inline templates from resolvers' fragments
+while the program runs; the next fails its fragment with an error saying a
+template must be fixed, not built from request data, rather than growing the
+template set a request at a time.
 
 Three more limits come with it:
 
@@ -222,8 +227,7 @@ constrains. A rule is a `collage.SlotRule`:
 - **`collage.SlotSingle`** — the slot holds one fragment at most. Binding a
   second records `ErrSlotOccupied`.
 
-Any other value records `ErrInvalidSlotDefinition`. Before v0.60.0 the two were
-booleans, `WithSlot(name, required, allowMultiple)`.
+Any other value records `ErrInvalidSlotDefinition`.
 
 `WithSlotFragment` records `ErrNilFragment` for a nil child. Calling `WithSlot`
 twice with one name records `ErrDuplicateSlot`.
@@ -296,6 +300,11 @@ related := collage.NewFragment("related", "fragments/related.html").
   is marked required.
 - **Neither** — the fragment renders nothing, and the page is served without it.
 
+Whichever it is, what a failed fragment hoisted leaves with its markup: its title,
+meta tags and stylesheets never reach the page, so a fallback does not render
+under the failed fragment's title. Its dependency tags stay, since they say what
+the page depended on.
+
 `collage.ErrNotFound` only means "404" on a required fragment. On an optional one it
 is a failure like any other, because the page is still renderable without it.
 
@@ -316,7 +325,7 @@ In development a failure is never quiet:
 
 Outside development there is neither.
 
-In every mode, since v0.36.0, a failure the page is served without is logged as a
+In every mode, a failure the page is served without is logged as a
 warning through [`Config.Logger`](/docs/configuration):
 `collage: fragment failed; the page is served without it`, with the page, the
 fragment, the locale, whether a fallback covered for it, and the error.
@@ -334,6 +343,12 @@ That means a fragment in a slot the template decides not to render —
 Its context is cancelled as soon as the template is done, and its failure is
 discarded: a fragment that was never rendered cannot fail the page, even if it is
 `Required()`.
+
+What it declared is discarded with it. It changes nothing about the page: not
+its title, its meta tags or its dependency tags — neither those its handler
+returned nor those of its `collage.Cached` calls — and it hoists nothing. A value
+it stored with `Key.Set` is not rolled back, so read such a value only from a
+fragment that is rendered.
 
 ## Timeouts
 
@@ -507,7 +522,7 @@ Binding those at startup would mean a restart for every change, and code that ha
 to agree with the data about what goes where.
 
 `WithSlotResolver` fills a slot per render. The resolver receives the render's
-context and its `RenderContext` (the context since v0.60.0), and returns the fragments the slot holds this time:
+context and its `RenderContext`, and returns the fragments the slot holds this time:
 
 ```go
 type block struct {
@@ -580,8 +595,8 @@ The rules:
   returned fragment built with errors fails the fragment that owns the slot, under
   that fragment's failure policy, with the returned fragment's name in the error.
   Check `BuildErr()` yourself when you would rather handle it in the resolver.
-  Nor are their templates checked against their data's type, which registration
-  does for every other fragment. Templates are all loaded at startup, so the set
+  Nor are their templates checked against their data's type, or escaped ahead of
+  the render, which registration does for every other fragment. Templates are all loaded at startup, so the set
   of block kinds a resolver can use is still fixed by the program.
 
 A page whose sections come from content should also report that content's tags —
